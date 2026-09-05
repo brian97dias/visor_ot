@@ -1,0 +1,11 @@
+# Archivos de red pesados (por extensión)
+*.pcap
+*.pcapng
+
+# Carpeta donde guardas las capturas/laboratorios
+pcaps/
+
+# Entorno virtual y caché de Python (si usas Python)
+.venv/
+venv/
+__pycache__/
