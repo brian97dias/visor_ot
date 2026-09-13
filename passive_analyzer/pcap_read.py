@@ -1,5 +1,9 @@
 from scapy.all import PcapReader
 
+# Guardo las interfaces y comunicaciones detectadas
+interfaces = {}
+communication = {}
+
 PCAP_PATH = "../pcaps/4SICS_Geek_Lounge/4SICS-GeekLounge-151020.pcap"
 
 with PcapReader(PCAP_PATH) as pcap:
