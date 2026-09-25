@@ -83,11 +83,10 @@ def save_output():
     return output_file
 
 
-INTERNAL_NETWORKS = [
-    ip_network("192.168.88.0/24"),
-    ip_network("192.168.89.0/24"),
-    ip_network("10.10.10.0/24"),
-]
+INTERNAL_NETWORKS = []
+
+def is_observed_local_ip(ip):
+    return ip in ip_to_macs
 
 
 def get_internal_network(ip):
@@ -95,7 +94,6 @@ def get_internal_network(ip):
     address = ip_address(ip)
 
     for network in INTERNAL_NETWORKS:
-
         if address in network:
             return network
 
@@ -104,34 +102,50 @@ def get_internal_network(ip):
 
 def classify_network_scope(client_ip, server_ip):
 
-    client_network = get_internal_network(client_ip)
-    server_network = get_internal_network(server_ip)
+    client_is_local = is_observed_local_ip(client_ip)
+    server_is_local = is_observed_local_ip(server_ip)
 
 
-    # Ambos pertenecen a redes internas conocidas.
-    if client_network and server_network:
+    # Tenemos evidencia ARP de ambos extremos.
+    if client_is_local and server_is_local:
+        return "local_segment"
 
-        if client_network == server_network:
-            return "local_segment"
 
+    client_internal_network = get_internal_network(client_ip)
+    server_internal_network = get_internal_network(server_ip)
+
+
+    # Ambos pertenecen a infraestructura interna
+    # configurada, pero no tenemos evidencia de que
+    # estén en el mismo segmento observado.
+    if client_internal_network and server_internal_network:
         return "internal_routed"
 
 
-    # Uno pertenece a nuestra infraestructura
-    # y el otro no.
-    if client_network or server_network:
+    # Un extremo está observado localmente.
+    # El otro no.
+    if client_is_local != server_is_local:
 
         external_ip = (
             server_ip
-            if client_network
+            if client_is_local
             else client_ip
         )
 
+        # Es una dirección global y no tenemos
+        # evidencia ARP de que sea local.
         if ip_address(external_ip).is_global:
             return "external_public"
 
 
+        # Podría pertenecer a otra red interna
+        # conocida por configuración.
+        if get_internal_network(external_ip):
+            return "internal_routed"
+
+
     return "unknown"
+
 
 # =========================
 # DATOS EN MEMORIA
@@ -153,6 +167,7 @@ tcp_flows = {}
 
 
 PCAP_PATH = "../pcaps/4SICS_Geek_Lounge/4SICS-GeekLounge-151020.pcap"
+#PCAP_PATH = "../pcaps/Modbus Dataset/benign/central-agent/central-agent-network-capture/veth460b141-normal.pcap"
 
 
 # Por ahora esta tabla solamente nos ayuda a reconocer
@@ -258,10 +273,7 @@ def register_communication(
             "first_seen": timestamp,
             "last_seen": timestamp,
 
-            "network_scope": classify_network_scope(
-                client_ip,
-                server_ip,
-                ),
+            "network_scope": None,  # Se determinará al terminar de leer todo el PCAP. 
         }
 
     else:
@@ -576,6 +588,11 @@ for communication in communications.values():
 
     if server_macs:
         communication["server_macs"] = sorted(server_macs)
+
+    communication["network_scope"] = classify_network_scope(
+        client_ip,
+        server_ip,
+    )
 
 
 # =========================
