@@ -1,0 +1,169 @@
+{
+  "schema_version": "0.1",
+  "capture": {
+    "filename": "4SICS-GeekLounge-151020.pcap"
+  },
+  "interfaces": [
+    {
+      "mac": "00:07:7c:1a:61:83",
+      "ips": [
+        "192.168.88.1"
+      ],
+      "first_seen": "2015-10-20 10:10:34",
+      "last_seen": "2015-10-20 17:10:30"
+    },
+    {
+      "mac": "00:0a:dc:64:85:c2",
+      "ips": [
+        "192.168.89.1"
+      ],
+      "first_seen": "2015-10-20 10:10:42",
+      "last_seen": "2015-10-20 17:10:28"
+    },
+    {
+      "mac": "00:0e:38:95:1d:8b",
+      "ips": [],
+      "first_seen": "2015-10-20 10:10:44",
+      "last_seen": "2015-10-20 17:10:30"
+    },
+    {
+      "mac": "00:1c:06:27:64:11",
+      "ips": [
+        "10.10.10.20"
+      ],
+      "first_seen": "2015-10-20 10:25:31",
+      "last_seen": "2015-10-20 17:10:31"
+    },
+    {
+      "mac": "00:90:e8:27:8c:37",
+      "ips": [
+        "192.168.88.61"
+      ],
+      "first_seen": "2015-10-20 10:10:34",
+      "last_seen": "2015-10-20 17:10:32"
+    },
+    {
+      "mac": "28:63:36:89:59:82",
+      "ips": [
+        "10.10.10.10"
+      ],
+      "first_seen": "2015-10-20 10:25:31",
+      "last_seen": "2015-10-20 17:10:31"
+    },
+    {
+      "mac": "28:cf:e9:18:b5:ed",
+      "ips": [
+        "10.100.159.38",
+        "192.168.88.52"
+      ],
+      "first_seen": "2015-10-20 10:34:03",
+      "last_seen": "2015-10-20 13:32:46"
+    },
+    {
+      "mac": "54:ee:75:3f:4a:db",
+      "ips": [
+        "10.10.10.30"
+      ],
+      "first_seen": "2015-10-20 10:25:31",
+      "last_seen": "2015-10-20 12:35:32"
+    },
+    {
+      "mac": "70:71:bc:3a:0d:e8",
+      "ips": [
+        "192.168.89.2"
+      ],
+      "first_seen": "2015-10-20 10:10:42",
+      "last_seen": "2015-10-20 17:10:28"
+    }
+  ],
+  "communications": [
+    {
+      "client_ip": "192.168.88.61",
+      "server_ip": "192.168.88.1",
+      "client_macs": [
+        "00:90:e8:27:8c:37"
+      ],
+      "server_macs": [
+        "00:07:7c:1a:61:83"
+      ],
+      "transport_protocol": "UDP",
+      "service_port": 53,
+      "service": "DNS",
+      "role_source": "known_service_port",
+      "packet_count": 24661,
+      "first_seen": "2015-10-20 10:10:34",
+      "last_seen": "2015-10-20 17:10:32",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "192.168.89.2",
+      "server_ip": "8.8.8.8",
+      "client_macs": [
+        "70:71:bc:3a:0d:e8"
+      ],
+      "server_macs": null,
+      "transport_protocol": "UDP",
+      "service_port": 53,
+      "service": "DNS",
+      "role_source": "known_service_port",
+      "packet_count": 2731,
+      "first_seen": "2015-10-20 10:10:42",
+      "last_seen": "2015-10-20 17:10:28",
+      "network_scope": "external_public"
+    },
+    {
+      "client_ip": "10.10.10.20",
+      "server_ip": "10.10.10.10",
+      "client_macs": [
+        "00:1c:06:27:64:11"
+      ],
+      "server_macs": [
+        "28:63:36:89:59:82"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 102,
+      "service": "S7",
+      "role_source": "known_service_port",
+      "packet_count": 146329,
+      "first_seen": "2015-10-20 10:25:31",
+      "last_seen": "2015-10-20 17:10:31",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "10.10.10.30",
+      "server_ip": "10.10.10.10",
+      "client_macs": [
+        "54:ee:75:3f:4a:db"
+      ],
+      "server_macs": [
+        "28:63:36:89:59:82"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 102,
+      "service": "S7",
+      "role_source": "known_service_port",
+      "packet_count": 62611,
+      "first_seen": "2015-10-20 10:25:31",
+      "last_seen": "2015-10-20 12:35:40",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "192.168.88.52",
+      "server_ip": "192.168.88.1",
+      "client_macs": [
+        "28:cf:e9:18:b5:ed"
+      ],
+      "server_macs": [
+        "00:07:7c:1a:61:83"
+      ],
+      "transport_protocol": "UDP",
+      "service_port": 53,
+      "service": "DNS",
+      "role_source": "known_service_port",
+      "packet_count": 154,
+      "first_seen": "2015-10-20 10:34:03",
+      "last_seen": "2015-10-20 13:32:42",
+      "network_scope": "local_segment"
+    }
+  ]
+}

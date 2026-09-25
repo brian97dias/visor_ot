@@ -2,6 +2,136 @@ from datetime import datetime
 
 from scapy.all import PcapReader, Ether, IP, TCP, UDP, ARP
 
+from ipaddress import ip_address, ip_network
+
+import json
+
+from pathlib import Path
+
+
+def build_output():
+
+    output_interfaces = []
+
+    for mac in sorted(interfaces):
+
+        interface = interfaces[mac]
+
+        output_interfaces.append({
+            "mac": interface["mac"],
+            "ips": sorted(interface["ips"]),
+            "first_seen": interface["first_seen"],
+            "last_seen": interface["last_seen"],
+        })
+
+
+    output_communications = []
+
+    for communication in communications.values():
+
+        output_communications.append(
+            communication.copy()
+        )
+
+
+    return {
+        "schema_version": "0.1",
+
+        "capture": {
+            "filename": Path(PCAP_PATH).name,
+        },
+
+        "interfaces": output_interfaces,
+
+        "communications": output_communications,
+    }
+
+
+def save_output():
+
+    output = build_output()
+
+    output_directory = (
+        Path(__file__).resolve().parent
+        / "output"
+    )
+
+    output_directory.mkdir(
+        exist_ok=True
+    )
+
+
+    output_file = (
+        output_directory
+        / f"{Path(PCAP_PATH).stem}.json"
+    )
+
+
+    with output_file.open(
+        "w",
+        encoding="utf-8",
+    ) as file:
+
+        json.dump(
+            output,
+            file,
+            indent=2,
+            ensure_ascii=False,
+        )
+
+
+    return output_file
+
+
+INTERNAL_NETWORKS = [
+    ip_network("192.168.88.0/24"),
+    ip_network("192.168.89.0/24"),
+    ip_network("10.10.10.0/24"),
+]
+
+
+def get_internal_network(ip):
+
+    address = ip_address(ip)
+
+    for network in INTERNAL_NETWORKS:
+
+        if address in network:
+            return network
+
+    return None
+
+
+def classify_network_scope(client_ip, server_ip):
+
+    client_network = get_internal_network(client_ip)
+    server_network = get_internal_network(server_ip)
+
+
+    # Ambos pertenecen a redes internas conocidas.
+    if client_network and server_network:
+
+        if client_network == server_network:
+            return "local_segment"
+
+        return "internal_routed"
+
+
+    # Uno pertenece a nuestra infraestructura
+    # y el otro no.
+    if client_network or server_network:
+
+        external_ip = (
+            server_ip
+            if client_network
+            else client_ip
+        )
+
+        if ip_address(external_ip).is_global:
+            return "external_public"
+
+
+    return "unknown"
 
 # =========================
 # DATOS EN MEMORIA
@@ -127,6 +257,11 @@ def register_communication(
 
             "first_seen": timestamp,
             "last_seen": timestamp,
+
+            "network_scope": classify_network_scope(
+                client_ip,
+                server_ip,
+                ),
         }
 
     else:
@@ -461,3 +596,9 @@ print(
 
 for communication in communications.values():
     print(communication)
+
+output_file = save_output()
+
+print(
+    f"\nObservaciones guardadas en: {output_file}"
+)
