@@ -1,6 +1,5 @@
 from datetime import datetime
 from scapy.all import PcapReader, Ether, IP, TCP, UDP, ARP
-import json
 from pathlib import Path
 import argparse
 
@@ -15,6 +14,7 @@ from communications import (
 )
 
 from network import classify_network_scope
+from output import save_output
 
 def parse_arguments():
 
@@ -44,78 +44,6 @@ def parse_arguments():
 
     return pcap_path
 
-def build_output():
-
-    output_interfaces = []
-
-    for mac in sorted(interfaces):
-
-        interface = interfaces[mac]
-
-        output_interfaces.append({
-            "mac": interface["mac"],
-            "ips": sorted(interface["ips"]),
-            "first_seen": interface["first_seen"],
-            "last_seen": interface["last_seen"],
-        })
-
-
-    output_communications = []
-
-    for communication in communications.values():
-
-        output_communications.append(
-            communication.copy()
-        )
-
-
-    return {
-        "schema_version": "0.1",
-
-        "capture": {
-            "filename": Path(PCAP_PATH).name,
-        },
-
-        "interfaces": output_interfaces,
-
-        "communications": output_communications,
-    }
-
-
-def save_output():
-
-    output = build_output()
-
-    output_directory = (
-        Path(__file__).resolve().parent
-        / "output"
-    )
-
-    output_directory.mkdir(
-        exist_ok=True
-    )
-
-
-    output_file = (
-        output_directory
-        / f"{Path(PCAP_PATH).stem}.json"
-    )
-
-
-    with output_file.open(
-        "w",
-        encoding="utf-8",
-    ) as file:
-
-        json.dump(
-            output,
-            file,
-            indent=2,
-            ensure_ascii=False,
-        )
-
-
-    return output_file
 
 # =========================
 # DATOS EN MEMORIA
@@ -281,7 +209,11 @@ print(
 for communication in communications.values():
     print(communication)
 
-output_file = save_output()
+output_file = save_output(
+        PCAP_PATH,
+        interfaces,
+        communications,
+)
 
 print(
     f"\nObservaciones guardadas en: {output_file}"
