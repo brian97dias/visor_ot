@@ -2,7 +2,7 @@ from datetime import datetime
 
 from scapy.all import PcapReader, Ether, IP, TCP, UDP, ARP
 
-from ipaddress import ip_address, ip_network
+from ipaddress import ip_address
 
 import json
 
@@ -10,6 +10,7 @@ from pathlib import Path
 
 import argparse
 
+from config import SERVICE_PORTS, INTERNAL_NETWORKS
 
 def parse_arguments():
 
@@ -113,8 +114,6 @@ def save_output():
     return output_file
 
 
-INTERNAL_NETWORKS = []
-
 def is_observed_local_ip(ip):
     return ip in ip_to_macs
 
@@ -202,23 +201,6 @@ tcp_flows = {}
 PCAP_PATH = parse_arguments()
 
 
-# Por ahora esta tabla solamente nos ayuda a reconocer
-# servicios. NO significa que un puerto pruebe por sí solo
-# qué protocolo de aplicación está funcionando.
-SERVICE_PORTS = {
-    ("TCP", 53): "DNS",
-    ("UDP", 53): "DNS",
-
-    ("UDP", 67): "DHCP Server",
-    ("UDP", 68): "DHCP Client",
-
-    ("UDP", 123): "NTP",
-
-    ("TCP", 102): "S7",
-    ("TCP", 502): "Modbus/TCP",
-    ("TCP", 20000): "DNP3",
-    ("TCP", 44818): "EtherNet/IP",
-}
 
 
 # =========================
@@ -384,11 +366,15 @@ def process_tcp(packet, timestamp):
     if flow is None:
 
         destination_is_service = (
-            ("TCP", dst_port) in SERVICE_PORTS
+            SERVICE_PORTS.get(
+                ("TCP", server_port)
+            )
         )
 
         source_is_service = (
-            ("TCP", src_port) in SERVICE_PORTS
+            SERVICE_PORTS.get(
+                ("TCP", server_port)
+            )
         )
 
 
