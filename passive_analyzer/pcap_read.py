@@ -11,6 +11,10 @@ from pathlib import Path
 import argparse
 
 from config import SERVICE_PORTS, INTERNAL_NETWORKS
+from interfaces import (
+    register_interface,
+    register_arp_binding,
+)
 
 def parse_arguments():
 
@@ -199,44 +203,6 @@ tcp_flows = {}
 #PCAP_PATH = "../pcaps/Modbus Dataset/benign/central-agent/central-agent-network-capture/veth460b141-normal.pcap"
 
 PCAP_PATH = parse_arguments()
-
-
-
-
-# =========================
-# INTERFACES
-# =========================
-
-def register_interface(mac, timestamp):
-
-    if mac not in interfaces:
-        interfaces[mac] = {
-            "mac": mac,
-            "ips": set(),
-            "first_seen": timestamp,
-            "last_seen": timestamp,
-        }
-
-    else:
-        interfaces[mac]["last_seen"] = timestamp
-
-
-def register_arp_binding(mac, ip, timestamp):
-
-    # Un ARP Probe puede utilizar 0.0.0.0 como sender IP.
-    # Eso no representa una IP asignada al dispositivo.
-    if ip == "0.0.0.0":
-        return
-
-    register_interface(mac, timestamp)
-
-    interfaces[mac]["ips"].add(ip)
-
-    if ip not in ip_to_macs:
-        ip_to_macs[ip] = set()
-
-    ip_to_macs[ip].add(mac)
-
 
 # =========================
 # COMUNICACIONES
@@ -522,6 +488,7 @@ with PcapReader(str(PCAP_PATH)) as pcap:
         # -------------------------------------------------
 
         register_interface(
+            interfaces,
             packet[Ether].src,
             timestamp,
         )
