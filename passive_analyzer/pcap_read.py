@@ -10,10 +10,16 @@ from pathlib import Path
 
 import argparse
 
-from config import SERVICE_PORTS, INTERNAL_NETWORKS
+from config import INTERNAL_NETWORKS
+
 from interfaces import (
     register_interface,
     register_arp_binding,
+)
+
+from communications import (
+    process_tcp,
+    process_udp,
 )
 
 def parse_arguments():
@@ -205,263 +211,6 @@ tcp_flows = {}
 PCAP_PATH = parse_arguments()
 
 # =========================
-# COMUNICACIONES
-# =========================
-
-def register_communication(
-    client_ip,
-    server_ip,
-    transport_protocol,
-    service_port,
-    timestamp,
-    service=None,
-    role_source=None,
-):
-
-    key = (
-        client_ip,
-        server_ip,
-        transport_protocol,
-        service_port,
-    )
-
-    if key not in communications:
-
-        communications[key] = {
-            "client_ip": client_ip,
-            "server_ip": server_ip,
-
-            # Las MAC se resolverán al terminar de leer
-            # todo el PCAP.
-            "client_macs": None,
-            "server_macs": None,
-
-            "transport_protocol": transport_protocol,
-
-            # Guardamos únicamente el puerto considerado
-            # puerto del servicio.
-            "service_port": service_port,
-
-            "service": service,
-
-            # Nos dice cómo determinamos quién era servidor.
-            # Por ejemplo: tcp_syn o known_service_port.
-            "role_source": role_source,
-
-            "packet_count": 1,
-
-            "first_seen": timestamp,
-            "last_seen": timestamp,
-
-            "network_scope": None,  # Se determinará al terminar de leer todo el PCAP. 
-        }
-
-    else:
-
-        communications[key]["packet_count"] += 1
-        communications[key]["last_seen"] = timestamp
-
-
-# =========================
-# TCP
-# =========================
-
-def process_tcp(packet, timestamp):
-
-    tcp = packet[TCP]
-
-    src_ip = packet[IP].src
-    dst_ip = packet[IP].dst
-
-    src_port = int(tcp.sport)
-    dst_port = int(tcp.dport)
-
-    src_endpoint = (src_ip, src_port)
-    dst_endpoint = (dst_ip, dst_port)
-
-    # Esta clave identifica la conexión sin importar
-    # en qué dirección viaje este paquete.
-    flow_key = frozenset({
-        src_endpoint,
-        dst_endpoint,
-    })
-
-    flags = int(tcp.flags)
-
-    syn = bool(flags & 0x02)
-    ack = bool(flags & 0x10)
-
-
-    # -------------------------------------------------
-    # CASO IDEAL:
-    # vemos el comienzo de la conexión TCP
-    #
-    # cliente:52134 --SYN--> servidor:502
-    # -------------------------------------------------
-
-    if syn and not ack:
-
-        client_endpoint = src_endpoint
-        server_endpoint = dst_endpoint
-
-        tcp_flows[flow_key] = {
-            "client": client_endpoint,
-            "server": server_endpoint,
-            "role_source": "tcp_syn",
-        }
-
-
-    # -------------------------------------------------
-    # Si ya vimos el SYN anteriormente,
-    # conocemos la orientación de la conexión.
-    # -------------------------------------------------
-
-    flow = tcp_flows.get(flow_key)
-
-
-    # -------------------------------------------------
-    # FALLBACK:
-    #
-    # Tal vez el PCAP comenzó cuando la conexión TCP
-    # ya estaba establecida y nunca vimos el SYN.
-    #
-    # En ese caso intentamos orientarla usando
-    # un puerto de servicio conocido.
-    # -------------------------------------------------
-
-    if flow is None:
-
-        destination_is_service = (
-            ("TCP", dst_port) in SERVICE_PORTS
-        )
-
-        source_is_service = (
-            ("TCP", src_port) in SERVICE_PORTS
-        )
-
-
-        # cliente:ephemeral ---> servidor:service
-        if destination_is_service and not source_is_service:
-
-            flow = {
-                "client": src_endpoint,
-                "server": dst_endpoint,
-                "role_source": "known_service_port",
-            }
-
-
-        # servidor:service ---> cliente:ephemeral
-        elif source_is_service and not destination_is_service:
-
-            flow = {
-                "client": dst_endpoint,
-                "server": src_endpoint,
-                "role_source": "known_service_port",
-            }
-
-
-        # Si ninguno o ambos parecen puertos de servicio,
-        # por ahora NO adivinamos.
-        else:
-            return
-
-
-        tcp_flows[flow_key] = flow
-
-
-    client_ip, client_port = flow["client"]
-
-    server_ip, server_port = flow["server"]
-
-
-    service = SERVICE_PORTS.get(
-        ("TCP", server_port)
-    )
-
-
-    register_communication(
-        client_ip=client_ip,
-        server_ip=server_ip,
-        transport_protocol="TCP",
-        service_port=server_port,
-        timestamp=timestamp,
-        service=service,
-        role_source=flow["role_source"],
-    )
-
-
-# =========================
-# UDP
-# =========================
-
-def process_udp(packet, timestamp):
-
-    udp = packet[UDP]
-
-    src_ip = packet[IP].src
-    dst_ip = packet[IP].dst
-
-    src_port = int(udp.sport)
-    dst_port = int(udp.dport)
-
-
-    destination_is_service = (
-        ("UDP", dst_port) in SERVICE_PORTS
-    )
-
-    source_is_service = (
-        ("UDP", src_port) in SERVICE_PORTS
-    )
-
-
-    # -------------------------------------------------
-    # UDP no tiene handshake como TCP.
-    #
-    # Por ahora usamos puertos conocidos para inferir
-    # qué extremo ofrece el servicio.
-    # -------------------------------------------------
-
-    if destination_is_service and not source_is_service:
-
-        client_ip = src_ip
-        server_ip = dst_ip
-        service_port = dst_port
-
-
-    elif source_is_service and not destination_is_service:
-
-        client_ip = dst_ip
-        server_ip = src_ip
-        service_port = src_port
-
-
-    else:
-
-        # No tenemos suficiente evidencia para determinar
-        # quién ofrece el servicio.
-        #
-        # Más adelante esto podrá resolverse mediante
-        # disectores/protocolo de aplicación.
-        return
-
-
-    service = SERVICE_PORTS.get(
-        ("UDP", service_port)
-    )
-
-
-    register_communication(
-        client_ip=client_ip,
-        server_ip=server_ip,
-        transport_protocol="UDP",
-        service_port=service_port,
-        timestamp=timestamp,
-        service=service,
-        role_source="known_service_port",
-    )
-
-
-# =========================
 # LECTURA DEL PCAP
 # =========================
 
@@ -535,6 +284,8 @@ with PcapReader(str(PCAP_PATH)) as pcap:
             process_tcp(
                 packet,
                 timestamp,
+                communications,
+                tcp_flows,
             )
 
 
@@ -543,6 +294,7 @@ with PcapReader(str(PCAP_PATH)) as pcap:
             process_udp(
                 packet,
                 timestamp,
+                communications,
             )
 
 
