@@ -8,6 +8,36 @@ import json
 
 from pathlib import Path
 
+import argparse
+
+
+def parse_arguments():
+
+    parser = argparse.ArgumentParser(
+        description="Analizador pasivo de capturas PCAP/PCAPNG"
+    )
+
+    parser.add_argument(
+        "pcap",
+        type=Path,
+        help="Ruta al archivo PCAP o PCAPNG que se desea analizar",
+    )
+
+    args = parser.parse_args()
+
+    pcap_path = args.pcap.expanduser().resolve()
+
+    if not pcap_path.is_file():
+        parser.error(
+            f"El archivo no existe o no es accesible: {pcap_path}"
+        )
+
+    if pcap_path.suffix.lower() not in {".pcap", ".pcapng"}:
+        parser.error(
+            "El archivo debe tener extensión .pcap o .pcapng"
+        )
+
+    return pcap_path
 
 def build_output():
 
@@ -166,8 +196,10 @@ communications = {}
 tcp_flows = {}
 
 
-PCAP_PATH = "../pcaps/4SICS_Geek_Lounge/4SICS-GeekLounge-151020.pcap"
+#PCAP_PATH = "../pcaps/4SICS_Geek_Lounge/4SICS-GeekLounge-151020.pcap"
 #PCAP_PATH = "../pcaps/Modbus Dataset/benign/central-agent/central-agent-network-capture/veth460b141-normal.pcap"
+
+PCAP_PATH = parse_arguments()
 
 
 # Por ahora esta tabla solamente nos ayuda a reconocer
