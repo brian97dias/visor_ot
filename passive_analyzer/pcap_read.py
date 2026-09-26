@@ -366,15 +366,11 @@ def process_tcp(packet, timestamp):
     if flow is None:
 
         destination_is_service = (
-            SERVICE_PORTS.get(
-                ("TCP", server_port)
-            )
+            ("TCP", dst_port) in SERVICE_PORTS
         )
 
         source_is_service = (
-            SERVICE_PORTS.get(
-                ("TCP", server_port)
-            )
+            ("TCP", src_port) in SERVICE_PORTS
         )
 
 
