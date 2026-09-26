@@ -508,6 +508,8 @@ with PcapReader(str(PCAP_PATH)) as pcap:
             arp = packet[ARP]
 
             register_arp_binding(
+                interfaces,
+                ip_to_macs,
                 arp.hwsrc,
                 arp.psrc,
                 timestamp,
