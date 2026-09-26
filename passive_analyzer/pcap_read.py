@@ -517,7 +517,7 @@ def process_udp(packet, timestamp):
 # LECTURA DEL PCAP
 # =========================
 
-with PcapReader(PCAP_PATH) as pcap:
+with PcapReader(str(PCAP_PATH)) as pcap:
 
     for packet in pcap:
 
