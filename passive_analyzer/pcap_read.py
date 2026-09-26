@@ -1,16 +1,8 @@
 from datetime import datetime
-
 from scapy.all import PcapReader, Ether, IP, TCP, UDP, ARP
-
-from ipaddress import ip_address
-
 import json
-
 from pathlib import Path
-
 import argparse
-
-from config import INTERNAL_NETWORKS
 
 from interfaces import (
     register_interface,
@@ -21,6 +13,8 @@ from communications import (
     process_tcp,
     process_udp,
 )
+
+from network import classify_network_scope
 
 def parse_arguments():
 
@@ -122,69 +116,6 @@ def save_output():
 
 
     return output_file
-
-
-def is_observed_local_ip(ip):
-    return ip in ip_to_macs
-
-
-def get_internal_network(ip):
-
-    address = ip_address(ip)
-
-    for network in INTERNAL_NETWORKS:
-        if address in network:
-            return network
-
-    return None
-
-
-def classify_network_scope(client_ip, server_ip):
-
-    client_is_local = is_observed_local_ip(client_ip)
-    server_is_local = is_observed_local_ip(server_ip)
-
-
-    # Tenemos evidencia ARP de ambos extremos.
-    if client_is_local and server_is_local:
-        return "local_segment"
-
-
-    client_internal_network = get_internal_network(client_ip)
-    server_internal_network = get_internal_network(server_ip)
-
-
-    # Ambos pertenecen a infraestructura interna
-    # configurada, pero no tenemos evidencia de que
-    # estén en el mismo segmento observado.
-    if client_internal_network and server_internal_network:
-        return "internal_routed"
-
-
-    # Un extremo está observado localmente.
-    # El otro no.
-    if client_is_local != server_is_local:
-
-        external_ip = (
-            server_ip
-            if client_is_local
-            else client_ip
-        )
-
-        # Es una dirección global y no tenemos
-        # evidencia ARP de que sea local.
-        if ip_address(external_ip).is_global:
-            return "external_public"
-
-
-        # Podría pertenecer a otra red interna
-        # conocida por configuración.
-        if get_internal_network(external_ip):
-            return "internal_routed"
-
-
-    return "unknown"
-
 
 # =========================
 # DATOS EN MEMORIA
@@ -327,6 +258,7 @@ for communication in communications.values():
     communication["network_scope"] = classify_network_scope(
         client_ip,
         server_ip,
+        ip_to_macs,
     )
 
 
