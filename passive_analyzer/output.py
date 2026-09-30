@@ -60,6 +60,7 @@ def save_output(
 
 
     OUTPUT_DIRECTORY.mkdir(
+        parents=True,
         exist_ok=True
     )
 

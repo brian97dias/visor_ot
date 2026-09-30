@@ -11,13 +11,11 @@ from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent
-PROJECT_DIR = BASE_DIR.parent
-
 
 PCAP_DIRECTORY = Path(
     os.getenv(
         "PASSIVE_ANALYZER_PCAP_DIR",
-        str(PROJECT_DIR / "pcaps"),
+        str(BASE_DIR / "pcaps"),
     )
 ).expanduser().resolve()
 
