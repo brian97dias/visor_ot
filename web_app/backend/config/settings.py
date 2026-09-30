@@ -49,6 +49,7 @@ INSTALLED_APPS = [
 
     # Visual OT
     "users",
+    "ingestion",
 ]
 
 MIDDLEWARE = [
@@ -153,3 +154,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+PASSIVE_ANALYZER_URL = os.getenv(
+    "PASSIVE_ANALYZER_URL",
+    "http://127.0.0.1:8001",
+)
