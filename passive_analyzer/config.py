@@ -5,6 +5,30 @@
 # Un puerto conocido NO confirma por sí solo
 # el protocolo de aplicación.
 
+import os
+
+from pathlib import Path
+
+
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = BASE_DIR.parent
+
+
+PCAP_DIRECTORY = Path(
+    os.getenv(
+        "PASSIVE_ANALYZER_PCAP_DIR",
+        str(PROJECT_DIR / "pcaps"),
+    )
+).expanduser().resolve()
+
+
+OUTPUT_DIRECTORY = Path(
+    os.getenv(
+        "PASSIVE_ANALYZER_OUTPUT_DIR",
+        str(BASE_DIR / "output"),
+    )
+).expanduser().resolve()
+
 SERVICE_PORTS = {
     ("TCP", 53): "DNS",
     ("UDP", 53): "DNS",

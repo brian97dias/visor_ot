@@ -2,6 +2,7 @@ import json
 
 from pathlib import Path
 
+from config import OUTPUT_DIRECTORY
 
 def build_output(
     pcap_path,
@@ -58,18 +59,13 @@ def save_output(
     )
 
 
-    output_directory = (
-        Path(__file__).resolve().parent
-        / "output"
-    )
-
-    output_directory.mkdir(
+    OUTPUT_DIRECTORY.mkdir(
         exist_ok=True
     )
 
 
     output_file = (
-        output_directory
+        OUTPUT_DIRECTORY
         / f"{Path(pcap_path).stem}.json"
     )
 
