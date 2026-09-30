@@ -14,7 +14,7 @@ class CustomUserAdmin(UserAdmin):
 
     add_fieldsets = UserAdmin.add_fieldsets + (
         ("Visual OT", {
-            "fields": ("role",),
+            "fields": ("role","email"),
         }),
     )
 

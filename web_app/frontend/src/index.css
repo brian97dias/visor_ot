@@ -1,0 +1,203 @@
+* {
+    box-sizing: border-box;
+}
+
+:root {
+    font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+
+    color: #e5e7eb;
+    background: #0b1120;
+}
+
+body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+}
+
+button,
+input {
+    font: inherit;
+}
+
+
+/* LOGIN */
+
+.login-page {
+    min-height: 100vh;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 24px;
+
+    background:
+        radial-gradient(
+            circle at top,
+            #172554 0%,
+            #0b1120 42%
+        );
+}
+
+.login-card {
+    width: 100%;
+    max-width: 420px;
+
+    padding: 40px;
+
+    background: #111827;
+
+    border: 1px solid #263244;
+    border-radius: 12px;
+
+    box-shadow:
+        0 24px 70px rgba(0, 0, 0, 0.35);
+}
+
+.login-header {
+    margin-bottom: 32px;
+}
+
+.login-product {
+    display: inline-block;
+
+    margin-bottom: 12px;
+
+    color: #38bdf8;
+
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+}
+
+.login-header h1 {
+    margin: 0 0 8px;
+
+    color: #f8fafc;
+
+    font-size: 1.9rem;
+}
+
+.login-header p {
+    margin: 0;
+
+    color: #94a3b8;
+
+    line-height: 1.5;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    color: #cbd5e1;
+
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.form-group input {
+    width: 100%;
+
+    padding: 12px 14px;
+
+    color: #f8fafc;
+
+    background: #0f172a;
+
+    border: 1px solid #334155;
+    border-radius: 7px;
+
+    outline: none;
+}
+
+.form-group input:focus {
+    border-color: #38bdf8;
+}
+
+.login-form button,
+.dashboard-card button {
+    padding: 12px 16px;
+
+    color: #082f49;
+
+    background: #38bdf8;
+
+    border: none;
+    border-radius: 7px;
+
+    font-weight: 700;
+
+    cursor: pointer;
+}
+
+.login-form button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.login-error {
+    margin: 0;
+
+    color: #fca5a5;
+
+    font-size: 0.9rem;
+}
+
+
+/* DASHBOARD TEMPORAL */
+
+.dashboard-page {
+    min-height: 100vh;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 24px;
+
+    background: #0b1120;
+}
+
+.dashboard-card {
+    width: 100%;
+    max-width: 600px;
+
+    padding: 40px;
+
+    background: #111827;
+
+    border: 1px solid #263244;
+    border-radius: 12px;
+}
+
+.dashboard-card h1 {
+    margin-top: 0;
+}
+
+.user-information {
+    margin: 24px 0;
+
+    padding: 16px;
+
+    background: #0f172a;
+
+    border: 1px solid #263244;
+    border-radius: 8px;
+}
