@@ -5,9 +5,12 @@ import {
     Routes,
 } from "react-router-dom";
 
-import Dashboard from "./pages/Dashboard";
-import Login from "./pages/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AppLayout from "./components/AppLayout";
+
+import Dashboard from "./pages/Dashboard";
+import Ingestion from "./pages/Ingestion";
+import Login from "./pages/Login";
 
 
 function App() {
@@ -21,20 +24,43 @@ function App() {
                     element={<Login />}
                 />
 
+
                 <Route
-                    path="/dashboard"
                     element={
                         <ProtectedRoute>
-                            <Dashboard />
+                            <AppLayout />
                         </ProtectedRoute>
                     }
-                />
+                >
+
+                    <Route
+                        index
+                        element={
+                            <Navigate
+                                to="/dashboard"
+                                replace
+                            />
+                        }
+                    />
+
+                    <Route
+                        path="/dashboard"
+                        element={<Dashboard />}
+                    />
+
+                    <Route
+                        path="/ingestion"
+                        element={<Ingestion />}
+                    />
+
+                </Route>
+
 
                 <Route
                     path="*"
                     element={
                         <Navigate
-                            to="/login"
+                            to="/dashboard"
                             replace
                         />
                     }

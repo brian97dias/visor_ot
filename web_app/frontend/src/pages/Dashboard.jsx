@@ -1,86 +1,49 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-
-import { getCurrentUser } from "../api/auth";
+import { useOutletContext } from "react-router-dom";
 
 
 function Dashboard() {
-    const navigate = useNavigate();
-
-    const [user, setUser] = useState(null);
-    const [error, setError] = useState("");
-
-
-    useEffect(() => {
-        async function loadUser() {
-            const accessToken =
-                sessionStorage.getItem("access_token");
-
-            try {
-                const userData =
-                    await getCurrentUser(accessToken);
-
-                setUser(userData);
-
-            } catch {
-                sessionStorage.clear();
-
-                setError(
-                    "Tu sesión ha expirado."
-                );
-            }
-        }
-
-        loadUser();
-    }, []);
-
-
-    const logout = () => {
-        sessionStorage.clear();
-        navigate("/login");
-    };
-
-
-    if (error) {
-        return (
-            <main className="dashboard-page">
-                <p>{error}</p>
-
-                <button onClick={logout}>
-                    Volver al login
-                </button>
-            </main>
-        );
-    }
-
-
-    if (!user) {
-        return (
-            <main className="dashboard-page">
-                <p>Cargando sesión...</p>
-            </main>
-        );
-    }
-
+    const { user } = useOutletContext();
 
     return (
-        <main className="dashboard-page">
+        <section className="page">
 
-            <section className="dashboard-card">
+            <header className="page-header">
 
-                <span className="login-product">
-                    VISUAL OT
-                </span>
+                <div>
+                    <span className="page-eyebrow">
+                        VISUAL OT
+                    </span>
 
-                <h1>
-                    Bienvenido, {user.username}
-                </h1>
+                    <h1>
+                        Dashboard
+                    </h1>
+
+                    <p>
+                        Bienvenido, {user.username}.
+                    </p>
+                </div>
+
+            </header>
+
+
+            <div className="panel">
+
+                <h2>
+                    Estado del sistema
+                </h2>
 
                 <p>
-                    Sesión iniciada correctamente.
+                    Visual OT está conectado y tu
+                    sesión se encuentra activa.
                 </p>
 
                 <div className="user-information">
+
+                    <p>
+                        <strong>Usuario:</strong>{" "}
+                        {user.username}
+                    </p>
+
                     <p>
                         <strong>Correo:</strong>{" "}
                         {user.email}
@@ -90,15 +53,12 @@ function Dashboard() {
                         <strong>Rol:</strong>{" "}
                         {user.role}
                     </p>
+
                 </div>
 
-                <button onClick={logout}>
-                    Cerrar sesión
-                </button>
+            </div>
 
-            </section>
-
-        </main>
+        </section>
     );
 }
 
