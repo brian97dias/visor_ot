@@ -10,6 +10,32 @@ PCAP_EXTENSIONS = {
 }
 
 
+def get_pcap_by_id(pcap_id):
+
+    if not PCAP_DIRECTORY.exists():
+        return None
+
+
+    for pcap_path in PCAP_DIRECTORY.rglob("*"):
+
+        if not pcap_path.is_file():
+            continue
+
+
+        if (
+            pcap_path.suffix.lower()
+            not in PCAP_EXTENSIONS
+        ):
+            continue
+
+
+        if pcap_path.stem == pcap_id:
+            return pcap_path
+
+
+    return None
+
+
 def get_pcap_status(pcap_path):
 
     output_file = (
