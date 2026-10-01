@@ -574,6 +574,164 @@ input {
     border-radius: 8px;
 }
 
+/* ANALYSIS TABS */
+
+.analysis-tabs {
+    display: flex;
+
+    gap: 6px;
+
+    margin-bottom: 18px;
+
+    border-bottom: 1px solid #263244;
+}
+
+.analysis-tab {
+    padding: 11px 16px;
+
+    color: #64748b;
+    background: transparent;
+
+    border: none;
+    border-bottom: 2px solid transparent;
+
+    font-weight: 600;
+
+    cursor: pointer;
+}
+
+.analysis-tab:hover {
+    color: #cbd5e1;
+}
+
+.analysis-tab.active {
+    color: #38bdf8;
+
+    border-bottom-color: #38bdf8;
+}
+
+
+/* TABLE TOOLBAR */
+
+.table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 20px;
+
+    padding: 14px 20px;
+
+    background: #0f172a;
+
+    border-bottom: 1px solid #263244;
+}
+
+.search-box {
+    width: 100%;
+    max-width: 420px;
+}
+
+.search-box input {
+    width: 100%;
+
+    padding: 10px 13px;
+
+    color: #e2e8f0;
+    background: #111827;
+
+    border: 1px solid #334155;
+    border-radius: 7px;
+
+    outline: none;
+}
+
+.search-box input::placeholder {
+    color: #64748b;
+}
+
+.search-box input:focus {
+    border-color: #38bdf8;
+}
+
+.filtered-count {
+    white-space: nowrap;
+
+    color: #64748b;
+
+    font-size: 0.82rem;
+}
+
+
+/* PAGINATION */
+
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 20px;
+
+    padding: 14px 20px;
+
+    color: #64748b;
+
+    border-top: 1px solid #263244;
+
+    font-size: 0.85rem;
+}
+
+.pagination-actions {
+    display: flex;
+
+    gap: 8px;
+}
+
+.pagination-actions button {
+    padding: 7px 12px;
+
+    color: #cbd5e1;
+    background: #0f172a;
+
+    border: 1px solid #334155;
+    border-radius: 6px;
+
+    cursor: pointer;
+}
+
+.pagination-actions button:hover:not(:disabled) {
+    border-color: #38bdf8;
+
+    color: #e0f2fe;
+}
+
+.pagination-actions button:disabled {
+    opacity: 0.35;
+
+    cursor: not-allowed;
+}
+
+
+/* IMPORTED OBSERVATIONS */
+
+.observations-empty strong {
+    display: block;
+
+    margin-bottom: 8px;
+
+    color: #cbd5e1;
+}
+
+.observations-empty p {
+    max-width: 580px;
+
+    margin:
+        0
+        auto;
+
+    line-height: 1.6;
+}
+
 
 /* RESPONSIVE */
 
@@ -590,5 +748,19 @@ input {
 
     .page {
         padding: 24px;
+    }
+
+    .table-toolbar,
+    .pagination {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .search-box {
+        max-width: none;
+    }
+
+    .pagination-actions {
+        justify-content: flex-end;
     }
 }

@@ -9,7 +9,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import AppLayout from "./components/AppLayout";
 
 import Dashboard from "./pages/Dashboard";
-import Ingestion from "./pages/Ingestion";
+import PassiveAnalysis from "./pages/PassiveAnalysis";
 import Login from "./pages/Login";
 
 
@@ -49,8 +49,18 @@ function App() {
                     />
 
                     <Route
+                        path="/passive-analysis"
+                        element={<PassiveAnalysis />}
+                    />
+
+                    <Route
                         path="/ingestion"
-                        element={<Ingestion />}
+                        element={
+                            <Navigate
+                                to="/passive-analysis"
+                                replace
+                            />
+                        }
                     />
 
                 </Route>

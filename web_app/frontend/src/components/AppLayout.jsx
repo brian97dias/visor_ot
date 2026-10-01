@@ -103,14 +103,14 @@ function AppLayout() {
                         </span>
 
                         <NavLink
-                            to="/ingestion"
+                            to="/passive-analysis"
                             className={({ isActive }) =>
                                 isActive
                                     ? "nav-item nav-subitem active"
                                     : "nav-item nav-subitem"
                             }
                         >
-                            Ingesta
+                            Análisis pasivo
                         </NavLink>
                     </div>
 
