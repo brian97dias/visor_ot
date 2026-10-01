@@ -4,11 +4,99 @@ import {
     useState,
 } from "react";
 
-import { getPcaps } from "../api/ingestion";
+import {
+    analyzePcap,
+    getPcaps,
+} from "../api/ingestion";
 
 
 const PAGE_SIZE = 15;
 
+const [
+    analyzingPcaps,
+    setAnalyzingPcaps,
+] = useState(new Set());
+
+const handleAnalyze = async (pcap) => {
+
+    const accessToken =
+        sessionStorage.getItem(
+            "access_token"
+        );
+
+
+    setError("");
+
+
+    setAnalyzingPcaps(
+        (current) => {
+
+            const updated =
+                new Set(current);
+
+            updated.add(
+                pcap.id
+            );
+
+            return updated;
+        }
+    );
+
+
+    try {
+
+        await analyzePcap(
+            accessToken,
+            pcap.id
+        );
+
+
+        /*
+         * No cambiamos manualmente:
+         *
+         * PENDING -> ANALYZED
+         *
+         * Volvemos a consultar el catálogo
+         * para que el Passive Analyzer sea
+         * la fuente de verdad.
+         */
+
+        const updatedPcaps =
+            await getPcaps(
+                accessToken
+            );
+
+
+        setPcaps(
+            updatedPcaps
+        );
+
+
+    } catch (error) {
+
+        setError(
+            error.message
+        );
+
+
+    } finally {
+
+        setAnalyzingPcaps(
+            (current) => {
+
+                const updated =
+                    new Set(current);
+
+                updated.delete(
+                    pcap.id
+                );
+
+                return updated;
+            }
+        );
+
+    }
+};
 
 function PassiveAnalysis() {
     const [pcaps, setPcaps] = useState([]);

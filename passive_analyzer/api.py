@@ -3,21 +3,12 @@ from typing import Literal
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from catalog import list_pcaps
-
 from analyzer import analyze_pcap
 from catalog import (
     get_pcap_by_id,
     list_pcaps,
 )
 from output import save_output
-
-class PcapAnalysisResponse(BaseModel):
-    id: str
-    filename: str
-    status: Literal["ANALYZED"]
-    interfaces_detected: int
-    communications_detected: int
 
 
 app = FastAPI(
@@ -40,16 +31,32 @@ class PcapListResponse(BaseModel):
     pcaps: list[PcapSummary]
 
 
+class PcapAnalysisResponse(BaseModel):
+    id: str
+    filename: str
+    status: Literal["ANALYZED"]
+    interfaces_detected: int
+    communications_detected: int
+
+
 @app.get(
     "/api/v1/pcaps/",
     response_model=PcapListResponse,
 )
+def get_pcaps():
+
+    return {
+        "pcaps": list_pcaps()
+    }
+
 
 @app.post(
     "/api/v1/pcaps/{pcap_id}/analyze",
     response_model=PcapAnalysisResponse,
 )
-def analyze_pcap_endpoint(pcap_id: str):
+def analyze_pcap_endpoint(
+    pcap_id: str,
+):
 
     pcap_path = get_pcap_by_id(
         pcap_id
@@ -79,6 +86,7 @@ def analyze_pcap_endpoint(pcap_id: str):
             communications,
         )
 
+
     except Exception as error:
 
         raise HTTPException(
@@ -100,10 +108,4 @@ def analyze_pcap_endpoint(pcap_id: str):
         "communications_detected": len(
             communications
         ),
-    }
-
-def get_pcaps():
-
-    return {
-        "pcaps": list_pcaps()
     }
