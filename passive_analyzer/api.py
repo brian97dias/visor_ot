@@ -9,6 +9,7 @@ from catalog import (
     list_pcaps,
 )
 from output import save_output
+from pcap_identity import get_pcap_id
 
 
 app = FastAPI(
@@ -99,7 +100,9 @@ def analyze_pcap_endpoint(
 
 
     return {
-        "id": pcap_path.stem,
+        "id": get_pcap_id(
+            pcap_path
+            ),
         "filename": pcap_path.name,
         "status": "ANALYZED",
         "interfaces_detected": len(

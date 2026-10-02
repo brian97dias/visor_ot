@@ -3,12 +3,16 @@ from config import (
     OUTPUT_DIRECTORY,
 )
 
+from pcap_identity import (
+    get_pcap_id,
+    get_relative_path,
+)
+
 
 PCAP_EXTENSIONS = {
     ".pcap",
     ".pcapng",
 }
-
 
 def get_pcap_by_id(pcap_id):
 
@@ -29,22 +33,27 @@ def get_pcap_by_id(pcap_id):
             continue
 
 
-        if pcap_path.stem == pcap_id:
+        if get_pcap_id(pcap_path) == pcap_id:
             return pcap_path
 
 
     return None
 
-
 def get_pcap_status(pcap_path):
+
+    pcap_id = get_pcap_id(
+        pcap_path
+    )
 
     output_file = (
         OUTPUT_DIRECTORY
-        / f"{pcap_path.stem}.json"
+        / f"{pcap_id}.json"
     )
+
 
     if output_file.is_file():
         return "ANALYZED"
+
 
     return "PENDING"
 
@@ -72,15 +81,17 @@ def list_pcaps():
             continue
 
 
-        relative_path = (
+        relative_path = get_relative_path(
             pcap_path
-            .relative_to(PCAP_DIRECTORY)
-            .as_posix()
+        )
+
+        pcap_id = get_pcap_id(
+            pcap_path
         )
 
 
         pcaps.append({
-            "id": pcap_path.stem,
+            "id": pcap_id,
             "filename": pcap_path.name,
             "relative_path": relative_path,
             "status": get_pcap_status(

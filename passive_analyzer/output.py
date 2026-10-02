@@ -4,11 +4,24 @@ from pathlib import Path
 
 from config import OUTPUT_DIRECTORY
 
+from pcap_identity import (
+    get_pcap_id,
+    get_relative_path,
+)
+
 def build_output(
     pcap_path,
     interfaces,
     communications,
 ):
+
+    pcap_id = get_pcap_id(
+        pcap_path
+    )
+
+    relative_path = get_relative_path(
+        pcap_path
+    )    
 
     output_interfaces = []
 
@@ -34,10 +47,12 @@ def build_output(
 
 
     return {
-        "schema_version": "0.1",
+        "schema_version": "0.2",
 
         "capture": {
+            "pcap_id": pcap_id,
             "filename": Path(pcap_path).name,
+            "relative_path": relative_path,
         },
 
         "interfaces": output_interfaces,
@@ -65,9 +80,14 @@ def save_output(
     )
 
 
+    pcap_id = get_pcap_id(
+        pcap_path
+    )
+
+
     output_file = (
         OUTPUT_DIRECTORY
-        / f"{Path(pcap_path).stem}.json"
+        / f"{pcap_id}.json"
     )
 
 
