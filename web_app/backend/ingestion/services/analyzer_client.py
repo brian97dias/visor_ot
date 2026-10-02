@@ -81,9 +81,16 @@ def analyze_pcap(pcap_id):
 
         response = requests.post(
             url,
-            timeout=300,
+            timeout=(5, 900),
         )
 
+
+    except requests.Timeout as error:
+
+        raise PassiveAnalyzerUnavailable(
+            "El Passive Analyzer excedió el tiempo "
+            "máximo de procesamiento."
+        ) from error
 
     except requests.RequestException as error:
 

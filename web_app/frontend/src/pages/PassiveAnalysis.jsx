@@ -12,74 +12,23 @@ import {
 
 const PAGE_SIZE = 15;
 
-const [
-    analyzingPcaps,
-    setAnalyzingPcaps,
-] = useState(new Set());
+function PassiveAnalysis() {
 
-const handleAnalyze = async (pcap) => {
+    const [
+        analyzingPcaps,
+        setAnalyzingPcaps,
+    ] = useState(new Set());
 
-    const accessToken =
-        sessionStorage.getItem(
-            "access_token"
-        );
+    const handleAnalyze = async (pcap) => {
 
-
-    setError("");
-
-
-    setAnalyzingPcaps(
-        (current) => {
-
-            const updated =
-                new Set(current);
-
-            updated.add(
-                pcap.id
-            );
-
-            return updated;
-        }
-    );
-
-
-    try {
-
-        await analyzePcap(
-            accessToken,
-            pcap.id
-        );
-
-
-        /*
-         * No cambiamos manualmente:
-         *
-         * PENDING -> ANALYZED
-         *
-         * Volvemos a consultar el catálogo
-         * para que el Passive Analyzer sea
-         * la fuente de verdad.
-         */
-
-        const updatedPcaps =
-            await getPcaps(
-                accessToken
+        const accessToken =
+            sessionStorage.getItem(
+                "access_token"
             );
 
 
-        setPcaps(
-            updatedPcaps
-        );
+        setError("");
 
-
-    } catch (error) {
-
-        setError(
-            error.message
-        );
-
-
-    } finally {
 
         setAnalyzingPcaps(
             (current) => {
@@ -87,7 +36,7 @@ const handleAnalyze = async (pcap) => {
                 const updated =
                     new Set(current);
 
-                updated.delete(
+                updated.add(
                     pcap.id
                 );
 
@@ -95,10 +44,62 @@ const handleAnalyze = async (pcap) => {
             }
         );
 
-    }
-};
 
-function PassiveAnalysis() {
+        try {
+
+            await analyzePcap(
+                accessToken,
+                pcap.id
+            );
+
+
+            /*
+            * No cambiamos manualmente:
+            *
+            * PENDING -> ANALYZED
+            *
+            * Volvemos a consultar el catálogo
+            * para que el Passive Analyzer sea
+            * la fuente de verdad.
+            */
+
+            const updatedPcaps =
+                await getPcaps(
+                    accessToken
+                );
+
+
+            setPcaps(
+                updatedPcaps
+            );
+
+
+        } catch (error) {
+
+            setError(
+                error.message
+            );
+
+
+        } finally {
+
+            setAnalyzingPcaps(
+                (current) => {
+
+                    const updated =
+                        new Set(current);
+
+                    updated.delete(
+                        pcap.id
+                    );
+
+                    return updated;
+                }
+            );
+
+        }
+    };    
+
     const [pcaps, setPcaps] = useState([]);
 
     const [activeTab, setActiveTab] =
@@ -482,18 +483,25 @@ function PassiveAnalysis() {
                                                                             )
                                                                         }
 
-
-                                                                        <button
-                                                                            className="button-primary"
-                                                                            disabled
-                                                                        >
-                                                                            {
-                                                                                pcap.status
-                                                                                === "ANALYZED"
-                                                                                    ? "Reanalizar"
-                                                                                    : "Analizar"
-                                                                            }
-                                                                        </button>
+                                                                    <button
+                                                                        className="button-primary"
+                                                                        onClick={() =>
+                                                                            handleAnalyze(pcap)
+                                                                        }
+                                                                        disabled={
+                                                                            analyzingPcaps.has(pcap.id)
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            analyzingPcaps.has(pcap.id)
+                                                                                ? "Analizando..."
+                                                                                : (
+                                                                                    pcap.status === "ANALYZED"
+                                                                                        ? "Reanalizar"
+                                                                                        : "Analizar"
+                                                                                )
+                                                                        }
+                                                                    </button>
 
                                                                     </div>
 

@@ -1,0 +1,88 @@
+{
+  "schema_version": "0.1",
+  "capture": {
+    "filename": "vethffb308b-3.pcap"
+  },
+  "interfaces": [
+    {
+      "mac": "02:42:b9:af:00:02",
+      "ips": [],
+      "first_seen": "2023-03-26 20:56:09",
+      "last_seen": "2023-03-28 07:32:47"
+    },
+    {
+      "mac": "02:42:b9:af:00:04",
+      "ips": [
+        "185.175.0.4"
+      ],
+      "first_seen": "2023-03-26 20:56:14",
+      "last_seen": "2023-03-28 07:32:42"
+    },
+    {
+      "mac": "02:42:b9:af:00:06",
+      "ips": [
+        "185.175.0.6"
+      ],
+      "first_seen": "2023-03-26 20:56:09",
+      "last_seen": "2023-03-28 07:32:47"
+    },
+    {
+      "mac": "02:42:b9:af:00:08",
+      "ips": [
+        "185.175.0.8"
+      ],
+      "first_seen": "2023-03-26 20:56:09",
+      "last_seen": "2023-03-28 07:32:27"
+    },
+    {
+      "mac": "02:42:f9:49:f0:09",
+      "ips": [],
+      "first_seen": "2023-03-26 20:57:33",
+      "last_seen": "2023-03-28 07:29:01"
+    },
+    {
+      "mac": "4e:50:74:3d:f0:04",
+      "ips": [],
+      "first_seen": "2023-03-26 21:16:51",
+      "last_seen": "2023-03-28 07:29:01"
+    }
+  ],
+  "communications": [
+    {
+      "client_ip": "185.175.0.8",
+      "server_ip": "185.175.0.6",
+      "client_macs": [
+        "02:42:b9:af:00:08"
+      ],
+      "server_macs": [
+        "02:42:b9:af:00:06"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 1099,
+      "service": null,
+      "role_source": "tcp_syn",
+      "packet_count": 23876,
+      "first_seen": "2023-03-26 21:15:53",
+      "last_seen": "2023-03-28 07:32:27",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "185.175.0.4",
+      "server_ip": "185.175.0.6",
+      "client_macs": [
+        "02:42:b9:af:00:04"
+      ],
+      "server_macs": [
+        "02:42:b9:af:00:06"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 1099,
+      "service": null,
+      "role_source": "tcp_syn",
+      "packet_count": 21906,
+      "first_seen": "2023-03-26 21:24:18",
+      "last_seen": "2023-03-28 07:32:37",
+      "network_scope": "local_segment"
+    }
+  ]
+}

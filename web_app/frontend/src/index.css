@@ -764,3 +764,39 @@ input {
         justify-content: flex-end;
     }
 }
+
+.button-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    gap: 7px;
+}
+
+
+.button-spinner {
+    width: 13px;
+    height: 13px;
+
+    border: 2px solid
+        rgba(8, 47, 73, 0.35);
+
+    border-top-color: #082f49;
+
+    border-radius: 50%;
+
+    animation:
+        button-spin
+        0.7s
+        linear
+        infinite;
+}
+
+
+@keyframes button-spin {
+
+    to {
+        transform: rotate(360deg);
+    }
+
+}
