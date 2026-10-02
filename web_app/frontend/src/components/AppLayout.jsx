@@ -17,22 +17,8 @@ function AppLayout() {
 
     useEffect(() => {
         async function loadUser() {
-            const accessToken =
-                sessionStorage.getItem("access_token");
-
-            try {
-                const userData =
-                    await getCurrentUser(accessToken);
-
-                setUser(userData);
-
-            } catch {
-                sessionStorage.clear();
-
-                setError(
-                    "Tu sesión ha expirado."
-                );
-            }
+        const userData =
+            await getCurrentUser();
         }
 
         loadUser();

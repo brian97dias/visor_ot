@@ -21,12 +21,6 @@ function PassiveAnalysis() {
 
     const handleAnalyze = async (pcap) => {
 
-        const accessToken =
-            sessionStorage.getItem(
-                "access_token"
-            );
-
-
         setError("");
 
 
@@ -48,7 +42,6 @@ function PassiveAnalysis() {
         try {
 
             await analyzePcap(
-                accessToken,
                 pcap.id
             );
 
@@ -64,9 +57,7 @@ function PassiveAnalysis() {
             */
 
             const updatedPcaps =
-                await getPcaps(
-                    accessToken
-                );
+                await getPcaps();
 
 
             setPcaps(
@@ -120,27 +111,8 @@ function PassiveAnalysis() {
 
     useEffect(() => {
         async function loadPcaps() {
-            const accessToken =
-                sessionStorage.getItem(
-                    "access_token"
-                );
-
-            try {
-                const pcapData =
-                    await getPcaps(
-                        accessToken
-                    );
-
-                setPcaps(pcapData);
-
-            } catch (error) {
-                setError(
-                    error.message
-                );
-
-            } finally {
-                setLoading(false);
-            }
+            const pcapData =
+                await getPcaps();
         }
 
         loadPcaps();

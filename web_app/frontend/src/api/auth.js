@@ -1,3 +1,8 @@
+import {
+    API_URL,
+    authenticatedFetch,
+} from "./client";
+
 const API_URL = import.meta.env.VITE_API_URL;
 
 
@@ -21,16 +26,22 @@ export async function login(username, password) {
 }
 
 
-export async function getCurrentUser(accessToken) {
-    const response = await fetch(`${API_URL}/api/auth/me/`, {
-        headers: {
-            Authorization: `Bearer ${accessToken}`,
-        },
-    });
+export async function getCurrentUser() {
+
+    const response =
+        await authenticatedFetch(
+            "/api/auth/me/"
+        );
+
 
     if (!response.ok) {
-        throw new Error("La sesión no es válida");
+
+        throw new Error(
+            "La sesión no es válida"
+        );
+
     }
+
 
     return response.json();
 }

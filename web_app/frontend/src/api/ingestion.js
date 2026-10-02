@@ -1,50 +1,54 @@
-const API_URL = import.meta.env.VITE_API_URL;
+import {
+    authenticatedFetch,
+} from "./client";
 
 
-export async function getPcaps(accessToken) {
-    const response = await fetch(
-        `${API_URL}/api/ingestion/pcaps/`,
-        {
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-            },
-        }
-    );
+export async function getPcaps() {
+
+    const response =
+        await authenticatedFetch(
+            "/api/ingestion/pcaps/"
+        );
+
 
     let data = {};
 
+
     try {
-        data = await response.json();
+
+        data =
+            await response.json();
+
     } catch {
-        // La respuesta no contenía JSON válido.
+        // Respuesta sin JSON válido.
     }
 
+
     if (!response.ok) {
+
         throw new Error(
             data.detail ||
             "No fue posible obtener los PCAP."
         );
+
     }
+
 
     return data.pcaps;
 }
 
+
 export async function analyzePcap(
-    accessToken,
     pcapId
 ) {
 
-    const response = await fetch(
-        `${API_URL}/api/ingestion/pcaps/${encodeURIComponent(pcapId)}/analyze/`,
-        {
-            method: "POST",
-
-            headers: {
-                Authorization:
-                    `Bearer ${accessToken}`,
-            },
-        }
-    );
+    const response =
+        await authenticatedFetch(
+            `/api/ingestion/pcaps/${encodeURIComponent(pcapId)}/analyze/`,
+            {
+                method: "POST",
+            }
+        );
 
 
     let data = {};
@@ -52,11 +56,11 @@ export async function analyzePcap(
 
     try {
 
-        data = await response.json();
+        data =
+            await response.json();
 
     } catch {
-        // La respuesta no contenía
-        // JSON válido.
+        // Respuesta sin JSON válido.
     }
 
 
