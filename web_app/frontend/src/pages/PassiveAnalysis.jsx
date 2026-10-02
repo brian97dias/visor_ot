@@ -2,10 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 
 import { analyzePcap, getPcaps } from "../api/ingestion";
 
+import {
+    useNavigate,
+} from "react-router-dom";
+
 const PAGE_SIZE = 15;
 
 function PassiveAnalysis() {
   const [analyzingPcaps, setAnalyzingPcaps] = useState(new Set());
+  const navigate = useNavigate();
 
   const handleAnalyze = async (pcap) => {
     setError("");
@@ -237,8 +242,15 @@ function PassiveAnalysis() {
                           <div className="table-actions">
                             {pcap.status === "ANALYZED" && (
                               <>
-                                <button className="button-secondary" disabled>
-                                  Ver análisis
+                                <button
+                                    className="button-secondary"
+                                    onClick={() =>
+                                        navigate(
+                                            `/passive-analysis/${pcap.id}`
+                                        )
+                                    }
+                                >
+                                    Ver análisis
                                 </button>
 
                                 <button className="button-secondary" disabled>

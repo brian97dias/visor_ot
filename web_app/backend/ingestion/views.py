@@ -7,16 +7,56 @@ from rest_framework.status import (
 from rest_framework.views import APIView
 
 from .services.analyzer_client import (
+    PassiveAnalyzerAnalysisNotFound,
     PassiveAnalyzerPcapNotFound,
     PassiveAnalyzerUnavailable,
     analyze_pcap,
+    get_pcap_analysis,
     get_pcaps,
 )
 
-from .services.analyzer_client import (
-    PassiveAnalyzerUnavailable,
-    get_pcaps,
-)
+
+class PcapAnalysisView(APIView):
+
+    permission_classes = [
+        IsAuthenticated,
+    ]
+
+
+    def get(
+        self,
+        request,
+        pcap_id,
+    ):
+
+        try:
+
+            data = get_pcap_analysis(
+                pcap_id
+            )
+
+
+        except PassiveAnalyzerAnalysisNotFound as error:
+
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=HTTP_404_NOT_FOUND,
+            )
+
+
+        except PassiveAnalyzerUnavailable as error:
+
+            return Response(
+                {
+                    "detail": str(error),
+                },
+                status=HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+
+        return Response(data)
 
 class PcapAnalyzeView(APIView):
 

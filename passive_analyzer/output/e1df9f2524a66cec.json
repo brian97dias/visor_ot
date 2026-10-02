@@ -1,0 +1,90 @@
+{
+  "schema_version": "0.2",
+  "capture": {
+    "pcap_id": "e1df9f2524a66cec",
+    "filename": "vethc76bd3f-1.pcap",
+    "relative_path": "Modbus Dataset/attack/compromised-scada/ied1b/ied1b-network-captures/vethc76bd3f-1.pcap"
+  },
+  "interfaces": [
+    {
+      "mac": "02:42:b9:af:00:03",
+      "ips": [],
+      "first_seen": "2023-03-15 18:56:00",
+      "last_seen": "2023-03-16 18:58:48"
+    },
+    {
+      "mac": "02:42:b9:af:00:04",
+      "ips": [],
+      "first_seen": "2023-03-15 20:13:08",
+      "last_seen": "2023-03-16 18:58:22"
+    },
+    {
+      "mac": "02:42:b9:af:00:05",
+      "ips": [],
+      "first_seen": "2023-03-15 18:56:00",
+      "last_seen": "2023-03-16 18:58:48"
+    },
+    {
+      "mac": "02:42:b9:af:00:08",
+      "ips": [],
+      "first_seen": "2023-03-16 00:55:11",
+      "last_seen": "2023-03-16 17:10:31"
+    },
+    {
+      "mac": "02:42:f9:49:f0:09",
+      "ips": [],
+      "first_seen": "2023-03-15 18:57:31",
+      "last_seen": "2023-03-16 18:57:31"
+    },
+    {
+      "mac": "e2:ad:eb:69:e4:89",
+      "ips": [],
+      "first_seen": "2023-03-15 19:03:38",
+      "last_seen": "2023-03-16 18:51:00"
+    }
+  ],
+  "communications": [
+    {
+      "client_ip": "185.175.0.3",
+      "server_ip": "185.175.0.5",
+      "client_macs": null,
+      "server_macs": null,
+      "transport_protocol": "TCP",
+      "service_port": 502,
+      "service": "Modbus/TCP",
+      "role_source": "tcp_syn",
+      "packet_count": 1165764,
+      "first_seen": "2023-03-15 18:56:00",
+      "last_seen": "2023-03-16 18:58:48",
+      "network_scope": "unknown"
+    },
+    {
+      "client_ip": "185.175.0.4",
+      "server_ip": "185.175.0.6",
+      "client_macs": null,
+      "server_macs": null,
+      "transport_protocol": "TCP",
+      "service_port": 1099,
+      "service": null,
+      "role_source": "tcp_syn",
+      "packet_count": 3,
+      "first_seen": "2023-03-15 20:13:08",
+      "last_seen": "2023-03-16 18:58:22",
+      "network_scope": "unknown"
+    },
+    {
+      "client_ip": "185.175.0.8",
+      "server_ip": "185.175.0.6",
+      "client_macs": null,
+      "server_macs": null,
+      "transport_protocol": "TCP",
+      "service_port": 1099,
+      "service": null,
+      "role_source": "tcp_syn",
+      "packet_count": 10,
+      "first_seen": "2023-03-16 00:55:11",
+      "last_seen": "2023-03-16 17:10:31",
+      "network_scope": "unknown"
+    }
+  ]
+}

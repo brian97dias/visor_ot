@@ -8,7 +8,7 @@ from catalog import (
     get_pcap_by_id,
     list_pcaps,
 )
-from output import save_output
+from output import save_output, load_output
 from pcap_identity import get_pcap_id
 
 
@@ -112,3 +112,53 @@ def analyze_pcap_endpoint(
             communications
         ),
     }
+
+@app.get(
+    "/api/v1/pcaps/{pcap_id}/analysis",
+)
+def get_pcap_analysis(
+    pcap_id: str,
+):
+
+    pcap_path = get_pcap_by_id(
+        pcap_id
+    )
+
+
+    if pcap_path is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="El PCAP solicitado no existe.",
+        )
+
+
+    try:
+
+        analysis = load_output(
+            pcap_id
+        )
+
+    except Exception as error:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "No fue posible leer "
+                "el resultado del análisis."
+            ),
+        ) from error
+
+
+    if analysis is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "El PCAP todavía no tiene "
+                "un análisis disponible."
+            ),
+        )
+
+
+    return analysis

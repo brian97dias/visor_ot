@@ -76,3 +76,39 @@ export async function analyzePcap(
 
     return data;
 }
+
+export async function getPcapAnalysis(
+    pcapId
+) {
+
+    const response =
+        await authenticatedFetch(
+            `/api/ingestion/pcaps/${encodeURIComponent(pcapId)}/analysis/`
+        );
+
+
+    let data = {};
+
+
+    try {
+
+        data =
+            await response.json();
+
+    } catch {
+        // Respuesta sin JSON válido.
+    }
+
+
+    if (!response.ok) {
+
+        throw new Error(
+            data.detail ||
+            "No fue posible obtener el análisis."
+        );
+
+    }
+
+
+    return data;
+}

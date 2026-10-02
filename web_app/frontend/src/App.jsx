@@ -11,7 +11,7 @@ import AppLayout from "./components/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import PassiveAnalysis from "./pages/PassiveAnalysis";
 import Login from "./pages/Login";
-
+import AnalysisDetail from "./pages/AnalysisDetail";
 
 function App() {
     return (
@@ -51,6 +51,11 @@ function App() {
                     <Route
                         path="/passive-analysis"
                         element={<PassiveAnalysis />}
+                    />
+
+                    <Route
+                        path="/passive-analysis/:pcapId"
+                        element={<AnalysisDetail />}
                     />
 
                     <Route

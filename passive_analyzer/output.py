@@ -105,3 +105,25 @@ def save_output(
 
 
     return output_file
+
+def load_output(pcap_id):
+
+    output_file = (
+        OUTPUT_DIRECTORY
+        / f"{pcap_id}.json"
+    )
+
+
+    if not output_file.is_file():
+        return None
+
+
+    with output_file.open(
+        "r",
+        encoding="utf-8",
+    ) as file:
+
+        output = json.load(file)
+
+
+    return output
