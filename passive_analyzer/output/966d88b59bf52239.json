@@ -1,0 +1,50 @@
+{
+  "schema_version": "0.2",
+  "capture": {
+    "pcap_id": "966d88b59bf52239",
+    "filename": "vethc76bd3f-2.pcap",
+    "relative_path": "Modbus Dataset/attack/compromised-ied/ied1b/ied1b-network-captures/vethc76bd3f-2.pcap"
+  },
+  "interfaces": [
+    {
+      "mac": "02:42:b9:af:00:02",
+      "ips": [],
+      "first_seen": "2023-03-25 10:16:57",
+      "last_seen": "2023-03-26 16:29:34"
+    },
+    {
+      "mac": "02:42:b9:af:00:05",
+      "ips": [],
+      "first_seen": "2023-03-25 10:16:57",
+      "last_seen": "2023-03-26 16:29:34"
+    },
+    {
+      "mac": "02:42:f9:49:f0:09",
+      "ips": [],
+      "first_seen": "2023-03-25 10:29:01",
+      "last_seen": "2023-03-26 16:29:01"
+    },
+    {
+      "mac": "e2:ad:eb:69:e4:89",
+      "ips": [],
+      "first_seen": "2023-03-25 10:29:01",
+      "last_seen": "2023-03-26 16:29:01"
+    }
+  ],
+  "communications": [
+    {
+      "client_ip": "185.175.0.2",
+      "server_ip": "185.175.0.5",
+      "client_macs": null,
+      "server_macs": null,
+      "transport_protocol": "TCP",
+      "service_port": 502,
+      "service": "Modbus/TCP",
+      "role_source": "known_service_port",
+      "packet_count": 1178000,
+      "first_seen": "2023-03-25 10:16:57",
+      "last_seen": "2023-03-26 16:29:34",
+      "network_scope": "unknown"
+    }
+  ]
+}
