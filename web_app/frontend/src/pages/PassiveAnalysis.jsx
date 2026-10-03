@@ -1,14 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { analyzePcap, getPcaps } from "../api/ingestion";
+import { useNavigate } from "react-router-dom";
 
 import {
-    useNavigate,
-} from "react-router-dom";
+  analyzePcap,
+  excludeIngestion,
+  getIngestions,
+  getPcaps,
+  importPcapObservations,
+} from "../api/ingestion";
 
 const PAGE_SIZE = 15;
 
 function PassiveAnalysis() {
+  const [ingestions, setIngestions] = useState([]);
+
+  const [importingPcaps, setImportingPcaps] = useState(new Set());
+
   const [analyzingPcaps, setAnalyzingPcaps] = useState(new Set());
   const navigate = useNavigate();
 
@@ -84,6 +92,26 @@ function PassiveAnalysis() {
     setCurrentPage(1);
   }, [search]);
 
+  const loadIngestions =
+      async () => {
+
+          try {
+
+              const data =
+                  await getIngestions();
+
+              setIngestions(data);
+
+          } catch (error) {
+
+              setError(
+                  error.message
+              );
+
+          }
+
+      };
+
   const filteredPcaps = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
 
@@ -110,10 +138,20 @@ function PassiveAnalysis() {
     return filteredPcaps.slice(start, end);
   }, [filteredPcaps, currentPage]);
 
-  const changeTab = (tab) => {
-    setActiveTab(tab);
-    setCurrentPage(1);
-    setSearch("");
+  const changeTab = async (
+      tab
+  ) => {
+
+      setActiveTab(tab);
+      setCurrentPage(1);
+      setSearch("");
+
+
+      if (
+          tab === "observations"
+      ) {
+          await loadIngestions();
+      }
   };
 
   const goToPreviousPage = () => {
@@ -122,6 +160,38 @@ function PassiveAnalysis() {
 
   const goToNextPage = () => {
     setCurrentPage((page) => Math.min(totalPages, page + 1));
+  };
+
+  const handleImport = async (pcap) => {
+    setError("");
+
+    setImportingPcaps((current) => {
+      const updated = new Set(current);
+
+      updated.add(pcap.id);
+
+      return updated;
+    });
+
+    try {
+      await importPcapObservations(pcap.id);
+
+      const updatedIngestions = await getIngestions();
+
+      setIngestions(updatedIngestions);
+
+      setActiveTab("observations");
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setImportingPcaps((current) => {
+        const updated = new Set(current);
+
+        updated.delete(pcap.id);
+
+        return updated;
+      });
+    }
   };
 
   if (loading) {
@@ -243,18 +313,22 @@ function PassiveAnalysis() {
                             {pcap.status === "ANALYZED" && (
                               <>
                                 <button
-                                    className="button-secondary"
-                                    onClick={() =>
-                                        navigate(
-                                            `/passive-analysis/${pcap.id}`
-                                        )
-                                    }
+                                  className="button-secondary"
+                                  onClick={() =>
+                                    navigate(`/passive-analysis/${pcap.id}`)
+                                  }
                                 >
-                                    Ver análisis
+                                  Ver análisis
                                 </button>
 
-                                <button className="button-secondary" disabled>
-                                  Importar
+                                <button
+                                  className="button-secondary"
+                                  onClick={() => handleImport(pcap)}
+                                  disabled={importingPcaps.has(pcap.id)}
+                                >
+                                  {importingPcaps.has(pcap.id)
+                                    ? "Importando..."
+                                    : "Importar"}
                                 </button>
                               </>
                             )}
