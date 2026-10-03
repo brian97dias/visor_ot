@@ -227,3 +227,33 @@ export async function excludeIngestion(
 
     return data;
 }
+
+export async function activateIngestion(
+    ingestionId
+) {
+
+    const response =
+        await authenticatedFetch(
+            `/api/ingestion/imports/${ingestionId}/activate/`,
+            {
+                method: "POST",
+            }
+        );
+
+
+    const data =
+        await response.json();
+
+
+    if (!response.ok) {
+
+        throw new Error(
+            data.detail ||
+            "No fue posible reactivar la importación."
+        );
+
+    }
+
+
+    return data;
+}

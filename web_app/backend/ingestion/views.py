@@ -321,4 +321,43 @@ class IngestionExcludeView(APIView):
             serializer.data
         )
 
-    
+class IngestionActivateView(APIView):
+
+    permission_classes = [
+        IsAuthenticated,
+    ]
+
+
+    def post(
+        self,
+        request,
+        ingestion_id,
+    ):
+
+        ingestion = get_object_or_404(
+            Ingestion,
+            id=ingestion_id,
+        )
+
+
+        ingestion.status = (
+            Ingestion.Status.ACTIVE
+        )
+
+        ingestion.save(
+            update_fields=[
+                "status",
+            ]
+        )
+
+
+        serializer = (
+            IngestionListSerializer(
+                ingestion
+            )
+        )
+
+
+        return Response(
+            serializer.data
+        )

@@ -320,7 +320,7 @@ function AnalysisDetail() {
 }
 
 
-function InterfacesTable({
+export function InterfacesTable({
     interfaces,
 }) {
 
@@ -443,7 +443,7 @@ function InterfacesTable({
 }
 
 
-function CommunicationsTable({
+export function CommunicationsTable({
     communications,
     onSelect,
 }) {
@@ -591,7 +591,7 @@ function CommunicationsTable({
 }
 
 
-function CommunicationModal({
+export function CommunicationModal({
     communication,
     onClose,
 }) {

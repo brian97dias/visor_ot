@@ -8,6 +8,7 @@ import {
   getIngestions,
   getPcaps,
   importPcapObservations,
+  activateIngestion,
 } from "../api/ingestion";
 
 const PAGE_SIZE = 15;
@@ -146,15 +147,17 @@ function PassiveAnalysis() {
     setCurrentPage((page) => Math.min(totalPages, page + 1));
   };
 
-  const handleExclude = async (ingestionId) => {
+  const handleIngestionStatus = async (ingestion) => {
     setError("");
 
     try {
-      await excludeIngestion(ingestionId);
+      if (ingestion.status === "ACTIVE") {
+        await excludeIngestion(ingestion.id);
+      } else {
+        await activateIngestion(ingestion.id);
+      }
 
-      const updatedIngestions = await getIngestions();
-
-      setIngestions(updatedIngestions);
+      await loadIngestions();
     } catch (error) {
       setError(error.message);
     }
@@ -438,14 +441,14 @@ function PassiveAnalysis() {
                             Ver
                           </button>
 
-                          {ingestion.status === "ACTIVE" && (
-                            <button
-                              className="button-secondary"
-                              onClick={() => handleExclude(ingestion.id)}
-                            >
-                              Excluir
-                            </button>
-                          )}
+                          <button
+                            className="button-secondary"
+                            onClick={() => handleIngestionStatus(ingestion)}
+                          >
+                            {ingestion.status === "ACTIVE"
+                              ? "Excluir"
+                              : "Reactivar"}
+                          </button>
                         </div>
                       </td>
                     </tr>

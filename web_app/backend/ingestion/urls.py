@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    IngestionActivateView,
     IngestionDetailView,
     IngestionExcludeView,
     IngestionListView,
@@ -50,5 +51,11 @@ urlpatterns = [
         "imports/<int:ingestion_id>/exclude/",
         IngestionExcludeView.as_view(),
         name="ingestion-exclude",
+    ),
+
+    path(
+    "imports/<int:ingestion_id>/activate/",
+    IngestionActivateView.as_view(),
+    name="ingestion-activate",
     ),
 ]
