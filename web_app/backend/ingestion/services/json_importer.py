@@ -1,0 +1,203 @@
+from django.db import transaction
+
+from ingestion.models import (
+    CommunicationObservation,
+    Ingestion,
+    InterfaceObservation,
+)
+
+from .analyzer_client import get_pcap_analysis
+
+
+SUPPORTED_SCHEMA_VERSION = "0.2"
+
+
+class ImportValidationError(Exception):
+    pass
+
+
+def validate_analysis(
+    analysis,
+    expected_pcap_id,
+):
+
+    schema_version = analysis.get(
+        "schema_version"
+    )
+
+    if schema_version != SUPPORTED_SCHEMA_VERSION:
+
+        raise ImportValidationError(
+            f"Schema no soportado: "
+            f"{schema_version}."
+        )
+
+
+    capture = analysis.get(
+        "capture"
+    )
+
+    if not isinstance(capture, dict):
+
+        raise ImportValidationError(
+            "El análisis no contiene "
+            "información válida de captura."
+        )
+
+
+    if (
+        capture.get("pcap_id")
+        != expected_pcap_id
+    ):
+
+        raise ImportValidationError(
+            "El PCAP ID del análisis "
+            "no coincide con el solicitado."
+        )
+
+
+    interfaces = analysis.get(
+        "interfaces"
+    )
+
+    communications = analysis.get(
+        "communications"
+    )
+
+
+    if not isinstance(interfaces, list):
+
+        raise ImportValidationError(
+            "La lista de interfaces "
+            "no es válida."
+        )
+
+
+    if not isinstance(
+        communications,
+        list,
+    ):
+
+        raise ImportValidationError(
+            "La lista de comunicaciones "
+            "no es válida."
+        )
+
+
+    return (
+        capture,
+        interfaces,
+        communications,
+    )
+
+
+@transaction.atomic
+def import_analysis(
+    pcap_id,
+    user,
+):
+
+    analysis = get_pcap_analysis(
+        pcap_id
+    )
+
+
+    (
+        capture,
+        interfaces,
+        communications,
+    ) = validate_analysis(
+        analysis,
+        pcap_id,
+    )
+
+
+    ingestion = Ingestion.objects.create(
+        pcap_id=pcap_id,
+        filename=capture["filename"],
+        relative_path=capture["relative_path"],
+        schema_version=analysis[
+            "schema_version"
+        ],
+        imported_by=user,
+        interfaces_detected=len(
+            interfaces
+        ),
+        communications_detected=len(
+            communications
+        ),
+    )
+
+
+    InterfaceObservation.objects.bulk_create([
+        InterfaceObservation(
+            ingestion=ingestion,
+            mac=item["mac"],
+            ips=item.get(
+                "ips",
+                [],
+            ),
+            first_seen=item["first_seen"],
+            last_seen=item["last_seen"],
+        )
+        for item in interfaces
+    ])
+
+
+    CommunicationObservation.objects.bulk_create([
+        CommunicationObservation(
+            ingestion=ingestion,
+
+            client_ip=item[
+                "client_ip"
+            ],
+
+            server_ip=item[
+                "server_ip"
+            ],
+
+            client_macs=item.get(
+                "client_macs"
+            ),
+
+            server_macs=item.get(
+                "server_macs"
+            ),
+
+            transport_protocol=item[
+                "transport_protocol"
+            ],
+
+            service_port=item[
+                "service_port"
+            ],
+
+            service=item.get(
+                "service"
+            ),
+
+            role_source=item.get(
+                "role_source"
+            ),
+
+            packet_count=item[
+                "packet_count"
+            ],
+
+            first_seen=item[
+                "first_seen"
+            ],
+
+            last_seen=item[
+                "last_seen"
+            ],
+
+            network_scope=item.get(
+                "network_scope"
+            ),
+        )
+        for item in communications
+    ])
+
+
+    return ingestion
