@@ -92,25 +92,15 @@ function PassiveAnalysis() {
     setCurrentPage(1);
   }, [search]);
 
-  const loadIngestions =
-      async () => {
+  const loadIngestions = async () => {
+    try {
+      const data = await getIngestions();
 
-          try {
-
-              const data =
-                  await getIngestions();
-
-              setIngestions(data);
-
-          } catch (error) {
-
-              setError(
-                  error.message
-              );
-
-          }
-
-      };
+      setIngestions(data);
+    } catch (error) {
+      setError(error.message);
+    }
+  };
 
   const filteredPcaps = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -138,20 +128,14 @@ function PassiveAnalysis() {
     return filteredPcaps.slice(start, end);
   }, [filteredPcaps, currentPage]);
 
-  const changeTab = async (
-      tab
-  ) => {
+  const changeTab = async (tab) => {
+    setActiveTab(tab);
+    setCurrentPage(1);
+    setSearch("");
 
-      setActiveTab(tab);
-      setCurrentPage(1);
-      setSearch("");
-
-
-      if (
-          tab === "observations"
-      ) {
-          await loadIngestions();
-      }
+    if (tab === "observations") {
+      await loadIngestions();
+    }
   };
 
   const goToPreviousPage = () => {
@@ -162,35 +146,17 @@ function PassiveAnalysis() {
     setCurrentPage((page) => Math.min(totalPages, page + 1));
   };
 
-  const handleImport = async (pcap) => {
+  const handleExclude = async (ingestionId) => {
     setError("");
 
-    setImportingPcaps((current) => {
-      const updated = new Set(current);
-
-      updated.add(pcap.id);
-
-      return updated;
-    });
-
     try {
-      await importPcapObservations(pcap.id);
+      await excludeIngestion(ingestionId);
 
       const updatedIngestions = await getIngestions();
 
       setIngestions(updatedIngestions);
-
-      setActiveTab("observations");
     } catch (error) {
       setError(error.message);
-    } finally {
-      setImportingPcaps((current) => {
-        const updated = new Set(current);
-
-        updated.delete(pcap.id);
-
-        return updated;
-      });
     }
   };
 
@@ -384,20 +350,110 @@ function PassiveAnalysis() {
             <div>
               <h2>Observaciones importadas</h2>
 
-              <p>Observaciones incorporadas a Visual OT.</p>
+              <p>Observaciones persistidas en Visual OT.</p>
             </div>
 
-            <span className="record-count">0 importaciones</span>
+            <span className="record-count">
+              {ingestions.length} importaciones
+            </span>
           </div>
 
-          <div className="empty-state observations-empty">
-            <strong>Aún no hay observaciones importadas</strong>
+          {ingestions.length === 0 ? (
+            <div className="empty-state observations-empty">
+              <strong>Aún no hay observaciones importadas</strong>
 
-            <p>
-              Cuando importes el resultado de un análisis, aparecerá aquí para
-              su revisión y posterior asociación con el inventario.
-            </p>
-          </div>
+              <p>
+                Cuando importes el resultado de un análisis, aparecerá aquí para
+                su revisión y posterior asociación con el inventario.
+              </p>
+            </div>
+          ) : (
+            <div className="table-container">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Archivo</th>
+                    <th>Schema</th>
+                    <th>Fecha</th>
+                    <th>Usuario</th>
+                    <th>Estado</th>
+                    <th>Interfaces</th>
+                    <th>Comunicaciones</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {ingestions.map((ingestion) => (
+                    <tr key={ingestion.id}>
+                      <td>#{ingestion.id}</td>
+
+                      <td>
+                        <div className="pcap-name">{ingestion.filename}</div>
+
+                        <div className="pcap-path">
+                          {ingestion.relative_path}
+                        </div>
+                      </td>
+
+                      <td>{ingestion.schema_version}</td>
+
+                      <td>
+                        {new Date(ingestion.imported_at).toLocaleString(
+                          "es-CO",
+                        )}
+                      </td>
+
+                      <td>{ingestion.imported_by}</td>
+
+                      <td>
+                        <span
+                          className={
+                            ingestion.status === "ACTIVE"
+                              ? "status status-analyzed"
+                              : "status status-excluded"
+                          }
+                        >
+                          {ingestion.status === "ACTIVE"
+                            ? "Activa"
+                            : "Excluida"}
+                        </span>
+                      </td>
+
+                      <td>{ingestion.interfaces_detected}</td>
+
+                      <td>{ingestion.communications_detected}</td>
+
+                      <td>
+                        <div className="table-actions">
+                          <button
+                            className="button-secondary"
+                            onClick={() =>
+                              navigate(
+                                `/passive-analysis/imports/${ingestion.id}`,
+                              )
+                            }
+                          >
+                            Ver
+                          </button>
+
+                          {ingestion.status === "ACTIVE" && (
+                            <button
+                              className="button-secondary"
+                              onClick={() => handleExclude(ingestion.id)}
+                            >
+                              Excluir
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </section>

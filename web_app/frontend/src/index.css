@@ -484,6 +484,11 @@ input {
     background: #713f12;
 }
 
+.status-excluded {
+    color: #cbd5e1;
+    background: #334155;
+}
+
 
 /* ACTIONS */
 
@@ -1088,3 +1093,4 @@ input {
         gap: 4px;
     }
 }
+
