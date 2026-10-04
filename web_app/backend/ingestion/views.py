@@ -1,11 +1,13 @@
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.status import (
+    HTTP_200_OK,
+    HTTP_201_CREATED,
+    HTTP_400_BAD_REQUEST,
     HTTP_404_NOT_FOUND,
     HTTP_503_SERVICE_UNAVAILABLE,
-    HTTP_201_CREATED,
-    HTTP_400_BAD_REQUEST
 )
+
 from rest_framework.views import APIView
 
 from .services.analyzer_client import (
@@ -201,9 +203,26 @@ class PcapImportView(APIView):
         )
 
 
+        response_data = dict(
+            serializer.data
+        )
+
+
+        response_data[
+            "import_result"
+        ] = import_result
+
+
+        status_code = (
+            HTTP_201_CREATED
+            if import_result == "CREATED"
+            else HTTP_200_OK
+        )
+
+
         return Response(
-            serializer.data,
-            status=HTTP_201_CREATED,
+            response_data,
+            status=status_code,
         )
 
 

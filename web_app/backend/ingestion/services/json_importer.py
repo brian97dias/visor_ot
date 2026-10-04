@@ -106,7 +106,230 @@ def validate_analysis(
     )
 
 
-def import_analysis(pcap_id, user):
+def import_analysis(
+    pcap_id,
+    user,
+):
+
+    # La llamada HTTP al Passive Analyzer
+    # ocurre fuera de la transacción.
+    analysis = get_pcap_analysis(
+        pcap_id
+    )
+
+
+    (
+        capture,
+        interfaces,
+        communications,
+    ) = validate_analysis(
+        analysis,
+        pcap_id,
+    )
+
+
+    analysis_hash = (
+        calculate_analysis_hash(
+            analysis
+        )
+    )
+
+
+    with transaction.atomic():
+
+        # Bloqueamos las ingestas de este PCAP
+        # mientras decidimos qué hacer.
+        existing_ingestion = (
+            Ingestion.objects
+            .select_for_update()
+            .filter(
+                pcap_id=pcap_id,
+                analysis_hash=analysis_hash,
+            )
+            .first()
+        )
+
+
+        # CASO 1 y 2:
+        # ya conocemos exactamente este análisis.
+        if existing_ingestion:
+
+            if (
+                existing_ingestion.status
+                == Ingestion.Status.ACTIVE
+            ):
+
+                return (
+                    existing_ingestion,
+                    "ALREADY_IMPORTED",
+                )
+
+
+            # Existe, pero está EXCLUDED.
+            # Antes de reactivarlo, excluimos
+            # cualquier otra versión activa.
+            Ingestion.objects.filter(
+                pcap_id=pcap_id,
+                status=Ingestion.Status.ACTIVE,
+            ).exclude(
+                pk=existing_ingestion.pk
+            ).update(
+                status=Ingestion.Status.EXCLUDED
+            )
+
+
+            existing_ingestion.status = (
+                Ingestion.Status.ACTIVE
+            )
+
+            existing_ingestion.save(
+                update_fields=[
+                    "status",
+                ]
+            )
+
+
+            return (
+                existing_ingestion,
+                "REACTIVATED",
+            )
+
+
+        # CASO 3:
+        # mismo PCAP, pero análisis distinto.
+        #
+        # Primero excluimos la versión activa
+        # anterior para respetar la restricción
+        # unique_active_ingestion_per_pcap.
+        Ingestion.objects.filter(
+            pcap_id=pcap_id,
+            status=Ingestion.Status.ACTIVE,
+        ).update(
+            status=Ingestion.Status.EXCLUDED
+        )
+
+
+        ingestion = (
+            Ingestion.objects.create(
+                pcap_id=pcap_id,
+                analysis_hash=analysis_hash,
+
+                filename=capture[
+                    "filename"
+                ],
+
+                relative_path=capture[
+                    "relative_path"
+                ],
+
+                schema_version=analysis[
+                    "schema_version"
+                ],
+
+                imported_by=user,
+
+                status=(
+                    Ingestion.Status.ACTIVE
+                ),
+
+                interfaces_detected=len(
+                    interfaces
+                ),
+
+                communications_detected=len(
+                    communications
+                ),
+            )
+        )
+
+
+        InterfaceObservation.objects.bulk_create([
+            InterfaceObservation(
+                ingestion=ingestion,
+
+                mac=item[
+                    "mac"
+                ],
+
+                ips=item.get(
+                    "ips",
+                    [],
+                ),
+
+                first_seen=item[
+                    "first_seen"
+                ],
+
+                last_seen=item[
+                    "last_seen"
+                ],
+            )
+
+            for item in interfaces
+        ])
+
+
+        CommunicationObservation.objects.bulk_create([
+            CommunicationObservation(
+                ingestion=ingestion,
+
+                client_ip=item[
+                    "client_ip"
+                ],
+
+                server_ip=item[
+                    "server_ip"
+                ],
+
+                client_macs=item.get(
+                    "client_macs"
+                ),
+
+                server_macs=item.get(
+                    "server_macs"
+                ),
+
+                transport_protocol=item[
+                    "transport_protocol"
+                ],
+
+                service_port=item[
+                    "service_port"
+                ],
+
+                service=item.get(
+                    "service"
+                ),
+
+                role_source=item.get(
+                    "role_source"
+                ),
+
+                packet_count=item[
+                    "packet_count"
+                ],
+
+                first_seen=item[
+                    "first_seen"
+                ],
+
+                last_seen=item[
+                    "last_seen"
+                ],
+
+                network_scope=item.get(
+                    "network_scope"
+                ),
+            )
+
+            for item in communications
+        ])
+
+
+        return (
+            ingestion,
+            "CREATED",
+        )
 
     # HTTP fuera de la transacción
     analysis = get_pcap_analysis(

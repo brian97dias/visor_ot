@@ -126,8 +126,20 @@ export async function importPcapObservations(
         );
 
 
-    const data =
-        await response.json();
+        let data = {};
+
+
+        try {
+
+            data = await response.json();
+
+        } catch {
+
+            throw new Error(
+                "El servidor devolvió una respuesta inválida."
+            );
+
+        }
 
 
     if (!response.ok) {
