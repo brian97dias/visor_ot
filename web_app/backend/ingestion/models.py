@@ -14,6 +14,13 @@ class Ingestion(models.Model):
         db_index=True,
     )
 
+    analysis_hash = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+
     filename = models.CharField(
         max_length=255,
     )
@@ -49,12 +56,25 @@ class Ingestion(models.Model):
     class Meta:
         ordering = ["-imported_at"]
 
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "pcap_id",
+                    "analysis_hash",
+                ],
+                name="unique_pcap_analysis",
+            ),
 
-    def __str__(self):
-        return (
-            f"Ingestion #{self.id} - "
-            f"{self.filename}"
-        )
+            models.UniqueConstraint(
+                fields=[
+                    "pcap_id",
+                ],
+                condition=models.Q(
+                    status="ACTIVE"
+                ),
+                name="unique_active_ingestion_per_pcap",
+            ),
+        ]
 
 
 class InterfaceObservation(models.Model):
@@ -152,3 +172,4 @@ class CommunicationObservation(models.Model):
             f"{self.server_ip}:"
             f"{self.service_port}"
         )
+    

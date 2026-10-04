@@ -63,6 +63,7 @@ class IngestionListSerializer(
         fields = [
             "id",
             "pcap_id",
+            "analysis_hash",
             "filename",
             "relative_path",
             "schema_version",

@@ -8,6 +8,8 @@ from ingestion.models import (
 
 from .analyzer_client import get_pcap_analysis
 
+import hashlib
+import json
 
 SUPPORTED_SCHEMA_VERSION = "0.2"
 
@@ -15,6 +17,19 @@ SUPPORTED_SCHEMA_VERSION = "0.2"
 class ImportValidationError(Exception):
     pass
 
+
+def calculate_analysis_hash(analysis,):
+
+    canonical_json = json.dumps(
+        analysis,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+
+    return hashlib.sha256(
+        canonical_json.encode("utf-8")
+    ).hexdigest()
 
 def validate_analysis(
     analysis,
@@ -91,113 +106,75 @@ def validate_analysis(
     )
 
 
-@transaction.atomic
-def import_analysis(
-    pcap_id,
-    user,
-):
+def import_analysis(pcap_id, user):
 
+    # HTTP fuera de la transacción
     analysis = get_pcap_analysis(
         pcap_id
     )
 
-
-    (
-        capture,
-        interfaces,
-        communications,
-    ) = validate_analysis(
-        analysis,
-        pcap_id,
+    capture, interfaces, communications = (
+        validate_analysis(
+            analysis,
+            pcap_id,
+        )
     )
 
-
-    ingestion = Ingestion.objects.create(
-        pcap_id=pcap_id,
-        filename=capture["filename"],
-        relative_path=capture["relative_path"],
-        schema_version=analysis[
-            "schema_version"
-        ],
-        imported_by=user,
-        interfaces_detected=len(
-            interfaces
-        ),
-        communications_detected=len(
-            communications
-        ),
+    analysis_hash = (
+        calculate_analysis_hash(
+            analysis
+        )
     )
 
+    # PostgreSQL solamente aquí
+    with transaction.atomic():
 
-    InterfaceObservation.objects.bulk_create([
-        InterfaceObservation(
-            ingestion=ingestion,
-            mac=item["mac"],
-            ips=item.get(
-                "ips",
-                [],
-            ),
-            first_seen=item["first_seen"],
-            last_seen=item["last_seen"],
+        ingestion, created = Ingestion.objects.get_or_create(
+            pcap_id=pcap_id,
+            analysis_hash=analysis_hash,
+            defaults={
+                "filename": capture["filename"],
+                "relative_path": capture["relative_path"],
+                "schema_version": analysis["schema_version"],
+                "imported_by": user,
+                "interfaces_detected": len(interfaces),
+                "communications_detected": len(communications),
+                "status": Ingestion.Status.ACTIVE,
+            },
         )
-        for item in interfaces
-    ])
 
+        # MISMO PCAP + MISMO ANÁLISIS: ya existe, no reinsertes hijos
+        if not created:
+            return ingestion
 
-    CommunicationObservation.objects.bulk_create([
-        CommunicationObservation(
-            ingestion=ingestion,
+        InterfaceObservation.objects.bulk_create([
+            InterfaceObservation(
+                ingestion=ingestion,
+                mac=item["mac"],
+                ips=item.get("ips", []),
+                first_seen=item["first_seen"],
+                last_seen=item["last_seen"],
+            )
+            for item in interfaces
+        ])
 
-            client_ip=item[
-                "client_ip"
-            ],
-
-            server_ip=item[
-                "server_ip"
-            ],
-
-            client_macs=item.get(
-                "client_macs"
-            ),
-
-            server_macs=item.get(
-                "server_macs"
-            ),
-
-            transport_protocol=item[
-                "transport_protocol"
-            ],
-
-            service_port=item[
-                "service_port"
-            ],
-
-            service=item.get(
-                "service"
-            ),
-
-            role_source=item.get(
-                "role_source"
-            ),
-
-            packet_count=item[
-                "packet_count"
-            ],
-
-            first_seen=item[
-                "first_seen"
-            ],
-
-            last_seen=item[
-                "last_seen"
-            ],
-
-            network_scope=item.get(
-                "network_scope"
-            ),
-        )
-        for item in communications
-    ])
-
+        CommunicationObservation.objects.bulk_create([
+            CommunicationObservation(
+                ingestion=ingestion,
+                client_ip=item["client_ip"],
+                server_ip=item["server_ip"],
+                client_macs=item.get("client_macs"),
+                server_macs=item.get("server_macs"),
+                transport_protocol=item["transport_protocol"],
+                service_port=item["service_port"],
+                service=item.get("service"),
+                role_source=item.get("role_source"),
+                packet_count=item["packet_count"],
+                first_seen=item["first_seen"],
+                last_seen=item["last_seen"],
+                network_scope=item.get("network_scope"),
+            )
+            for item in communications
+        ])
 
     return ingestion

@@ -156,9 +156,11 @@ class PcapImportView(APIView):
 
         try:
 
-            ingestion = import_analysis(
-                pcap_id=pcap_id,
-                user=request.user,
+            ingestion, import_result = (
+                import_analysis(
+                    pcap_id=pcap_id,
+                    user=request.user,
+                )
             )
 
 
