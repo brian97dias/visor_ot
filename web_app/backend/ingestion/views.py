@@ -1,5 +1,6 @@
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.db import transaction
 from rest_framework.status import (
     HTTP_200_OK,
     HTTP_201_CREATED,
@@ -355,21 +356,33 @@ class IngestionActivateView(APIView):
         ingestion_id,
     ):
 
-        ingestion = get_object_or_404(
-            Ingestion,
-            id=ingestion_id,
-        )
+        with transaction.atomic():
+
+            ingestion = get_object_or_404(
+                Ingestion.objects.select_for_update(),
+                id=ingestion_id,
+            )
 
 
-        ingestion.status = (
-            Ingestion.Status.ACTIVE
-        )
+            Ingestion.objects.filter(
+                pcap_id=ingestion.pcap_id,
+                status=Ingestion.Status.ACTIVE,
+            ).exclude(
+                pk=ingestion.pk
+            ).update(
+                status=Ingestion.Status.EXCLUDED
+            )
 
-        ingestion.save(
-            update_fields=[
-                "status",
-            ]
-        )
+
+            ingestion.status = (
+                Ingestion.Status.ACTIVE
+            )
+
+            ingestion.save(
+                update_fields=[
+                    "status",
+                ]
+            )
 
 
         serializer = (

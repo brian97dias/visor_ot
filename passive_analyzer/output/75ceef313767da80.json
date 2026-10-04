@@ -1,0 +1,112 @@
+{
+  "schema_version": "0.2",
+  "capture": {
+    "pcap_id": "75ceef313767da80",
+    "filename": "veth3614724-0.pcap",
+    "relative_path": "Modbus Dataset/attack/compromised-ied/ied1a/ied1a-network-captures/veth3614724-0.pcap"
+  },
+  "interfaces": [
+    {
+      "mac": "02:42:b9:af:00:02",
+      "ips": [],
+      "first_seen": "2023-03-22 21:31:40",
+      "last_seen": "2023-03-24 02:21:45"
+    },
+    {
+      "mac": "02:42:b9:af:00:04",
+      "ips": [
+        "185.175.0.4"
+      ],
+      "first_seen": "2023-03-22 21:12:19",
+      "last_seen": "2023-03-24 02:21:45"
+    },
+    {
+      "mac": "02:42:b9:af:00:06",
+      "ips": [
+        "185.175.0.6"
+      ],
+      "first_seen": "2023-03-22 21:12:00",
+      "last_seen": "2023-03-24 02:21:19"
+    },
+    {
+      "mac": "02:42:f9:49:f0:09",
+      "ips": [],
+      "first_seen": "2023-03-22 21:29:00",
+      "last_seen": "2023-03-24 01:57:32"
+    },
+    {
+      "mac": "ce:98:4d:d8:d1:7c",
+      "ips": [],
+      "first_seen": "2023-03-22 21:29:00",
+      "last_seen": "2023-03-24 02:03:56"
+    }
+  ],
+  "communications": [
+    {
+      "client_ip": "185.175.0.4",
+      "server_ip": "185.175.0.6",
+      "client_macs": [
+        "02:42:b9:af:00:04"
+      ],
+      "server_macs": [
+        "02:42:b9:af:00:06"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 1099,
+      "service": null,
+      "role_source": "tcp_syn",
+      "packet_count": 28499,
+      "first_seen": "2023-03-22 21:12:19",
+      "last_seen": "2023-03-24 02:21:19",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "185.175.0.6",
+      "server_ip": "185.175.0.4",
+      "client_macs": [
+        "02:42:b9:af:00:06"
+      ],
+      "server_macs": [
+        "02:42:b9:af:00:04"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 1099,
+      "service": null,
+      "role_source": "tcp_syn",
+      "packet_count": 60,
+      "first_seen": "2023-03-22 21:12:19",
+      "last_seen": "2023-03-22 21:31:08",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "185.175.0.2",
+      "server_ip": "185.175.0.5",
+      "client_macs": null,
+      "server_macs": null,
+      "transport_protocol": "TCP",
+      "service_port": 502,
+      "service": "Modbus/TCP",
+      "role_source": "tcp_syn",
+      "packet_count": 1,
+      "first_seen": "2023-03-22 21:31:40",
+      "last_seen": "2023-03-22 21:31:40",
+      "network_scope": "unknown"
+    },
+    {
+      "client_ip": "185.175.0.2",
+      "server_ip": "185.175.0.4",
+      "client_macs": null,
+      "server_macs": [
+        "02:42:b9:af:00:04"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 502,
+      "service": "Modbus/TCP",
+      "role_source": "tcp_syn",
+      "packet_count": 1121445,
+      "first_seen": "2023-03-22 21:31:51",
+      "last_seen": "2023-03-24 02:21:45",
+      "network_scope": "external_public"
+    }
+  ]
+}

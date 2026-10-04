@@ -163,6 +163,38 @@ function PassiveAnalysis() {
     }
   };
 
+  const handleImport = async (pcap) => {
+    setError("");
+
+    setImportingPcaps((current) => {
+      const updated = new Set(current);
+
+      updated.add(pcap.id);
+
+      return updated;
+    });
+
+    try {
+      const result = await importPcapObservations(pcap.id);
+
+      await loadIngestions();
+
+      setActiveTab("observations");
+
+      console.log("Resultado importación:", result.import_result);
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setImportingPcaps((current) => {
+        const updated = new Set(current);
+
+        updated.delete(pcap.id);
+
+        return updated;
+      });
+    }
+  };
+
   if (loading) {
     return (
       <section className="page">
