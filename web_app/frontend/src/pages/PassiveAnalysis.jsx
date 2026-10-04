@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import {
   analyzePcap,
@@ -14,6 +14,8 @@ import {
 const PAGE_SIZE = 15;
 
 function PassiveAnalysis() {
+
+  const [searchParams, setSearchParams] = useSearchParams();
   const [ingestions, setIngestions] = useState([]);
 
   const [importingPcaps, setImportingPcaps] = useState(new Set());
@@ -63,7 +65,11 @@ function PassiveAnalysis() {
 
   const [pcaps, setPcaps] = useState([]);
 
-  const [activeTab, setActiveTab] = useState("pcaps");
+  const activeTab =
+    searchParams.get("tab")
+    === "observations"
+      ? "observations"
+      : "pcaps";
 
   const [search, setSearch] = useState("");
 
@@ -72,7 +78,7 @@ function PassiveAnalysis() {
   const [loading, setLoading] = useState(true);
 
   const [error, setError] = useState("");
-
+  const [notice, setNotice] = useState(null);
   useEffect(() => {
     async function loadPcaps() {
       try {
@@ -129,14 +135,28 @@ function PassiveAnalysis() {
     return filteredPcaps.slice(start, end);
   }, [filteredPcaps, currentPage]);
 
-  const changeTab = async (tab) => {
-    setActiveTab(tab);
+  const changeTab = async (
+    tab
+  ) => {
+
     setCurrentPage(1);
     setSearch("");
 
+
     if (tab === "observations") {
+
+      setSearchParams({
+        tab: "observations",
+      });
+
       await loadIngestions();
+
+      return;
     }
+
+
+    setSearchParams({});
+
   };
 
   const goToPreviousPage = () => {
@@ -165,6 +185,7 @@ function PassiveAnalysis() {
 
   const handleImport = async (pcap) => {
     setError("");
+    setNotice(null);
 
     setImportingPcaps((current) => {
       const updated = new Set(current);
@@ -177,11 +198,46 @@ function PassiveAnalysis() {
     try {
       const result = await importPcapObservations(pcap.id);
 
-      await loadIngestions();
+      const messages = {
+        CREATED: {
+          type: "success",
+          text: "Observaciones importadas correctamente.",
+        },
 
-      setActiveTab("observations");
+        ALREADY_IMPORTED: {
+          type: "info",
+          text: "Este análisis ya estaba importado.",
+        },
 
-      console.log("Resultado importación:", result.import_result);
+        REACTIVATED: {
+          type: "success",
+          text: "La ingesta existente fue reactivada.",
+        },
+      };
+
+      setNotice(
+        messages[result.import_result] || {
+          type: "success",
+          text: "Importación procesada correctamente.",
+        },
+      );
+
+      /*
+       * Refrescamos ambas fuentes.
+       *
+       * La tabla de PCAP necesita enterarse
+       * de que ahora existe una ingesta activa.
+       */
+      const [updatedPcaps, updatedIngestions] = await Promise.all([
+        getPcaps(),
+        getIngestions(),
+      ]);
+
+      setPcaps(updatedPcaps);
+
+      setIngestions(updatedIngestions);
+
+      changeTab("observations");
     } catch (error) {
       setError(error.message);
     } finally {
@@ -218,6 +274,16 @@ function PassiveAnalysis() {
       </header>
 
       {error && <div className="error-message">{error}</div>}
+
+      {notice && (
+        <div
+          className={
+            notice.type === "info" ? "info-message" : "success-message"
+          }
+        >
+          {notice.text}
+        </div>
+      )}
 
       <div className="analysis-tabs">
         <button

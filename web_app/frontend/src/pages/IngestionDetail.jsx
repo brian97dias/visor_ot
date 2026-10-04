@@ -4,7 +4,7 @@ import {
 } from "react";
 
 import {
-    useNavigate,
+    Link,
     useParams,
 } from "react-router-dom";
 
@@ -117,7 +117,7 @@ function IngestionDetail() {
                     className="button-secondary"
                     onClick={() =>
                         navigate(
-                            "/passive-analysis"
+                            "/passive-analysis?tab=observations"
                         )
                     }
                 >
@@ -135,18 +135,30 @@ function IngestionDetail() {
 
             <div className="breadcrumbs">
 
-                <button
-                    onClick={() =>
-                        navigate(
-                            "/passive-analysis"
-                        )
-                    }
-                >
-                    Red / Análisis pasivo /
-                    Observaciones importadas
-                </button>
+                <span>
+                    Red
+                </span>
 
                 <span>/</span>
+
+
+                <Link
+                    to="/passive-analysis"
+                >
+                    Análisis pasivo
+                </Link>
+
+                <span>/</span>
+
+
+                <Link
+                    to="/passive-analysis?tab=observations"
+                >
+                    Observaciones importadas
+                </Link>
+
+                <span>/</span>
+
 
                 <span>
                     #{ingestion.id}

@@ -1094,3 +1094,36 @@ input {
     }
 }
 
+.success-message,
+.info-message {
+    margin-bottom: 20px;
+    padding: 14px 16px;
+
+    border-radius: 7px;
+
+    font-size: 0.9rem;
+}
+
+.success-message {
+    color: #bbf7d0;
+    background: #052e16;
+
+    border: 1px solid #166534;
+}
+
+.info-message {
+    color: #bae6fd;
+    background: #082f49;
+
+    border: 1px solid #0369a1;
+}
+
+.breadcrumbs a {
+    color: #38bdf8;
+
+    text-decoration: none;
+}
+
+.breadcrumbs a:hover {
+    text-decoration: underline;
+}
