@@ -14,7 +14,6 @@ import {
 const PAGE_SIZE = 15;
 
 function PassiveAnalysis() {
-
   const [searchParams, setSearchParams] = useSearchParams();
   const [ingestions, setIngestions] = useState([]);
 
@@ -66,10 +65,7 @@ function PassiveAnalysis() {
   const [pcaps, setPcaps] = useState([]);
 
   const activeTab =
-    searchParams.get("tab")
-    === "observations"
-      ? "observations"
-      : "pcaps";
+    searchParams.get("tab") === "observations" ? "observations" : "pcaps";
 
   const [search, setSearch] = useState("");
 
@@ -135,16 +131,11 @@ function PassiveAnalysis() {
     return filteredPcaps.slice(start, end);
   }, [filteredPcaps, currentPage]);
 
-  const changeTab = async (
-    tab
-  ) => {
-
+  const changeTab = async (tab) => {
     setCurrentPage(1);
     setSearch("");
 
-
     if (tab === "observations") {
-
       setSearchParams({
         tab: "observations",
       });
@@ -154,9 +145,7 @@ function PassiveAnalysis() {
       return;
     }
 
-
     setSearchParams({});
-
   };
 
   const goToPreviousPage = () => {
@@ -228,16 +217,11 @@ function PassiveAnalysis() {
        * La tabla de PCAP necesita enterarse
        * de que ahora existe una ingesta activa.
        */
-      const [updatedPcaps, updatedIngestions] = await Promise.all([
-        getPcaps(),
-        getIngestions(),
-      ]);
+      const updatedPcaps = await getPcaps();
 
       setPcaps(updatedPcaps);
 
-      setIngestions(updatedIngestions);
-
-      changeTab("observations");
+      await changeTab("observations");
     } catch (error) {
       setError(error.message);
     } finally {
@@ -362,17 +346,39 @@ function PassiveAnalysis() {
                         </td>
 
                         <td>
-                          <span
-                            className={
-                              pcap.status === "ANALYZED"
-                                ? "status status-analyzed"
-                                : "status status-pending"
-                            }
-                          >
-                            {pcap.status === "ANALYZED"
-                              ? "Analizado"
-                              : "Pendiente"}
-                          </span>
+                          <td>
+                            <div className="status-group">
+                              <span
+                                className={
+                                  pcap.status === "ANALYZED"
+                                    ? "status status-analyzed"
+                                    : "status status-pending"
+                                }
+                              >
+                                {pcap.status === "ANALYZED"
+                                  ? "Analizado"
+                                  : "Pendiente"}
+                              </span>
+
+                              {pcap.import_status === "IMPORTED" && (
+                                <span className="status status-imported">
+                                  Importado
+                                </span>
+                              )}
+
+                              {pcap.import_status === "UPDATE_AVAILABLE" && (
+                                <span className="status status-update">
+                                  Nueva versión
+                                </span>
+                              )}
+
+                              {pcap.import_status === "EXCLUDED" && (
+                                <span className="status status-excluded">
+                                  Excluido
+                                </span>
+                              )}
+                            </div>
+                          </td>
                         </td>
 
                         <td>

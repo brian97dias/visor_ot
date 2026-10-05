@@ -1127,3 +1127,21 @@ input {
 .breadcrumbs a:hover {
     text-decoration: underline;
 }
+
+.status-group {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+
+    gap: 6px;
+}
+
+.status-imported {
+    color: #bae6fd;
+    background: #0c4a6e;
+}
+
+.status-update {
+    color: #fde68a;
+    background: #713f12;
+}

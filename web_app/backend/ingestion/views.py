@@ -31,6 +31,7 @@ from .serializers import (
 
 from .services.json_importer import (
     ImportValidationError,
+    calculate_analysis_hash,
     import_analysis,
 )
 
@@ -127,10 +128,194 @@ class PcapListView(APIView):
     ]
 
 
-    def get(self, request):
+    def get(
+        self,
+        request,
+    ):
 
         try:
+
             data = get_pcaps()
+
+
+            ingestion_rows = (
+                Ingestion.objects
+                .filter(
+                    pcap_id__in=[
+                        pcap["id"]
+                        for pcap
+                        in data.get(
+                            "pcaps",
+                            [],
+                        )
+                    ]
+                )
+                .values(
+                    "id",
+                    "pcap_id",
+                    "analysis_hash",
+                    "status",
+                )
+            )
+
+
+            ingestions_by_pcap = {}
+
+
+            for ingestion in ingestion_rows:
+
+                ingestions_by_pcap.setdefault(
+                    ingestion["pcap_id"],
+                    [],
+                ).append(
+                    ingestion
+                )
+
+
+            for pcap in data.get(
+                "pcaps",
+                [],
+            ):
+
+                pcap[
+                    "import_status"
+                ] = "NOT_IMPORTED"
+
+                pcap[
+                    "ingestion_id"
+                ] = None
+
+
+                histories = (
+                    ingestions_by_pcap.get(
+                        pcap["id"],
+                        [],
+                    )
+                )
+
+
+                if not histories:
+                    continue
+
+
+                
+                # Solo necesitamos consultar
+                # el análisis actual cuando
+                # este PCAP tiene historial
+                # de importaciones.
+                
+                if (
+                    pcap["status"]
+                    != "ANALYZED"
+                ):
+
+                    active = next(
+                        (
+                            item
+                            for item
+                            in histories
+                            if item["status"]
+                            == Ingestion.Status.ACTIVE
+                        ),
+                        None,
+                    )
+
+
+                    if active:
+
+                        pcap[
+                            "import_status"
+                        ] = "IMPORTED"
+
+                        pcap[
+                            "ingestion_id"
+                        ] = active["id"]
+
+
+                    continue
+
+
+                analysis = (
+                    get_pcap_analysis(
+                        pcap["id"]
+                    )
+                )
+
+
+                current_hash = (
+                    calculate_analysis_hash(
+                        analysis
+                    )
+                )
+
+
+                same_analysis = next(
+                    (
+                        item
+                        for item
+                        in histories
+                        if (
+                            item[
+                                "analysis_hash"
+                            ]
+                            == current_hash
+                        )
+                    ),
+                    None,
+                )
+
+
+                active = next(
+                    (
+                        item
+                        for item
+                        in histories
+                        if item["status"]
+                        == Ingestion.Status.ACTIVE
+                    ),
+                    None,
+                )
+
+
+                if same_analysis:
+
+                    pcap[
+                        "ingestion_id"
+                    ] = same_analysis[
+                        "id"
+                    ]
+
+
+                    if (
+                        same_analysis[
+                            "status"
+                        ]
+                        == Ingestion.Status.ACTIVE
+                    ):
+
+                        pcap[
+                            "import_status"
+                        ] = "IMPORTED"
+
+                    else:
+
+                        pcap[
+                            "import_status"
+                        ] = "EXCLUDED"
+
+
+                elif active:
+
+                    pcap[
+                        "import_status"
+                    ] = "UPDATE_AVAILABLE"
+
+                    pcap[
+                        "ingestion_id"
+                    ] = active[
+                        "id"
+                    ]
+
 
         except PassiveAnalyzerUnavailable as error:
 
@@ -142,7 +327,9 @@ class PcapListView(APIView):
             )
 
 
-        return Response(data)
+        return Response(
+            data
+        )
 
 class PcapImportView(APIView):
 

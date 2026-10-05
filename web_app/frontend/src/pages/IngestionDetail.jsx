@@ -6,6 +6,7 @@ import {
 import {
     Link,
     useParams,
+    useNavigate,
 } from "react-router-dom";
 
 import {
