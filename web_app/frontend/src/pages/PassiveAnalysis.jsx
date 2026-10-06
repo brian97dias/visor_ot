@@ -105,6 +105,12 @@ function PassiveAnalysis() {
     }
   };
 
+  useEffect(() => {
+    if (activeTab === "observations") {
+      loadIngestions();
+    }
+  }, [activeTab]);
+
   const filteredPcaps = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
 
@@ -131,7 +137,7 @@ function PassiveAnalysis() {
     return filteredPcaps.slice(start, end);
   }, [filteredPcaps, currentPage]);
 
-  const changeTab = async (tab) => {
+  const changeTab = (tab) => {
     setCurrentPage(1);
     setSearch("");
 
@@ -139,8 +145,6 @@ function PassiveAnalysis() {
       setSearchParams({
         tab: "observations",
       });
-
-      await loadIngestions();
 
       return;
     }
@@ -166,7 +170,14 @@ function PassiveAnalysis() {
         await activateIngestion(ingestion.id);
       }
 
-      await loadIngestions();
+      const [updatedIngestions, updatedPcaps] = await Promise.all([
+        getIngestions(),
+        getPcaps(),
+      ]);
+
+      setIngestions(updatedIngestions);
+
+      setPcaps(updatedPcaps);
     } catch (error) {
       setError(error.message);
     }
@@ -221,7 +232,7 @@ function PassiveAnalysis() {
 
       setPcaps(updatedPcaps);
 
-      await changeTab("observations");
+      changeTab("observations");
     } catch (error) {
       setError(error.message);
     } finally {
@@ -257,15 +268,37 @@ function PassiveAnalysis() {
         </div>
       </header>
 
-      {error && <div className="error-message">{error}</div>}
+      {error && (
+        <div className="error-message dismissible-message">
+          <span>{error}</span>
+
+          <button
+            type="button"
+            className="message-close"
+            onClick={() => setError("")}
+            aria-label="Cerrar mensaje"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {notice && (
         <div
-          className={
+          className={`${
             notice.type === "info" ? "info-message" : "success-message"
-          }
+          } dismissible-message`}
         >
-          {notice.text}
+          <span>{notice.text}</span>
+
+          <button
+            type="button"
+            className="message-close"
+            onClick={() => setNotice(null)}
+            aria-label="Cerrar mensaje"
+          >
+            ×
+          </button>
         </div>
       )}
 
@@ -346,39 +379,37 @@ function PassiveAnalysis() {
                         </td>
 
                         <td>
-                          <td>
-                            <div className="status-group">
-                              <span
-                                className={
-                                  pcap.status === "ANALYZED"
-                                    ? "status status-analyzed"
-                                    : "status status-pending"
-                                }
-                              >
-                                {pcap.status === "ANALYZED"
-                                  ? "Analizado"
-                                  : "Pendiente"}
+                          <div className="status-group">
+                            <span
+                              className={
+                                pcap.status === "ANALYZED"
+                                  ? "status status-analyzed"
+                                  : "status status-pending"
+                              }
+                            >
+                              {pcap.status === "ANALYZED"
+                                ? "Analizado"
+                                : "Pendiente"}
+                            </span>
+
+                            {pcap.import_status === "IMPORTED" && (
+                              <span className="status status-imported">
+                                Importado
                               </span>
+                            )}
 
-                              {pcap.import_status === "IMPORTED" && (
-                                <span className="status status-imported">
-                                  Importado
-                                </span>
-                              )}
+                            {pcap.import_status === "UPDATE_AVAILABLE" && (
+                              <span className="status status-update">
+                                Nueva versión
+                              </span>
+                            )}
 
-                              {pcap.import_status === "UPDATE_AVAILABLE" && (
-                                <span className="status status-update">
-                                  Nueva versión
-                                </span>
-                              )}
-
-                              {pcap.import_status === "EXCLUDED" && (
-                                <span className="status status-excluded">
-                                  Excluido
-                                </span>
-                              )}
-                            </div>
-                          </td>
+                            {pcap.import_status === "EXCLUDED" && (
+                              <span className="status status-excluded">
+                                Excluido
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         <td>
