@@ -425,15 +425,33 @@ function PassiveAnalysis() {
                                   Ver análisis
                                 </button>
 
-                                <button
-                                  className="button-secondary"
-                                  onClick={() => handleImport(pcap)}
-                                  disabled={importingPcaps.has(pcap.id)}
-                                >
-                                  {importingPcaps.has(pcap.id)
-                                    ? "Importando..."
-                                    : "Importar"}
-                                </button>
+                                {pcap.import_status === "IMPORTED" ? (
+                                  <button
+                                    className="button-secondary"
+                                    onClick={() =>
+                                      navigate(
+                                        `/passive-analysis/imports/${pcap.ingestion_id}`,
+                                      )
+                                    }
+                                  >
+                                    Ver ingesta
+                                  </button>
+                                ) : (
+                                  <button
+                                    className="button-secondary"
+                                    onClick={() => handleImport(pcap)}
+                                    disabled={importingPcaps.has(pcap.id)}
+                                  >
+                                    {importingPcaps.has(pcap.id)
+                                      ? "Importando..."
+                                      : pcap.import_status ===
+                                          "UPDATE_AVAILABLE"
+                                        ? "Importar actualización"
+                                        : pcap.import_status === "EXCLUDED"
+                                          ? "Reactivar importación"
+                                          : "Importar"}
+                                  </button>
+                                )}
                               </>
                             )}
 
