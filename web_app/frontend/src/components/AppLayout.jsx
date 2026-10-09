@@ -78,6 +78,16 @@ function AppLayout() {
             >
               Análisis pasivo
             </NavLink>
+            <NavLink
+              to="/communications"
+              className={({ isActive }) =>
+                isActive
+                  ? "nav-item nav-subitem active"
+                  : "nav-item nav-subitem"
+              }
+            >
+              Comunicaciones
+            </NavLink>
           </div>
         </nav>
 

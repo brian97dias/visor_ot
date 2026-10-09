@@ -1177,3 +1177,146 @@ input {
 .message-close:hover {
     opacity: 1;
 }
+
+/* NETWORK COMMUNICATIONS */
+
+.status-unclassified {
+    color: #fde68a;
+    background: #713f12;
+}
+
+.status-authorized {
+    color: #bbf7d0;
+    background: #14532d;
+}
+
+.status-unauthorized {
+    color: #fecaca;
+    background: #7f1d1d;
+}
+
+.status-no-evidence {
+    color: #cbd5e1;
+    background: #334155;
+}
+
+
+.table-filter-select {
+    padding: 10px 12px;
+
+    color: #e2e8f0;
+    background: #111827;
+
+    border: 1px solid #334155;
+    border-radius: 7px;
+
+    outline: none;
+}
+
+.table-filter-select:focus {
+    border-color: #38bdf8;
+}
+
+
+.classification-panel {
+    margin-bottom: 26px;
+    padding: 22px;
+
+    background: #111827;
+
+    border: 1px solid #263244;
+    border-radius: 9px;
+}
+
+.classification-panel h2 {
+    margin: 0 0 6px;
+
+    color: #f1f5f9;
+
+    font-size: 1.1rem;
+}
+
+.classification-panel p {
+    margin: 0;
+
+    color: #94a3b8;
+}
+
+
+.classification-controls {
+    display: flex;
+    align-items: center;
+
+    gap: 12px;
+
+    margin-top: 18px;
+}
+
+.classification-controls select {
+    min-width: 220px;
+
+    padding: 9px 12px;
+
+    color: #e2e8f0;
+    background: #0f172a;
+
+    border: 1px solid #334155;
+    border-radius: 7px;
+
+    outline: none;
+}
+
+.classification-controls select:focus {
+    border-color: #38bdf8;
+}
+
+
+.classification-audit {
+    margin-top: 16px !important;
+
+    color: #64748b !important;
+
+    font-size: 0.83rem;
+}
+
+
+.button-link {
+    display: inline-block;
+
+    padding: 8px 11px;
+
+    color: #cbd5e1;
+
+    border: 1px solid #475569;
+    border-radius: 6px;
+
+    text-decoration: none;
+
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.button-link:hover {
+    color: #e0f2fe;
+
+    border-color: #38bdf8;
+}
+
+
+.summary-date {
+    font-size: 1rem !important;
+}
+
+
+@media (max-width: 800px) {
+
+    .classification-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .classification-controls select {
+        width: 100%;
+    }
+
+}

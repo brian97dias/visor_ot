@@ -9,6 +9,10 @@ import Login from "./pages/Login";
 import AnalysisDetail from "./pages/AnalysisDetail";
 import IngestionDetail from "./pages/IngestionDetail";
 
+import Communications from "./pages/Communications";
+
+import CommunicationDetail from "./pages/CommunicationDetail";
+
 function App() {
   return (
     <BrowserRouter>
@@ -43,6 +47,13 @@ function App() {
         </Route>
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
+
+        <Route path="/communications" element={<Communications />} />
+
+        <Route
+          path="/communications/:communicationId"
+          element={<CommunicationDetail />}
+        />
       </Routes>
     </BrowserRouter>
   );
