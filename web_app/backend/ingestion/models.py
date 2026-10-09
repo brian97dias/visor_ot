@@ -4,14 +4,6 @@ from django.db import models
 
 class Ingestion(models.Model):
 
-    communication = models.ForeignKey(
-        "network.Communication",
-        null=True,
-        blank=True,
-        on_delete=models.PROTECT,
-        related_name="observations",
-    )
-
     class Status(models.TextChoices):
         ACTIVE = "ACTIVE", "Activa"
         EXCLUDED = "EXCLUDED", "Excluida"
@@ -123,6 +115,14 @@ class CommunicationObservation(models.Model):
         Ingestion,
         on_delete=models.CASCADE,
         related_name="communication_observations",
+    )
+
+    communication = models.ForeignKey(
+        "network.Communication",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="observations",
     )
 
     client_ip = models.GenericIPAddressField()

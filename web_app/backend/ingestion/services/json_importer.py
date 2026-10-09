@@ -174,6 +174,35 @@ def import_analysis(
                     "ALREADY_IMPORTED",
                 )
 
+
+            # El mismo análisis existe,
+            # pero estaba excluido.
+            Ingestion.objects.filter(
+                pcap_id=pcap_id,
+                status=Ingestion.Status.ACTIVE,
+            ).exclude(
+                pk=existing_ingestion.pk
+            ).update(
+                status=Ingestion.Status.EXCLUDED
+            )
+
+
+            existing_ingestion.status = (
+                Ingestion.Status.ACTIVE
+            )
+
+            existing_ingestion.save(
+                update_fields=[
+                    "status",
+                ]
+            )
+
+
+            return (
+                existing_ingestion,
+                "REACTIVATED",
+            )
+
         # CASO 3:
         # mismo PCAP, pero análisis distinto.
         #
@@ -312,9 +341,7 @@ def import_analysis(
         )
 
 
-        consolidate_communication_observations(
-            created_observations
-)
+        consolidate_communication_observations( created_observations)
 
         return (
             ingestion,

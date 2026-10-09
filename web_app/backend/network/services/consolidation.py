@@ -92,10 +92,7 @@ def consolidate_all_observations():
 
     observations = (
         CommunicationObservation.objects
-        .select_related(
-            "communication"
-        )
-        .all()
+        .select_related("communication").all()
     )
 
 
