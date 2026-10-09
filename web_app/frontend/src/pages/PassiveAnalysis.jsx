@@ -97,7 +97,7 @@ function PassiveAnalysis() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, pcapStatusFilter]);
+  }, [search, pcapStatusFilter, ingestionStatusFilter]);
 
   const loadIngestions = async () => {
     try {
@@ -593,7 +593,32 @@ function PassiveAnalysis() {
               {ingestions.length} importaciones
             </span>
           </div>
+          <div className="table-toolbar">
+            <div className="search-box">
+              <input
+                type="search"
+                placeholder="Buscar por archivo, ruta, usuario o ID..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </div>
 
+            <select
+              className="table-filter-select"
+              value={ingestionStatusFilter}
+              onChange={(event) => setIngestionStatusFilter(event.target.value)}
+            >
+              <option value="ALL">Todos los estados</option>
+
+              <option value="ACTIVE">Activas</option>
+
+              <option value="EXCLUDED">Excluidas</option>
+            </select>
+
+            <span className="filtered-count">
+              {filteredIngestions.length} resultados
+            </span>
+          </div>
           {filteredIngestions.length === 0 ? (
             <div className="empty-state observations-empty">
               <strong>No se encontraron observaciones</strong>
