@@ -69,6 +69,10 @@ function PassiveAnalysis() {
 
   const [search, setSearch] = useState("");
 
+  const [pcapStatusFilter, setPcapStatusFilter] = useState("ALL");
+
+  const [ingestionStatusFilter, setIngestionStatusFilter] = useState("ALL");
+
   const [currentPage, setCurrentPage] = useState(1);
 
   const [loading, setLoading] = useState(true);
@@ -93,7 +97,7 @@ function PassiveAnalysis() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search]);
+  }, [search, pcapStatusFilter]);
 
   const loadIngestions = async () => {
     try {
@@ -114,18 +118,71 @@ function PassiveAnalysis() {
   const filteredPcaps = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
 
-    if (!normalizedSearch) {
-      return pcaps;
-    }
-
     return pcaps.filter((pcap) => {
-      const searchableText = [pcap.filename, pcap.relative_path, pcap.status]
+      const searchableText = [
+        pcap.filename,
+        pcap.relative_path,
+        pcap.status,
+        pcap.import_status,
+      ]
+        .filter(Boolean)
         .join(" ")
         .toLowerCase();
 
-      return searchableText.includes(normalizedSearch);
+      const matchesSearch =
+        !normalizedSearch || searchableText.includes(normalizedSearch);
+
+      let matchesStatus = true;
+
+      if (pcapStatusFilter === "PENDING") {
+        matchesStatus = pcap.status === "PENDING";
+      }
+
+      if (pcapStatusFilter === "ANALYZED") {
+        matchesStatus = pcap.status === "ANALYZED";
+      }
+
+      if (pcapStatusFilter === "IMPORTED") {
+        matchesStatus = pcap.import_status === "IMPORTED";
+      }
+
+      if (pcapStatusFilter === "UPDATE_AVAILABLE") {
+        matchesStatus = pcap.import_status === "UPDATE_AVAILABLE";
+      }
+
+      if (pcapStatusFilter === "EXCLUDED") {
+        matchesStatus = pcap.import_status === "EXCLUDED";
+      }
+
+      return matchesSearch && matchesStatus;
     });
-  }, [pcaps, search]);
+  }, [pcaps, search, pcapStatusFilter]);
+
+  const filteredIngestions = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    return ingestions.filter((ingestion) => {
+      const searchableText = [
+        ingestion.id,
+        ingestion.filename,
+        ingestion.relative_path,
+        ingestion.schema_version,
+        ingestion.imported_by,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch =
+        !normalizedSearch || searchableText.includes(normalizedSearch);
+
+      const matchesStatus =
+        ingestionStatusFilter === "ALL" ||
+        ingestion.status === ingestionStatusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [ingestions, search, ingestionStatusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredPcaps.length / PAGE_SIZE));
 
@@ -139,7 +196,12 @@ function PassiveAnalysis() {
 
   const changeTab = (tab) => {
     setCurrentPage(1);
+
     setSearch("");
+
+    setPcapStatusFilter("ALL");
+
+    setIngestionStatusFilter("ALL");
 
     if (tab === "observations") {
       setSearchParams({
@@ -340,11 +402,29 @@ function PassiveAnalysis() {
             <div className="search-box">
               <input
                 type="search"
-                placeholder={"Buscar por nombre o ruta..."}
+                placeholder="Buscar por nombre o ruta..."
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
             </div>
+
+            <select
+              className="table-filter-select"
+              value={pcapStatusFilter}
+              onChange={(event) => setPcapStatusFilter(event.target.value)}
+            >
+              <option value="ALL">Todos los estados</option>
+
+              <option value="PENDING">Pendientes</option>
+
+              <option value="ANALYZED">Analizados</option>
+
+              <option value="IMPORTED">Importados</option>
+
+              <option value="UPDATE_AVAILABLE">Nueva versión</option>
+
+              <option value="EXCLUDED">Excluidos</option>
+            </select>
 
             <span className="filtered-count">
               {filteredPcaps.length} resultados
@@ -514,13 +594,13 @@ function PassiveAnalysis() {
             </span>
           </div>
 
-          {ingestions.length === 0 ? (
+          {filteredIngestions.length === 0 ? (
             <div className="empty-state observations-empty">
-              <strong>Aún no hay observaciones importadas</strong>
+              <strong>No se encontraron observaciones</strong>
 
               <p>
-                Cuando importes el resultado de un análisis, aparecerá aquí para
-                su revisión y posterior asociación con el inventario.
+                No hay importaciones que coincidan con la búsqueda o el estado
+                seleccionado.
               </p>
             </div>
           ) : (
@@ -541,7 +621,7 @@ function PassiveAnalysis() {
                 </thead>
 
                 <tbody>
-                  {ingestions.map((ingestion) => (
+                  {filteredIngestions.map((ingestion) => (
                     <tr key={ingestion.id}>
                       <td>#{ingestion.id}</td>
 

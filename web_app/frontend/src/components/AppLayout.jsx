@@ -50,7 +50,7 @@ function AppLayout() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <span>VISUAL OT</span>
+          <span>VISOR OT</span>
 
           <small>Gestión de activos OT</small>
         </div>
