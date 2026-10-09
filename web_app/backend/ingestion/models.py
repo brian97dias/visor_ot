@@ -4,6 +4,14 @@ from django.db import models
 
 class Ingestion(models.Model):
 
+    communication = models.ForeignKey(
+        "network.Communication",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="observations",
+    )
+
     class Status(models.TextChoices):
         ACTIVE = "ACTIVE", "Activa"
         EXCLUDED = "EXCLUDED", "Excluida"

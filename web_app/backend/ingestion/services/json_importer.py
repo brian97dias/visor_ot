@@ -7,6 +7,9 @@ from ingestion.models import (
 )
 
 from .analyzer_client import get_pcap_analysis
+from network.services.consolidation import (
+    consolidate_communication_observations,
+)
 
 import hashlib
 import json
@@ -154,6 +157,13 @@ def import_analysis(
         # ya conocemos exactamente este análisis.
         if existing_ingestion:
 
+            consolidate_communication_observations(
+                existing_ingestion
+                .communication_observations
+                .all()
+            )
+
+
             if (
                 existing_ingestion.status
                 == Ingestion.Status.ACTIVE
@@ -163,37 +173,6 @@ def import_analysis(
                     existing_ingestion,
                     "ALREADY_IMPORTED",
                 )
-
-
-            # Existe, pero está EXCLUDED.
-            # Antes de reactivarlo, excluimos
-            # cualquier otra versión activa.
-            Ingestion.objects.filter(
-                pcap_id=pcap_id,
-                status=Ingestion.Status.ACTIVE,
-            ).exclude(
-                pk=existing_ingestion.pk
-            ).update(
-                status=Ingestion.Status.EXCLUDED
-            )
-
-
-            existing_ingestion.status = (
-                Ingestion.Status.ACTIVE
-            )
-
-            existing_ingestion.save(
-                update_fields=[
-                    "status",
-                ]
-            )
-
-
-            return (
-                existing_ingestion,
-                "REACTIVATED",
-            )
-
 
         # CASO 3:
         # mismo PCAP, pero análisis distinto.
@@ -268,8 +247,7 @@ def import_analysis(
             for item in interfaces
         ])
 
-
-        CommunicationObservation.objects.bulk_create([
+        communication_observations = [
             CommunicationObservation(
                 ingestion=ingestion,
 
@@ -323,8 +301,20 @@ def import_analysis(
             )
 
             for item in communications
-        ])
+        ]
 
+
+        created_observations = (
+            CommunicationObservation.objects
+            .bulk_create(
+                communication_observations
+            )
+        )
+
+
+        consolidate_communication_observations(
+            created_observations
+)
 
         return (
             ingestion,
