@@ -38,7 +38,7 @@ class AssetHardwareModelTests(TestCase):
     def test_register_hardware_with_unknown_optional_values(self):
         asset = self.create_asset(
             description="Controlador industrial del laboratorio 4SICS",
-            impact="Su indisponibilidad detendria el proceso de bombeo.",
+            impact="Su indisponibilidad detendria el proceso del sistema",
         )
         hardware = Hardware.objects.create(
             asset=asset,
@@ -47,7 +47,7 @@ class AssetHardwareModelTests(TestCase):
 
         self.assertEqual(hardware.asset_id, asset.pk)
         self.assertEqual(asset.criticality, Asset.Criticality.UNDEFINED)
-        self.assertEqual(asset.impact, "Su indisponibilidad detendria el proceso de bombeo.")
+        self.assertEqual(asset.impact, "Su indisponibilidad detendria el proceso del sistema")
         self.assertIsNone(asset.replacement_cost)
         self.assertEqual(hardware.manufacturer, "")
         self.assertEqual(hardware.serial_number, "")
