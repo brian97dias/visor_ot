@@ -17,7 +17,7 @@ class AssetHardwareModelTests(TestCase):
             role=User.Role.OPERATOR,
         )
 
-    def create_asset(self, **overrides):
+    def build_asset(self, **overrides):
         values = {
             "name": "DirectLogic 205",
             "asset_type": Asset.AssetType.HARDWARE,
@@ -25,7 +25,12 @@ class AssetHardwareModelTests(TestCase):
             "updated_by": self.operator,
         }
         values.update(overrides)
-        return Asset.objects.create(**values)
+        return Asset(**values)
+
+    def create_asset(self, **overrides):
+        asset = self.build_asset(**overrides)
+        asset.save()
+        return asset
 
     def test_operator_has_correct_role(self):
         self.assertEqual(self.operator.role, "OPERATOR")
@@ -69,21 +74,21 @@ class AssetHardwareModelTests(TestCase):
         asset.full_clean()
 
     def test_replacement_cost_without_currency_is_invalid(self):
-        asset = self.create_asset(
+        asset = self.build_asset(
             replacement_cost=Decimal("400000.00"),
         )
         with self.assertRaises(ValidationError):
             asset.full_clean()
 
     def test_currency_without_replacement_cost_is_invalid(self):
-        asset = self.create_asset(
+        asset = self.build_asset(
             replacement_currency=Asset.Currency.USD,
         )
         with self.assertRaises(ValidationError):
             asset.full_clean()
 
     def test_negative_replacement_cost_is_invalid(self):
-        asset = self.create_asset(
+        asset = self.build_asset(
             replacement_cost=Decimal("-1.00"),
             replacement_currency=Asset.Currency.COP,
         )
