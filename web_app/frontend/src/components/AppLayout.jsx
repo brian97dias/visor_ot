@@ -89,6 +89,27 @@ function AppLayout() {
               Comunicaciones
             </NavLink>
           </div>
+
+          <div className="nav-section">
+            <span className="nav-section-title">ACTIVOS</span>
+            <NavLink
+              end
+              to="/assets"
+              className={({ isActive }) =>
+                isActive ? "nav-item nav-subitem active" : "nav-item nav-subitem"
+              }
+            >
+              Inventario
+            </NavLink>
+            <NavLink
+              to="/assets/hardware"
+              className={({ isActive }) =>
+                isActive ? "nav-item nav-subitem active" : "nav-item nav-subitem"
+              }
+            >
+              Hardware
+            </NavLink>
+          </div>
         </nav>
 
         <div className="sidebar-user">

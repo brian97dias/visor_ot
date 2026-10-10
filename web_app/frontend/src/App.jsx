@@ -15,6 +15,9 @@ import AnalysisDetail from "./pages/AnalysisDetail";
 import IngestionDetail from "./pages/IngestionDetail";
 import Communications from "./pages/Communications";
 import CommunicationDetail from "./pages/CommunicationDetail";
+import Assets from "./pages/Assets";
+import AssetDetail from "./pages/AssetDetail";
+import AssetEditor from "./pages/AssetEditor";
 
 
 function App() {
@@ -93,6 +96,12 @@ function App() {
             path="/communications/:communicationId"
             element={<CommunicationDetail />}
           />
+
+          <Route path="/assets" element={<Assets />} />
+          <Route path="/assets/hardware" element={<Assets hardwareOnly />} />
+          <Route path="/assets/new" element={<AssetEditor />} />
+          <Route path="/assets/:assetId" element={<AssetDetail />} />
+          <Route path="/assets/:assetId/edit" element={<AssetEditor />} />
 
         </Route>
 
