@@ -1,4 +1,7 @@
+from decimal import Decimal
+
 from django.conf import settings
+from django.core.validators import MinValueValidator
 from django.db import models
 
 
@@ -27,7 +30,11 @@ class Asset(models.Model):
     )
     impact = models.TextField(blank=True)
     replacement_cost = models.DecimalField(
-        max_digits=14, decimal_places=2, null=True, blank=True
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0.00"))],
     )
     replacement_currency = models.CharField(
         max_length=3, choices=Currency.choices, blank=True
