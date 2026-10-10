@@ -50,7 +50,8 @@ INSTALLED_APPS = [
     # Visual OT
     "users",
     "ingestion",
-    "network"
+    "network",
+    "assets",
 ]
 
 MIDDLEWARE = [
