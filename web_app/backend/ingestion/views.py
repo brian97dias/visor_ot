@@ -1,4 +1,6 @@
 from rest_framework.permissions import IsAuthenticated
+
+from users.permissions import IsAdminOrAnalyst
 from rest_framework.response import Response
 from django.db import transaction
 from rest_framework.status import (
@@ -81,7 +83,7 @@ class PcapAnalysisView(APIView):
 class PcapAnalyzeView(APIView):
 
     permission_classes = [
-        IsAuthenticated,
+        IsAdminOrAnalyst,
     ]
 
 
@@ -334,7 +336,7 @@ class PcapListView(APIView):
 class PcapImportView(APIView):
 
     permission_classes = [
-        IsAuthenticated,
+        IsAdminOrAnalyst,
     ]
 
 
@@ -486,7 +488,7 @@ class IngestionDetailView(APIView):
 class IngestionExcludeView(APIView):
 
     permission_classes = [
-        IsAuthenticated,
+        IsAdminOrAnalyst,
     ]
 
 
@@ -527,7 +529,7 @@ class IngestionExcludeView(APIView):
 class IngestionActivateView(APIView):
 
     permission_classes = [
-        IsAuthenticated,
+        IsAdminOrAnalyst,
     ]
 
 

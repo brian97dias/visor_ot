@@ -6,6 +6,7 @@ import {
 import {
   Link,
   useParams,
+  useOutletContext,
 } from "react-router-dom";
 
 import {
@@ -52,6 +53,8 @@ function getStatusClass(status) {
 
 
 function CommunicationDetail() {
+  const { user } = useOutletContext();
+  const canClassify = user?.role === "ADMIN" || user?.role === "ANALYST";
 
   const {
     communicationId,
@@ -457,7 +460,7 @@ function CommunicationDetail() {
         </div>
 
 
-        <div className="classification-controls">
+        {canClassify && <div className="classification-controls">
 
           <select
             value={selectedStatus}
@@ -496,7 +499,7 @@ function CommunicationDetail() {
             }
           </button>
 
-        </div>
+        </div>}
 
 
         {

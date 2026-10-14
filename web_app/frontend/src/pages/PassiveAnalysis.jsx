@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 
 import {
   analyzePcap,
@@ -14,6 +14,8 @@ import {
 const PAGE_SIZE = 15;
 
 function PassiveAnalysis() {
+  const { user } = useOutletContext();
+  const canManageAnalysis = user?.role === "ADMIN" || user?.role === "ANALYST";
   const [searchParams, setSearchParams] = useSearchParams();
   const [ingestions, setIngestions] = useState([]);
 
@@ -516,7 +518,7 @@ function PassiveAnalysis() {
                                   >
                                     Ver ingesta
                                   </button>
-                                ) : (
+                                ) : canManageAnalysis ? (
                                   <button
                                     className="button-secondary"
                                     onClick={() => handleImport(pcap)}
@@ -531,11 +533,11 @@ function PassiveAnalysis() {
                                           ? "Reactivar importación"
                                           : "Importar"}
                                   </button>
-                                )}
+                                ) : null}
                               </>
                             )}
 
-                            <button
+                            {canManageAnalysis && <button
                               className="button-primary"
                               onClick={() => handleAnalyze(pcap)}
                               disabled={analyzingPcaps.has(pcap.id)}
@@ -545,7 +547,7 @@ function PassiveAnalysis() {
                                 : pcap.status === "ANALYZED"
                                   ? "Reanalizar"
                                   : "Analizar"}
-                            </button>
+                            </button>}
                           </div>
                         </td>
                       </tr>
@@ -699,14 +701,14 @@ function PassiveAnalysis() {
                             Ver
                           </button>
 
-                          <button
+                          {canManageAnalysis && <button
                             className="button-secondary"
                             onClick={() => handleIngestionStatus(ingestion)}
                           >
                             {ingestion.status === "ACTIVE"
                               ? "Excluir"
                               : "Reactivar"}
-                          </button>
+                          </button>}
                         </div>
                       </td>
                     </tr>

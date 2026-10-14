@@ -20,6 +20,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ingestion.models import Ingestion
+from users.permissions import IsAdminOrAnalyst
 
 from .models import Communication
 
@@ -157,7 +158,7 @@ class CommunicationClassificationView(
 ):
 
     permission_classes = [
-        IsAuthenticated,
+        IsAdminOrAnalyst,
     ]
 
 
