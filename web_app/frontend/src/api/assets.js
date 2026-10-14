@@ -31,8 +31,10 @@ async function requestAssets(path, options) {
   return data;
 }
 
-export async function getAssets() {
-  const data = await requestAssets("/api/assets/");
+export async function getAssets(inventoryStatus = "ACTIVE") {
+  const data = await requestAssets(
+    "/api/assets/?inventory_status=" + encodeURIComponent(inventoryStatus)
+  );
   return data.assets;
 }
 
@@ -53,5 +55,17 @@ export function updateAsset(assetId, payload) {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+  });
+}
+
+export function archiveAsset(assetId) {
+  return requestAssets("/api/assets/" + assetId + "/archive/", {
+    method: "POST",
+  });
+}
+
+export function restoreAsset(assetId) {
+  return requestAssets("/api/assets/" + assetId + "/restore/", {
+    method: "POST",
   });
 }

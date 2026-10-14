@@ -1512,3 +1512,30 @@ input {
         margin-left: 0;
     }
 }
+
+
+/* ASSET INVENTORY LIFECYCLE */
+
+.assets-detail-actions {
+    align-items: center;
+}
+
+.assets-archive-button {
+    cursor: pointer;
+}
+
+.assets-archive-button:hover:not(:disabled) {
+    border-color: #fbbf24;
+    color: #fde68a;
+}
+
+.status-archived {
+    color: #cbd5e1;
+    background: #334155;
+}
+
+@media (max-width: 900px) {
+    .assets-detail-actions {
+        flex-wrap: wrap;
+    }
+}

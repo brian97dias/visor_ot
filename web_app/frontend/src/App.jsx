@@ -98,7 +98,7 @@ function App() {
           />
 
           <Route path="/assets" element={<Assets />} />
-          <Route path="/assets/hardware" element={<Assets hardwareOnly />} />
+          <Route path="/assets/hardware" element={<Navigate to="/assets?type=HARDWARE" replace />} />
           <Route path="/assets/new" element={<AssetEditor />} />
           <Route path="/assets/:assetId" element={<AssetDetail />} />
           <Route path="/assets/:assetId/edit" element={<AssetEditor />} />

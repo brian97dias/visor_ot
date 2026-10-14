@@ -10,6 +10,15 @@ export function canEditAssetCriticality(user) {
   return user?.role === "ADMIN" || user?.role === "OPERATOR";
 }
 
+export function canArchiveAssets(user) {
+  return user?.role === "ADMIN" || user?.role === "OPERATOR";
+}
+
+export const INVENTORY_STATUS_LABELS = {
+  ACTIVE: "En inventario",
+  ARCHIVED: "Archivado",
+};
+
 export const CRITICALITY_LABELS = {
   UNDEFINED: "Sin definir",
   LOW: "Baja",
@@ -44,10 +53,11 @@ export function displayCost(asset) {
   }
   const amount = Number(asset.replacement_cost);
   if (!Number.isFinite(amount)) return "Sin registrar";
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: asset.replacement_currency || "COP",
+  const formatted = new Intl.NumberFormat("es-CO", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(amount);
+  return asset.replacement_currency
+    ? asset.replacement_currency + " " + formatted
+    : "Sin registrar";
 }

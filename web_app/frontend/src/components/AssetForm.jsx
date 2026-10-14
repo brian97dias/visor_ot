@@ -194,6 +194,7 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
               <option value="">Sin registrar</option>
               <option value="COP">COP — Peso colombiano</option>
               <option value="USD">USD — Dólar estadounidense</option>
+              <option value="EUR">EUR — Euro</option>
             </select>
           </div>
           <div className="assets-field assets-full-row">

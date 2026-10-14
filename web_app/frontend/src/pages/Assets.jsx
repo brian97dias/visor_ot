@@ -1,65 +1,116 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useOutletContext } from "react-router-dom";
+import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 
-import { getAssets } from "../api/assets";
+import { archiveAsset, getAssets, restoreAsset } from "../api/assets";
+import SuccessNotice from "../components/SuccessNotice";
 import {
+  canArchiveAssets,
   canCreateAssets,
+  canEditAssets,
   CRITICALITY_LABELS,
   displayCost,
+  INVENTORY_STATUS_LABELS,
   ROLE_LABELS,
 } from "../utils/assetPermissions";
 
 const PAGE_SIZE = 15;
 
-function Assets({ hardwareOnly = false }) {
+function Assets() {
   const { user } = useOutletContext();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const assetType = searchParams.get("type") || "ALL";
+  const inventoryStatus = searchParams.get("inventory_status") || "ACTIVE";
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
   const [criticality, setCriticality] = useState("ALL");
   const [currentPage, setCurrentPage] = useState(1);
 
+  function changeQueryFilter(name, value) {
+    const next = new URLSearchParams(searchParams);
+    if (value === "ALL" || (name === "inventory_status" && value === "ACTIVE")) {
+      next.delete(name);
+    } else {
+      next.set(name, value);
+    }
+    setSearchParams(next);
+  }
+
   useEffect(() => {
     let active = true;
-    getAssets()
-      .then((data) => { if (active) setAssets(data); })
+    setLoading(true);
+    setError("");
+    getAssets(inventoryStatus)
+      .then((items) => { if (active) setAssets(items); })
       .catch((err) => { if (active) setError(err.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [inventoryStatus]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, criticality, hardwareOnly]);
+  }, [search, criticality, assetType, inventoryStatus]);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return assets.filter((asset) => {
-      if (hardwareOnly && asset.asset_type !== "HARDWARE") return false;
+      if (assetType !== "ALL" && asset.asset_type !== assetType) return false;
       if (criticality !== "ALL" && asset.criticality !== criticality) return false;
       const searchable = [
-        asset.id, asset.name, asset.description,
+        asset.id, asset.name, asset.description, asset.asset_type,
         asset.hardware?.manufacturer, asset.hardware?.model,
-        asset.hardware?.role, asset.asset_type,
+        asset.hardware?.role,
       ].filter((value) => value !== null && value !== undefined)
         .join(" ").toLowerCase();
       return !query || searchable.includes(query);
     });
-  }, [assets, search, criticality, hardwareOnly]);
+  }, [assets, search, criticality, assetType]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const visible = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
-  );
+  const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  async function changeInventoryStatus(asset) {
+    const archived = asset.inventory_status === "ARCHIVED";
+    const action = archived ? "restaurar" : "archivar";
+    const confirmed = window.confirm(
+      archived
+        ? "¿Restaurar «" + asset.name + "» al inventario?"
+        : "¿Archivar «" + asset.name + "»? Se ocultará del inventario actual, pero no se eliminará."
+    );
+    if (!confirmed) return;
+
+    setError("");
+    setNotice("");
+    setBusyId(asset.id);
+
+    try {
+      const updated = archived
+        ? await restoreAsset(asset.id)
+        : await archiveAsset(asset.id);
+      setAssets((current) => {
+        if (inventoryStatus === "ALL") {
+          return current.map((item) => item.id === updated.id ? updated : item);
+        }
+        return current.filter((item) => item.id !== updated.id);
+      });
+      setNotice(archived ? "Activo restaurado correctamente." : "Activo archivado correctamente.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
     <section className="page">
       <header className="page-header assets-page-heading">
         <div>
           <span className="page-eyebrow">ACTIVOS</span>
-          <h1>{hardwareOnly ? "Hardware" : "Inventario"}</h1>
+          <h1>Inventario</h1>
           <p>Registro de activos OT y su información técnica y operacional.</p>
         </div>
         {canCreateAssets(user) && (
@@ -69,37 +120,46 @@ function Assets({ hardwareOnly = false }) {
         )}
       </header>
 
+      <SuccessNotice message={notice} onClose={() => setNotice("")} />
       {error && <div className="error-message">{error}</div>}
 
       <div className="panel">
         <div className="panel-header">
           <div>
-            <h2>{hardwareOnly ? "Dispositivos físicos" : "Activos registrados"}</h2>
+            <h2>Activos registrados</h2>
             <p>Consulta los activos inventariados y sus datos disponibles.</p>
           </div>
-          <span className="record-count">{assets.length} activos en total</span>
+          <span className="record-count">{assets.length} registros en esta vista</span>
         </div>
 
         <div className="table-toolbar assets-toolbar">
           <div className="search-box">
-            <input
-              type="search"
-              aria-label="Buscar activos"
+            <input type="search" aria-label="Buscar activos"
               placeholder="Buscar por nombre, fabricante, modelo o rol..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
+              value={search} onChange={(event) => setSearch(event.target.value)} />
           </div>
-          <select
-            className="table-filter-select"
-            aria-label="Filtrar por criticidad"
-            value={criticality}
-            onChange={(event) => setCriticality(event.target.value)}
-          >
+
+          <select className="table-filter-select" aria-label="Filtrar tipo de activo"
+            value={assetType} onChange={(event) => changeQueryFilter("type", event.target.value)}>
+            <option value="ALL">Todos los tipos</option>
+            <option value="HARDWARE">Hardware</option>
+            <option value="SOFTWARE">Software</option>
+          </select>
+
+          <select className="table-filter-select" aria-label="Filtrar criticidad"
+            value={criticality} onChange={(event) => setCriticality(event.target.value)}>
             <option value="ALL">Todas las criticidades</option>
             {Object.entries(CRITICALITY_LABELS).map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
             ))}
+          </select>
+
+          <select className="table-filter-select" aria-label="Filtrar estado de inventario"
+            value={inventoryStatus}
+            onChange={(event) => changeQueryFilter("inventory_status", event.target.value)}>
+            <option value="ACTIVE">En inventario</option>
+            <option value="ARCHIVED">Archivados</option>
+            <option value="ALL">Todos los estados</option>
           </select>
           <span className="filtered-count">{filtered.length} resultados</span>
         </div>
@@ -109,11 +169,9 @@ function Assets({ hardwareOnly = false }) {
         ) : !error && filtered.length === 0 ? (
           <div className="empty-state observations-empty">
             <strong>No se encontraron activos.</strong>
-            <p>
-              {assets.length === 0
-                ? "El inventario aparecerá cuando se registre el primer activo."
-                : "Prueba con otros términos de búsqueda o filtros."}
-            </p>
+            <p>{assets.length === 0
+              ? "No hay registros en este estado del inventario."
+              : "Prueba con otros términos de búsqueda o filtros."}</p>
           </div>
         ) : !error && (
           <>
@@ -126,6 +184,7 @@ function Assets({ hardwareOnly = false }) {
                     <th>Fabricante / Modelo</th>
                     <th>Criticidad</th>
                     <th>Costo de reposición</th>
+                    <th>Estado</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
@@ -137,9 +196,11 @@ function Assets({ hardwareOnly = false }) {
                         <div className="pcap-path">ID #{asset.id}</div>
                       </td>
                       <td>
-                        <span>Hardware</span>
+                        <span>{asset.asset_type === "HARDWARE" ? "Hardware" : "Software"}</span>
                         <div className="pcap-path">
-                          {ROLE_LABELS[asset.hardware?.role] || "Sin clasificar"}
+                          {asset.hardware
+                            ? ROLE_LABELS[asset.hardware.role] || "Sin clasificar"
+                            : "Sin datos técnicos"}
                         </div>
                       </td>
                       <td>
@@ -148,20 +209,39 @@ function Assets({ hardwareOnly = false }) {
                           {asset.hardware?.model || "Modelo sin registrar"}
                         </div>
                       </td>
-                      <td>
-                        {CRITICALITY_LABELS[asset.criticality] || asset.criticality}
-                      </td>
+                      <td>{CRITICALITY_LABELS[asset.criticality] || asset.criticality}</td>
                       <td>{displayCost(asset)}</td>
                       <td>
-                        <Link className="button-link" to={"/assets/" + asset.id}>
-                          Ver detalle
-                        </Link>
+                        <span className={asset.inventory_status === "ARCHIVED"
+                          ? "status status-archived" : "status status-imported"}>
+                          {INVENTORY_STATUS_LABELS[asset.inventory_status] || asset.inventory_status}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="table-actions">
+                          <Link className="button-link" to={"/assets/" + asset.id}>Ver</Link>
+                          {canEditAssets(user) && (
+                            <Link className="button-link" to={"/assets/" + asset.id + "/edit"}>
+                              Editar
+                            </Link>
+                          )}
+                          {canArchiveAssets(user) && (
+                            <button type="button" className="button-secondary assets-archive-button"
+                              disabled={busyId === asset.id}
+                              onClick={() => changeInventoryStatus(asset)}>
+                              {busyId === asset.id
+                                ? "Procesando..."
+                                : asset.inventory_status === "ARCHIVED" ? "Restaurar" : "Archivar"}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+
             {totalPages > 1 && (
               <div className="pagination">
                 <span>Página {currentPage} de {totalPages}</span>

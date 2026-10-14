@@ -1,18 +1,23 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation, useOutletContext, useParams } from "react-router-dom";
-
-import { getAsset } from "../api/assets";
 import {
+  Link, useLocation, useNavigate, useOutletContext, useParams,
+} from "react-router-dom";
+
+import { archiveAsset, getAsset, restoreAsset } from "../api/assets";
+import SuccessNotice from "../components/SuccessNotice";
+import {
+  canArchiveAssets,
   canEditAssets,
   CRITICALITY_LABELS,
   displayCost,
   displayValue,
+  INVENTORY_STATUS_LABELS,
   ROLE_LABELS,
 } from "../utils/assetPermissions";
 
-function Field({ label, value }) {
+function Field({ label, value, wide = false }) {
   return (
-    <div>
+    <div className={wide ? "assets-full-row" : undefined}>
       <span>{label}</span>
       <strong>{displayValue(value)}</strong>
     </div>
@@ -23,8 +28,11 @@ function AssetDetail() {
   const { assetId } = useParams();
   const { user } = useOutletContext();
   const location = useLocation();
+  const navigate = useNavigate();
   const [asset, setAsset] = useState(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState(location.state?.notice || "");
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -34,6 +42,35 @@ function AssetDetail() {
       .catch((err) => { if (active) setError(err.message); });
     return () => { active = false; };
   }, [assetId]);
+
+  useEffect(() => {
+    if (!location.state?.notice) return;
+    setNotice(location.state.notice);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.state, location.pathname, navigate]);
+
+  async function changeInventoryStatus() {
+    const archived = asset.inventory_status === "ARCHIVED";
+    const confirmed = window.confirm(
+      archived
+        ? "¿Restaurar «" + asset.name + "» al inventario?"
+        : "¿Archivar «" + asset.name + "»? El registro no se eliminará."
+    );
+    if (!confirmed) return;
+
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const updated = archived ? await restoreAsset(asset.id) : await archiveAsset(asset.id);
+      setAsset(updated);
+      setNotice(archived ? "Activo restaurado correctamente." : "Activo archivado correctamente.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (error && !asset) {
     return <section className="page">
@@ -49,38 +86,47 @@ function AssetDetail() {
   return (
     <section className="page">
       <div className="breadcrumbs">
-        <span>Activos</span>
-        <span>/</span>
-        <Link to="/assets">Inventario</Link>
-        <span>/</span>
-        <span>#{asset.id}</span>
+        <span>Activos</span><span>/</span>
+        <Link to="/assets">Inventario</Link><span>/</span><span>#{asset.id}</span>
       </div>
 
       <header className="page-header assets-page-heading">
         <div>
           <span className="page-eyebrow">ACTIVO #{asset.id}</span>
           <h1>{asset.name}</h1>
-          <p>{asset.description || "Sin descripción registrada."}</p>
+          <p>Información administrativa y técnica del activo.</p>
         </div>
-        {canEditAssets(user) && (
-          <Link className="button-primary assets-primary-link"
-            to={"/assets/" + asset.id + "/edit"}>
-            Editar activo
-          </Link>
-        )}
+
+        <div className="table-actions assets-detail-actions">
+          {canEditAssets(user) && (
+            <Link className="button-primary assets-primary-link" to={"/assets/" + asset.id + "/edit"}>
+              Editar activo
+            </Link>
+          )}
+          {canArchiveAssets(user) && (
+            <button type="button" className="button-secondary assets-archive-button"
+              disabled={busy} onClick={changeInventoryStatus}>
+              {busy ? "Procesando..." : asset.inventory_status === "ARCHIVED" ? "Restaurar activo" : "Archivar activo"}
+            </button>
+          )}
+        </div>
       </header>
 
-      {location.state?.notice && (
-        <div className="success-message">{location.state.notice}</div>
-      )}
+      <SuccessNotice message={notice} onClose={() => setNotice("")} />
+      {error && <div className="error-message">{error}</div>}
 
       <section className="panel assets-detail-section">
         <div className="panel-header"><h2>Información general</h2></div>
         <div className="assets-detail-grid">
-          <Field label="Tipo de activo" value={asset.asset_type === "HARDWARE" ? "Hardware" : "Software"} />
-          <Field label="Criticidad" value={CRITICALITY_LABELS[asset.criticality] || asset.criticality} />
-          <Field label="Impacto de indisponibilidad" value={asset.impact} />
+          <Field label="Tipo de activo"
+            value={asset.asset_type === "HARDWARE" ? "Hardware" : "Software"} />
+          <Field label="Criticidad"
+            value={CRITICALITY_LABELS[asset.criticality] || asset.criticality} />
+          <Field label="Estado en inventario"
+            value={INVENTORY_STATUS_LABELS[asset.inventory_status] || asset.inventory_status} />
           <Field label="Costo de reposición" value={displayCost(asset)} />
+          <Field label="Descripción" value={asset.description} wide />
+          <Field label="Impacto de indisponibilidad" value={asset.impact} wide />
         </div>
       </section>
 
@@ -104,6 +150,14 @@ function AssetDetail() {
           <Field label="Última edición por" value={asset.updated_by} />
           <Field label="Creado el" value={new Date(asset.created_at).toLocaleString("es-CO")} />
           <Field label="Actualizado el" value={new Date(asset.updated_at).toLocaleString("es-CO")} />
+          {asset.inventory_status === "ARCHIVED" && (
+            <>
+              <Field label="Archivado por" value={asset.archived_by} />
+              <Field label="Archivado el" value={asset.archived_at
+                ? new Date(asset.archived_at).toLocaleString("es-CO")
+                : "Sin registrar"} />
+            </>
+          )}
         </div>
       </section>
     </section>

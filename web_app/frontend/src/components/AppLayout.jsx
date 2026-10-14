@@ -101,14 +101,6 @@ function AppLayout() {
             >
               Inventario
             </NavLink>
-            <NavLink
-              to="/assets/hardware"
-              className={({ isActive }) =>
-                isActive ? "nav-item nav-subitem active" : "nav-item nav-subitem"
-              }
-            >
-              Hardware
-            </NavLink>
           </div>
         </nav>
 
