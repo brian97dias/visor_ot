@@ -1,5 +1,10 @@
 from django.urls import path
 
+from .observation_views import (
+    IngestionObservationsView,
+    PcapAnalysisObservationsView,
+)
+
 from .views import (
     IngestionActivateView,
     IngestionDetailView,
@@ -57,5 +62,17 @@ urlpatterns = [
     "imports/<int:ingestion_id>/activate/",
     IngestionActivateView.as_view(),
     name="ingestion-activate",
+    ),
+]
+urlpatterns += [
+    path(
+        "imports/<int:ingestion_id>/observations/",
+        IngestionObservationsView.as_view(),
+        name="ingestion-observations",
+    ),
+    path(
+        "pcaps/<str:pcap_id>/analysis/observations/",
+        PcapAnalysisObservationsView.as_view(),
+        name="pcap-analysis-observations",
     ),
 ]

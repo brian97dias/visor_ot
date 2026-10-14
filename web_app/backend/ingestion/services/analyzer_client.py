@@ -223,3 +223,32 @@ def analyze_pcap(pcap_id):
 
 
     return data
+
+def get_pcap_analysis_observations(pcap_id, *, kind, page, search, min_packets):
+    base_url = settings.PASSIVE_ANALYZER_URL.rstrip("/")
+    url = f"{base_url}/api/v1/pcaps/{quote(pcap_id, safe='')}/analysis/observations"
+    try:
+        response = requests.get(
+            url,
+            params={"type": kind, "page": page, "search": search, "min_packets": min_packets},
+            timeout=(5, 30),
+        )
+    except requests.RequestException as error:
+        raise PassiveAnalyzerUnavailable(
+            "No fue posible consultar las observaciones paginadas."
+        ) from error
+
+    if response.status_code == 404:
+        raise PassiveAnalyzerAnalysisNotFound("El análisis solicitado no está disponible.")
+
+    try:
+        response.raise_for_status()
+        data = response.json()
+    except (requests.RequestException, ValueError) as error:
+        raise PassiveAnalyzerUnavailable(
+            "El Passive Analyzer no pudo recuperar la página de observaciones."
+        ) from error
+
+    if not isinstance(data, dict) or "results" not in data or "count" not in data:
+        raise PassiveAnalyzerUnavailable("El análisis paginado tiene un formato inválido.")
+    return data

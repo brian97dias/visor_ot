@@ -1,6 +1,6 @@
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 
 from analyzer import analyze_pcap
@@ -162,3 +162,59 @@ def get_pcap_analysis(
 
 
     return analysis
+
+@app.get("/api/v1/pcaps/{pcap_id}/analysis/observations")
+def get_analysis_observations(
+    pcap_id: str,
+    type: Literal["interfaces", "communications"] = "interfaces",
+    page: int = Query(default=1, ge=1),
+    search: str = Query(default="", max_length=100),
+    min_packets: int = Query(default=1, ge=1),
+):
+    if get_pcap_by_id(pcap_id) is None:
+        raise HTTPException(status_code=404, detail="El PCAP solicitado no existe.")
+    analysis = load_output(pcap_id)
+    if analysis is None:
+        raise HTTPException(status_code=404, detail="El análisis no está disponible.")
+
+    interfaces = analysis.get("interfaces", [])
+    communications = analysis.get("communications", [])
+    entries = interfaces if type == "interfaces" else communications
+    needle = search.strip().lower()
+
+    if type == "interfaces" and needle:
+        entries = [
+            item for item in entries
+            if needle in item.get("mac", "").lower()
+            or any(needle in ip.lower() for ip in item.get("ips", []))
+        ]
+    elif type == "communications":
+        if needle:
+            entries = [
+                item for item in entries
+                if any(
+                    needle in str(item.get(field) or "").lower()
+                    for field in (
+                        "client_ip", "server_ip", "transport_protocol", "service", "service_port"
+                    )
+                )
+            ]
+        if min_packets > 1:
+            entries = [item for item in entries if item.get("packet_count", 0) >= min_packets]
+
+    page_size = 25
+    count = len(entries)
+    total_pages = max(1, (count + page_size - 1) // page_size)
+    current_page = min(page, total_pages)
+    start = (current_page - 1) * page_size
+
+    return {
+        "capture": analysis.get("capture"),
+        "schema_version": analysis.get("schema_version"),
+        "interfaces_detected": len(interfaces),
+        "communications_detected": len(communications),
+        "count": count,
+        "page": current_page,
+        "page_size": page_size,
+        "results": entries[start:start + page_size],
+    }

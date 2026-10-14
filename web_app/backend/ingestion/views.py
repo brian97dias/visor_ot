@@ -385,7 +385,7 @@ class PcapImportView(APIView):
 
 
         serializer = (
-            IngestionDetailSerializer(
+            IngestionListSerializer(
                 ingestion
             )
         )
@@ -469,16 +469,13 @@ class IngestionDetailView(APIView):
             .select_related(
                 "imported_by"
             )
-            .prefetch_related(
-                "interface_observations",
-                "communication_observations",
-            ),
+,
             id=ingestion_id,
         )
 
 
         serializer = (
-            IngestionDetailSerializer(
+            IngestionListSerializer(
                 ingestion
             )
         )
