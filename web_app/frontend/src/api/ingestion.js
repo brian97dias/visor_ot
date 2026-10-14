@@ -269,3 +269,32 @@ export async function activateIngestion(
 
     return data;
 }
+export async function getObservationPage(source, id, { kind, page, search, minPackets }) {
+    const params = new URLSearchParams({
+        type: kind,
+        page: String(page),
+        search,
+        min_packets: String(minPackets),
+    });
+    const route = source === "analysis"
+        ? `/api/ingestion/pcaps/${encodeURIComponent(id)}/analysis/observations/`
+        : `/api/ingestion/imports/${encodeURIComponent(id)}/observations/`;
+
+    const response = await authenticatedFetch(route + "?" + params.toString());
+    let data = {};
+    try {
+        data = await response.json();
+    } catch {
+        throw new Error("El servidor devolvió una respuesta inválida.");
+    }
+    if (!response.ok) {
+        const detail = typeof data.detail === "string"
+            ? data.detail
+            : "No fue posible consultar las observaciones.";
+        throw new Error(detail);
+    }
+    if (!Array.isArray(data.results)) {
+        throw new Error("La respuesta no contiene las observaciones paginadas.");
+    }
+    return data;
+}
