@@ -310,14 +310,6 @@ function PassiveAnalysis() {
     }
   };
 
-  if (loading) {
-    return (
-      <section className="page">
-        <p>Cargando PCAPs...</p>
-      </section>
-    );
-  }
-
   return (
     <section className="page">
       <header className="page-header">
@@ -433,7 +425,9 @@ function PassiveAnalysis() {
             </span>
           </div>
 
-          {filteredPcaps.length === 0 ? (
+          {loading ? (
+            <div className="empty-state">Cargando catálogo de PCAPs...</div>
+          ) : filteredPcaps.length === 0 ? (
             <div className="empty-state">
               No se encontraron capturas que coincidan con la búsqueda.
             </div>
