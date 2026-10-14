@@ -192,11 +192,14 @@ def get_analysis_observations(
         if needle:
             entries = [
                 item for item in entries
-                if any(
-                    needle in str(item.get(field) or "").lower()
-                    for field in (
-                        "client_ip", "server_ip", "transport_protocol", "service", "service_port"
+                if (
+                    any(
+                        needle in str(item.get(field) or "").lower()
+                        for field in (
+                            "client_ip", "server_ip", "transport_protocol", "service"
+                        )
                     )
+                    or (needle.isdecimal() and str(item.get("service_port")) == needle)
                 )
             ]
         if min_packets > 1:

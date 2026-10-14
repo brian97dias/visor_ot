@@ -466,10 +466,7 @@ class IngestionDetailView(APIView):
 
         ingestion = get_object_or_404(
             Ingestion.objects
-            .select_related(
-                "imported_by"
-            )
-,
+            .select_related("imported_by"),
             id=ingestion_id,
         )
 
