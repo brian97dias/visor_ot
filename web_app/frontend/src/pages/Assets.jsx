@@ -32,7 +32,7 @@ function Assets() {
 
   function changeQueryFilter(name, value) {
     const next = new URLSearchParams(searchParams);
-    if (value === "ALL" || (name === "inventory_status" && value === "ACTIVE")) {
+    if ((name === "type" && value === "ALL") || (name === "inventory_status" && value === "ACTIVE")) {
       next.delete(name);
     } else {
       next.set(name, value);
@@ -72,6 +72,10 @@ function Assets() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
 
   async function changeInventoryStatus(asset) {
     const archived = asset.inventory_status === "ARCHIVED";
