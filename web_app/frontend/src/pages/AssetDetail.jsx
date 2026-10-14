@@ -5,6 +5,7 @@ import {
 
 import { archiveAsset, getAsset, restoreAsset } from "../api/assets";
 import SuccessNotice from "../components/SuccessNotice";
+import ConfirmAssetStatusModal from "../components/ConfirmAssetStatusModal";
 import {
   canArchiveAssets,
   canEditAssets,
@@ -33,6 +34,7 @@ function AssetDetail() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState(location.state?.notice || "");
   const [busy, setBusy] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -49,14 +51,9 @@ function AssetDetail() {
     navigate(location.pathname, { replace: true, state: null });
   }, [location.state, location.pathname, navigate]);
 
-  async function changeInventoryStatus() {
+  async function confirmInventoryStatusChange() {
+    if (busy) return;
     const archived = asset.inventory_status === "ARCHIVED";
-    const confirmed = window.confirm(
-      archived
-        ? "¿Restaurar «" + asset.name + "» al inventario?"
-        : "¿Archivar «" + asset.name + "»? El registro no se eliminará."
-    );
-    if (!confirmed) return;
 
     setBusy(true);
     setError("");
@@ -69,6 +66,7 @@ function AssetDetail() {
       setError(err.message);
     } finally {
       setBusy(false);
+      setShowConfirmation(false);
     }
   }
 
@@ -105,7 +103,7 @@ function AssetDetail() {
           )}
           {canArchiveAssets(user) && (
             <button type="button" className="button-secondary assets-archive-button"
-              disabled={busy} onClick={changeInventoryStatus}>
+              disabled={busy} onClick={() => setShowConfirmation(true)}>
               {busy ? "Procesando..." : asset.inventory_status === "ARCHIVED" ? "Restaurar activo" : "Archivar activo"}
             </button>
           )}
@@ -160,6 +158,15 @@ function AssetDetail() {
           )}
         </div>
       </section>
+
+      {showConfirmation && (
+        <ConfirmAssetStatusModal
+          asset={asset}
+          busy={busy}
+          onCancel={() => setShowConfirmation(false)}
+          onConfirm={confirmInventoryStatusChange}
+        />
+      )}
     </section>
   );
 }

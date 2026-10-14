@@ -1539,3 +1539,113 @@ input {
         flex-wrap: wrap;
     }
 }
+
+
+/* ASSET INVENTORY CONFIRMATION MODAL */
+
+.asset-confirm-backdrop {
+    z-index: 1200;
+}
+
+.asset-confirm-dialog {
+    width: 100%;
+    max-width: 470px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    background: #111827;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+    padding: 26px;
+}
+
+.asset-confirm-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.asset-confirm-header h2 {
+    margin: 5px 0 0;
+    color: #f8fafc;
+    font-size: 1.25rem;
+}
+
+.asset-confirm-symbol {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    color: #fde68a;
+    background: #713f12;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.asset-confirm-symbol-restore {
+    color: #bae6fd;
+    background: #0c4a6e;
+}
+
+.asset-confirm-description {
+    margin: 22px 0 26px;
+    color: #cbd5e1;
+    line-height: 1.65;
+}
+
+.asset-confirm-description strong {
+    color: #f8fafc;
+}
+
+.asset-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.asset-confirm-actions button {
+    min-height: 40px;
+    padding: 9px 16px;
+    border-radius: 7px;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.asset-confirm-submit {
+    color: #1c1917;
+    background: #fbbf24;
+    border: 1px solid #fbbf24;
+}
+
+.asset-confirm-submit-restore {
+    color: #082f49;
+    background: #38bdf8;
+    border-color: #38bdf8;
+}
+
+.asset-confirm-actions button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.asset-confirm-actions button:focus-visible {
+    outline: 2px solid #38bdf8;
+    outline-offset: 3px;
+}
+
+@media (max-width: 480px) {
+    .asset-confirm-dialog {
+        padding: 20px;
+    }
+
+    .asset-confirm-actions {
+        flex-direction: column-reverse;
+    }
+
+    .asset-confirm-actions button {
+        width: 100%;
+    }
+}

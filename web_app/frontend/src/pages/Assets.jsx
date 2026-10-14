@@ -3,6 +3,7 @@ import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 
 import { archiveAsset, getAssets, restoreAsset } from "../api/assets";
 import SuccessNotice from "../components/SuccessNotice";
+import ConfirmAssetStatusModal from "../components/ConfirmAssetStatusModal";
 import {
   canArchiveAssets,
   canCreateAssets,
@@ -24,6 +25,7 @@ function Assets() {
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
+  const [pendingAsset, setPendingAsset] = useState(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
@@ -77,15 +79,11 @@ function Assets() {
     setCurrentPage((page) => Math.min(page, totalPages));
   }, [totalPages]);
 
-  async function changeInventoryStatus(asset) {
+  async function confirmInventoryStatusChange() {
+    if (!pendingAsset || busyId !== null) return;
+
+    const asset = pendingAsset;
     const archived = asset.inventory_status === "ARCHIVED";
-    const action = archived ? "restaurar" : "archivar";
-    const confirmed = window.confirm(
-      archived
-        ? "¿Restaurar «" + asset.name + "» al inventario?"
-        : "¿Archivar «" + asset.name + "»? Se ocultará del inventario actual, pero no se eliminará."
-    );
-    if (!confirmed) return;
 
     setError("");
     setNotice("");
@@ -106,6 +104,7 @@ function Assets() {
       setError(err.message);
     } finally {
       setBusyId(null);
+      setPendingAsset(null);
     }
   }
 
@@ -232,7 +231,7 @@ function Assets() {
                           {canArchiveAssets(user) && (
                             <button type="button" className="button-secondary assets-archive-button"
                               disabled={busyId === asset.id}
-                              onClick={() => changeInventoryStatus(asset)}>
+                              onClick={() => setPendingAsset(asset)}>
                               {busyId === asset.id
                                 ? "Procesando..."
                                 : asset.inventory_status === "ARCHIVED" ? "Restaurar" : "Archivar"}
@@ -260,6 +259,15 @@ function Assets() {
           </>
         )}
       </div>
+
+      {pendingAsset && (
+        <ConfirmAssetStatusModal
+          asset={pendingAsset}
+          busy={busyId !== null}
+          onCancel={() => setPendingAsset(null)}
+          onConfirm={confirmInventoryStatusChange}
+        />
+      )}
     </section>
   );
 }
