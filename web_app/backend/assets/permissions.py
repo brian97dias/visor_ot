@@ -29,3 +29,13 @@ class AssetPermission(BasePermission):
             )
 
         return False
+
+
+class AssetArchivePermission(BasePermission):
+    """Solo administrador y operador pueden archivar o restaurar activos."""
+
+    def has_permission(self, request, view):
+        return (
+            request.method == "POST"
+            and request.user.role in (User.Role.ADMIN, User.Role.OPERATOR)
+        )

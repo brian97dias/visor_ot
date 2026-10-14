@@ -23,6 +23,9 @@ class AssetReadSerializer(serializers.ModelSerializer):
     updated_by = serializers.SlugRelatedField(
         read_only=True, slug_field="username"
     )
+    archived_by = serializers.SlugRelatedField(
+        read_only=True, slug_field="username"
+    )
 
     class Meta:
         model = Asset
@@ -35,6 +38,9 @@ class AssetReadSerializer(serializers.ModelSerializer):
             "impact",
             "replacement_cost",
             "replacement_currency",
+            "inventory_status",
+            "archived_at",
+            "archived_by",
             "hardware",
             "created_at",
             "updated_at",

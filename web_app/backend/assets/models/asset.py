@@ -19,6 +19,11 @@ class Asset(models.Model):
     class Currency(models.TextChoices):
         COP = "COP", "Peso colombiano"
         USD = "USD", "Dólar estadounidense"
+        EUR = "EUR", "Euro"
+
+    class InventoryStatus(models.TextChoices):
+        ACTIVE = "ACTIVE", "En inventario"
+        ARCHIVED = "ARCHIVED", "Archivado"
 
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -38,6 +43,21 @@ class Asset(models.Model):
     )
     replacement_currency = models.CharField(
         max_length=3, choices=Currency.choices, blank=True
+    )
+
+    inventory_status = models.CharField(
+        max_length=20,
+        choices=InventoryStatus.choices,
+        default=InventoryStatus.ACTIVE,
+        db_index=True,
+    )
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archived_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="archived_assets",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
