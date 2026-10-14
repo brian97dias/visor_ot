@@ -9,6 +9,7 @@ from django.db.models import (
 )
 
 from django.db.models.functions import Coalesce
+from django.core.paginator import Paginator
 
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -17,6 +18,7 @@ from rest_framework.permissions import (
     IsAuthenticated,
 )
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 
 from ingestion.models import Ingestion
@@ -73,49 +75,65 @@ def get_communications_queryset():
 
 
 class CommunicationListView(APIView):
+    permission_classes = [IsAuthenticated]
 
-    permission_classes = [
-        IsAuthenticated,
-    ]
+    def get(self, request):
+        filters = request.query_params
 
+        include_inactive = filters.get("include_inactive", "false").lower() == "true"
+        status_filter = filters.get("status", "ALL")
+        search = filters.get("search", "").strip()[:100]
 
-    def get(
-        self,
-        request,
-    ):
+        if status_filter != "ALL" and status_filter not in Communication.Status.values:
+            raise ValidationError({"status": "Clasificación no válida."})
 
-        queryset = (
-            get_communications_queryset()
-        )
+        try:
+            page_number = int(filters.get("page", "1"))
+            min_packets = int(
+                filters.get("min_packets", "0" if include_inactive else "1")
+            )
+        except (ValueError, TypeError) as error:
+            raise ValidationError({
+                "detail": "page y min_packets deben ser números enteros."
+            }) from error
 
+        if page_number < 1 or min_packets < 0:
+            raise ValidationError({
+                "detail": "page debe ser positivo y min_packets no puede ser negativo."
+            })
 
-        include_inactive = (
-            request.query_params.get(
-                "include_inactive",
-                "false",
-            ).lower()
-            == "true"
-        )
-
+        queryset = get_communications_queryset()
 
         if not include_inactive:
+            queryset = queryset.filter(active_evidence_count__gt=0)
 
-            queryset = queryset.filter(
-                active_evidence_count__gt=0
+        if status_filter != "ALL":
+            queryset = queryset.filter(status=status_filter)
+
+        if search:
+            criteria = (
+                Q(source_ip__icontains=search)
+                | Q(destination_ip__icontains=search)
+                | Q(transport_protocol__icontains=search)
+                | Q(service__icontains=search)
             )
+            if search.isdecimal():
+                criteria |= Q(service_port=int(search))
+            queryset = queryset.filter(criteria)
 
+        if min_packets:
+            queryset = queryset.filter(packets_observed__gte=min_packets)
 
-        serializer = (
-            CommunicationListSerializer(
-                queryset,
-                many=True,
-            )
-        )
-
+        paginator = Paginator(queryset.order_by("id"), 25)
+        page = paginator.get_page(page_number)
 
         return Response({
-            "communications":
-                serializer.data
+            "count": paginator.count,
+            "page": page.number,
+            "page_size": 25,
+            "results": CommunicationListSerializer(
+                page.object_list, many=True,
+            ).data,
         })
 
 
