@@ -3,6 +3,8 @@ from config import (
     OUTPUT_DIRECTORY,
 )
 
+from output import get_analysis_hash
+
 from pcap_identity import (
     get_pcap_id,
     get_relative_path,
@@ -90,13 +92,13 @@ def list_pcaps():
         )
 
 
+        status = get_pcap_status(pcap_path)
         pcaps.append({
             "id": pcap_id,
             "filename": pcap_path.name,
             "relative_path": relative_path,
-            "status": get_pcap_status(
-                pcap_path
-            ),
+            "status": status,
+            "analysis_hash": get_analysis_hash(pcap_id) if status == "ANALYZED" else None,
         })
 
 

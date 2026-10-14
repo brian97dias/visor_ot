@@ -33,7 +33,6 @@ from .serializers import (
 
 from .services.json_importer import (
     ImportValidationError,
-    calculate_analysis_hash,
     import_analysis,
 )
 
@@ -237,18 +236,9 @@ class PcapListView(APIView):
                     continue
 
 
-                analysis = (
-                    get_pcap_analysis(
-                        pcap["id"]
-                    )
-                )
-
-
-                current_hash = (
-                    calculate_analysis_hash(
-                        analysis
-                    )
-                )
+                # FastAPI now returns the canonical hash from compact metadata.
+                # Do not download the full analysis just to render a PCAP list.
+                current_hash = pcap.get("analysis_hash")
 
 
                 same_analysis = next(

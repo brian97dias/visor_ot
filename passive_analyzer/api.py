@@ -26,6 +26,7 @@ class PcapSummary(BaseModel):
         "PENDING",
         "ANALYZED",
     ]
+    analysis_hash: str | None = None
 
 
 class PcapListResponse(BaseModel):
