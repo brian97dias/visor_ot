@@ -110,9 +110,11 @@ def get_pcaps():
     url = f"{base_url}/api/v1/pcaps/"
 
     try:
+        # La primera consulta puede crear metadatos de análisis antiguos.
+        # Las siguientes utilizan el hash almacenado.
         response = requests.get(
             url,
-            timeout=5,
+            timeout=(5, 30),
         )
 
         response.raise_for_status()
