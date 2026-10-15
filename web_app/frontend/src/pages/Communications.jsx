@@ -102,7 +102,7 @@ export default function Communications() {
             <input
               type="search"
               aria-label="Buscar comunicaciones"
-              placeholder="Buscar por IP, protocolo, puerto o servicio..."
+              placeholder="Buscar IP, dispositivo, protocolo, puerto o servicio..."
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value);

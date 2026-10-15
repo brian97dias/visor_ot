@@ -26,6 +26,7 @@ from users.permissions import IsAdminOrAnalyst
 
 from .models import Communication
 from .endpoint_resolution import resolve_communication_endpoints
+from .name_search import device_name_filter
 
 from .serializers import (
     CommunicationClassificationSerializer,
@@ -120,6 +121,12 @@ class CommunicationListView(APIView):
             )
             if search.isdecimal():
                 criteria |= Q(service_port=int(search))
+
+            # Only include a device-name match when every active observation
+            # consistently resolves the corresponding communication endpoint.
+            by_name = device_name_filter(search)
+            if by_name is not None:
+                criteria |= by_name
             queryset = queryset.filter(criteria)
 
         if min_packets:
