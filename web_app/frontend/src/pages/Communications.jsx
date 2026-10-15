@@ -46,31 +46,35 @@ export default function Communications() {
   }, [search, statusFilter, minPackets]);
 
   useEffect(() => {
-    let active = true;
+    const controller = new AbortController();
     setLoading(true);
     setError("");
+    setResponse(null);
 
     getCommunications({
       page: currentPage,
       search,
       status: statusFilter,
       minPackets,
+      signal: controller.signal,
     })
       .then((data) => {
-        if (active) setResponse(data);
+        if (!controller.signal.aborted) setResponse(data);
       })
       .catch((err) => {
-        if (active) setError(err.message);
+        if (!controller.signal.aborted && err.name !== "AbortError") {
+          setError(err.message);
+        }
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       });
 
-    return () => {
-      active = false;
-    };
+    return () => controller.abort();
   }, [currentPage, search, statusFilter, minPackets]);
 
+  // Avoid displaying the previous query's count while a search is pending.
+  const isPending = loading || query.trim() !== search;
   const communications = response?.results || [];
   const count = response?.count || 0;
   const page = response?.page || 1;
@@ -93,7 +97,7 @@ export default function Communications() {
             <p>Comunicaciones consolidadas a partir de evidencia activa.</p>
           </div>
           <span className="record-count">
-            {count.toLocaleString("es-CO")} coincidencias
+            {isPending ? "Buscando..." : count.toLocaleString("es-CO") + " coincidencias"}
           </span>
         </div>
 
@@ -104,10 +108,7 @@ export default function Communications() {
               aria-label="Buscar comunicaciones"
               placeholder="Buscar IP, dispositivo, protocolo, puerto o servicio..."
               value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setCurrentPage(1);
-              }}
+              onChange={(event) => setQuery(event.target.value)}
             />
           </div>
 
@@ -141,8 +142,8 @@ export default function Communications() {
 
         {error && <div className="error-message">{error}</div>}
 
-        {loading ? (
-          <div className="empty-state">Cargando página de comunicaciones...</div>
+        {isPending ? (
+          <div className="empty-state">Buscando comunicaciones...</div>
         ) : !error && communications.length === 0 ? (
           <div className="empty-state">
             <strong>No se encontraron comunicaciones.</strong>
@@ -194,14 +195,16 @@ export default function Communications() {
 
         <div className="pagination">
           <span>
-            {count.toLocaleString("es-CO")} coincidencias · Página {page} de {totalPages}
+            {isPending
+              ? "Consultando..."
+              : count.toLocaleString("es-CO") + " coincidencias · Página " + page + " de " + totalPages}
           </span>
           <div className="pagination-actions">
-            <button type="button" disabled={loading || page <= 1}
+            <button type="button" disabled={isPending || page <= 1}
               onClick={() => setCurrentPage(page - 1)}>
               Anterior
             </button>
-            <button type="button" disabled={loading || page >= totalPages}
+            <button type="button" disabled={isPending || page >= totalPages}
               onClick={() => setCurrentPage(page + 1)}>
               Siguiente
             </button>
