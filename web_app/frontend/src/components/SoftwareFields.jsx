@@ -6,12 +6,12 @@ export const emptySoftwareFields = () => ({
   version: "",
 });
 
-export default function SoftwareFields({ values, onChange, idPrefix = "software", disabled = false, required = true }) {
+export default function SoftwareFields({ values, onChange, idPrefix = "software", disabled = false, required = true, formId }) {
   return (
     <div className="assets-form-grid">
       <div className="assets-field assets-full-row">
         <label htmlFor={idPrefix + "-type"}>Tipo de software *</label>
-        <select id={idPrefix + "-type"} required={required} disabled={disabled}
+        <select id={idPrefix + "-type"} required={required} disabled={disabled} form={formId}
           value={values.software_type}
           onChange={(event) => onChange("software_type", event.target.value)}>
           <option value="FIRMWARE">Firmware</option>
@@ -21,21 +21,21 @@ export default function SoftwareFields({ values, onChange, idPrefix = "software"
       </div>
       <div className="assets-field">
         <label htmlFor={idPrefix + "-manufacturer"}>Fabricante</label>
-        <input id={idPrefix + "-manufacturer"} maxLength={200} disabled={disabled}
+        <input id={idPrefix + "-manufacturer"} maxLength={200} disabled={disabled} form={formId}
           value={values.manufacturer}
           onChange={(event) => onChange("manufacturer", event.target.value)}
           placeholder="Ej. Siemens, Advantech" />
       </div>
       <div className="assets-field">
         <label htmlFor={idPrefix + "-product"}>Producto *</label>
-        <input id={idPrefix + "-product"} required={required} maxLength={200} disabled={disabled}
+        <input id={idPrefix + "-product"} required={required} maxLength={200} disabled={disabled} form={formId}
           value={values.product}
           onChange={(event) => onChange("product", event.target.value)}
           placeholder="Ej. TIA Portal, Firmware ADAM" />
       </div>
       <div className="assets-field assets-full-row">
         <label htmlFor={idPrefix + "-version"}>Versión</label>
-        <input id={idPrefix + "-version"} maxLength={100} disabled={disabled}
+        <input id={idPrefix + "-version"} maxLength={100} disabled={disabled} form={formId}
           value={values.version}
           onChange={(event) => onChange("version", event.target.value)}
           placeholder="Opcional / desconocida" />

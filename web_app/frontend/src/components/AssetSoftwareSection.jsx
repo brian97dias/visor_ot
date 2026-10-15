@@ -270,25 +270,28 @@ export default function AssetSoftwareSection({ asset, user, embedded = false }) 
               <div className="assets-field">
                 <label htmlFor={"inline-software-name-" + asset.id}>Nombre del activo *</label>
                 <input id={"inline-software-name-" + asset.id} maxLength={200} disabled={busy}
+                  form={"inline-software-independent-" + asset.id}
                   value={registration.name}
                   placeholder="Ej. Firmware ADAM-5000"
                   onChange={(event) => updateRegistration("name", event.target.value)}/>
               </div>
               <SoftwareFields idPrefix={"inline-software-" + asset.id}
                 values={registration.software} onChange={updateSoftware}
-                required={false} disabled={busy}/>
+                required={false} disabled={busy} formId={"inline-software-independent-" + asset.id}/>
               <details className="software-extra-fields">
                 <summary>Descripción y clasificación (opcional)</summary>
                 <div className="assets-form-grid">
                   <div className="assets-field assets-full-row">
                     <label htmlFor={"inline-description-" + asset.id}>Descripción</label>
                     <textarea id={"inline-description-" + asset.id} rows={2}
+                      form={"inline-software-independent-" + asset.id}
                       disabled={busy} value={registration.description}
                       onChange={(event) => updateRegistration("description", event.target.value)}/>
                   </div>
                   <div className="assets-field">
                     <label htmlFor={"inline-criticality-" + asset.id}>Criticidad</label>
                     <select id={"inline-criticality-" + asset.id}
+                      form={"inline-software-independent-" + asset.id}
                       value={registration.criticality} disabled={busy}
                       onChange={(event) => updateRegistration("criticality", event.target.value)}>
                       {Object.entries(CRITICALITY_LABELS).map(([value, label]) => (
@@ -299,12 +302,14 @@ export default function AssetSoftwareSection({ asset, user, embedded = false }) 
                   <div className="assets-field">
                     <label htmlFor={"inline-cost-" + asset.id}>Costo de reposición</label>
                     <input id={"inline-cost-" + asset.id} type="number" min="0" step="0.01"
+                      form={"inline-software-independent-" + asset.id}
                       disabled={busy} value={registration.replacement_cost}
                       onChange={(event) => updateRegistration("replacement_cost", event.target.value)}/>
                   </div>
                   <div className="assets-field">
                     <label htmlFor={"inline-currency-" + asset.id}>Moneda</label>
                     <select id={"inline-currency-" + asset.id}
+                      form={"inline-software-independent-" + asset.id}
                       value={registration.replacement_currency} disabled={busy}
                       onChange={(event) => updateRegistration("replacement_currency", event.target.value)}>
                       <option value="">Sin registrar</option>
@@ -316,6 +321,7 @@ export default function AssetSoftwareSection({ asset, user, embedded = false }) 
                   <div className="assets-field assets-full-row">
                     <label htmlFor={"inline-impact-" + asset.id}>Impacto de indisponibilidad</label>
                     <textarea id={"inline-impact-" + asset.id} rows={2}
+                      form={"inline-software-independent-" + asset.id}
                       disabled={busy} value={registration.impact}
                       onChange={(event) => updateRegistration("impact", event.target.value)}/>
                   </div>

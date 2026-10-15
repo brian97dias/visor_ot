@@ -81,9 +81,10 @@ function AssetEditor() {
   if (loading) return <section className="page">Cargando activo...</section>;
 
   if (editing && (!asset || String(asset.id) !== String(assetId))) {
+    if (!error) return <section className="page">Cargando activo...</section>;
     return (
       <section className="page">
-        <div className="error-message">{error || "El activo no está disponible."}</div>
+        <div className="error-message">{error}</div>
         <Link className="button-link" to="/assets">Volver al inventario</Link>
       </section>
     );
