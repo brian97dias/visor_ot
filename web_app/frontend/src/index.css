@@ -1830,3 +1830,118 @@ input {
     min-width: 0;
     margin: 0;
 }
+
+
+/* Pairwise hardware filtering on the Communications inventory */
+.device-filter-section {
+    border-bottom: 1px solid #263244;
+    padding: 18px 20px 20px;
+}
+.device-filter-heading {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+.device-filter-heading label {
+    color: #e2e8f0;
+    font-weight: 700;
+    font-size: 0.94rem;
+}
+.device-filter-heading p,
+.device-filter-help {
+    color: #94a3b8;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    margin: 6px 0 12px;
+}
+.device-filter-clear {
+    background: transparent;
+    border: 1px solid #334155;
+    border-radius: 7px;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 6px 10px;
+}
+.device-filter-tags {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+.device-filter-tags:empty { display: none; }
+.device-filter-tag {
+    display: inline-flex;
+    gap: 10px;
+    align-items: center;
+    background: #0c4a6e;
+    border: 1px solid #0ea5e9;
+    color: #e0f2fe;
+    padding: 5px 6px 5px 12px;
+    border-radius: 999px;
+    max-width: 100%;
+}
+.device-filter-tag span { overflow-wrap: anywhere; }
+.device-filter-tag-remove {
+    border: 0;
+    background: transparent;
+    color: #e0f2fe;
+    cursor: pointer;
+    border-radius: 50%;
+    font-size: 1.3rem;
+    line-height: 1;
+    padding: 2px 5px;
+}
+.device-filter-tag-remove:hover { background: #075985; }
+.device-filter-input-wrap {
+    max-width: 560px;
+    position: relative;
+}
+.device-filter-input-wrap input {
+    width: 100%;
+    color: #e5e7eb;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 7px;
+    padding: 11px 12px;
+}
+.device-filter-input-wrap input:disabled { opacity: 0.6; }
+.device-filter-options {
+    position: absolute;
+    z-index: 12;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 220px;
+    overflow-y: auto;
+    background: #111827;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.4);
+}
+.device-filter-option {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    gap: 12px;
+    background: transparent;
+    color: #e2e8f0;
+    padding: 12px;
+    border: none;
+    cursor: pointer;
+}
+.device-filter-option:hover,
+.device-filter-option:focus-visible { background: #164e63; }
+.device-filter-option small { color: #94a3b8; }
+.device-filter-none {
+    color: #94a3b8;
+    padding: 12px;
+    margin: 0;
+}
+@media (max-width: 750px) {
+    .device-filter-section { padding: 14px; }
+    .device-filter-input-wrap { max-width: none; }
+}

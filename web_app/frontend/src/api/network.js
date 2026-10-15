@@ -9,6 +9,7 @@ export async function getCommunications({
   status = "ALL",
   minPackets = 1,
   includeInactive = false,
+  assetIds = [],
   signal,
 } = {}) {
   const params = new URLSearchParams({
@@ -18,6 +19,10 @@ export async function getCommunications({
     min_packets: String(minPackets),
     include_inactive: String(includeInactive),
   });
+
+  if (assetIds.length > 0) {
+    params.set("asset_ids", assetIds.join(","));
+  }
 
   const response = await authenticatedFetch(
     "/api/network/communications/?" + params.toString(),

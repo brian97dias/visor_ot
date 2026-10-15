@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { getCommunications } from "../api/network";
 import CommunicationEndpoint from "../components/CommunicationEndpoint";
+import DeviceFilter from "../components/DeviceFilter";
 
 const PACKET_OPTIONS = [
   [1, "Todos los registros"],
@@ -31,6 +32,9 @@ export default function Communications() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [minPackets, setMinPackets] = useState(1);
+  const [selectedDevices, setSelectedDevices] = useState([]);
+  const selectedAssetIds = selectedDevices.map((device) => device.id);
+  const assetKey = selectedAssetIds.join(",");
   const [currentPage, setCurrentPage] = useState(1);
   const [response, setResponse] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -43,7 +47,7 @@ export default function Communications() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, statusFilter, minPackets]);
+  }, [search, statusFilter, minPackets, assetKey]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -56,6 +60,7 @@ export default function Communications() {
       search,
       status: statusFilter,
       minPackets,
+      assetIds: selectedAssetIds,
       signal: controller.signal,
     })
       .then((data) => {
@@ -71,7 +76,7 @@ export default function Communications() {
       });
 
     return () => controller.abort();
-  }, [currentPage, search, statusFilter, minPackets]);
+  }, [currentPage, search, statusFilter, minPackets, assetKey]);
 
   // Avoid displaying the previous query's count while a search is pending.
   const isPending = loading || query.trim() !== search;
@@ -140,6 +145,8 @@ export default function Communications() {
           <span className="filtered-count">25 por página</span>
         </div>
 
+        <DeviceFilter selected={selectedDevices} onChange={setSelectedDevices} />
+
         {error && <div className="error-message">{error}</div>}
 
         {isPending ? (
@@ -147,7 +154,11 @@ export default function Communications() {
         ) : !error && communications.length === 0 ? (
           <div className="empty-state">
             <strong>No se encontraron comunicaciones.</strong>
-            <p>Prueba otro valor de búsqueda, clasificación o mínimo de paquetes.</p>
+            <p>{selectedDevices.length === 2
+              ? "No se encontraron comunicaciones identificadas entre estos dos dispositivos en las ingestas activas."
+              : selectedDevices.length === 1
+                ? "No se encontraron comunicaciones identificadas para este dispositivo en las ingestas activas."
+                : "Prueba otro valor de búsqueda, clasificación o mínimo de paquetes."}</p>
           </div>
         ) : !error && (
           <div className="table-container">
