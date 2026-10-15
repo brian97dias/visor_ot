@@ -4,6 +4,7 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError as APIValidationError
 
 from .models import Asset, Hardware
+from .interface_assignment import identify_interface, create_identified_interface
 
 
 def save_validated(instance):
@@ -23,6 +24,7 @@ def save_validated(instance):
 def register_hardware_asset(*, data, user):
     values = data.copy()
     hardware_values = values.pop("hardware")
+    assignment = values.pop("interface_assignment", None)
 
     asset = Asset(
         **values,
@@ -33,6 +35,19 @@ def register_hardware_asset(*, data, user):
 
     hardware = Hardware(asset=asset, **hardware_values)
     save_validated(hardware)
+    if assignment:
+        if assignment["mode"] == "EXISTING":
+            identify_interface(
+                interface_id=assignment["interface_id"],
+                asset_id=asset.pk, user=user,
+            )
+        else:
+            create_identified_interface(
+                hardware=hardware,
+                mac=assignment.get("mac"),
+                declared_ip=assignment.get("declared_ip"),
+                user=user,
+            )
     return asset
 
 

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from .models import Asset, Hardware
+from .interface_serializers import NetworkInterfaceCreateSerializer
 
 
 class HardwareSerializer(serializers.ModelSerializer):
@@ -69,8 +70,39 @@ def validate_replacement_fields(attrs, instance=None):
         })
 
 
+class InterfaceAssignmentSerializer(serializers.Serializer):
+    """An optional interface selection when creating a hardware asset."""
+
+    mode = serializers.ChoiceField(choices=("EXISTING", "MANUAL"))
+    interface_id = serializers.IntegerField(min_value=1, required=False)
+    mac = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    declared_ip = serializers.IPAddressField(
+        required=False, allow_blank=True, allow_null=True
+    )
+
+    def validate(self, attrs):
+        if attrs["mode"] == "EXISTING":
+            if "interface_id" not in attrs or "mac" in attrs or "declared_ip" in attrs:
+                raise serializers.ValidationError(
+                    "EXISTING requiere únicamente interface_id."
+                )
+        else:
+            if "interface_id" in attrs:
+                raise serializers.ValidationError(
+                    "MANUAL requiere MAC y/o IP, no interface_id."
+                )
+            manual = NetworkInterfaceCreateSerializer(data={
+                "mac": attrs.get("mac"),
+                "declared_ip": attrs.get("declared_ip"),
+            })
+            manual.is_valid(raise_exception=True)
+            attrs.update(manual.validated_data)
+        return attrs
+
+
 class AssetCreateSerializer(serializers.ModelSerializer):
     hardware = HardwareSerializer(required=True)
+    interface_assignment = InterfaceAssignmentSerializer(required=False)
 
     class Meta:
         model = Asset
@@ -83,6 +115,7 @@ class AssetCreateSerializer(serializers.ModelSerializer):
             "replacement_cost",
             "replacement_currency",
             "hardware",
+            "interface_assignment",
         )
 
     def validate(self, attrs):
