@@ -7,6 +7,7 @@ export default function InterfaceSelector({
   const [mode, setMode] = useState("EXISTING");
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
+  const [includeHistorical, setIncludeHistorical] = useState(false);
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -21,12 +22,16 @@ export default function InterfaceSelector({
     let active = true;
     setLoading(true);
     setError("");
-    getInterfaces({ search, identification: "UNIDENTIFIED" })
+    getInterfaces({
+      search,
+      identification: "UNIDENTIFIED",
+      evidence: includeHistorical ? "ALL" : "ACTIVE",
+    })
       .then((data) => { if (active) setEntries(data.results); })
       .catch((err) => { if (active) setError(err.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [mode, search]);
+  }, [mode, search, includeHistorical]);
 
   function changeMode(next) {
     setMode(next);
@@ -55,6 +60,12 @@ export default function InterfaceSelector({
             placeholder="Ej. 192.168.88.15 o 00:e0:62..."
             value={query} disabled={disabled}
             onChange={(event) => setQuery(event.target.value)} />
+          <label className="interface-historical-option">
+            <input type="checkbox" checked={includeHistorical}
+              disabled={disabled}
+              onChange={(event) => setIncludeHistorical(event.target.checked)} />
+            Incluir interfaces históricas o declaradas sin evidencia activa
+          </label>
           {error && <p className="error-message">{error}</p>}
           {loading ? <p className="interface-hint">Buscando interfaces...</p> : (
             <div className="interface-candidates">
