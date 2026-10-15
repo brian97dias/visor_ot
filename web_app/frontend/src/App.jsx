@@ -18,6 +18,8 @@ import CommunicationDetail from "./pages/CommunicationDetail";
 import Assets from "./pages/Assets";
 import AssetDetail from "./pages/AssetDetail";
 import AssetEditor from "./pages/AssetEditor";
+import Interfaces from "./pages/Interfaces";
+import InterfaceDetail from "./pages/InterfaceDetail";
 
 
 function App() {
@@ -98,6 +100,8 @@ function App() {
           />
 
           <Route path="/assets" element={<Assets />} />
+          <Route path="/assets/interfaces" element={<Interfaces />} />
+          <Route path="/assets/interfaces/:interfaceId" element={<InterfaceDetail />} />
           <Route path="/assets/hardware" element={<Navigate to="/assets?type=HARDWARE" replace />} />
           <Route path="/assets/new" element={<AssetEditor />} />
           <Route path="/assets/:assetId" element={<AssetDetail />} />

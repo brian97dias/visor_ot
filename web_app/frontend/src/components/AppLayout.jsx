@@ -101,6 +101,14 @@ function AppLayout() {
             >
               Inventario
             </NavLink>
+            <NavLink
+              to="/assets/interfaces"
+              className={({ isActive }) =>
+                isActive ? "nav-item nav-subitem active" : "nav-item nav-subitem"
+              }
+            >
+              Interfaces
+            </NavLink>
           </div>
         </nav>
 
