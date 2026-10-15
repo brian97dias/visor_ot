@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
  * Display a device name only when the backend verified per-capture evidence.
  * IP is always visible, including when the endpoint is identified.
  */
-export default function CommunicationEndpoint({ ip, resolution, compact = false }) {
+export default function CommunicationEndpoint({ ip, resolution }) {
   const device = resolution?.status === "IDENTIFIED"
     ? resolution.identity : null;
 
@@ -29,7 +29,7 @@ export default function CommunicationEndpoint({ ip, resolution, compact = false 
         {device.asset_name}
       </Link>
       <small className="communication-endpoint-secondary">
-        {device.role}{compact ? " · " : " · "}{ip}
+        {device.role} · {ip}
       </small>
     </div>
   );

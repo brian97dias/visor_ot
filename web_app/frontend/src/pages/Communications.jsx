@@ -166,8 +166,8 @@ export default function Communications() {
               <tbody>
                 {communications.map((communication) => (
                   <tr key={communication.id}>
-                    <td><CommunicationEndpoint ip={communication.source_ip} resolution={communication.source_resolution} compact /></td>
-                    <td><CommunicationEndpoint ip={communication.destination_ip} resolution={communication.destination_resolution} compact /></td>
+                    <td><CommunicationEndpoint ip={communication.source_ip} resolution={communication.source_resolution} /></td>
+                    <td><CommunicationEndpoint ip={communication.destination_ip} resolution={communication.destination_resolution} /></td>
                     <td>
                       {communication.transport_protocol} / {communication.service_port}
                     </td>

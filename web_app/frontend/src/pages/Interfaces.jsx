@@ -54,6 +54,12 @@ export default function Interfaces() {
         mac: mac.trim() || null, declared_ip: declaredIp.trim() || null,
       });
       setNotice("Interfaz #" + result.id + " registrada correctamente.");
+      // A manual interface has no PCAP evidence yet and is intentionally
+      // excluded from the default ACTIVE filter. Make the new record visible.
+      const identity = result.mac || result.declared_ip;
+      setEvidence("ALL");
+      setQuery(identity);
+      setSearch(identity);
       setShowForm(false);
       setMac("");
       setDeclaredIp("");

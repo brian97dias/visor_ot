@@ -184,7 +184,7 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
       ) : (
         <div className="assets-form-section">
           <h2>Interfaces de red</h2>
-          <>
+          <div>
             <p className="interface-hint">
               Opcional. Si no seleccionas ninguna interfaz, el hardware se registrará sin asociación.
             </p>
@@ -199,7 +199,7 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
               <InterfaceSelector value={interfaceAssignment}
                 onChange={setInterfaceAssignment} disabled={saving} />
             )}
-          </>
+          </div>
         </div>
       )}
 
