@@ -12,6 +12,7 @@ from .serializers import (
     AssetReadSerializer,
     AssetUpdateSerializer,
 )
+from .software_services import register_software_asset, update_software_asset
 from .services import (
     register_hardware_asset,
     update_hardware_asset,
@@ -22,6 +23,7 @@ from .services import (
 def asset_queryset():
     return Asset.objects.select_related(
         "hardware",
+        "software",
         "created_by",
         "updated_by",
     )
@@ -54,10 +56,16 @@ class AssetListCreateView(APIView):
         serializer = AssetCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        asset = register_hardware_asset(
-            data=serializer.validated_data,
-            user=request.user,
-        )
+        if serializer.validated_data["asset_type"] == Asset.AssetType.SOFTWARE:
+            asset = register_software_asset(
+                data=serializer.validated_data,
+                user=request.user,
+            )
+        else:
+            asset = register_hardware_asset(
+                data=serializer.validated_data,
+                user=request.user,
+            )
         return Response(
             AssetReadSerializer(asset).data,
             status=status.HTTP_201_CREATED,
@@ -80,11 +88,18 @@ class AssetDetailView(APIView):
         )
         serializer.is_valid(raise_exception=True)
 
-        asset = update_hardware_asset(
-            asset=asset,
-            data=serializer.validated_data,
-            user=request.user,
-        )
+        if asset.asset_type == Asset.AssetType.SOFTWARE:
+            asset = update_software_asset(
+                asset_id=asset.pk,
+                data=serializer.validated_data,
+                user=request.user,
+            )
+        else:
+            asset = update_hardware_asset(
+                asset=asset,
+                data=serializer.validated_data,
+                user=request.user,
+            )
         return Response(AssetReadSerializer(asset).data)
 
 

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Asset, Hardware
+from .models import Asset, Hardware, Software
 from .interface_serializers import NetworkInterfaceCreateSerializer
 
 
@@ -16,8 +16,17 @@ class HardwareSerializer(serializers.ModelSerializer):
         )
 
 
+class SoftwareSerializer(serializers.ModelSerializer):
+    """Technical software identity. Installations are managed in increment 3."""
+
+    class Meta:
+        model = Software
+        fields = ("software_type", "manufacturer", "product", "version")
+
+
 class AssetReadSerializer(serializers.ModelSerializer):
     hardware = HardwareSerializer(read_only=True)
+    software = SoftwareSerializer(read_only=True)
     created_by = serializers.SlugRelatedField(
         read_only=True, slug_field="username"
     )
@@ -43,6 +52,7 @@ class AssetReadSerializer(serializers.ModelSerializer):
             "archived_at",
             "archived_by",
             "hardware",
+            "software",
             "created_at",
             "updated_at",
             "created_by",
@@ -101,7 +111,8 @@ class InterfaceAssignmentSerializer(serializers.Serializer):
 
 
 class AssetCreateSerializer(serializers.ModelSerializer):
-    hardware = HardwareSerializer(required=True)
+    hardware = HardwareSerializer(required=False)
+    software = SoftwareSerializer(required=False)
     interface_assignment = InterfaceAssignmentSerializer(required=False)
 
     class Meta:
@@ -115,20 +126,40 @@ class AssetCreateSerializer(serializers.ModelSerializer):
             "replacement_cost",
             "replacement_currency",
             "hardware",
+            "software",
             "interface_assignment",
         )
 
     def validate(self, attrs):
-        if attrs["asset_type"] != Asset.AssetType.HARDWARE:
-            raise serializers.ValidationError({
-                "asset_type": "Por ahora solo se permite registrar HARDWARE."
-            })
+        kind = attrs.get("asset_type")
+        if kind == Asset.AssetType.HARDWARE:
+            if "hardware" not in attrs:
+                raise serializers.ValidationError({
+                    "hardware": "Indica los datos del hardware."
+                })
+            if "software" in self.initial_data:
+                raise serializers.ValidationError({
+                    "software": "No envíes datos de software para un hardware."
+                })
+        elif kind == Asset.AssetType.SOFTWARE:
+            if "software" not in attrs:
+                raise serializers.ValidationError({
+                    "software": "Indica el tipo y producto del software."
+                })
+            if ("hardware" in self.initial_data
+                    or "interface_assignment" in self.initial_data):
+                raise serializers.ValidationError({
+                    "software": "Una variante de software no registra hardware ni interfaces directamente."
+                })
+        else:
+            raise serializers.ValidationError({"asset_type": "Tipo de activo inválido."})
         validate_replacement_fields(attrs)
         return attrs
 
 
 class AssetUpdateSerializer(serializers.ModelSerializer):
     hardware = HardwareSerializer(required=False)
+    software = SoftwareSerializer(required=False)
 
     class Meta:
         model = Asset
@@ -140,6 +171,7 @@ class AssetUpdateSerializer(serializers.ModelSerializer):
             "replacement_cost",
             "replacement_currency",
             "hardware",
+            "software",
         )
 
     def validate(self, attrs):
@@ -147,5 +179,15 @@ class AssetUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 "asset_type": "El tipo de activo no se puede modificar."
             })
+        if self.instance is not None:
+            kind = self.instance.asset_type
+            if kind == Asset.AssetType.HARDWARE and "software" in self.initial_data:
+                raise serializers.ValidationError({
+                    "software": "No puedes editar Software desde un activo Hardware."
+                })
+            if kind == Asset.AssetType.SOFTWARE and "hardware" in self.initial_data:
+                raise serializers.ValidationError({
+                    "hardware": "No puedes editar Hardware desde un activo Software."
+                })
         validate_replacement_fields(attrs, instance=self.instance)
         return attrs
