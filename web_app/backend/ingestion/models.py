@@ -79,6 +79,14 @@ class Ingestion(models.Model):
 
 class InterfaceObservation(models.Model):
 
+    network_interface = models.ForeignKey(
+        "assets.NetworkInterface",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="observations",
+    )
+
     ingestion = models.ForeignKey(
         Ingestion,
         on_delete=models.CASCADE,
