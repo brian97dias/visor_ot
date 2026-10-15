@@ -1794,3 +1794,16 @@ input {
     .interface-candidate { grid-template-columns: 1fr; }
     .interface-panel-padding { padding: 14px; }
 }
+
+
+/* Shared interface management on the hardware edit screen */
+.interface-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+.interface-section-header h2 { margin: 0; }
+.interface-section-header .interface-hint { margin-top: 7px; }

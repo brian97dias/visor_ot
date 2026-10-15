@@ -11,7 +11,7 @@ export default function Interfaces() {
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [identification, setIdentification] = useState("ALL");
-  const [evidence, setEvidence] = useState("ALL");
+  const [evidence, setEvidence] = useState("ACTIVE");
   const [page, setPage] = useState(1);
   const [response, setResponse] = useState(null);
   const [loading, setLoading] = useState(true);

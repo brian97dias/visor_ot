@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import InterfaceSelector from "./InterfaceSelector";
+import AssetInterfacesSection from "./AssetInterfacesSection";
 
 import {
   canEditAssetCriticality,
@@ -69,6 +70,7 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
   const [values, setValues] = useState(() => initialValues(asset));
   const [localError, setLocalError] = useState("");
   const [interfaceAssignment, setInterfaceAssignment] = useState(null);
+  const [showCreateSelector, setShowCreateSelector] = useState(false);
 
   function change(field, value) {
     setValues((current) => ({ ...current, [field]: value }));
@@ -180,16 +182,23 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
       <div className="assets-form-section">
         <h2>Interfaces de red</h2>
         {editing ? (
-          <p className="interface-hint">
-            Puedes gestionar las interfaces desde el detalle del activo.
-          </p>
+          <AssetInterfacesSection asset={asset} user={user} embedded />
         ) : (
           <>
             <p className="interface-hint">
-              Asociación opcional: selecciona una interfaz descubierta o declara una nueva.
+              Opcional. Si no seleccionas ninguna interfaz, el hardware se registrará sin asociación.
             </p>
-            <InterfaceSelector value={interfaceAssignment}
-              onChange={setInterfaceAssignment} disabled={saving} />
+            <button type="button" className="button-secondary" disabled={saving}
+              onClick={() => {
+                setShowCreateSelector((current) => !current);
+                setInterfaceAssignment(null);
+              }}>
+              {showCreateSelector ? "Cerrar selector" : "Asociar interfaz"}
+            </button>
+            {showCreateSelector && (
+              <InterfaceSelector value={interfaceAssignment}
+                onChange={setInterfaceAssignment} disabled={saving} />
+            )}
           </>
         )}
       </div>
