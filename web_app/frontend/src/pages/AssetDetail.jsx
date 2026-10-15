@@ -6,9 +6,12 @@ import {
 import { archiveAsset, getAsset, restoreAsset } from "../api/assets";
 import SuccessNotice from "../components/SuccessNotice";
 import ConfirmAssetStatusModal from "../components/ConfirmAssetStatusModal";
+import InterfaceSelector from "../components/InterfaceSelector";
+import { assignAssetInterface, getInterfaces, unlinkInterface } from "../api/interfaces";
 import {
   canArchiveAssets,
   canEditAssets,
+  canCreateAssets,
   CRITICALITY_LABELS,
   displayCost,
   displayValue,
@@ -35,6 +38,13 @@ function AssetDetail() {
   const [notice, setNotice] = useState(location.state?.notice || "");
   const [busy, setBusy] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [interfaces, setInterfaces] = useState([]);
+  const [interfacesLoading, setInterfacesLoading] = useState(false);
+  const [interfacesRevision, setInterfacesRevision] = useState(0);
+  const [showInterfaceSelector, setShowInterfaceSelector] = useState(false);
+  const [interfaceSelection, setInterfaceSelection] = useState(null);
+  const [interfaceBusy, setInterfaceBusy] = useState(false);
+  const [pendingUnlink, setPendingUnlink] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -50,6 +60,52 @@ function AssetDetail() {
     setNotice(location.state.notice);
     navigate(location.pathname, { replace: true, state: null });
   }, [location.state, location.pathname, navigate]);
+
+  useEffect(() => {
+    if (!asset?.hardware) return;
+    let active = true;
+    setInterfacesLoading(true);
+    getInterfaces({ hardwareId: asset.id })
+      .then((result) => { if (active) setInterfaces(result.results); })
+      .catch((err) => { if (active) setError(err.message); })
+      .finally(() => { if (active) setInterfacesLoading(false); });
+    return () => { active = false; };
+  }, [asset?.id, interfacesRevision]);
+
+  async function assignSelectedInterface() {
+    if (!interfaceSelection || !asset || interfaceBusy) return;
+    if (interfaceSelection.mode === "MANUAL" &&
+        !interfaceSelection.mac?.trim() &&
+        !interfaceSelection.declared_ip?.trim()) {
+      setError("Para el registro manual indica MAC y/o IP.");
+      return;
+    }
+    setInterfaceBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await assignAssetInterface(asset.id, interfaceSelection);
+      setInterfacesRevision((current) => current + 1);
+      setInterfaceSelection(null);
+      setShowInterfaceSelector(false);
+      setNotice("Interfaz asociada correctamente.");
+    } catch (err) { setError(err.message); }
+    finally { setInterfaceBusy(false); }
+  }
+
+  async function confirmUnlinkInterface() {
+    if (!pendingUnlink || interfaceBusy) return;
+    setInterfaceBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await unlinkInterface(pendingUnlink.id);
+      setPendingUnlink(null);
+      setInterfacesRevision((current) => current + 1);
+      setNotice("Interfaz desvinculada; las observaciones se conservan.");
+    } catch (err) { setError(err.message); }
+    finally { setInterfaceBusy(false); }
+  }
 
   async function confirmInventoryStatusChange() {
     if (busy) return;
@@ -138,6 +194,91 @@ function AssetDetail() {
             <Field label="Número de serie" value={asset.hardware.serial_number} />
             <Field label="Ubicación física" value={asset.hardware.physical_location} />
           </div>
+        </section>
+      )}
+
+      {asset.hardware && (
+        <section className="panel assets-detail-section">
+          <div className="panel-header">
+            <div><h2>Interfaces de red</h2>
+              <p>Interfaces relacionadas con este hardware.</p>
+            </div>
+            {canCreateAssets(user) && asset.inventory_status === "ACTIVE" && (
+              <button className="button-secondary" type="button"
+                disabled={interfaceBusy}
+                onClick={() => {
+                  setShowInterfaceSelector((current) => !current);
+                  setInterfaceSelection(null);
+                }}>
+                {showInterfaceSelector ? "Cerrar selector" : "Asociar interfaz"}
+              </button>
+            )}
+          </div>
+
+          {interfacesLoading ? (
+            <div className="interface-panel-padding">Cargando interfaces...</div>
+          ) : interfaces.length ? (
+            <div className="table-container">
+              <table className="data-table">
+                <thead><tr><th>MAC</th><th>IP observadas</th><th>Evidencia</th><th>Acciones</th></tr></thead>
+                <tbody>{interfaces.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.mac || "Sin MAC"}</td>
+                    <td>{item.observed_ips?.join(", ") || item.declared_ip || "Sin IP"}</td>
+                    <td>{item.has_active_evidence ? "Activa" : "Sin evidencia activa"}</td>
+                    <td><div className="table-actions">
+                      <Link className="button-secondary" to={"/assets/interfaces/" + item.id}>
+                        Ver interfaz
+                      </Link>
+                      {canCreateAssets(user) && (
+                        <button className="button-secondary" type="button"
+                          disabled={interfaceBusy}
+                          onClick={() => setPendingUnlink(item)}>
+                          Desvincular
+                        </button>
+                      )}
+                    </div></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="interface-panel-padding interface-hint">
+              Este hardware todavía no tiene interfaces asociadas.
+            </div>
+          )}
+
+          {showInterfaceSelector && canCreateAssets(user) && (
+            <div className="interface-panel-padding">
+              <InterfaceSelector value={interfaceSelection}
+                onChange={setInterfaceSelection} disabled={interfaceBusy} />
+              <div className="table-actions interface-panel-actions">
+                <button type="button" className="button-secondary"
+                  disabled={interfaceBusy} onClick={() => setShowInterfaceSelector(false)}>
+                  Cancelar
+                </button>
+                <button type="button" className="button-primary"
+                  disabled={interfaceBusy || !interfaceSelection}
+                  onClick={assignSelectedInterface}>
+                  {interfaceBusy ? "Guardando..." : "Confirmar asociación"}
+                </button>
+              </div>
+            </div>
+          )}
+          {pendingUnlink && (
+            <div className="interface-panel-padding">
+              <strong>¿Desvincular {pendingUnlink.mac || "interfaz #" + pendingUnlink.id}?</strong>
+              <p className="interface-hint">No se borrarán las observaciones del PCAP.</p>
+              <div className="table-actions">
+                <button className="button-secondary" type="button" disabled={interfaceBusy}
+                  onClick={() => setPendingUnlink(null)}>Cancelar</button>
+                <button className="button-primary" type="button" disabled={interfaceBusy}
+                  onClick={confirmUnlinkInterface}>
+                  {interfaceBusy ? "Procesando..." : "Confirmar desvinculación"}
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       )}
 
