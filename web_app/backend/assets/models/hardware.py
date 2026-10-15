@@ -27,6 +27,12 @@ class Hardware(models.Model):
     role = models.CharField(max_length=20, choices=Role.choices)
     serial_number = models.CharField(max_length=150, blank=True)
     physical_location = models.CharField(max_length=255, blank=True)
+    software = models.ManyToManyField(
+        "assets.Software",
+        through="assets.SoftwareInstallation",
+        related_name="host_hardware",
+        blank=True,
+    )
 
     def __str__(self):
         return f"{self.asset.name} ({self.get_role_display()})"
