@@ -19,6 +19,8 @@ async function requestAssets(path, options) {
   const response = await authenticatedFetch(path, options);
   let data;
 
+  if (response.status === 204) return null;
+
   try {
     data = await response.json();
   } catch {
@@ -68,4 +70,24 @@ export function restoreAsset(assetId) {
   return requestAssets("/api/assets/" + assetId + "/restore/", {
     method: "POST",
   });
+}
+
+
+export function getInstalledSoftware(hardwareAssetId) {
+  return requestAssets("/api/assets/" + hardwareAssetId + "/software-installations/");
+}
+
+export function associateExistingSoftware(hardwareAssetId, softwareAssetId) {
+  return requestAssets("/api/assets/" + hardwareAssetId + "/software-installations/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ software_asset_id: softwareAssetId }),
+  });
+}
+
+export function unlinkInstalledSoftware(hardwareAssetId, installationId) {
+  return requestAssets(
+    "/api/assets/" + hardwareAssetId + "/software-installations/" + installationId + "/",
+    { method: "DELETE" },
+  );
 }
