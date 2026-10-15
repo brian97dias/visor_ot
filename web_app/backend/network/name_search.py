@@ -10,7 +10,7 @@ The resolver in endpoint_resolution.py remains the source of display identity.
 from collections import defaultdict
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Exists, OuterRef, Q, Value
+from django.db.models import Count, F, Q, Subquery, Value
 from django.db.models.functions import Lower, Replace
 
 from assets.models import NetworkInterface
@@ -55,11 +55,23 @@ def normalize_device_query(text):
     return "".join(text.lower().split())
 
 
+def group_mac_candidates(candidates):
+    """Group capture-scoped IP/MAC evidence without changing its provenance.
+
+    Input: {(normalized_mac, ip): {ingestion_id, ...}}
+    Output: {normalized_mac: {ip: {ingestion_id, ...}}}
+    """
+    grouped = defaultdict(lambda: defaultdict(set))
+    for (mac, ip), ingestions in candidates.items():
+        grouped[mac][ip].update(ingestions)
+    return {mac: dict(addresses) for mac, addresses in grouped.items()}
+
+
 def device_name_filter(search):
     """Return an ORM Q for communications with safely identified name matches.
 
-    Return None if no matching device/capture evidence exists. This is *not*
-    an IP substring or a full scan through resolved Python page results.
+    Return None if no matching device/capture evidence exists. Results
+    remain a queryset filter (never Python post-filtering after pagination).
     """
     token = normalize_device_query(search)
     if not token:
@@ -116,27 +128,50 @@ def device_name_filter(search):
     if not candidates:
         return None
 
-    active_observations = CommunicationObservation.objects.filter(
-        communication_id=OuterRef("pk"),
-        ingestion__status=Ingestion.Status.ACTIVE,
-    )
-    matches = Q(pk__in=[])  # Always false, never an unrestricted Q().
-    for (mac, ip), ids in candidates.items():
-        for endpoint_field, mac_field, ip_field in (
-            ("source_ip", "client_macs", "client_ip"),
-            ("destination_ip", "server_macs", "server_ip"),
+    # Group the allowed (capture, IP) associations by MAC. Unlike the old
+    # correlated EXISTS chains, every candidate MAC requires at most two
+    # grouped subqueries over CommunicationObservation (source/destination).
+    # This keeps the number of subqueries independent of the number of IPs.
+    groups = group_mac_candidates(candidates)
+    matches = Q(pk__in=[])  # Explicitly false if no candidate can match.
+
+    for mac, ip_to_ingestions in groups.items():
+        for ip_column, mac_column in (
+            ("client_ip", "client_macs"),
+            ("server_ip", "server_macs"),
         ):
-            required = {
-                "ingestion_id__in": tuple(ids),
-                mac_field: [mac],
-                ip_field: ip,
-            }
-            valid = active_observations.filter(**required)
-            contradictory = active_observations.exclude(**required)
-            matches |= (
-                Q(**{endpoint_field: ip})
-                & Q(Exists(valid))
-                & ~Q(Exists(contradictory))
+            accepted = Q(pk__in=[])
+            for ip, capture_ids in ip_to_ingestions.items():
+                accepted |= Q(**{
+                    ip_column: ip,
+                    mac_column: [mac],
+                    "ingestion_id__in": tuple(capture_ids),
+                })
+
+            # The IP is constant per side within a consolidated
+            # Communication. Count *all* its active observations and require
+            # every one to carry this one MAC, in a capture that supports
+            # the same IP/MAC binding. One contradictory observation excludes
+            # the communication for this MAC.
+            evidence = (
+                CommunicationObservation.objects
+                .filter(
+                    ingestion__status=Ingestion.Status.ACTIVE,
+                    communication_id__isnull=False,
+                    **{ip_column + "__in": tuple(ip_to_ingestions)},
+                )
+                .order_by()
+                .values("communication_id")
+                .annotate(
+                    total=Count("pk"),
+                    accepted=Count("pk", filter=accepted),
+                )
+                .filter(total=F("accepted"))
+                .values("communication_id")
             )
+
+            # Grouped IN-subqueries are computed as sets. They avoid checking
+            # EXISTS(valid)/EXISTS(contradictory) for every Communication row.
+            matches |= Q(pk__in=Subquery(evidence))
 
     return matches
