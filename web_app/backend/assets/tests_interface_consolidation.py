@@ -1,6 +1,9 @@
 """Database-backed checks of consolidation and automatic PCAP import."""
 
+from io import StringIO
 from unittest.mock import patch
+
+from django.core.management import call_command
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -101,6 +104,46 @@ class InterfaceConsolidationTests(TestCase):
         self.assertEqual(observation.network_interface_id, interface.pk)
         self.assertEqual(interface.hardware_id, hardware.pk)
         self.assertEqual(interface.identified_by_id, self.analyst.pk)
+
+    def test_backfill_command_dry_run_never_persists_links(self):
+        observation = self.add_observation(
+            self.ingestion, "aa:bb:cc:dd:ee:ff"
+        )
+
+        preview = StringIO()
+        call_command(
+            "consolidate_interfaces", "--dry-run", stdout=preview
+        )
+        observation.refresh_from_db()
+
+        self.assertIn("SIMULACIÓN", preview.getvalue())
+        self.assertIsNone(observation.network_interface_id)
+        self.assertEqual(NetworkInterface.objects.count(), 0)
+
+        output = StringIO()
+        call_command("consolidate_interfaces", stdout=output)
+        observation.refresh_from_db()
+
+        self.assertIn("Consolidación finalizada", output.getvalue())
+        self.assertIsNotNone(observation.network_interface_id)
+        self.assertEqual(NetworkInterface.objects.count(), 1)
+
+    def test_backfill_can_include_excluded_ingestions(self):
+        observation = self.add_observation(
+            self.ingestion, "aa:bb:cc:dd:ee:ff"
+        )
+        self.ingestion.status = Ingestion.Status.EXCLUDED
+        self.ingestion.save(update_fields=["status"])
+
+        call_command(
+            "consolidate_interfaces",
+            "--ingestion-id", str(self.ingestion.pk),
+            stdout=StringIO(),
+        )
+        observation.refresh_from_db()
+
+        self.assertIsNotNone(observation.network_interface_id)
+        self.assertEqual(NetworkInterface.objects.count(), 1)
 
     def test_conflicting_foreign_key_is_not_overwritten(self):
         expected = NetworkInterface.objects.create(mac="aa:bb:cc:dd:ee:ff")
