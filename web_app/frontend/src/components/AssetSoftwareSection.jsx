@@ -2,25 +2,45 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import {
-  associateExistingSoftware, getAssets,
+  associateExistingSoftware, createAsset, getAssets,
   getInstalledSoftware, unlinkInstalledSoftware,
 } from "../api/assets";
 import SuccessNotice from "./SuccessNotice";
-import { canCreateAssets, SOFTWARE_TYPE_LABELS } from "../utils/assetPermissions";
+import SearchableSoftwareSelect from "./SearchableSoftwareSelect";
+import SoftwareFields, { emptySoftwareFields } from "./SoftwareFields";
+import {
+  canCreateAssets, CRITICALITY_LABELS, SOFTWARE_TYPE_LABELS,
+} from "../utils/assetPermissions";
 
-/** Installation management shared by hardware detail and hardware edit views.
- * Association changes are saved immediately, separately from AssetForm.
+function emptyRegistration() {
+  return {
+    name: "",
+    description: "",
+    criticality: "UNDEFINED",
+    replacement_cost: "",
+    replacement_currency: "",
+    impact: "",
+    software: emptySoftwareFields(),
+  };
+}
+
+/** Shared on Hardware detail and Hardware edit.
+ * All actions are type="button": this may be nested within AssetForm's <form>.
+ * Associations and new software are saved immediately, independently of
+ * the unsaved Hardware form fields.
  */
 export default function AssetSoftwareSection({ asset, user, embedded = false }) {
   const canManage = canCreateAssets(user) && asset.inventory_status === "ACTIVE";
   const [installed, setInstalled] = useState([]);
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
   const [showChooser, setShowChooser] = useState(false);
-  const [softwareAssetId, setSoftwareAssetId] = useState("");
-  const [search, setSearch] = useState("");
+  const [mode, setMode] = useState("existing");
+  const [softwareAssetId, setSoftwareAssetId] = useState(null);
+  const [registration, setRegistration] = useState(emptyRegistration);
   const [pendingUnlink, setPendingUnlink] = useState(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -36,23 +56,41 @@ export default function AssetSoftwareSection({ asset, user, embedded = false }) 
   }, [asset.id, revision]);
 
   useEffect(() => {
-    if (!showChooser || !canManage) return;
+    if (!showChooser || mode !== "existing" || !canManage) return;
     let active = true;
+    setLoadingCandidates(true);
     getAssets("ACTIVE")
       .then((items) => {
-        if (active) setCandidates(items.filter((item) => item.asset_type === "SOFTWARE"));
+        if (active) {
+          setCandidates(items.filter((item) => item.asset_type === "SOFTWARE"));
+        }
       })
-      .catch((err) => { if (active) setError(err.message); });
+      .catch((err) => { if (active) setError(err.message); })
+      .finally(() => { if (active) setLoadingCandidates(false); });
     return () => { active = false; };
-  }, [showChooser, canManage, revision]);
+  }, [showChooser, mode, canManage, revision]);
 
   const installedIds = new Set(installed.map((row) => row.software_asset_id));
-  const available = candidates.filter((item) =>
-    !installedIds.has(item.id) &&
-    [item.name, item.software?.product, item.software?.manufacturer, item.software?.version]
-      .join(" ").toLocaleLowerCase("es-CO")
-      .includes(search.trim().toLocaleLowerCase("es-CO"))
-  );
+  const available = candidates.filter((item) => !installedIds.has(item.id));
+
+  function closeChooser() {
+    setShowChooser(false);
+    setMode("existing");
+    setSoftwareAssetId(null);
+    setRegistration(emptyRegistration());
+    setError("");
+  }
+
+  function updateRegistration(field, value) {
+    setRegistration((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateSoftware(field, value) {
+    setRegistration((current) => ({
+      ...current,
+      software: { ...current.software, [field]: value },
+    }));
+  }
 
   async function associate() {
     if (busy || !softwareAssetId) return;
@@ -62,10 +100,55 @@ export default function AssetSoftwareSection({ asset, user, embedded = false }) 
     try {
       await associateExistingSoftware(asset.id, Number(softwareAssetId));
       setRevision((current) => current + 1);
-      setShowChooser(false);
-      setSoftwareAssetId("");
-      setSearch("");
+      closeChooser();
       setNotice("Software asociado. El cambio se guardó inmediatamente.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function registerNew() {
+    if (busy || !canManage) return;
+    setError("");
+    setNotice("");
+
+    if (!registration.name.trim() || !registration.software.product.trim()) {
+      setError("Indica el nombre del activo y el producto del software.");
+      return;
+    }
+    if (registration.replacement_cost !== "" && !registration.replacement_currency) {
+      setError("Selecciona la moneda del costo de reposición.");
+      return;
+    }
+    if (registration.replacement_cost === "" && registration.replacement_currency) {
+      setError("Indica un costo de reposición o deja la moneda sin seleccionar.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      // The existing API performs create + mandatory first installation in
+      // one transaction. If association fails, no orphan asset is persisted.
+      await createAsset({
+        name: registration.name.trim(),
+        description: registration.description.trim(),
+        asset_type: "SOFTWARE",
+        criticality: registration.criticality,
+        impact: registration.impact.trim(),
+        replacement_cost: registration.replacement_cost === ""
+          ? null : registration.replacement_cost,
+        replacement_currency: registration.replacement_currency,
+        hardware_asset_id: asset.id,
+        software: Object.fromEntries(
+          Object.entries(registration.software)
+            .map(([key, value]) => [key, value.trim()])
+        ),
+      });
+      setRevision((current) => current + 1);
+      closeChooser();
+      setNotice("Software registrado e instalado en este hardware.");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -90,18 +173,21 @@ export default function AssetSoftwareSection({ asset, user, embedded = false }) 
     }
   }
 
-  const registerUrl = "/assets/new?type=SOFTWARE&hardware_id=" + asset.id + "&from=hardware";
-
   return (
     <section className={embedded ? "assets-form-section" : "panel assets-detail-section"}>
       <div className={embedded ? "interface-section-header" : "panel-header"}>
         <div>
           <h2>Software instalado</h2>
-          <p className="interface-hint">Firmware, sistemas operativos y aplicaciones asociados a este hardware.</p>
+          <p className="interface-hint">
+            Firmware, sistemas operativos y aplicaciones asociados a este hardware.
+          </p>
         </div>
         {canManage && (
           <button className="button-secondary" type="button" disabled={busy}
-            onClick={() => { setShowChooser((value) => !value); setError(""); }}>
+            onClick={() => {
+              if (showChooser) closeChooser();
+              else { setShowChooser(true); setError(""); }
+            }}>
             {showChooser ? "Cerrar selector" : "Añadir software"}
           </button>
         )}
@@ -113,9 +199,10 @@ export default function AssetSoftwareSection({ asset, user, embedded = false }) 
       )}
       <SuccessNotice message={notice} onClose={() => setNotice("")} />
       {error && <div className="error-message interface-panel-padding" role="alert">{error}</div>}
+
       {loading ? (
         <div className="interface-panel-padding">Cargando software...</div>
-      ) : installed.length > 0 ? (
+      ) : installed.length ? (
         <div className="table-container">
           <table className="data-table">
             <thead><tr><th>Software</th><th>Tipo</th><th>Versión</th><th>Acciones</th></tr></thead>
@@ -142,43 +229,128 @@ export default function AssetSoftwareSection({ asset, user, embedded = false }) 
           </table>
         </div>
       ) : (
-        <div className="interface-panel-padding interface-hint">
+        <p className="interface-panel-padding interface-hint">
           Este hardware no tiene software asociado.
-        </div>
+        </p>
       )}
 
       {showChooser && canManage && (
-        <div className="interface-panel-padding">
-          <div className="assets-field">
-            <label htmlFor={"installed-software-search-" + asset.id}>Buscar software existente</label>
-            <input id={"installed-software-search-" + asset.id} value={search}
-              placeholder="Buscar fabricante, producto o versión..."
-              onChange={(event) => setSearch(event.target.value)}/>
-          </div>
-          <div className="assets-field">
-            <label htmlFor={"installed-software-" + asset.id}>Seleccionar software</label>
-            <select id={"installed-software-" + asset.id}
-              value={softwareAssetId} disabled={busy}
-              onChange={(event) => setSoftwareAssetId(event.target.value)}>
-              <option value="">Selecciona una variante existente</option>
-              {available.map((item) => (
-                <option value={item.id} key={item.id}>
-                  {item.name} · {item.software?.product} · {item.software?.version || "Versión desconocida"}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="table-actions interface-panel-actions">
-            <Link to={registerUrl} className="button-secondary">Registrar software nuevo</Link>
-            <button type="button" className="button-secondary"
-              onClick={() => { setShowChooser(false); setSoftwareAssetId(""); setSearch(""); }}>
-              Cancelar
+        <div className="interface-panel-padding software-install-editor"
+          onKeyDown={(event) => {
+            // Avoid Enter in an inline input submitting the parent Hardware form.
+            if (event.key === "Enter" && event.target.tagName === "INPUT") {
+              event.preventDefault();
+            }
+          }}>
+          <div className="software-install-modes" role="group"
+            aria-label="Cómo añadir software">
+            <button type="button" disabled={busy}
+              aria-pressed={mode === "existing"}
+              className={"assets-type-choice" + (mode === "existing" ? " selected" : "")}
+              onClick={() => { setMode("existing"); setError(""); }}>
+              Asociar existente
             </button>
-            <button type="button" className="button-primary"
-              disabled={busy || !softwareAssetId} onClick={associate}>
-              {busy ? "Guardando..." : "Asociar existente"}
+            <button type="button" disabled={busy}
+              aria-pressed={mode === "new"}
+              className={"assets-type-choice" + (mode === "new" ? " selected" : "")}
+              onClick={() => { setMode("new"); setError(""); }}>
+              Registrar nuevo
             </button>
           </div>
+
+          {mode === "existing" ? (
+            <>
+              <SearchableSoftwareSelect
+                options={available}
+                selectedId={softwareAssetId}
+                onChange={setSoftwareAssetId}
+                disabled={busy || loadingCandidates}
+              />
+              {loadingCandidates && <p className="interface-hint">Cargando variantes...</p>}
+              {!loadingCandidates && available.length === 0 && (
+                <p className="interface-hint">
+                  No hay variantes disponibles para asociar. Puedes registrar una nueva.
+                </p>
+              )}
+              <div className="table-actions interface-panel-actions">
+                <button type="button" className="button-secondary" disabled={busy}
+                  onClick={closeChooser}>Cancelar</button>
+                <button type="button" className="button-primary"
+                  disabled={busy || !softwareAssetId} onClick={associate}>
+                  {busy ? "Guardando..." : "Confirmar asociación"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="interface-hint">
+                Nuevo software para <strong>{asset.name}</strong>. Su primera instalación
+                se registrará automáticamente al confirmar.
+              </p>
+              <div className="assets-field">
+                <label htmlFor={"inline-software-name-" + asset.id}>Nombre del activo *</label>
+                <input id={"inline-software-name-" + asset.id} maxLength={200} disabled={busy}
+                  value={registration.name}
+                  placeholder="Ej. Firmware ADAM-5000"
+                  onChange={(event) => updateRegistration("name", event.target.value)}/>
+              </div>
+              <SoftwareFields idPrefix={"inline-software-" + asset.id}
+                values={registration.software} onChange={updateSoftware}
+                required={false} disabled={busy}/>
+              <details className="software-extra-fields">
+                <summary>Descripción y clasificación (opcional)</summary>
+                <div className="assets-form-grid">
+                  <div className="assets-field assets-full-row">
+                    <label htmlFor={"inline-description-" + asset.id}>Descripción</label>
+                    <textarea id={"inline-description-" + asset.id} rows={2}
+                      disabled={busy} value={registration.description}
+                      onChange={(event) => updateRegistration("description", event.target.value)}/>
+                  </div>
+                  <div className="assets-field">
+                    <label htmlFor={"inline-criticality-" + asset.id}>Criticidad</label>
+                    <select id={"inline-criticality-" + asset.id}
+                      value={registration.criticality} disabled={busy}
+                      onChange={(event) => updateRegistration("criticality", event.target.value)}>
+                      {Object.entries(CRITICALITY_LABELS).map(([value, label]) => (
+                        <option value={value} key={value}>{label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="assets-field">
+                    <label htmlFor={"inline-cost-" + asset.id}>Costo de reposición</label>
+                    <input id={"inline-cost-" + asset.id} type="number" min="0" step="0.01"
+                      disabled={busy} value={registration.replacement_cost}
+                      onChange={(event) => updateRegistration("replacement_cost", event.target.value)}/>
+                  </div>
+                  <div className="assets-field">
+                    <label htmlFor={"inline-currency-" + asset.id}>Moneda</label>
+                    <select id={"inline-currency-" + asset.id}
+                      value={registration.replacement_currency} disabled={busy}
+                      onChange={(event) => updateRegistration("replacement_currency", event.target.value)}>
+                      <option value="">Sin registrar</option>
+                      <option value="COP">COP — Peso colombiano</option>
+                      <option value="USD">USD — Dólar estadounidense</option>
+                      <option value="EUR">EUR — Euro</option>
+                    </select>
+                  </div>
+                  <div className="assets-field assets-full-row">
+                    <label htmlFor={"inline-impact-" + asset.id}>Impacto de indisponibilidad</label>
+                    <textarea id={"inline-impact-" + asset.id} rows={2}
+                      disabled={busy} value={registration.impact}
+                      onChange={(event) => updateRegistration("impact", event.target.value)}/>
+                  </div>
+                </div>
+              </details>
+              <div className="table-actions interface-panel-actions">
+                <button type="button" className="button-secondary" disabled={busy}
+                  onClick={closeChooser}>Cancelar</button>
+                <button type="button" className="button-primary" disabled={busy}
+                  onClick={registerNew}>
+                  {busy ? "Registrando..." : "Registrar e instalar software"}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
       {pendingUnlink && canManage && (
