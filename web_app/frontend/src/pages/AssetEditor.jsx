@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
+import { Link, useNavigate, useOutletContext, useParams, useSearchParams } from "react-router-dom";
 
 import { createAsset, getAsset, updateAsset } from "../api/assets";
 import AssetForm from "../components/AssetForm";
@@ -10,6 +10,10 @@ function AssetEditor() {
   const editing = Boolean(assetId);
   const { user } = useOutletContext();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialType = searchParams.get("type") === "SOFTWARE" ? "SOFTWARE" : "HARDWARE";
+  const initialHardwareId = searchParams.get("hardware_id") || "";
+  const returnToHardware = searchParams.get("from") === "hardware";
   const allowed = editing ? canEditAssets(user) : canCreateAssets(user);
 
   const [asset, setAsset] = useState(null);
@@ -38,9 +42,17 @@ function AssetEditor() {
       const saved = editing
         ? await updateAsset(assetId, payload)
         : await createAsset(payload);
-      navigate("/assets/" + saved.id, {
+      const returnTo = !editing && saved.asset_type === "SOFTWARE"
+        && returnToHardware && initialHardwareId === String(saved.id)
+        ? null
+        : !editing && saved.asset_type === "SOFTWARE" && returnToHardware
+          ? initialHardwareId
+          : null;
+      navigate(returnTo ? "/assets/" + returnTo : "/assets/" + saved.id, {
         state: {
-          notice: editing ? "Activo actualizado correctamente." : "Activo registrado correctamente.",
+          notice: returnTo
+            ? "Software registrado e instalado correctamente."
+            : editing ? "Activo actualizado correctamente." : "Activo registrado correctamente.",
         },
       });
     } catch (err) {
@@ -94,6 +106,8 @@ function AssetEditor() {
         onSave={save}
         saving={saving}
         error={error}
+        initialType={initialType}
+        initialHardwareId={initialHardwareId}
       />
     </section>
   );

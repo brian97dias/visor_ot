@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getAssets } from "../api/assets";
+import AssetSoftwareSection from "./AssetSoftwareSection";
 import { Link } from "react-router-dom";
 import InterfaceSelector from "./InterfaceSelector";
 import AssetInterfacesSection from "./AssetInterfacesSection";
@@ -9,11 +11,11 @@ import {
   ROLE_LABELS,
 } from "../utils/assetPermissions";
 
-function initialValues(asset) {
+function initialValues(asset, initialType = "HARDWARE") {
   return {
     name: asset?.name || "",
     description: asset?.description || "",
-    asset_type: asset?.asset_type || "HARDWARE",
+    asset_type: asset?.asset_type || initialType,
     criticality: asset?.criticality || "UNDEFINED",
     impact: asset?.impact || "",
     replacement_cost: asset?.replacement_cost ?? "",
@@ -74,14 +76,32 @@ function buildPayload(values, original, editing, canEditCriticality) {
   return differences;
 }
 
-function AssetForm({ asset = null, user, onSave, saving, error }) {
+function AssetForm({ asset = null, user, onSave, saving, error, initialType = "HARDWARE", initialHardwareId = "" }) {
   const editing = Boolean(asset);
   const canEditCriticality = canEditAssetCriticality(user);
-  const [values, setValues] = useState(() => initialValues(asset));
+  const [values, setValues] = useState(() => initialValues(asset, initialType));
+  const [hardwareAssetId, setHardwareAssetId] = useState(String(initialHardwareId || ""));
+  const [hardwareChoices, setHardwareChoices] = useState([]);
+  const [loadingHardware, setLoadingHardware] = useState(false);
+  const [hardwareError, setHardwareError] = useState("");
   const [localError, setLocalError] = useState("");
   const [interfaceAssignment, setInterfaceAssignment] = useState(null);
   const [pendingInterface, setPendingInterface] = useState(null);
   const [showCreateSelector, setShowCreateSelector] = useState(false);
+
+  useEffect(() => {
+    if (editing || values.asset_type !== "SOFTWARE") return;
+    let active = true;
+    setLoadingHardware(true);
+    setHardwareError("");
+    getAssets("ACTIVE")
+      .then((items) => {
+        if (active) setHardwareChoices(items.filter((item) => item.asset_type === "HARDWARE"));
+      })
+      .catch((err) => { if (active) setHardwareError(err.message); })
+      .finally(() => { if (active) setLoadingHardware(false); });
+    return () => { active = false; };
+  }, [editing, values.asset_type]);
 
   function change(field, value) {
     setValues((current) => ({ ...current, [field]: value }));
@@ -115,6 +135,15 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
     }
 
     const payload = buildPayload(values, asset, editing, canEditCriticality);
+    if (!editing && values.asset_type === "SOFTWARE") {
+      if (!hardwareAssetId || !hardwareChoices.some(
+        (item) => item.id === Number(hardwareAssetId)
+      )) {
+        setLocalError("Selecciona un hardware activo donde instalar el software.");
+        return;
+      }
+      payload.hardware_asset_id = Number(hardwareAssetId);
+    }
     if (!editing && values.asset_type === "HARDWARE" && interfaceAssignment) {
       if (interfaceAssignment.mode === "MANUAL" &&
           !interfaceAssignment.mac?.trim() &&
@@ -320,6 +349,39 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
             uno o varios hardware se gestionará en el siguiente incremento.
           </p>
         </div>
+      )}
+
+      {values.asset_type === "SOFTWARE" && !editing && (
+        <div className="assets-form-section">
+          <h2>Hardware donde se instalará *</h2>
+          <p className="interface-hint">
+            El software debe registrarse con una primera instalación en un hardware
+            activo. Podrás asociarlo a otros dispositivos más adelante.
+          </p>
+          <div className="assets-field">
+            <label htmlFor="software-hardware">Hardware de destino *</label>
+            <select id="software-hardware" required disabled={loadingHardware || saving}
+              value={hardwareAssetId}
+              onChange={(event) => setHardwareAssetId(event.target.value)}>
+              <option value="">Selecciona un hardware del inventario</option>
+              {hardwareChoices.map((item) => (
+                <option value={item.id} key={item.id}>
+                  {item.name} · {item.hardware?.manufacturer || "Fabricante desconocido"}
+                  {item.hardware?.model ? " · " + item.hardware.model : ""}
+                </option>
+              ))}
+            </select>
+            {loadingHardware && <small>Cargando hardware...</small>}
+            {hardwareError && <small role="alert">{hardwareError}</small>}
+            {!loadingHardware && !hardwareError && hardwareChoices.length === 0 && (
+              <small>No hay hardware disponible. Registra un hardware primero.</small>
+            )}
+          </div>
+        </div>
+      )}
+
+      {editing && values.asset_type === "HARDWARE" && (
+        <AssetSoftwareSection asset={asset} user={user} embedded />
       )}
 
       <div className="assets-form-section">

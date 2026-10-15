@@ -7,6 +7,7 @@ import { archiveAsset, getAsset, restoreAsset } from "../api/assets";
 import SuccessNotice from "../components/SuccessNotice";
 import ConfirmAssetStatusModal from "../components/ConfirmAssetStatusModal";
 import AssetInterfacesSection from "../components/AssetInterfacesSection";
+import AssetSoftwareSection from "../components/AssetSoftwareSection";
 import {
   canArchiveAssets,
   canEditAssets,
@@ -160,6 +161,7 @@ function AssetDetail() {
       )}
 
       {asset.hardware && <AssetInterfacesSection asset={asset} user={user} />}
+      {asset.hardware && <AssetSoftwareSection asset={asset} user={user} />}
 
       <section className="panel assets-detail-section">
         <div className="panel-header"><h2>Registro y auditoría</h2></div>
