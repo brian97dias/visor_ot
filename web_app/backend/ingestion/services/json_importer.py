@@ -11,6 +11,8 @@ from network.services.consolidation import (
     consolidate_communication_observations,
 )
 
+from assets.interface_consolidation import consolidate_interface_observations
+
 import hashlib
 import json
 
@@ -157,6 +159,11 @@ def import_analysis(
         # ya conocemos exactamente este análisis.
         if existing_ingestion:
 
+            # Vínculos de interfaces de importaciones antiguas o repetidas.
+            consolidate_interface_observations(
+                existing_ingestion.interface_observations.all()
+            )
+
             consolidate_communication_observations(
                 existing_ingestion
                 .communication_observations
@@ -274,7 +281,13 @@ def import_analysis(
             )
 
             for item in interfaces
-        ])
+        ], batch_size=500)
+
+        # Consolida a partir de las filas persistidas para obtener los IDs.
+        # Mantener la operación dentro de la misma transacción de importación.
+        consolidate_interface_observations(
+            InterfaceObservation.objects.filter(ingestion=ingestion)
+        )
 
         communication_observations = [
             CommunicationObservation(
