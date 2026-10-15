@@ -14,13 +14,17 @@ from rest_framework.views import APIView
 from ingestion.models import Ingestion, InterfaceObservation
 
 from .interface_permissions import NetworkInterfacePermission
-from .interface_assignment import identify_interface, unlink_interface
+from .interface_assignment import (
+    identify_interface, unlink_interface, create_identified_interface,
+)
 from .interface_serializers import (
     InterfaceObservationDetailSerializer,
     NetworkInterfaceCreateSerializer,
     NetworkInterfaceReadSerializer,
 )
-from .models import NetworkInterface
+from .models import Asset, Hardware, NetworkInterface
+from .permissions import AssetArchivePermission
+from .serializers import InterfaceAssignmentSerializer
 
 
 PAGE_SIZE = 25
@@ -232,3 +236,42 @@ class InterfaceUnlinkView(APIView):
         return Response(NetworkInterfaceReadSerializer(
             get_object_or_404(interface_queryset(), pk=updated.pk)
         ).data)
+
+
+
+class AssetInterfaceAssignView(APIView):
+    """Register or associate a network interface on an existing hardware asset."""
+
+    permission_classes = [IsAuthenticated, AssetArchivePermission]
+
+    def post(self, request, asset_id):
+        serializer = InterfaceAssignmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        assignment = serializer.validated_data
+
+        with transaction.atomic():
+            if assignment["mode"] == "EXISTING":
+                interface = identify_interface(
+                    interface_id=assignment["interface_id"],
+                    asset_id=asset_id, user=request.user,
+                )
+            else:
+                asset = get_object_or_404(
+                    Asset.objects.select_for_update(), pk=asset_id
+                )
+                from .interface_assignment import validate_hardware_asset
+                validate_hardware_asset(asset)
+                hardware = get_object_or_404(Hardware, pk=asset.pk)
+                interface = create_identified_interface(
+                    hardware=hardware,
+                    mac=assignment.get("mac"),
+                    declared_ip=assignment.get("declared_ip"),
+                    user=request.user,
+                )
+
+        loaded = get_object_or_404(interface_queryset(), pk=interface.pk)
+        return Response(
+            NetworkInterfaceReadSerializer(loaded).data,
+            status=status.HTTP_201_CREATED if assignment["mode"] == "MANUAL"
+            else status.HTTP_200_OK,
+        )

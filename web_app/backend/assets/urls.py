@@ -2,7 +2,7 @@ from django.urls import path
 
 from .interface_views import (
     InterfaceDetailView, InterfaceListCreateView,
-    InterfaceIdentifyView, InterfaceUnlinkView,
+    InterfaceIdentifyView, InterfaceUnlinkView, AssetInterfaceAssignView,
 )
 
 from .views import (
@@ -19,6 +19,7 @@ urlpatterns = [
     path("interfaces/<int:interface_id>/identify/", InterfaceIdentifyView.as_view(), name="interface-identify"),
     path("interfaces/<int:interface_id>/unlink/", InterfaceUnlinkView.as_view(), name="interface-unlink"),
     path("", AssetListCreateView.as_view(), name="asset-list-create"),
+    path("<int:asset_id>/interfaces/", AssetInterfaceAssignView.as_view(), name="asset-interface-assign"),
     path("<int:asset_id>/", AssetDetailView.as_view(), name="asset-detail"),
     path("<int:asset_id>/archive/", AssetArchiveView.as_view(), name="asset-archive"),
     path("<int:asset_id>/restore/", AssetRestoreView.as_view(), name="asset-restore"),
