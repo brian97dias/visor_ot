@@ -34,5 +34,15 @@ class Hardware(models.Model):
         blank=True,
     )
 
+    @property
+    def active_software(self):
+        """Only current installations; the plain M2M manager also sees history."""
+        from .software import Software
+
+        return Software.objects.filter(
+            installations__hardware=self,
+            installations__unlinked_at__isnull=True,
+        ).distinct()
+
     def __str__(self):
         return f"{self.asset.name} ({self.get_role_display()})"

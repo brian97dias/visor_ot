@@ -98,6 +98,8 @@ class SoftwareDomainTests(TestCase):
         unlink_software(installation_id=first.pk, user=self.operator)
         first.refresh_from_db()
         self.assertFalse(first.is_active)
+        self.assertEqual(eng.hardware.active_software.count(), 0)
+        self.assertEqual(sw.software.active_hardware.count(), 0)
         self.assertIsNotNone(first.unlinked_at)
         self.assertEqual(first.unlinked_by, self.operator)
         second = associate_software(
@@ -105,6 +107,8 @@ class SoftwareDomainTests(TestCase):
         )
         self.assertNotEqual(first.pk, second.pk)
         self.assertEqual(SoftwareInstallation.objects.count(), 2)
+        self.assertEqual(eng.hardware.active_software.count(), 1)
+        self.assertEqual(sw.software.active_hardware.count(), 1)
         self.assertTrue(Asset.objects.filter(pk=sw.pk).exists())
 
     def test_cannot_unlink_twice(self):

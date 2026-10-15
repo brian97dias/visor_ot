@@ -63,6 +63,16 @@ class Software(models.Model):
         )
         super().save(*args, **kwargs)
 
+    @property
+    def active_hardware(self):
+        """Hosts with a current installation, excluding past unlinked records."""
+        from .hardware import Hardware
+
+        return Hardware.objects.filter(
+            software_installations__software=self,
+            software_installations__unlinked_at__isnull=True,
+        ).distinct()
+
     def __str__(self):
         version = self.version or "versión desconocida"
         return f"{self.product} ({version})"
