@@ -50,6 +50,19 @@ class CommunicationListSerializer(
     serializers.ModelSerializer
 ):
 
+    source_resolution = serializers.SerializerMethodField()
+    destination_resolution = serializers.SerializerMethodField()
+
+    def get_source_resolution(self, obj):
+        return self.context.get("endpoint_resolutions", {}).get(
+            obj.id, {}
+        ).get("source_resolution", {"status": "UNKNOWN", "identity": None})
+
+    def get_destination_resolution(self, obj):
+        return self.context.get("endpoint_resolutions", {}).get(
+            obj.id, {}
+        ).get("destination_resolution", {"status": "UNKNOWN", "identity": None})
+
     active_evidence_count = (
         serializers.IntegerField(
             read_only=True,
@@ -81,6 +94,8 @@ class CommunicationListSerializer(
             "id",
             "source_ip",
             "destination_ip",
+            "source_resolution",
+            "destination_resolution",
             "transport_protocol",
             "service_port",
             "service",

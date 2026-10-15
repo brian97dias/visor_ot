@@ -25,6 +25,7 @@ from ingestion.models import Ingestion
 from users.permissions import IsAdminOrAnalyst
 
 from .models import Communication
+from .endpoint_resolution import resolve_communication_endpoints
 
 from .serializers import (
     CommunicationClassificationSerializer,
@@ -126,13 +127,16 @@ class CommunicationListView(APIView):
 
         paginator = Paginator(queryset.order_by("id"), 25)
         page = paginator.get_page(page_number)
+        page_items = list(page.object_list)
+        endpoint_resolutions = resolve_communication_endpoints(page_items)
 
         return Response({
             "count": paginator.count,
             "page": page.number,
             "page_size": 25,
             "results": CommunicationListSerializer(
-                page.object_list, many=True,
+                page_items, many=True,
+                context={"endpoint_resolutions": endpoint_resolutions},
             ).data,
         })
 
@@ -161,7 +165,12 @@ class CommunicationDetailView(APIView):
 
         serializer = (
             CommunicationDetailSerializer(
-                communication
+                communication,
+                context={
+                    "endpoint_resolutions": resolve_communication_endpoints(
+                        [communication]
+                    )
+                },
             )
         )
 
@@ -239,6 +248,11 @@ class CommunicationClassificationView(
 
         return Response(
             CommunicationDetailSerializer(
-                communication
+                communication,
+                context={
+                    "endpoint_resolutions": resolve_communication_endpoints(
+                        [communication]
+                    )
+                },
             ).data
         )
