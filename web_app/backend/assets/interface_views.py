@@ -1,5 +1,4 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
-from ipaddress import ip_address
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import CharField, Count, Exists, OuterRef, Prefetch, Q
@@ -15,6 +14,7 @@ from rest_framework.views import APIView
 from ingestion.models import Ingestion, InterfaceObservation
 
 from .interface_permissions import NetworkInterfacePermission
+from .interface_search import validate_interface_search
 from .interface_assignment import (
     identify_interface, unlink_interface, create_identified_interface,
 )
@@ -85,17 +85,10 @@ class InterfaceListCreateView(APIView):
 
     def get(self, request):
         page = positive_page(request)
-        search = request.query_params.get("search", "").strip()[:100]
-        match_mode = request.query_params.get("match_mode", "PARTIAL")
-        if match_mode not in ("PARTIAL", "EXACT_IP"):
-            raise ValidationError({"match_mode": "Usa PARTIAL o EXACT_IP."})
-        if match_mode == "EXACT_IP" and search:
-            try:
-                search = str(ip_address(search))
-            except ValueError as error:
-                raise ValidationError({
-                    "search": "La coincidencia exacta requiere una dirección IP completa."
-                }) from error
+        search, match_mode = validate_interface_search(
+            request.query_params.get("search", ""),
+            request.query_params.get("match_mode", "PARTIAL"),
+        )
         identification = request.query_params.get("identification", "ALL")
         evidence = request.query_params.get("evidence", "ALL")
         hardware_id = request.query_params.get("hardware_id")
