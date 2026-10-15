@@ -2025,11 +2025,10 @@ input {
 .software-combobox-input button:disabled { opacity: 0.5; cursor: not-allowed; }
 .software-combobox-input button:not(:disabled):hover { background: #164e63; }
 .software-combobox-options {
-    position: absolute;
-    z-index: 20;
-    top: calc(100% - 2px);
-    left: 0;
-    right: 0;
+    /* Expand within the panel: .panel has overflow:hidden, so an absolutely
+       positioned dropdown would otherwise be cut off near the bottom. */
+    position: static;
+    width: 100%;
     overflow-y: auto;
     max-height: 270px;
     background: #111e2d;
