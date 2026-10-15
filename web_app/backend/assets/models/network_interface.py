@@ -100,6 +100,10 @@ class NetworkInterface(models.Model):
         except ValidationError as error:
             raise ValidationError({"mac": error.messages}) from error
 
+        # En formularios, una IP opcional puede llegar como cadena vacía.
+        if self.declared_ip == "":
+            self.declared_ip = None
+
         if self.mac is None and self.declared_ip is None:
             raise ValidationError(
                 "Registra al menos una MAC o una IP declarada."
