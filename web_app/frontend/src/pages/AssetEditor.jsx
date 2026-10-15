@@ -22,8 +22,19 @@ function AssetEditor() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!editing || !allowed) return;
+    // React Router keeps this page mounted between /assets/:id/edit and
+    // /assets/new. Never reuse the previous hardware in a new Software form.
+    if (!editing) {
+      setAsset(null);
+      setLoading(false);
+      setError("");
+      return;
+    }
+    if (!allowed) return;
     let active = true;
+    setAsset(null);
+    setLoading(true);
+    setError("");
     getAsset(assetId)
       .then((data) => { if (active) setAsset(data); })
       .catch((err) => { if (active) setError(err.message); })
@@ -69,7 +80,7 @@ function AssetEditor() {
 
   if (loading) return <section className="page">Cargando activo...</section>;
 
-  if (editing && !asset) {
+  if (editing && (!asset || String(asset.id) !== String(assetId))) {
     return (
       <section className="page">
         <div className="error-message">{error || "El activo no está disponible."}</div>
@@ -96,8 +107,8 @@ function AssetEditor() {
           : "Registra manualmente un nuevo activo OT."}</p>
       </header>
       <AssetForm
-        key={editing ? asset.id : "new"}
-        asset={asset}
+        key={editing ? "edit-" + asset.id : "new-" + initialType + "-" + initialHardwareId}
+        asset={editing ? asset : null}
         user={user}
         onSave={save}
         saving={saving}

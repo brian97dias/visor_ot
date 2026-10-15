@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getAssets } from "../api/assets";
 import AssetSoftwareSection from "./AssetSoftwareSection";
+import SoftwareFields from "./SoftwareFields";
 import { Link } from "react-router-dom";
 import InterfaceSelector from "./InterfaceSelector";
 import AssetInterfacesSection from "./AssetInterfacesSection";
@@ -312,41 +313,11 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
       {values.asset_type === "SOFTWARE" && (
         <div className="assets-form-section">
           <h2>Información del software</h2>
-          <div className="assets-form-grid">
-            <div className="assets-field assets-full-row">
-              <label htmlFor="software-type">Tipo de software *</label>
-              <select id="software-type" required value={values.software.software_type}
-                onChange={(event) => changeSoftware("software_type", event.target.value)}>
-                <option value="FIRMWARE">Firmware</option>
-                <option value="OS">Sistema operativo</option>
-                <option value="APPLICATION">Aplicación</option>
-              </select>
-            </div>
-            <div className="assets-field">
-              <label htmlFor="software-manufacturer">Fabricante</label>
-              <input id="software-manufacturer" maxLength={200}
-                value={values.software.manufacturer}
-                onChange={(event) => changeSoftware("manufacturer", event.target.value)}
-                placeholder="Ej. Siemens, Advantech" />
-            </div>
-            <div className="assets-field">
-              <label htmlFor="software-product">Producto *</label>
-              <input id="software-product" required maxLength={200}
-                value={values.software.product}
-                onChange={(event) => changeSoftware("product", event.target.value)}
-                placeholder="Ej. TIA Portal, Firmware ADAM" />
-            </div>
-            <div className="assets-field assets-full-row">
-              <label htmlFor="software-version">Versión</label>
-              <input id="software-version" maxLength={100}
-                value={values.software.version}
-                onChange={(event) => changeSoftware("version", event.target.value)}
-                placeholder="Opcional / desconocida" />
-            </div>
-          </div>
+          <SoftwareFields idPrefix="software" values={values.software}
+            onChange={changeSoftware} disabled={saving} />
           <p className="interface-hint">
-            El software se registra como activo independiente. Su instalación en
-            uno o varios hardware se gestionará en el siguiente incremento.
+            El software se registra como activo del inventario; sus instalaciones
+            en hardware se pueden consultar y gestionar desde cada dispositivo.
           </p>
         </div>
       )}
