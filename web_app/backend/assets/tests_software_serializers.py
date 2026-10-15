@@ -11,6 +11,7 @@ class SoftwarePayloadTests(SimpleTestCase):
         data = {
             "name": "TIA Portal V18",
             "asset_type": "SOFTWARE",
+            "hardware_asset_id": 5,
             "software": {
                 "software_type": "APPLICATION",
                 "manufacturer": "Siemens",
@@ -103,3 +104,26 @@ class SoftwarePayloadTests(SimpleTestCase):
         )
         self.assertFalse(serializer.is_valid())
         self.assertIn("asset_type", serializer.errors)
+
+    def test_missing_first_hardware_is_rejected(self):
+        payload = self.software_payload()
+        payload.pop("hardware_asset_id")
+        serializer = AssetCreateSerializer(data=payload)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("hardware_asset_id", serializer.errors)
+
+    def test_hardware_id_must_be_positive(self):
+        serializer = AssetCreateSerializer(
+            data=self.software_payload(hardware_asset_id=0)
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("hardware_asset_id", serializer.errors)
+
+    def test_hardware_asset_rejects_initial_software_host(self):
+        serializer = AssetCreateSerializer(data={
+            "name": "PLC-01",
+            "asset_type": "HARDWARE",
+            "hardware": {"role": "PLC"},
+            "hardware_asset_id": 5,
+        })
+        self.assertFalse(serializer.is_valid())
