@@ -10,29 +10,11 @@ The optional EXPLAIN ANALYZE executes another SELECT; use it intentionally.
 from time import perf_counter
 
 from django.core.management.base import BaseCommand
-from django.db.models import Q
 from django.db import connection
 
 from network.endpoint_resolution import resolve_communication_endpoints
-from network.name_search import device_name_filter
+from network.search_filters import build_communication_search_criteria
 from network.views import get_communications_queryset
-
-
-def build_search_criteria(search):
-    criteria = (
-        Q(source_ip__icontains=search)
-        | Q(destination_ip__icontains=search)
-        | Q(transport_protocol__icontains=search)
-        | Q(service__icontains=search)
-    )
-    if search.isdecimal():
-        criteria |= Q(service_port=int(search))
-
-    name_filter = device_name_filter(search)
-    if name_filter is not None:
-        criteria |= name_filter
-
-    return criteria
 
 
 class Command(BaseCommand):
@@ -60,7 +42,7 @@ class Command(BaseCommand):
             return
 
         t0 = perf_counter()
-        criteria = build_search_criteria(search)
+        criteria = build_communication_search_criteria(search)
         t1 = perf_counter()
 
         queryset = get_communications_queryset().filter(

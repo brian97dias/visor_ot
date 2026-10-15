@@ -26,7 +26,7 @@ from users.permissions import IsAdminOrAnalyst
 
 from .models import Communication
 from .endpoint_resolution import resolve_communication_endpoints
-from .name_search import device_name_filter
+from .search_filters import build_communication_search_criteria
 
 from .serializers import (
     CommunicationClassificationSerializer,
@@ -113,21 +113,9 @@ class CommunicationListView(APIView):
             queryset = queryset.filter(status=status_filter)
 
         if search:
-            criteria = (
-                Q(source_ip__icontains=search)
-                | Q(destination_ip__icontains=search)
-                | Q(transport_protocol__icontains=search)
-                | Q(service__icontains=search)
+            queryset = queryset.filter(
+                build_communication_search_criteria(search)
             )
-            if search.isdecimal():
-                criteria |= Q(service_port=int(search))
-
-            # Only include a device-name match when every active observation
-            # consistently resolves the corresponding communication endpoint.
-            by_name = device_name_filter(search)
-            if by_name is not None:
-                criteria |= by_name
-            queryset = queryset.filter(criteria)
 
         if min_packets:
             queryset = queryset.filter(packets_observed__gte=min_packets)
