@@ -2,7 +2,9 @@
 
 from django.test import SimpleTestCase
 
-from .name_search import normalize_device_query, unique_name_candidates
+from .name_search import (
+    group_mac_candidates, normalize_device_query, unique_name_candidates,
+)
 
 
 MAC_A = "28:cf:e9:18:b5:ed"
@@ -53,3 +55,25 @@ class NameSearchTests(SimpleTestCase):
     def test_candidate_without_ip_does_not_match(self):
         matched = [{"ingestion_id": 7, "mac": MAC_A, "ips": []}]
         self.assertEqual(unique_name_candidates(matched, matched), {})
+
+    def test_group_candidates_by_mac_without_losing_capture_provenance(self):
+        candidate_pairs = {
+            (MAC_A, "192.168.88.52"): {5, 7},
+            (MAC_A, "10.0.1.82"): {7},
+            (MAC_B, "192.168.88.1"): {5},
+        }
+        result = group_mac_candidates(candidate_pairs)
+        self.assertEqual(set(result), {MAC_A, MAC_B})
+        self.assertEqual(result[MAC_A]["192.168.88.52"], {5, 7})
+        self.assertEqual(result[MAC_A]["10.0.1.82"], {7})
+        self.assertEqual(result[MAC_B]["192.168.88.1"], {5})
+
+    def test_grouping_does_not_merge_different_macs_on_same_ip(self):
+        data = {
+            (MAC_A, "192.168.88.1"): {5},
+            (MAC_B, "192.168.88.1"): {7},
+        }
+        result = group_mac_candidates(data)
+        self.assertNotEqual(result[MAC_A], result[MAC_B])
+        self.assertEqual(result[MAC_A]["192.168.88.1"], {5})
+        self.assertEqual(result[MAC_B]["192.168.88.1"], {7})
