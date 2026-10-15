@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import InterfaceSelector from "./InterfaceSelector";
 
 import {
   canEditAssetCriticality,
@@ -67,6 +68,7 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
   const canEditCriticality = canEditAssetCriticality(user);
   const [values, setValues] = useState(() => initialValues(asset));
   const [localError, setLocalError] = useState("");
+  const [interfaceAssignment, setInterfaceAssignment] = useState(null);
 
   function change(field, value) {
     setValues((current) => ({ ...current, [field]: value }));
@@ -93,6 +95,15 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
     }
 
     const payload = buildPayload(values, asset, editing, canEditCriticality);
+    if (!editing && interfaceAssignment) {
+      if (interfaceAssignment.mode === "MANUAL" &&
+          !interfaceAssignment.mac?.trim() &&
+          !interfaceAssignment.declared_ip?.trim()) {
+        setLocalError("Indica una MAC o IP, o deja la interfaz sin seleccionar.");
+        return;
+      }
+      payload.interface_assignment = interfaceAssignment;
+    }
     await onSave(payload);
   }
 
@@ -164,6 +175,23 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
               placeholder="Ej. Sala de control" />
           </div>
         </div>
+      </div>
+
+      <div className="assets-form-section">
+        <h2>Interfaces de red</h2>
+        {editing ? (
+          <p className="interface-hint">
+            Puedes gestionar las interfaces desde el detalle del activo.
+          </p>
+        ) : (
+          <>
+            <p className="interface-hint">
+              Asociación opcional: selecciona una interfaz descubierta o declara una nueva.
+            </p>
+            <InterfaceSelector value={interfaceAssignment}
+              onChange={setInterfaceAssignment} disabled={saving} />
+          </>
+        )}
       </div>
 
       <div className="assets-form-section">
