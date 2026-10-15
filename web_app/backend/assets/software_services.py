@@ -145,7 +145,7 @@ def register_software_asset(*, data, user):
 
 @transaction.atomic
 def update_software_asset(*, asset_id, data, user):
-    """Change permitted details; never mutate a variant with active consumers."""
+    """Change permitted details; never rewrite an installed variant's history."""
     _check_role(user)
 
     values = data.copy()
@@ -182,12 +182,13 @@ def update_software_asset(*, asset_id, data, user):
             for field in _VARIANT_FIELDS
         )
         if changed and SoftwareInstallation.objects.filter(
-            software=software, unlinked_at__isnull=True
+            software=software
         ).exists():
             raise ValidationError({
                 "software": (
-                    "Esta variante tiene instalaciones vigentes. "
-                    "Registra otra versión y reasigna el hardware correspondiente."
+                    "Esta variante tiene historial de instalaciones. "
+                    "Conserva su identidad y registra otra variante para "
+                    "evitar alterar instalaciones vigentes o históricas."
                 ),
             })
         _check_variant_available(proposed, exclude_id=asset.pk)

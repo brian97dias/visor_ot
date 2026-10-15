@@ -195,12 +195,22 @@ class SoftwareDomainTests(TestCase):
             unlinked_at__isnull=True
         ).count(), 2)
 
-    def test_edit_version_allowed_after_all_installations_unlinked(self):
+    def test_past_installations_also_protect_variant_identity(self):
         sw, eng = self.register(), self.hardware("ENG-01")
         inst = associate_software(
             software_id=sw.pk, hardware_asset_id=eng.pk, user=self.operator
         )
         unlink_software(installation_id=inst.pk, user=self.operator)
+        with self.assertRaises(ValidationError):
+            update_software_asset(
+                asset_id=sw.pk, data={"software": {"version": "V19"}},
+                user=self.operator,
+            )
+        sw.refresh_from_db()
+        self.assertEqual(sw.software.version, "V18")
+
+    def test_version_can_change_before_any_installation(self):
+        sw = self.register()
         update_software_asset(
             asset_id=sw.pk, data={"software": {"version": "V19"}},
             user=self.operator,
