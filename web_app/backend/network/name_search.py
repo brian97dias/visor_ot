@@ -50,13 +50,18 @@ def unique_name_candidates(matched_observations, all_observations):
     return dict(eligible)
 
 
+def normalize_device_query(text):
+    """Ignore spacing/case in inventory name searches (Direct Logic)."""
+    return "".join(text.lower().split())
+
+
 def device_name_filter(search):
     """Return an ORM Q for communications with safely identified name matches.
 
     Return None if no matching device/capture evidence exists. This is *not*
     an IP substring or a full scan through resolved Python page results.
     """
-    token = "".join(search.lower().split())
+    token = normalize_device_query(search)
     if not token:
         return None
 
