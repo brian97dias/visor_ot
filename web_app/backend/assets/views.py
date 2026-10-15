@@ -12,7 +12,7 @@ from .serializers import (
     AssetReadSerializer,
     AssetUpdateSerializer,
 )
-from .software_services import register_software_asset, update_software_asset
+from .software_services import register_installed_software_asset, update_software_asset
 from .services import (
     register_hardware_asset,
     update_hardware_asset,
@@ -57,7 +57,7 @@ class AssetListCreateView(APIView):
         serializer.is_valid(raise_exception=True)
 
         if serializer.validated_data["asset_type"] == Asset.AssetType.SOFTWARE:
-            asset = register_software_asset(
+            asset = register_installed_software_asset(
                 data=serializer.validated_data,
                 user=request.user,
             )

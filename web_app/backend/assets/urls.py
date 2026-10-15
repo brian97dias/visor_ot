@@ -5,6 +5,10 @@ from .interface_views import (
     InterfaceIdentifyView, InterfaceUnlinkView, AssetInterfaceAssignView,
 )
 
+from .software_installation_views import (
+    HardwareSoftwareInstallationView, HardwareSoftwareUnlinkView,
+)
+
 from .views import (
     AssetArchiveView,
     AssetDetailView,
@@ -20,6 +24,8 @@ urlpatterns = [
     path("interfaces/<int:interface_id>/unlink/", InterfaceUnlinkView.as_view(), name="interface-unlink"),
     path("", AssetListCreateView.as_view(), name="asset-list-create"),
     path("<int:asset_id>/interfaces/", AssetInterfaceAssignView.as_view(), name="asset-interface-assign"),
+    path("<int:asset_id>/software-installations/", HardwareSoftwareInstallationView.as_view(), name="asset-software-installations"),
+    path("<int:asset_id>/software-installations/<int:installation_id>/", HardwareSoftwareUnlinkView.as_view(), name="asset-software-unlink"),
     path("<int:asset_id>/", AssetDetailView.as_view(), name="asset-detail"),
     path("<int:asset_id>/archive/", AssetArchiveView.as_view(), name="asset-archive"),
     path("<int:asset_id>/restore/", AssetRestoreView.as_view(), name="asset-restore"),

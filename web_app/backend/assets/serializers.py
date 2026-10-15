@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Asset, Hardware, Software
+from .models import Asset, Hardware, Software, SoftwareInstallation
 from .interface_serializers import NetworkInterfaceCreateSerializer
 
 
@@ -114,6 +114,7 @@ class AssetCreateSerializer(serializers.ModelSerializer):
     hardware = HardwareSerializer(required=False)
     software = SoftwareSerializer(required=False)
     interface_assignment = InterfaceAssignmentSerializer(required=False)
+    hardware_asset_id = serializers.IntegerField(min_value=1, required=False, write_only=True)
 
     class Meta:
         model = Asset
@@ -128,6 +129,7 @@ class AssetCreateSerializer(serializers.ModelSerializer):
             "hardware",
             "software",
             "interface_assignment",
+            "hardware_asset_id",
         )
 
     def validate(self, attrs):
@@ -141,10 +143,18 @@ class AssetCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     "software": "No envíes datos de software para un hardware."
                 })
+            if "hardware_asset_id" in self.initial_data:
+                raise serializers.ValidationError({
+                    "hardware_asset_id": "La instalación inicial solo corresponde a Software."
+                })
         elif kind == Asset.AssetType.SOFTWARE:
             if "software" not in attrs:
                 raise serializers.ValidationError({
                     "software": "Indica el tipo y producto del software."
+                })
+            if "hardware_asset_id" not in attrs:
+                raise serializers.ValidationError({
+                    "hardware_asset_id": "Selecciona el hardware donde estará instalado el software."
                 })
             if ("hardware" in self.initial_data
                     or "interface_assignment" in self.initial_data):
@@ -191,3 +201,23 @@ class AssetUpdateSerializer(serializers.ModelSerializer):
                 })
         validate_replacement_fields(attrs, instance=self.instance)
         return attrs
+
+class HardwareSoftwareAssignSerializer(serializers.Serializer):
+    software_asset_id = serializers.IntegerField(min_value=1)
+
+
+class SoftwareInstallationReadSerializer(serializers.ModelSerializer):
+    software_asset_id = serializers.IntegerField(source="software_id", read_only=True)
+    name = serializers.CharField(source="software.asset.name", read_only=True)
+    inventory_status = serializers.CharField(
+        source="software.asset.inventory_status", read_only=True
+    )
+    software = SoftwareSerializer(read_only=True)
+
+    class Meta:
+        model = SoftwareInstallation
+        fields = (
+            "id", "software_asset_id", "name", "inventory_status",
+            "software", "registered_at",
+        )
+

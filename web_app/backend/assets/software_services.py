@@ -144,6 +144,24 @@ def register_software_asset(*, data, user):
 
 
 @transaction.atomic
+def register_installed_software_asset(*, data, user):
+    """Create Software and its mandatory initial installation in one transaction.
+
+    Software remains an independent inventory identity so its history survives
+    unlinking, but the public registration workflow always requires a host.
+    """
+    values = data.copy()
+    hardware_asset_id = values.pop("hardware_asset_id", None)
+    if not isinstance(hardware_asset_id, int) or hardware_asset_id < 1:
+        raise ValidationError({"hardware_asset_id": "Selecciona un hardware existente."})
+    asset = register_software_asset(data=values, user=user)
+    associate_software(
+        software_id=asset.pk, hardware_asset_id=hardware_asset_id, user=user
+    )
+    return asset
+
+
+@transaction.atomic
 def update_software_asset(*, asset_id, data, user):
     """Change permitted details; never rewrite an installed variant's history."""
     _check_role(user)
