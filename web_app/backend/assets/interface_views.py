@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 from ingestion.models import Ingestion, InterfaceObservation
 
 from .interface_permissions import NetworkInterfacePermission
+from .interface_assignment import identify_interface, unlink_interface
 from .interface_serializers import (
     InterfaceObservationDetailSerializer,
     NetworkInterfaceCreateSerializer,
@@ -73,6 +74,7 @@ class InterfaceListCreateView(APIView):
         search = request.query_params.get("search", "").strip()[:100]
         identification = request.query_params.get("identification", "ALL")
         evidence = request.query_params.get("evidence", "ALL")
+        hardware_id = request.query_params.get("hardware_id")
 
         if identification not in ("ALL", "IDENTIFIED", "UNIDENTIFIED"):
             raise ValidationError({
@@ -84,6 +86,15 @@ class InterfaceListCreateView(APIView):
             })
 
         queryset = interface_queryset()
+
+        if hardware_id is not None:
+            try:
+                hw_id = int(hardware_id)
+                if hw_id <= 0:
+                    raise ValueError()
+            except (ValueError, TypeError) as error:
+                raise ValidationError({"hardware_id": "Indica un ID positivo."}) from error
+            queryset = queryset.filter(hardware_id=hw_id)
 
         if identification == "IDENTIFIED":
             queryset = queryset.filter(hardware__isnull=False)
@@ -118,7 +129,13 @@ class InterfaceListCreateView(APIView):
         paginator = Paginator(queryset.order_by("id"), PAGE_SIZE)
         selected = paginator.get_page(page)
 
+        summary = NetworkInterface.objects.aggregate(
+            total=Count("id"),
+            identified=Count("id", filter=Q(hardware__isnull=False)),
+            unidentified=Count("id", filter=Q(hardware__isnull=True)),
+        )
         return Response({
+            "summary": summary,
             "count": paginator.count,
             "page": selected.number,
             "page_size": PAGE_SIZE,
@@ -182,3 +199,36 @@ class InterfaceDetailView(APIView):
             ).data,
         }
         return Response(payload)
+
+
+
+class InterfaceIdentifyView(APIView):
+    permission_classes = [IsAuthenticated, NetworkInterfacePermission]
+
+    def post(self, request, interface_id):
+        if set(request.data.keys()) != {"asset_id"}:
+            raise ValidationError({"asset_id": "Envía únicamente asset_id."})
+        try:
+            asset_id = int(request.data["asset_id"])
+            if asset_id <= 0:
+                raise ValueError()
+        except (TypeError, ValueError) as error:
+            raise ValidationError({"asset_id": "Debe ser un entero positivo."}) from error
+        updated = identify_interface(
+            interface_id=interface_id, asset_id=asset_id, user=request.user,
+        )
+        return Response(NetworkInterfaceReadSerializer(
+            get_object_or_404(interface_queryset(), pk=updated.pk)
+        ).data)
+
+
+class InterfaceUnlinkView(APIView):
+    permission_classes = [IsAuthenticated, NetworkInterfacePermission]
+
+    def post(self, request, interface_id):
+        if request.data:
+            raise ValidationError({"detail": "No se esperan datos."})
+        updated = unlink_interface(interface_id=interface_id)
+        return Response(NetworkInterfaceReadSerializer(
+            get_object_or_404(interface_queryset(), pk=updated.pk)
+        ).data)
