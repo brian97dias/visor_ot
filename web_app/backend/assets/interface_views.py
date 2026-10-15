@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
+from ipaddress import ip_address
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import CharField, Count, Exists, OuterRef, Prefetch, Q
@@ -85,6 +86,16 @@ class InterfaceListCreateView(APIView):
     def get(self, request):
         page = positive_page(request)
         search = request.query_params.get("search", "").strip()[:100]
+        match_mode = request.query_params.get("match_mode", "PARTIAL")
+        if match_mode not in ("PARTIAL", "EXACT_IP"):
+            raise ValidationError({"match_mode": "Usa PARTIAL o EXACT_IP."})
+        if match_mode == "EXACT_IP" and search:
+            try:
+                search = str(ip_address(search))
+            except ValueError as error:
+                raise ValidationError({
+                    "search": "La coincidencia exacta requiere una dirección IP completa."
+                }) from error
         identification = request.query_params.get("identification", "ALL")
         evidence = request.query_params.get("evidence", "ALL")
         hardware_id = request.query_params.get("hardware_id")
@@ -121,29 +132,40 @@ class InterfaceListCreateView(APIView):
             queryset = queryset.filter(has_active_evidence=False)
 
         if search:
-            observed_ip_match = (
-                InterfaceObservation.objects
-                .filter(network_interface_id=OuterRef("pk"))
-                .annotate(ips_as_text=Cast("ips", output_field=CharField()))
-                .filter(ips_as_text__icontains=search)
+            observed_ip_match = InterfaceObservation.objects.filter(
+                network_interface_id=OuterRef("pk")
             )
             if evidence == "ACTIVE":
                 observed_ip_match = observed_ip_match.filter(
                     ingestion__status=Ingestion.Status.ACTIVE
                 )
 
-            queryset = (
-                queryset
-                .annotate(
-                    declared_ip_text=Cast("declared_ip", output_field=CharField()),
-                    matches_observed_ip=Exists(observed_ip_match),
+            if match_mode == "EXACT_IP":
+                # JSONB array containment: match an IP element, not a substring
+                # (192.168.88.1 must not match 192.168.88.105).
+                observed_ip_match = observed_ip_match.filter(
+                    ips__contains=[search]
                 )
-                .filter(
-                    Q(mac__icontains=search)
-                    | Q(declared_ip_text__icontains=search)
-                    | Q(matches_observed_ip=True)
+                queryset = queryset.filter(
+                    Q(declared_ip=search) | Exists(observed_ip_match)
                 )
-            )
+            else:
+                observed_ip_match = (
+                    observed_ip_match
+                    .annotate(ips_as_text=Cast("ips", output_field=CharField()))
+                    .filter(ips_as_text__icontains=search)
+                )
+                queryset = (
+                    queryset
+                    .annotate(
+                        declared_ip_text=Cast("declared_ip", output_field=CharField()),
+                    )
+                    .filter(
+                        Q(mac__icontains=search)
+                        | Q(declared_ip_text__icontains=search)
+                        | Exists(observed_ip_match)
+                    )
+                )
 
         paginator = Paginator(queryset.order_by("id"), PAGE_SIZE)
         selected = paginator.get_page(page)

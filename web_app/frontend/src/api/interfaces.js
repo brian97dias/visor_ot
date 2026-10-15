@@ -23,11 +23,11 @@ async function request(path, options) {
 }
 
 export function getInterfaces({
-  page = 1, search = "", identification = "ALL",
+  page = 1, search = "", matchMode = "PARTIAL", identification = "ALL",
   evidence = "ALL", hardwareId = null,
 } = {}) {
   const params = new URLSearchParams({
-    page: String(page), search, identification, evidence,
+    page: String(page), search, match_mode: matchMode, identification, evidence,
   });
   if (hardwareId !== null) params.set("hardware_id", String(hardwareId));
   return request("/api/assets/interfaces/?" + params.toString());

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import InterfaceSelector from "./InterfaceSelector";
+import SuccessNotice from "./SuccessNotice";
 import { assignAssetInterface, getInterfaces, unlinkInterface } from "../api/interfaces";
 import { canCreateAssets } from "../utils/assetPermissions";
 
@@ -98,7 +99,7 @@ export default function AssetInterfacesSection({ asset, user, embedded = false }
         </p>
       )}
 
-      {notice && <div className="success-message interface-panel-padding" role="status">{notice}</div>}
+      <SuccessNotice message={notice} onClose={() => setNotice("")} />
       {error && <div className="error-message interface-panel-padding" role="alert">{error}</div>}
 
       {loading ? (

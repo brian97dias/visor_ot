@@ -70,6 +70,7 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
   const [values, setValues] = useState(() => initialValues(asset));
   const [localError, setLocalError] = useState("");
   const [interfaceAssignment, setInterfaceAssignment] = useState(null);
+  const [pendingInterface, setPendingInterface] = useState(null);
   const [showCreateSelector, setShowCreateSelector] = useState(false);
 
   function change(field, value) {
@@ -192,12 +193,51 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
               onClick={() => {
                 setShowCreateSelector((current) => !current);
                 setInterfaceAssignment(null);
+                setPendingInterface(null);
               }}>
               {showCreateSelector ? "Cerrar selector" : "Asociar interfaz"}
             </button>
             {showCreateSelector && (
-              <InterfaceSelector value={interfaceAssignment}
-                onChange={setInterfaceAssignment} disabled={saving} />
+              <>
+                <InterfaceSelector value={pendingInterface}
+                  onChange={setPendingInterface} disabled={saving} />
+                <div className="table-actions interface-panel-actions">
+                  <button type="button" className="button-secondary" disabled={saving}
+                    onClick={() => {
+                      setPendingInterface(null);
+                      setShowCreateSelector(false);
+                    }}>
+                    Cancelar
+                  </button>
+                  <button type="button" className="button-primary"
+                    disabled={saving || !pendingInterface}
+                    onClick={() => {
+                      if (pendingInterface.mode === "MANUAL" &&
+                          !pendingInterface.mac?.trim() &&
+                          !pendingInterface.declared_ip?.trim()) {
+                        setLocalError("Indica al menos una MAC o IP.");
+                        return;
+                      }
+                      setLocalError("");
+                      setInterfaceAssignment(pendingInterface);
+                      setShowCreateSelector(false);
+                    }}>
+                    Confirmar selección
+                  </button>
+                </div>
+              </>
+            )}
+            {interfaceAssignment && !showCreateSelector && (
+              <p className="interface-selection-note">
+                {interfaceAssignment.mode === "EXISTING"
+                  ? "Interfaz #" + interfaceAssignment.interface_id + " confirmada para este hardware."
+                  : "Interfaz manual preparada para el registro."}
+                <button type="button" disabled={saving}
+                  onClick={() => {
+                    setInterfaceAssignment(null);
+                    setPendingInterface(null);
+                  }}>Quitar selección</button>
+              </p>
             )}
           </div>
         </div>

@@ -10,6 +10,7 @@ export default function Interfaces() {
   const canManage = canCreateAssets(user);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
+  const [matchMode, setMatchMode] = useState("PARTIAL");
   const [identification, setIdentification] = useState("ALL");
   const [evidence, setEvidence] = useState("ACTIVE");
   const [page, setPage] = useState(1);
@@ -27,18 +28,18 @@ export default function Interfaces() {
     const handle = setTimeout(() => setSearch(query.trim()), 350);
     return () => clearTimeout(handle);
   }, [query]);
-  useEffect(() => { setPage(1); }, [search, identification, evidence]);
+  useEffect(() => { setPage(1); }, [search, matchMode, identification, evidence]);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
     setError("");
-    getInterfaces({ page, search, identification, evidence })
+    getInterfaces({ page, search, matchMode, identification, evidence })
       .then((data) => { if (active) setResponse(data); })
       .catch((err) => { if (active) setError(err.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [page, search, identification, evidence, revision]);
+  }, [page, search, matchMode, identification, evidence, revision]);
 
   async function register(event) {
     event.preventDefault();
@@ -135,10 +136,16 @@ export default function Interfaces() {
         <div className="table-toolbar">
           <div className="search-box">
             <input type="search" value={query}
-              aria-label="Buscar MAC, IP o interfaz"
-              placeholder="Buscar MAC o IP..."
+              aria-label="Buscar MAC o IP"
+              placeholder={matchMode === "EXACT_IP" ? "Escribe la IP completa..." : "Buscar MAC o IP..."}
               onChange={(event) => setQuery(event.target.value)} />
           </div>
+          <select className="table-filter-select"
+            value={matchMode} aria-label="Tipo de coincidencia de interfaces"
+            onChange={(event) => setMatchMode(event.target.value)}>
+            <option value="PARTIAL">Coincidencia parcial</option>
+            <option value="EXACT_IP">IP exacta</option>
+          </select>
           <select className="table-filter-select" value={identification}
             aria-label="Estado de identificación" onChange={(event) => setIdentification(event.target.value)}>
             <option value="ALL">Todas las identificaciones</option>
