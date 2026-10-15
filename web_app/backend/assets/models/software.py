@@ -30,6 +30,10 @@ class Software(models.Model):
 
     class Meta:
         constraints = [
+            models.CheckConstraint(
+                condition=~Q(product=""),
+                name="software_requires_product",
+            ),
             models.UniqueConstraint(
                 Lower(Trim("manufacturer")),
                 Lower(Trim("product")),
@@ -38,6 +42,13 @@ class Software(models.Model):
                 name="unique_known_software_variant_ci",
             ),
         ]
+
+    def clean_fields(self, exclude=None):
+        # Normalize *before* validating required/length fields and constraints.
+        self.manufacturer, self.product, self.version = normalize_software_fields(
+            self.manufacturer, self.product, self.version
+        )
+        super().clean_fields(exclude=exclude)
 
     def clean(self):
         super().clean()

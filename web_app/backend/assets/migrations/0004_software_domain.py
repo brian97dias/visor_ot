@@ -94,6 +94,13 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name="software",
+            constraint=models.CheckConstraint(
+                condition=~models.Q(product=""),
+                name="software_requires_product",
+            ),
+        ),
+        migrations.AddConstraint(
+            model_name="software",
             constraint=models.UniqueConstraint(
                 Lower(Trim("manufacturer")),
                 Lower(Trim("product")),
