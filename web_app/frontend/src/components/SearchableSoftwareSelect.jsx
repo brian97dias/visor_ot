@@ -1,21 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 
-function normalize(value) {
-  return String(value ?? "").toLocaleLowerCase("es-CO").replace(/\s+/g, "");
-}
-
-export function matchesSoftware(item, query) {
-  const name = [
-    item.name, item.software?.manufacturer, item.software?.product,
-    item.software?.version, item.software?.software_type,
-  ].filter(Boolean).join(" ");
-  return normalize(name).includes(normalize(query));
-}
-
-export function softwareLabel(item) {
-  return [item.name, item.software?.product, item.software?.version || "Versión desconocida"]
-    .filter(Boolean).join(" · ");
-}
+import { matchesSoftware, softwareLabel } from "../utils/softwareSearch";
 
 /** One search + dropdown for known software assets. All controls are type=button
  * so they never submit the surrounding hardware edit form.
@@ -29,7 +14,7 @@ export default function SearchableSoftwareSelect({
   const [opened, setOpened] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
 
-  const chosen = options.find((item) => item.id === selectedId);
+  const chosen = options.find((item) => Number(item.id) === Number(selectedId));
   const matches = options.filter((item) => matchesSoftware(item, query)).slice(0, 75);
 
   // Close on outside clicks without swallowing option selection.
@@ -81,7 +66,9 @@ export default function SearchableSoftwareSelect({
             if (event.key === "ArrowDown") {
               event.preventDefault();
               setOpened(true);
-              setHighlighted((current) => Math.min(current + 1, matches.length - 1));
+              if (matches.length) {
+                setHighlighted((current) => Math.min(current + 1, matches.length - 1));
+              }
             }
             if (event.key === "ArrowUp") {
               event.preventDefault();

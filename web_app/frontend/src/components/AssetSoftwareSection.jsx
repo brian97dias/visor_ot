@@ -8,6 +8,7 @@ import {
 import SuccessNotice from "./SuccessNotice";
 import SearchableSoftwareSelect from "./SearchableSoftwareSelect";
 import SoftwareFields, { emptySoftwareFields } from "./SoftwareFields";
+import { buildInstalledSoftwarePayload, validateNewSoftware } from "../utils/softwareRegistration";
 import {
   canCreateAssets, CRITICALITY_LABELS, SOFTWARE_TYPE_LABELS,
 } from "../utils/assetPermissions";
@@ -114,16 +115,9 @@ export default function AssetSoftwareSection({ asset, user, embedded = false }) 
     setError("");
     setNotice("");
 
-    if (!registration.name.trim() || !registration.software.product.trim()) {
-      setError("Indica el nombre del activo y el producto del software.");
-      return;
-    }
-    if (registration.replacement_cost !== "" && !registration.replacement_currency) {
-      setError("Selecciona la moneda del costo de reposición.");
-      return;
-    }
-    if (registration.replacement_cost === "" && registration.replacement_currency) {
-      setError("Indica un costo de reposición o deja la moneda sin seleccionar.");
+    const validationError = validateNewSoftware(registration, asset.id);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
@@ -131,21 +125,7 @@ export default function AssetSoftwareSection({ asset, user, embedded = false }) 
     try {
       // The existing API performs create + mandatory first installation in
       // one transaction. If association fails, no orphan asset is persisted.
-      await createAsset({
-        name: registration.name.trim(),
-        description: registration.description.trim(),
-        asset_type: "SOFTWARE",
-        criticality: registration.criticality,
-        impact: registration.impact.trim(),
-        replacement_cost: registration.replacement_cost === ""
-          ? null : registration.replacement_cost,
-        replacement_currency: registration.replacement_currency,
-        hardware_asset_id: asset.id,
-        software: Object.fromEntries(
-          Object.entries(registration.software)
-            .map(([key, value]) => [key, value.trim()])
-        ),
-      });
+      await createAsset(buildInstalledSoftwarePayload(registration, asset.id));
       setRevision((current) => current + 1);
       closeChooser();
       setNotice("Software registrado e instalado en este hardware.");
