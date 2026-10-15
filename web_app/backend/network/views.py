@@ -27,6 +27,7 @@ from users.permissions import IsAdminOrAnalyst
 from .models import Communication
 from .endpoint_resolution import resolve_communication_endpoints
 from .search_filters import build_communication_search_criteria
+from .device_pair_filter import hardware_participation_filter, parse_asset_ids
 
 from .serializers import (
     CommunicationClassificationSerializer,
@@ -85,6 +86,7 @@ class CommunicationListView(APIView):
         include_inactive = filters.get("include_inactive", "false").lower() == "true"
         status_filter = filters.get("status", "ALL")
         search = filters.get("search", "").strip()[:100]
+        asset_ids = parse_asset_ids(filters.get("asset_ids"))
 
         if status_filter != "ALL" and status_filter not in Communication.Status.values:
             raise ValidationError({"status": "Clasificación no válida."})
@@ -116,6 +118,9 @@ class CommunicationListView(APIView):
             queryset = queryset.filter(
                 build_communication_search_criteria(search)
             )
+        if asset_ids:
+            by_hardware = hardware_participation_filter(asset_ids)
+            queryset = queryset.filter(by_hardware)
 
         if min_packets:
             queryset = queryset.filter(packets_observed__gte=min_packets)
