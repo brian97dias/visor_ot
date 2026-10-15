@@ -30,7 +30,12 @@ from .serializers import InterfaceAssignmentSerializer
 PAGE_SIZE = 25
 
 
-def interface_queryset():
+def interface_queryset(*, observation_scope="ALL"):
+    # The inventory identity persists even when its evidence was excluded.
+    # Restrict only the IP observations included in the list representation.
+    if observation_scope not in ("ALL", "ACTIVE"):
+        raise ValueError("Alcance de observaciones inválido.")
+
     active_evidence = InterfaceObservation.objects.filter(
         network_interface_id=OuterRef("pk"),
         ingestion__status=Ingestion.Status.ACTIVE,
@@ -39,6 +44,10 @@ def interface_queryset():
     observation_query = InterfaceObservation.objects.select_related(
         "ingestion"
     ).order_by("id")
+    if observation_scope == "ACTIVE":
+        observation_query = observation_query.filter(
+            ingestion__status=Ingestion.Status.ACTIVE
+        )
 
     return (
         NetworkInterface.objects
@@ -89,7 +98,8 @@ class InterfaceListCreateView(APIView):
                 "evidence": "Usa ALL, ACTIVE o NO_ACTIVE."
             })
 
-        queryset = interface_queryset()
+        ip_scope = "ACTIVE" if evidence == "ACTIVE" else "ALL"
+        queryset = interface_queryset(observation_scope=ip_scope)
 
         if hardware_id is not None:
             try:
@@ -117,6 +127,11 @@ class InterfaceListCreateView(APIView):
                 .annotate(ips_as_text=Cast("ips", output_field=CharField()))
                 .filter(ips_as_text__icontains=search)
             )
+            if evidence == "ACTIVE":
+                observed_ip_match = observed_ip_match.filter(
+                    ingestion__status=Ingestion.Status.ACTIVE
+                )
+
             queryset = (
                 queryset
                 .annotate(
