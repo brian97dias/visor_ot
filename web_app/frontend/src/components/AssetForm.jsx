@@ -13,7 +13,7 @@ function initialValues(asset) {
   return {
     name: asset?.name || "",
     description: asset?.description || "",
-    asset_type: "HARDWARE",
+    asset_type: asset?.asset_type || "HARDWARE",
     criticality: asset?.criticality || "UNDEFINED",
     impact: asset?.impact || "",
     replacement_cost: asset?.replacement_cost ?? "",
@@ -25,10 +25,17 @@ function initialValues(asset) {
       serial_number: asset?.hardware?.serial_number || "",
       physical_location: asset?.hardware?.physical_location || "",
     },
+    software: {
+      software_type: asset?.software?.software_type || "FIRMWARE",
+      manufacturer: asset?.software?.manufacturer || "",
+      product: asset?.software?.product || "",
+      version: asset?.software?.version || "",
+    },
   };
 }
 
 function buildPayload(values, original, editing, canEditCriticality) {
+  const technicalKey = values.asset_type === "SOFTWARE" ? "software" : "hardware";
   const data = {
     name: values.name.trim(),
     description: values.description.trim(),
@@ -36,11 +43,14 @@ function buildPayload(values, original, editing, canEditCriticality) {
     impact: values.impact.trim(),
     replacement_cost: values.replacement_cost === "" ? null : values.replacement_cost,
     replacement_currency: values.replacement_currency,
-    hardware: { ...values.hardware },
+    [technicalKey]: Object.fromEntries(
+      Object.entries(values[technicalKey]).map(([key, value]) =>
+        [key, typeof value === "string" ? value.trim() : value]
+      )
+    ),
   };
 
-  if (!editing) return { ...data, asset_type: "HARDWARE" };
-
+  if (!editing) return { ...data, asset_type: values.asset_type };
   if (!canEditCriticality) delete data.criticality;
 
   const differences = {};
@@ -54,12 +64,12 @@ function buildPayload(values, original, editing, canEditCriticality) {
     }
   }
 
-  const hardwareChanges = {};
-  for (const [field, value] of Object.entries(data.hardware)) {
-    if (value !== original.hardware?.[field]) hardwareChanges[field] = value;
+  const technicalChanges = {};
+  for (const [field, value] of Object.entries(data[technicalKey])) {
+    if (value !== original[technicalKey]?.[field]) technicalChanges[field] = value;
   }
-  if (Object.keys(hardwareChanges).length) {
-    differences.hardware = hardwareChanges;
+  if (Object.keys(technicalChanges).length) {
+    differences[technicalKey] = technicalChanges;
   }
   return differences;
 }
@@ -84,6 +94,13 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
     }));
   }
 
+  function changeSoftware(field, value) {
+    setValues((current) => ({
+      ...current,
+      software: { ...current.software, [field]: value },
+    }));
+  }
+
   async function submit(event) {
     event.preventDefault();
     setLocalError("");
@@ -98,7 +115,7 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
     }
 
     const payload = buildPayload(values, asset, editing, canEditCriticality);
-    if (!editing && interfaceAssignment) {
+    if (!editing && values.asset_type === "HARDWARE" && interfaceAssignment) {
       if (interfaceAssignment.mode === "MANUAL" &&
           !interfaceAssignment.mac?.trim() &&
           !interfaceAssignment.declared_ip?.trim()) {
@@ -130,12 +147,29 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
         <div className="assets-field">
           <span className="assets-field-label">Tipo de activo</span>
           <div className="assets-type-select" role="group" aria-label="Tipo de activo">
-            <span className="assets-type-choice selected">Hardware</span>
-            <span className="assets-type-choice unavailable" title="No disponible en esta versión">Software (próximamente)</span>
+            {["HARDWARE", "SOFTWARE"].map((kind) => (
+              <button key={kind} type="button"
+                className={"assets-type-choice" + (values.asset_type === kind ? " selected" : "")}
+                aria-pressed={values.asset_type === kind}
+                disabled={editing || saving}
+                title={editing ? "El tipo de activo no puede cambiarse después del registro" : undefined}
+                onClick={() => {
+                  change("asset_type", kind);
+                  setInterfaceAssignment(null);
+                  setPendingInterface(null);
+                  setShowCreateSelector(false);
+                  setLocalError("");
+                }}>
+                {kind === "HARDWARE" ? "Hardware" : "Software"}
+              </button>
+            ))}
           </div>
+          {editing && <small>El tipo de activo no se puede modificar después del registro.</small>}
         </div>
       </div>
 
+      {values.asset_type === "HARDWARE" && (
+        <>
       <div className="assets-form-section">
         <h2>Datos del hardware</h2>
         <div className="assets-form-grid">
@@ -240,6 +274,51 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
               </p>
             )}
           </div>
+        </div>
+      )}
+
+        </>
+      )}
+
+      {values.asset_type === "SOFTWARE" && (
+        <div className="assets-form-section">
+          <h2>Información del software</h2>
+          <div className="assets-form-grid">
+            <div className="assets-field assets-full-row">
+              <label htmlFor="software-type">Tipo de software *</label>
+              <select id="software-type" required value={values.software.software_type}
+                onChange={(event) => changeSoftware("software_type", event.target.value)}>
+                <option value="FIRMWARE">Firmware</option>
+                <option value="OS">Sistema operativo</option>
+                <option value="APPLICATION">Aplicación</option>
+              </select>
+            </div>
+            <div className="assets-field">
+              <label htmlFor="software-manufacturer">Fabricante</label>
+              <input id="software-manufacturer" maxLength={200}
+                value={values.software.manufacturer}
+                onChange={(event) => changeSoftware("manufacturer", event.target.value)}
+                placeholder="Ej. Siemens, Advantech" />
+            </div>
+            <div className="assets-field">
+              <label htmlFor="software-product">Producto *</label>
+              <input id="software-product" required maxLength={200}
+                value={values.software.product}
+                onChange={(event) => changeSoftware("product", event.target.value)}
+                placeholder="Ej. TIA Portal, Firmware ADAM" />
+            </div>
+            <div className="assets-field assets-full-row">
+              <label htmlFor="software-version">Versión</label>
+              <input id="software-version" maxLength={100}
+                value={values.software.version}
+                onChange={(event) => changeSoftware("version", event.target.value)}
+                placeholder="Opcional / desconocida" />
+            </div>
+          </div>
+          <p className="interface-hint">
+            El software se registra como activo independiente. Su instalación en
+            uno o varios hardware se gestionará en el siguiente incremento.
+          </p>
         </div>
       )}
 
