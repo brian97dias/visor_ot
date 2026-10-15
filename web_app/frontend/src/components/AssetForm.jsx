@@ -179,11 +179,11 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
         </div>
       </div>
 
-      <div className="assets-form-section">
-        <h2>Interfaces de red</h2>
-        {editing ? (
-          <AssetInterfacesSection asset={asset} user={user} embedded />
-        ) : (
+      {editing ? (
+        <AssetInterfacesSection asset={asset} user={user} embedded />
+      ) : (
+        <div className="assets-form-section">
+          <h2>Interfaces de red</h2>
           <>
             <p className="interface-hint">
               Opcional. Si no seleccionas ninguna interfaz, el hardware se registrará sin asociación.
@@ -200,8 +200,8 @@ function AssetForm({ asset = null, user, onSave, saving, error }) {
                 onChange={setInterfaceAssignment} disabled={saving} />
             )}
           </>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="assets-form-section">
         <h2>Clasificación y valoración</h2>

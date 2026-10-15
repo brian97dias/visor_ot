@@ -1807,3 +1807,11 @@ input {
 }
 .interface-section-header h2 { margin: 0; }
 .interface-section-header .interface-hint { margin-top: 7px; }
+
+
+/* Device identity enrichment: keep raw IP visible for network analysis */
+.communication-endpoint { display: flex; flex-direction: column; gap: 3px; }
+.communication-device-link { color: #7dd3fc; font-weight: 700; text-decoration: none; }
+.communication-device-link:hover { text-decoration: underline; }
+.communication-endpoint-secondary { color: #94a3b8; font-size: 0.78rem; }
+.communication-endpoint-warning { color: #fbbf24; font-size: 0.78rem; }

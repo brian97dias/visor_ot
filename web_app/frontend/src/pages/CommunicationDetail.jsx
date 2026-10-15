@@ -13,6 +13,7 @@ import {
   classifyCommunication,
   getCommunication,
 } from "../api/network";
+import CommunicationEndpoint from "../components/CommunicationEndpoint";
 
 
 function getStatusLabel(status) {
@@ -328,18 +329,16 @@ function CommunicationDetail() {
         <div>
           <span>Origen</span>
 
-          <strong>
-            {communication.source_ip}
-          </strong>
+          <CommunicationEndpoint ip={communication.source_ip}
+            resolution={communication.source_resolution} />
         </div>
 
 
         <div>
           <span>Destino</span>
 
-          <strong>
-            {communication.destination_ip}
-          </strong>
+          <CommunicationEndpoint ip={communication.destination_ip}
+            resolution={communication.destination_resolution} />
         </div>
 
 

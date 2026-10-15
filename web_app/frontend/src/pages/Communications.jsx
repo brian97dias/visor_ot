@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { getCommunications } from "../api/network";
+import CommunicationEndpoint from "../components/CommunicationEndpoint";
 
 const PACKET_OPTIONS = [
   [1, "Todos los registros"],
@@ -165,8 +166,8 @@ export default function Communications() {
               <tbody>
                 {communications.map((communication) => (
                   <tr key={communication.id}>
-                    <td><span className="mono-value">{communication.source_ip}</span></td>
-                    <td><span className="mono-value">{communication.destination_ip}</span></td>
+                    <td><CommunicationEndpoint ip={communication.source_ip} resolution={communication.source_resolution} compact /></td>
+                    <td><CommunicationEndpoint ip={communication.destination_ip} resolution={communication.destination_resolution} compact /></td>
                     <td>
                       {communication.transport_protocol} / {communication.service_port}
                     </td>
