@@ -1964,3 +1964,112 @@ input {
 .assets-type-choice:disabled {
     cursor: not-allowed;
 }
+
+
+/* Inline installed-software selection and creation; compatible with both
+   Hardware detail and the nested Hardware edit section. */
+.software-install-editor {
+    border-top: 1px solid #263244;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.software-install-modes {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+.software-combobox {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    width: 100%;
+    max-width: 780px;
+    gap: 9px;
+}
+.software-combobox label {
+    color: #cbd5e1;
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+.software-combobox-input {
+    display: flex;
+    border: 1px solid #334155;
+    border-radius: 7px;
+    background: #0f172a;
+    overflow: hidden;
+}
+.software-combobox-input:focus-within {
+    border-color: #38bdf8;
+}
+.software-combobox-input input {
+    flex: 1;
+    min-width: 0;
+    padding: 11px 13px;
+    color: #f8fafc;
+    font: inherit;
+    background: transparent;
+    border: 0;
+    outline: none;
+}
+.software-combobox-input button {
+    min-width: 48px;
+    color: #cbd5e1;
+    border: 0;
+    border-left: 1px solid #334155;
+    background: transparent;
+    cursor: pointer;
+    font-size: 1.15rem;
+}
+.software-combobox-input button:disabled { opacity: 0.5; cursor: not-allowed; }
+.software-combobox-input button:not(:disabled):hover { background: #164e63; }
+.software-combobox-options {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% - 2px);
+    left: 0;
+    right: 0;
+    overflow-y: auto;
+    max-height: 270px;
+    background: #111e2d;
+    border: 1px solid #334155;
+    border-radius: 7px;
+    box-shadow: 0 14px 28px rgba(0,0,0,.45);
+}
+.software-combobox-options button {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 11px 13px;
+    background: transparent;
+    color: #e2e8f0;
+    border: 0;
+    border-bottom: 1px solid #263244;
+    text-align: left;
+    cursor: pointer;
+}
+.software-combobox-options button:last-child { border-bottom: 0; }
+.software-combobox-options button:hover,
+.software-combobox-options .software-combobox-highlight {
+    background: #164e63;
+}
+.software-combobox-options small { color: #94a3b8; }
+.software-combobox-empty { margin: 0; padding: 14px; }
+.software-extra-fields {
+    border-top: 1px solid #263244;
+    padding-top: 14px;
+}
+.software-extra-fields summary {
+    cursor: pointer;
+    color: #cbd5e1;
+    font-weight: 600;
+    margin-bottom: 14px;
+}
+.software-extra-fields .assets-form-grid { margin-top: 12px; }
+@media (max-width: 750px) {
+    .software-install-modes { flex-direction: column; }
+    .software-combobox { max-width: none; }
+}
