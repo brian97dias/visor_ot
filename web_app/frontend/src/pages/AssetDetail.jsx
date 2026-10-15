@@ -15,6 +15,7 @@ import {
   displayValue,
   INVENTORY_STATUS_LABELS,
   ROLE_LABELS,
+  SOFTWARE_TYPE_LABELS,
 } from "../utils/assetPermissions";
 
 function Field({ label, value, wide = false }) {
@@ -137,6 +138,23 @@ function AssetDetail() {
             <Field label="Rol" value={ROLE_LABELS[asset.hardware.role] || asset.hardware.role} />
             <Field label="Número de serie" value={asset.hardware.serial_number} />
             <Field label="Ubicación física" value={asset.hardware.physical_location} />
+          </div>
+        </section>
+      )}
+
+      {asset.software && (
+        <section className="panel assets-detail-section">
+          <div className="panel-header"><h2>Información del software</h2></div>
+          <div className="assets-detail-grid">
+            <Field label="Tipo de software"
+              value={SOFTWARE_TYPE_LABELS[asset.software.software_type]
+                || asset.software.software_type} />
+            <Field label="Fabricante" value={asset.software.manufacturer} />
+            <Field label="Producto" value={asset.software.product} />
+            <Field label="Versión" value={asset.software.version} />
+          </div>
+          <div className="interface-panel-padding interface-hint">
+            Las instalaciones de software en hardware se gestionarán en el incremento 3.
           </div>
         </section>
       )}

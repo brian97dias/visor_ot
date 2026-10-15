@@ -26,6 +26,12 @@ export const CRITICALITY_LABELS = {
   HIGH: "Alta",
 };
 
+export const SOFTWARE_TYPE_LABELS = {
+  FIRMWARE: "Firmware",
+  OS: "Sistema operativo",
+  APPLICATION: "Aplicación",
+};
+
 export const ROLE_LABELS = {
   PLC: "PLC",
   RTU: "RTU",

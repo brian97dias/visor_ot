@@ -12,6 +12,7 @@ import {
   displayCost,
   INVENTORY_STATUS_LABELS,
   ROLE_LABELS,
+  SOFTWARE_TYPE_LABELS,
 } from "../utils/assetPermissions";
 
 const PAGE_SIZE = 15;
@@ -66,6 +67,10 @@ function Assets() {
         asset.id, asset.name, asset.description, asset.asset_type,
         asset.hardware?.manufacturer, asset.hardware?.model,
         asset.hardware?.role,
+        asset.software?.software_type,
+        asset.software?.manufacturer,
+        asset.software?.product,
+        asset.software?.version,
       ].filter((value) => value !== null && value !== undefined)
         .join(" ").toLowerCase();
       return !query || searchable.includes(query);
@@ -138,7 +143,7 @@ function Assets() {
         <div className="table-toolbar assets-toolbar">
           <div className="search-box">
             <input type="search" aria-label="Buscar activos"
-              placeholder="Buscar por nombre, fabricante, modelo o rol..."
+              placeholder="Buscar nombre, fabricante, modelo, producto, versión o rol..."
               value={search} onChange={(event) => setSearch(event.target.value)} />
           </div>
 
@@ -203,13 +208,24 @@ function Assets() {
                         <div className="pcap-path">
                           {asset.hardware
                             ? ROLE_LABELS[asset.hardware.role] || "Sin clasificar"
-                            : "Sin datos técnicos"}
+                            : asset.software
+                              ? SOFTWARE_TYPE_LABELS[asset.software.software_type]
+                                || "Software"
+                              : "Sin datos técnicos"}
                         </div>
                       </td>
                       <td>
-                        {asset.hardware?.manufacturer || "Sin registrar"}
+                        {asset.hardware?.manufacturer
+                          || asset.software?.manufacturer
+                          || "Sin registrar"}
                         <div className="pcap-path">
-                          {asset.hardware?.model || "Modelo sin registrar"}
+                          {asset.hardware
+                            ? asset.hardware.model || "Modelo sin registrar"
+                            : asset.software
+                              ? [asset.software.product,
+                                asset.software.version || "Versión desconocida"]
+                                .filter(Boolean).join(" · ")
+                              : "Sin datos técnicos"}
                         </div>
                       </td>
                       <td>{CRITICALITY_LABELS[asset.criticality] || asset.criticality}</td>

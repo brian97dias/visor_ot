@@ -1945,3 +1945,22 @@ input {
     .device-filter-section { padding: 14px; }
     .device-filter-input-wrap { max-width: none; }
 }
+
+
+/* Asset type selector, enabled for hardware/software registrations */
+.assets-type-choice {
+    font: inherit;
+    color: #cbd5e1;
+    background: #0f172a;
+    cursor: pointer;
+}
+.assets-type-choice:not(:disabled):hover {
+    border-color: #38bdf8;
+}
+.assets-type-choice:focus-visible {
+    outline: 2px solid #38bdf8;
+    outline-offset: 2px;
+}
+.assets-type-choice:disabled {
+    cursor: not-allowed;
+}
