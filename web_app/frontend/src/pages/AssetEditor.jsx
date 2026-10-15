@@ -43,11 +43,7 @@ function AssetEditor() {
         ? await updateAsset(assetId, payload)
         : await createAsset(payload);
       const returnTo = !editing && saved.asset_type === "SOFTWARE"
-        && returnToHardware && initialHardwareId === String(saved.id)
-        ? null
-        : !editing && saved.asset_type === "SOFTWARE" && returnToHardware
-          ? initialHardwareId
-          : null;
+        && returnToHardware ? payload.hardware_asset_id : null;
       navigate(returnTo ? "/assets/" + returnTo : "/assets/" + saved.id, {
         state: {
           notice: returnTo
