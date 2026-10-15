@@ -59,6 +59,9 @@ export default function Interfaces() {
       // excluded from the default ACTIVE filter. Make the new record visible.
       const identity = result.mac || result.declared_ip;
       setEvidence("ALL");
+      // A newly registered interface may have only a MAC. Avoid leaving
+      // an exact-IP-only mode active when focusing its new identity.
+      setMatchMode("PARTIAL");
       setQuery(identity);
       setSearch(identity);
       setShowForm(false);
