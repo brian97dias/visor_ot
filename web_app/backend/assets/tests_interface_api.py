@@ -2,9 +2,10 @@
 
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase
-from rest_framework.test import APIRequestFactory
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from .interface_permissions import NetworkInterfacePermission
+from .interface_views import InterfaceListCreateView
 from .interface_serializers import NetworkInterfaceCreateSerializer
 
 
@@ -48,3 +49,29 @@ class InterfaceAPINoDatabaseTests(SimpleTestCase):
         )
         self.assertFalse(serializer.is_valid())
         self.assertIn("declared_ip", serializer.errors)
+
+
+    def test_analyst_cannot_post_even_with_valid_payload(self):
+        analyst = self.User(username="analista-test", role=self.User.Role.ANALYST)
+        request = self.factory.post(
+            "/api/assets/interfaces/",
+            {"mac": "aa:bb:cc:dd:ee:ff"},
+            format="json",
+        )
+        force_authenticate(request, user=analyst)
+        response = InterfaceListCreateView.as_view()(request)
+        self.assertEqual(response.status_code, 403)
+
+    def test_operator_cannot_register_empty_interface(self):
+        operator = self.User(username="operador-test", role=self.User.Role.OPERATOR)
+        request = self.factory.post("/api/assets/interfaces/", {}, format="json")
+        force_authenticate(request, user=operator)
+        response = InterfaceListCreateView.as_view()(request)
+        self.assertEqual(response.status_code, 400)
+
+    def test_manual_registration_rejects_hardware_assignment(self):
+        serializer = NetworkInterfaceCreateSerializer(
+            data={"declared_ip": "192.168.88.15", "hardware": 1}
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("non_field_errors", serializer.errors)

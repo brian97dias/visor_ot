@@ -79,6 +79,17 @@ class NetworkInterfaceCreateSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
+        # No accept silently fields reserved for the later association workflow.
+        allowed = {"mac", "declared_ip"}
+        unsupported = sorted(set(self.initial_data) - allowed)
+        if unsupported:
+            raise serializers.ValidationError({
+                "non_field_errors": [
+                    "Campos no permitidos en el registro manual: "
+                    + ", ".join(unsupported)
+                ]
+            })
+
         try:
             mac = normalize_mac(attrs.get("mac"))
         except DjangoValidationError as error:
