@@ -415,6 +415,9 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
               versión y registra otra desde el inventario; después traslada
               la instalación en el hardware correspondiente.
             </p>
+            <Link className="button-secondary" to="/assets/new?type=SOFTWARE">
+              Registrar nueva variante
+            </Link>
           ) : (
             <>
               <div className="assets-field">

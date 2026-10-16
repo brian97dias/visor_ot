@@ -374,3 +374,34 @@ class SoftwareDomainTests(TestCase):
         first.refresh_from_db()
         self.assertEqual(first.identity_snapshot["version"], "V18")
         self.assertEqual(newer.identity_snapshot["version"], "V19")
+
+
+    def test_register_software_without_any_hardware(self):
+        from .software_services import register_installed_software_asset
+        asset = register_installed_software_asset(
+            data={
+                "name": "Firmware sin host identificado",
+                "asset_type": Asset.AssetType.SOFTWARE,
+                "software": {"software_type": "FIRMWARE", "product": "Firmware OT"},
+            },
+            user=self.operator,
+        )
+        self.assertEqual(asset.asset_type, Asset.AssetType.SOFTWARE)
+        self.assertEqual(SoftwareInstallation.objects.count(), 0)
+
+    def test_correction_requires_reason_even_after_unlinking(self):
+        from .models import SoftwareCorrection
+        sw, eng = self.register(), self.hardware("ENG-01")
+        installation = associate_software(
+            software_id=sw.pk, hardware_asset_id=eng.pk, user=self.operator
+        )
+        unlink_software(installation_id=installation.pk, user=self.operator)
+        with self.assertRaises(ValidationError):
+            update_software_asset(
+                asset_id=sw.pk,
+                data={"software": {"version": "V19"}},
+                user=self.operator,
+            )
+        self.assertEqual(SoftwareCorrection.objects.count(), 0)
+        sw.refresh_from_db()
+        self.assertEqual(sw.software.version, "V18")

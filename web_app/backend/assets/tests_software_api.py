@@ -323,3 +323,26 @@ class SoftwareAssetAPITests(TestCase):
             {"description": "Solo cambió la descripción"}, format="json",
         )
         self.assertEqual(response.status_code, 200, response.data)
+
+
+    def test_analyst_can_read_software_provenance(self):
+        sw = self.client.post("/api/assets/", self.payload(), format="json")
+        self.assertEqual(sw.status_code, 201, sw.data)
+        self.client.force_authenticate(self.analyst)
+        history = self.client.get(
+            f"/api/assets/{sw.data['id']}/software-history/"
+        )
+        self.assertEqual(history.status_code, 200, history.data)
+        self.assertEqual(history.data["active_installation_count"], 1)
+
+    def test_correction_without_reason_rejected_and_audit_unchanged(self):
+        from .models import SoftwareCorrection
+        sw = self.client.post("/api/assets/", self.payload(), format="json")
+        self.assertEqual(sw.status_code, 201, sw.data)
+        edited = self.client.patch(
+            f"/api/assets/{sw.data['id']}/",
+            {"software": {"version": "V19"}}, format="json"
+        )
+        self.assertEqual(edited.status_code, 400, edited.data)
+        self.assertEqual(SoftwareCorrection.objects.count(), 0)
+        self.assertEqual(Software.objects.get(pk=sw.data["id"]).version, "V18")
