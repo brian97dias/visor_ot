@@ -13,6 +13,7 @@ from .software_installation_views import (
 
 from .views import (
     AssetArchiveView,
+    AssetExportExcelView,
     AssetDetailView,
     AssetListCreateView,
     AssetRestoreView,
@@ -25,6 +26,7 @@ urlpatterns = [
     path("interfaces/<int:interface_id>/identify/", InterfaceIdentifyView.as_view(), name="interface-identify"),
     path("interfaces/<int:interface_id>/unlink/", InterfaceUnlinkView.as_view(), name="interface-unlink"),
     path("", AssetListCreateView.as_view(), name="asset-list-create"),
+    path("export/excel/", AssetExportExcelView.as_view(), name="asset-export-excel"),
     path("<int:asset_id>/interfaces/", AssetInterfaceAssignView.as_view(), name="asset-interface-assign"),
     path("<int:asset_id>/software-installations/", HardwareSoftwareInstallationView.as_view(), name="asset-software-installations"),
     path("<int:asset_id>/software-history/", SoftwareHistoryView.as_view(), name="asset-software-history"),

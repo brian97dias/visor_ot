@@ -1,4 +1,6 @@
 from django.shortcuts import get_object_or_404
+from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -6,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Asset
+from .asset_excel import export_inventory_workbook
 from .permissions import AssetPermission, AssetArchivePermission
 from .serializers import (
     AssetCreateSerializer,
@@ -127,3 +130,22 @@ class AssetRestoreView(APIView):
             user=request.user,
         )
         return Response(AssetReadSerializer(asset).data)
+
+
+
+class AssetExportExcelView(APIView):
+    """Read-only export of all Hardware and Software assets, archived included."""
+    permission_classes = [IsAuthenticated, AssetPermission]
+
+    def get(self, request):
+        assets = asset_queryset().order_by("asset_type", "name", "id")
+        workbook = export_inventory_workbook(assets.iterator(chunk_size=1000))
+        filename = f"Visor_OT_Inventario_{timezone.localdate():%Y%m%d}.xlsx"
+        response = HttpResponse(
+            workbook,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        response["Content-Length"] = len(workbook)
+        response["Cache-Control"] = "no-store"
+        return response
