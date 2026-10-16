@@ -16,6 +16,7 @@ import IngestionDetail from "./pages/IngestionDetail";
 import Communications from "./pages/Communications";
 import CommunicationDetail from "./pages/CommunicationDetail";
 import Assets from "./pages/Assets";
+import AssetImport from "./pages/AssetImport";
 import AssetDetail from "./pages/AssetDetail";
 import AssetEditor from "./pages/AssetEditor";
 import Interfaces from "./pages/Interfaces";
@@ -100,6 +101,7 @@ function App() {
           />
 
           <Route path="/assets" element={<Assets />} />
+          <Route path="/assets/import" element={<AssetImport />} />
           <Route path="/assets/interfaces" element={<Interfaces />} />
           <Route path="/assets/interfaces/:interfaceId" element={<InterfaceDetail />} />
           <Route path="/assets/hardware" element={<Navigate to="/assets?type=HARDWARE" replace />} />

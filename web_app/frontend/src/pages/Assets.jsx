@@ -136,6 +136,9 @@ function Assets() {
           <p>Registro de activos OT y su información técnica y operacional.</p>
         </div>
         <div className="table-actions">
+          {canCreateAssets(user) && (
+            <Link className="button-secondary" to="/assets/import">Importar Excel</Link>
+          )}
           <button type="button" className="button-secondary"
             disabled={exporting}
             title="Descarga todos los activos, incluidos los archivados, en dos hojas: Hardware y Software."

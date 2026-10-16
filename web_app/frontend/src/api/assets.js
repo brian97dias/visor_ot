@@ -144,3 +144,19 @@ export async function exportAssetsExcel() {
   // Give the browser time to start transferring the Blob to the download manager.
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
+
+
+async function postInventoryFile(path, file, extra = {}) {
+  const form = new FormData();
+  form.append("file", file);
+  for (const [key, value] of Object.entries(extra)) form.append(key, value);
+  return requestAssets(path, { method: "POST", body: form });
+}
+export function previewAssetsExcel(file) {
+  return postInventoryFile("/api/assets/import/preview/", file);
+}
+export function confirmAssetsExcel(file, token, actions) {
+  return postInventoryFile("/api/assets/import/confirm/", file, {
+    token, actions: JSON.stringify(actions),
+  });
+}
