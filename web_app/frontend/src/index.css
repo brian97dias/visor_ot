@@ -2102,3 +2102,12 @@ input {
     flex-direction: column; max-width: 720px; }
 .asset-import-correction textarea { background: #0f172a; color: #e2e8f0;
     border: 1px solid #334155; border-radius: 5px; padding: 10px; }
+
+
+/* Inventory relationship summary: counts only (expansion is increment 2). */
+.assets-relation-counts {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    white-space: nowrap;
+}

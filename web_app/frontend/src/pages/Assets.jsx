@@ -9,13 +9,33 @@ import {
   canCreateAssets,
   canEditAssets,
   CRITICALITY_LABELS,
-  displayCost,
   INVENTORY_STATUS_LABELS,
   ROLE_LABELS,
   SOFTWARE_TYPE_LABELS,
 } from "../utils/assetPermissions";
 
 const PAGE_SIZE = 15;
+
+function AssetRelationshipsSummary({ asset }) {
+  // These numbers represent relationships recorded in Visor OT, not
+  // a claim about which software/devices physically exist in the plant.
+  if (asset.asset_type === "HARDWARE") {
+    const softwareCount = asset.software_count ?? 0;
+    const interfaceCount = asset.interface_count ?? 0;
+    return (
+      <div className="assets-relation-counts">
+        <span>{softwareCount} {softwareCount === 1 ? "software asociado" : "software asociados"}</span>
+        <span className="pcap-path">
+          {interfaceCount} {interfaceCount === 1 ? "interfaz asociada" : "interfaces asociadas"}
+        </span>
+      </div>
+    );
+  }
+  const hardwareCount = asset.hardware_count ?? 0;
+  return (
+    <span>{hardwareCount} {hardwareCount === 1 ? "hardware asociado" : "hardware asociados"}</span>
+  );
+}
 
 function Assets() {
   const { user } = useOutletContext();
@@ -114,7 +134,10 @@ function Assets() {
         : await archiveAsset(asset.id);
       setAssets((current) => {
         if (inventoryStatus === "ALL") {
-          return current.map((item) => item.id === updated.id ? updated : item);
+          // The mutation response contains asset fields only, so retain the
+          // relation counts from the listing. Archiving does not unlink.
+          return current.map((item) => item.id === updated.id
+            ? { ...item, ...updated } : item);
         }
         return current.filter((item) => item.id !== updated.id);
       });
@@ -216,7 +239,7 @@ function Assets() {
                     <th>Tipo / Rol</th>
                     <th>Fabricante / Modelo</th>
                     <th>Criticidad</th>
-                    <th>Costo de reposición</th>
+                    <th>Vinculaciones</th>
                     <th>Estado</th>
                     <th>Acciones</th>
                   </tr>
@@ -254,7 +277,7 @@ function Assets() {
                         </div>
                       </td>
                       <td>{CRITICALITY_LABELS[asset.criticality] || asset.criticality}</td>
-                      <td>{displayCost(asset)}</td>
+                      <td><AssetRelationshipsSummary asset={asset} /></td>
                       <td>
                         <span className={asset.inventory_status === "ARCHIVED"
                           ? "status status-archived" : "status status-imported"}>
