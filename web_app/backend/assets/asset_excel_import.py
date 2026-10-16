@@ -94,6 +94,31 @@ def _value(key, value):
     return _as_text(value)
 
 
+def _physical_rows(sheet, workbook, width):
+    """Yield only rows that exist in worksheet XML, without filling gaps.
+
+    openpyxl's public read-only iter_rows() synthesizes every missing row
+    between nonconsecutive row indices. Some LibreOffice-generated files
+    contain a few empty <row> records at row 1,048,576, which would make
+    iter_rows() generate a million empty rows. The underlying streaming
+    parser instead preserves physical row numbers and ignores these gaps.
+    Pin openpyxl to major version 3; covered by regression tests.
+    """
+    from openpyxl.worksheet._reader import WorkSheetParser
+
+    with sheet._get_source() as source:
+        parser = WorkSheetParser(
+            source,
+            sheet._shared_strings,
+            data_only=workbook.data_only,
+            epoch=workbook.epoch,
+            date_formats=workbook._date_formats,
+            timedelta_formats=workbook._timedelta_formats,
+        )
+        for number, cells in parser.parse():
+            yield number, sheet._get_row(cells, 1, width, values_only=True)
+
+
 def parse_workbook(file_bytes):
     if len(file_bytes) > MAX_FILE_BYTES:
         raise ValidationError({"file": "El Excel supera el límite de 2 MB."})
@@ -126,18 +151,14 @@ def parse_workbook(file_bytes):
                 # templates placed them on row 5; keep both interoperable.
                 # Ignore decorative rows before the header and count only
                 # rows that have at least one non-empty value afterwards.
-                sheet.reset_dimensions()
                 header_row = None
                 sheet_count = 0
-                for row_num, values in enumerate(
-                    sheet.iter_rows(min_row=1, max_col=len(expected),
-                                    values_only=True),
-                    start=1,
+                for physical_count, (row_num, values) in enumerate(
+                    _physical_rows(sheet, workbook, len(expected)), start=1
                 ):
-                    # Streaming guard against absurd formatting ranges (or
-                    # malicious documents). A sheet with >20,000 rows must be
-                    # reduced before importing, even if most are styled only.
-                    if row_num > 20000:
+                    # Bound the number of physically encoded worksheet rows,
+                    # not their Excel row numbers, which may be very large.
+                    if physical_count > 20000:
                         raise ValidationError({
                             "file": (
                                 f"{sheet_name}: demasiadas filas de formato. "
