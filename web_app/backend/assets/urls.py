@@ -1,4 +1,5 @@
 from django.urls import path
+from .asset_import_views import AssetImportPreviewView, AssetImportConfirmView
 
 from .interface_views import (
     InterfaceDetailView, InterfaceListCreateView,
@@ -27,6 +28,8 @@ urlpatterns = [
     path("interfaces/<int:interface_id>/unlink/", InterfaceUnlinkView.as_view(), name="interface-unlink"),
     path("", AssetListCreateView.as_view(), name="asset-list-create"),
     path("export/excel/", AssetExportExcelView.as_view(), name="asset-export-excel"),
+    path("import/preview/", AssetImportPreviewView.as_view(), name="asset-import-preview"),
+    path("import/confirm/", AssetImportConfirmView.as_view(), name="asset-import-confirm"),
     path("<int:asset_id>/interfaces/", AssetInterfaceAssignView.as_view(), name="asset-interface-assign"),
     path("<int:asset_id>/software-installations/", HardwareSoftwareInstallationView.as_view(), name="asset-software-installations"),
     path("<int:asset_id>/software-history/", SoftwareHistoryView.as_view(), name="asset-software-history"),
