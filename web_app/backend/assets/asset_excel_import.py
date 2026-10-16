@@ -17,7 +17,7 @@ from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
 from .asset_excel import HARDWARE_COLUMNS, SOFTWARE_COLUMNS
-from .models import Asset, Hardware, Software
+from .models import Asset, AssetImportBatch
 from .serializers import AssetCreateSerializer, AssetUpdateSerializer
 from .services import register_hardware_asset, update_hardware_asset
 from .software_services import register_installed_software_asset, update_software_asset
@@ -417,4 +417,13 @@ def confirm(file_bytes, *, token, actions, user):
             result["updated"].append({"key": key, "id": asset.pk, "fields": fields})
             continue
         raise ValidationError({"actions": f"{key}: acción {action} no permitida para {info['status']}."})
+    batch = AssetImportBatch.objects.create(
+        imported_by=user,
+        file_sha256=sha256(file_bytes).hexdigest(),
+        created_count=len(result["created"]),
+        updated_count=len(result["updated"]),
+        skipped_count=len(result["skipped"]),
+        details=result,
+    )
+    result["import_id"] = batch.pk
     return result
