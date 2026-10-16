@@ -87,6 +87,7 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
   const [loadingHardware, setLoadingHardware] = useState(false);
   const [hardwareError, setHardwareError] = useState("");
   const [softwareHistory, setSoftwareHistory] = useState(null);
+  const [softwareHistoryRevision, setSoftwareHistoryRevision] = useState(0);
   const [historyError, setHistoryError] = useState("");
   const [correctionReason, setCorrectionReason] = useState("");
   const [confirmShared, setConfirmShared] = useState(false);
@@ -113,11 +114,12 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
   useEffect(() => {
     if (!editing || asset.asset_type !== "SOFTWARE") return;
     let active = true;
+    setHistoryError("");
     getSoftwareHistory(asset.id)
       .then((info) => { if (active) setSoftwareHistory(info); })
       .catch((err) => { if (active) setHistoryError(err.message); });
     return () => { active = false; };
-  }, [asset?.id, asset?.asset_type, editing]);
+  }, [asset?.id, asset?.asset_type, editing, softwareHistoryRevision]);
 
   const technicalChanged = editing && values.asset_type === "SOFTWARE"
     && ["software_type", "manufacturer", "product", "version"].some(
@@ -395,7 +397,8 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
       )}
 
       {editing && values.asset_type === "SOFTWARE" && (
-        <SoftwareHardwareSection asset={asset} user={user} />
+        <SoftwareHardwareSection asset={asset} user={user}
+          onInstallationsChange={() => setSoftwareHistoryRevision((count) => count + 1)} />
       )}
 
       {editing && values.asset_type === "SOFTWARE" && technicalChanged && (

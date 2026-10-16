@@ -13,7 +13,7 @@ import SearchableHardwareSelect from "./SearchableHardwareSelect";
  * This component sits inside the AssetForm HTML form. All mutation controls
  * are type=button and persist independently of Guardar cambios.
  */
-export default function SoftwareHardwareSection({ asset, user }) {
+export default function SoftwareHardwareSection({ asset, user, onInstallationsChange }) {
   const canManage = canCreateAssets(user) && asset.inventory_status === "ACTIVE";
   const [installed, setInstalled] = useState([]);
   const [candidates, setCandidates] = useState([]);
@@ -70,6 +70,7 @@ export default function SoftwareHardwareSection({ asset, user }) {
       await associateHardwareToSoftware(asset.id, selectedId);
       closeSelector();
       setRevision((value) => value + 1);
+      onInstallationsChange?.();
       setNotice("Hardware asociado. La instalación se guardó inmediatamente.");
     } catch (err) {
       setError(err.message);
@@ -87,6 +88,7 @@ export default function SoftwareHardwareSection({ asset, user }) {
       await unlinkHardwareFromSoftware(asset.id, pendingUnlink.id);
       setPendingUnlink(null);
       setRevision((value) => value + 1);
+      onInstallationsChange?.();
       setNotice("Hardware desvinculado. Su instalación histórica se conserva.");
     } catch (err) {
       setError(err.message);
