@@ -11,7 +11,7 @@ function InventoryState({ value }) {
   ) : null;
 }
 
-function SoftwareLinks({ results }) {
+function SoftwareLinks({ results, navigationState }) {
   return (
     <section className="asset-relation-section">
       <h4>Software instalado <span>({results.length})</span></h4>
@@ -22,7 +22,7 @@ function SoftwareLinks({ results }) {
           {results.map((row) => (
             <li key={row.id}>
               <div>
-                <Link to={"/assets/" + row.software_asset_id}>{row.name}</Link>
+                <Link to={"/assets/" + row.software_asset_id} state={navigationState}>{row.name}</Link>
                 <div className="interface-hint">
                   {SOFTWARE_TYPE_LABELS[row.software?.software_type] || "Software"}
                   {" · "}{row.software?.product || "Producto no registrado"}
@@ -30,7 +30,7 @@ function SoftwareLinks({ results }) {
                   <InventoryState value={row.inventory_status} />
                 </div>
               </div>
-              <Link className="button-link" to={"/assets/" + row.software_asset_id}>Ver activo</Link>
+              <Link className="button-link" to={"/assets/" + row.software_asset_id} state={navigationState}>Ver activo</Link>
             </li>
           ))}
         </ul>
@@ -39,7 +39,7 @@ function SoftwareLinks({ results }) {
   );
 }
 
-function HardwareLinks({ results }) {
+function HardwareLinks({ results, navigationState }) {
   return (
     <section className="asset-relation-section">
       <h4>Hardware donde está instalado <span>({results.length})</span></h4>
@@ -50,7 +50,7 @@ function HardwareLinks({ results }) {
           {results.map((row) => (
             <li key={row.id}>
               <div>
-                <Link to={"/assets/" + row.hardware_asset_id}>{row.hardware_name}</Link>
+                <Link to={"/assets/" + row.hardware_asset_id} state={navigationState}>{row.hardware_name}</Link>
                 <div className="interface-hint">
                   {ROLE_LABELS[row.hardware_role] || row.hardware_role || "Sin clasificar"}
                   {" · "}
@@ -58,7 +58,7 @@ function HardwareLinks({ results }) {
                   <InventoryState value={row.inventory_status} />
                 </div>
               </div>
-              <Link className="button-link" to={"/assets/" + row.hardware_asset_id}>Ver activo</Link>
+              <Link className="button-link" to={"/assets/" + row.hardware_asset_id} state={navigationState}>Ver activo</Link>
             </li>
           ))}
         </ul>
@@ -67,7 +67,7 @@ function HardwareLinks({ results }) {
   );
 }
 
-function InterfaceLinks({ value, onPage, loading, error }) {
+function InterfaceLinks({ value, onPage, loading, error, navigationState }) {
   const results = value?.results || [];
   const count = value?.count || 0;
   const page = value?.page || 1;
@@ -89,7 +89,7 @@ function InterfaceLinks({ value, onPage, loading, error }) {
               return (
                 <li key={item.id}>
                   <div>
-                    <Link to={"/assets/interfaces/" + item.id}>
+                    <Link to={"/assets/interfaces/" + item.id} state={navigationState}>
                       {item.mac || "Interfaz #" + item.id + " sin MAC"}
                     </Link>
                     <div className="interface-hint">
@@ -97,7 +97,7 @@ function InterfaceLinks({ value, onPage, loading, error }) {
                       {item.has_active_evidence ? " · Evidencia activa" : " · Sin evidencia activa"}
                     </div>
                   </div>
-                  <Link className="button-link" to={"/assets/interfaces/" + item.id}>Ver interfaz</Link>
+                  <Link className="button-link" to={"/assets/interfaces/" + item.id} state={navigationState}>Ver interfaz</Link>
                 </li>
               );
             })}
@@ -127,7 +127,7 @@ function InterfaceLinks({ value, onPage, loading, error }) {
  * preserves fetched data until the inventory page or filters unmount it.
  * Never writes installations or interface assignments.
  */
-export default function AssetRelationsRow({ asset, open, canManage }) {
+export default function AssetRelationsRow({ asset, open, canManage, navigationState }) {
   const [links, setLinks] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -191,7 +191,7 @@ export default function AssetRelationsRow({ asset, open, canManage }) {
             </div>
             <div className="table-actions">
               {canManage && asset.inventory_status === "ACTIVE" && (
-                <Link className="button-secondary" to={"/assets/" + asset.id + "/edit"}>
+                <Link className="button-secondary" to={"/assets/" + asset.id + "/edit"} state={navigationState}>
                   Gestionar asociaciones
                 </Link>
               )}
@@ -220,11 +220,10 @@ export default function AssetRelationsRow({ asset, open, canManage }) {
               (asset.asset_type === "SOFTWARE" ? " asset-relations-single" : "")}>
               {asset.asset_type === "HARDWARE" ? (
                 <>
-                  <SoftwareLinks results={links.software} />
-                  <InterfaceLinks value={links.interfaces} onPage={changeInterfacePage}
-                    loading={interfaceLoading} error={interfaceError} />
+                  <SoftwareLinks results={links.software} navigationState={navigationState} />
+                  <InterfaceLinks value={links.interfaces} onPage={changeInterfacePage} loading={interfaceLoading} error={interfaceError} navigationState={navigationState} />
                 </>
-              ) : <HardwareLinks results={links.hardware} />}
+              ) : <HardwareLinks results={links.hardware} navigationState={navigationState} />}
             </div>
           )}
         </div>

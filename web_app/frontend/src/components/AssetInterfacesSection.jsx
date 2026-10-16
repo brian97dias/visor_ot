@@ -10,7 +10,7 @@ import { canCreateAssets } from "../utils/assetPermissions";
  * Shared immediate-save interface management for the hardware detail and edit form.
  * These operations do NOT wait for the parent's "Guardar cambios" submission.
  */
-export default function AssetInterfacesSection({ asset, user, embedded = false }) {
+export default function AssetInterfacesSection({ asset, user, embedded = false, navigationState = null }) {
   const canManage = canCreateAssets(user);
   const [interfaces, setInterfaces] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -120,7 +120,7 @@ export default function AssetInterfacesSection({ asset, user, embedded = false }
                   <td>{item.has_active_evidence ? "Activa" : "Solo histórica / ninguna"}</td>
                   <td>
                     <div className="table-actions">
-                      <Link className="button-secondary" to={"/assets/interfaces/" + item.id}>Ver interfaz</Link>
+                      <Link className="button-secondary" to={"/assets/interfaces/" + item.id} state={navigationState}>Ver interfaz</Link>
                       {canManage && (
                         <button type="button" className="button-secondary" disabled={busy}
                           onClick={() => { setPendingUnlink(item); setError(""); }}>

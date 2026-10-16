@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useOutletContext, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useOutletContext, useParams, useSearchParams } from "react-router-dom";
 
 import { createAsset, getAsset, updateAsset } from "../api/assets";
 import AssetForm from "../components/AssetForm";
 import { canCreateAssets, canEditAssets } from "../utils/assetPermissions";
+import { detailStateAfterEdit, getBackNavigation } from "../utils/returnNavigation";
 
 function AssetEditor() {
   const { assetId } = useParams();
   const editing = Boolean(assetId);
   const { user } = useOutletContext();
   const navigate = useNavigate();
+  const location = useLocation();
+  const back = getBackNavigation(location, editing ? "/assets/" + assetId : "/assets");
+  const [dirty, setDirty] = useState(false);
   const [searchParams] = useSearchParams();
   const initialType = searchParams.get("type") === "SOFTWARE" ? "SOFTWARE" : "HARDWARE";
   const initialHardwareId = searchParams.get("hardware_id") || "";
@@ -20,6 +24,10 @@ function AssetEditor() {
   const [loading, setLoading] = useState(editing);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  function confirmLeave(event) {
+    if (saving || (dirty && !window.confirm("Tienes cambios sin guardar. ¿Deseas descartarlos?"))) event.preventDefault();
+  }
 
   useEffect(() => {
     // React Router keeps this page mounted between /assets/:id/edit and
@@ -47,7 +55,7 @@ function AssetEditor() {
     setSaving(true);
     try {
       if (editing && Object.keys(payload).length === 0) {
-        navigate("/assets/" + assetId);
+        navigate("/assets/" + assetId, { state: detailStateAfterEdit(location, assetId) });
         return;
       }
       const saved = editing
@@ -57,6 +65,7 @@ function AssetEditor() {
         && returnToHardware ? payload.hardware_asset_id : null;
       navigate(returnTo ? "/assets/" + returnTo : "/assets/" + saved.id, {
         state: {
+          ...(editing ? detailStateAfterEdit(location, assetId) : { returnTo: back.to, returnState: back.state }),
           notice: returnTo
             ? "Software registrado e instalado correctamente."
             : editing ? "Activo actualizado correctamente." : "Activo registrado correctamente.",
@@ -73,7 +82,7 @@ function AssetEditor() {
     return (
       <section className="page">
         <div className="error-message">No tienes permiso para realizar esta operación.</div>
-        <Link className="button-link" to="/assets">Volver al inventario</Link>
+        <Link className="button-link" to={back.to} state={back.state}>Volver</Link>
       </section>
     );
   }
@@ -100,6 +109,7 @@ function AssetEditor() {
         <span>{editing ? "Editar activo" : "Nuevo activo"}</span>
       </div>
 
+      <Link className="button-secondary assets-back-link" to={back.to} state={back.state} onClick={confirmLeave}>← Volver</Link>
       <header className="page-header">
         <span className="page-eyebrow">ACTIVOS</span>
         <h1>{editing ? "Editar activo" : "Nuevo activo"}</h1>
@@ -114,6 +124,10 @@ function AssetEditor() {
         onSave={save}
         saving={saving}
         error={error}
+        onDirtyChange={setDirty}
+        backTo={back.to}
+        backState={back.state}
+        onBackClick={confirmLeave}
         initialType={initialType}
         initialHardwareId={initialHardwareId}
       />

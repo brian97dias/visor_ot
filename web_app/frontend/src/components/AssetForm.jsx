@@ -78,7 +78,7 @@ function buildPayload(values, original, editing, canEditCriticality) {
   return differences;
 }
 
-function AssetForm({ asset = null, user, onSave, saving, error, initialType = "HARDWARE", initialHardwareId = "" }) {
+function AssetForm({ asset = null, user, onSave, saving, error, initialType = "HARDWARE", initialHardwareId = "", onDirtyChange, backTo, backState, onBackClick }) {
   const editing = Boolean(asset);
   const canEditCriticality = canEditAssetCriticality(user);
   const [values, setValues] = useState(() => initialValues(asset, initialType));
@@ -96,6 +96,10 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
   const [interfaceAssignment, setInterfaceAssignment] = useState(null);
   const [pendingInterface, setPendingInterface] = useState(null);
   const [showCreateSelector, setShowCreateSelector] = useState(false);
+  const dirty = JSON.stringify(values) !== JSON.stringify(initialValues(asset, initialType))
+    || (!editing && hardwareAssetId !== String(initialHardwareId || ""))
+    || (!editing && interfaceAssignment !== null);
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
   useEffect(() => {
     if (editing || values.asset_type !== "SOFTWARE") return;
@@ -509,7 +513,8 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
       {(localError || error) && <div className="error-message assets-form-error">{localError || error}</div>}
 
       <div className="assets-form-actions">
-        <Link className="button-link" to={editing ? "/assets/" + asset.id : "/assets"}>
+        <Link className="button-link" to={backTo || (editing ? "/assets/" + asset.id : "/assets")}
+          state={backState || null} onClick={onBackClick}>
           Cancelar
         </Link>
         <button className="button-primary" type="submit" disabled={saving}>

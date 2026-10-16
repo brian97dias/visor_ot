@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
-import { Link, useOutletContext, useParams } from "react-router-dom";
+import { Link, useLocation, useOutletContext, useParams } from "react-router-dom";
 
 import { getAssets } from "../api/assets";
 import { getInterface, identifyInterface, unlinkInterface } from "../api/interfaces";
 import { canCreateAssets } from "../utils/assetPermissions";
 import SuccessNotice from "../components/SuccessNotice";
+import { getBackNavigation, navigationFromLocation } from "../utils/returnNavigation";
 
 export default function InterfaceDetail() {
   const { interfaceId } = useParams();
   const { user } = useOutletContext();
+  const location = useLocation();
+  const back = getBackNavigation(location, "/assets/interfaces");
   const canManage = canCreateAssets(user);
   const [entry, setEntry] = useState(null);
   const [assets, setAssets] = useState([]);
@@ -60,7 +63,7 @@ export default function InterfaceDetail() {
 
   if (!entry && loading) return <section className="page">Cargando interfaz...</section>;
   if (!entry) return <section className="page"><div className="error-message">{error || "Interfaz no encontrada."}</div>
-    <Link to="/assets/interfaces">Volver a Interfaces</Link></section>;
+    <Link to={back.to} state={back.state}>Volver</Link></section>;
 
   const observations = entry.observations || { count: 0, page: 1, page_size: 25, results: [] };
   const pages = Math.max(1, Math.ceil(observations.count / observations.page_size));
@@ -70,6 +73,7 @@ export default function InterfaceDetail() {
       <div className="breadcrumbs">
         <Link to="/assets/interfaces">Interfaces</Link><span>/</span><span>#{entry.id}</span>
       </div>
+      <Link className="button-secondary assets-back-link" to={back.to} state={back.state}>← Volver</Link>
       <header className="page-header">
         <span className="page-eyebrow">INTERFAZ #{entry.id}</span>
         <h1>{entry.mac || "Sin MAC"}</h1>
@@ -86,7 +90,7 @@ export default function InterfaceDetail() {
           <div><span>IP observadas</span><strong>{entry.observed_ips?.join(", ") || "No observadas"}</strong></div>
           <div><span>Activo relacionado</span>
             <strong>{entry.hardware
-              ? <Link to={"/assets/" + entry.hardware.asset}>{entry.hardware.asset_name}</Link>
+              ? <Link to={"/assets/" + entry.hardware.asset} state={navigationFromLocation(location)}>{entry.hardware.asset_name}</Link>
               : "Sin asociar"}</strong>
           </div>
           <div><span>Rol</span><strong>{entry.hardware?.role || "Sin identificar"}</strong></div>

@@ -9,6 +9,7 @@ export const RELATIONSHIP_FILTERS = Object.freeze({
     { value: "HAS_SOFTWARE", label: "Con software asociado" },
     { value: "NO_SOFTWARE", label: "Sin software asociado" },
     { value: "NO_INTERFACES", label: "Sin interfaces asociadas" },
+    { value: "HAS_INTERFACES", label: "Con interfaces asociadas" },
   ],
   SOFTWARE: [
     { value: "ALL", label: "Todas las vinculaciones" },
@@ -31,6 +32,9 @@ export function matchesRelationshipFilter(asset, assetType, relationshipFilter) 
     }
     if (relationshipFilter === "NO_SOFTWARE") {
       return hasCount(asset, "software_count") && asset.software_count === 0;
+    }
+    if (relationshipFilter === "HAS_INTERFACES") {
+      return hasCount(asset, "interface_count") && asset.interface_count > 0;
     }
     if (relationshipFilter === "NO_INTERFACES") {
       return hasCount(asset, "interface_count") && asset.interface_count === 0;

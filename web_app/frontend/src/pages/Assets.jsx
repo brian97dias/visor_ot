@@ -1,11 +1,13 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { Link, useOutletContext, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useOutletContext, useSearchParams } from "react-router-dom";
 
 import { archiveAsset, exportAssetsExcel, getAssets, restoreAsset } from "../api/assets";
 import SuccessNotice from "../components/SuccessNotice";
 import ConfirmAssetStatusModal from "../components/ConfirmAssetStatusModal";
 import AssetRelationsRow from "../components/AssetRelationsRow";
 import { filterInventoryAssets, RELATIONSHIP_FILTERS } from "../utils/inventoryFilters";
+import { readPositiveInt, updateInventoryParams } from "../utils/inventoryUrlState";
+import { navigationFromLocation } from "../utils/returnNavigation";
 import {
   canArchiveAssets,
   canCreateAssets,
@@ -44,9 +46,14 @@ function AssetRelationshipsSummary({ asset }) {
 function Assets() {
   const { user } = useOutletContext();
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigationState = navigationFromLocation(location);
 
   const assetType = searchParams.get("type") || "ALL";
   const inventoryStatus = searchParams.get("inventory_status") || "ACTIVE";
+  const search = searchParams.get("q") || "";
+  const criticality = searchParams.get("criticality") || "ALL";
+  const expandedAssetId = readPositiveInt(searchParams.get("expanded"), null);
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
@@ -54,21 +61,9 @@ function Assets() {
   const [pendingAsset, setPendingAsset] = useState(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [search, setSearch] = useState("");
-  const [criticality, setCriticality] = useState("ALL");
-  const [relationshipFilter, setRelationshipFilter] = useState("ALL");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [expandedAssetId, setExpandedAssetId] = useState(null);
-
   function changeQueryFilter(name, value) {
-    if (name === "type") setRelationshipFilter("ALL");
-    const next = new URLSearchParams(searchParams);
-    if ((name === "type" && value === "ALL") || (name === "inventory_status" && value === "ACTIVE")) {
-      next.delete(name);
-    } else {
-      next.set(name, value);
-    }
-    setSearchParams(next);
+    setSearchParams(updateInventoryParams(searchParams, name, value),
+      { replace: name === "q" || name === "expanded" });
   }
 
   useEffect(() => {
@@ -82,23 +77,10 @@ function Assets() {
     return () => { active = false; };
   }, [inventoryStatus]);
 
-  // URL navigation may change the asset type without using the dropdown.
-  // Never carry a Hardware-only criterion into a Software listing.
-  useEffect(() => {
-    setRelationshipFilter("ALL");
-  }, [assetType]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, criticality, relationshipFilter, assetType, inventoryStatus]);
-
-  // An expanded row is tied to the current list view, not to a row index.
-  useEffect(() => {
-    setExpandedAssetId(null);
-  }, [search, criticality, relationshipFilter, assetType, inventoryStatus, currentPage]);
-
   const relationshipOptions = RELATIONSHIP_FILTERS[assetType] ||
     [{ value: "ALL", label: "Selecciona Hardware o Software" }];
+  const desiredRelation = searchParams.get("relation") || "ALL";
+  const relationshipFilter = relationshipOptions.some((item) => item.value === desiredRelation) ? desiredRelation : "ALL";
 
   const filtered = useMemo(() => filterInventoryAssets(assets, {
     assetType,
@@ -108,11 +90,8 @@ function Assets() {
   }), [assets, search, criticality, assetType, relationshipFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(readPositiveInt(searchParams.get("page")), totalPages);
   const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-
-  useEffect(() => {
-    setCurrentPage((page) => Math.min(page, totalPages));
-  }, [totalPages]);
 
   async function downloadInventory() {
     if (exporting) return;
@@ -201,7 +180,7 @@ function Assets() {
           <div className="search-box">
             <input type="search" aria-label="Buscar activos"
               placeholder="Buscar nombre, fabricante, modelo, producto, versión o rol..."
-              value={search} onChange={(event) => setSearch(event.target.value)} />
+              value={search} onChange={(event) => changeQueryFilter("q", event.target.value)} />
           </div>
 
           <select className="table-filter-select" aria-label="Filtrar tipo de activo"
@@ -218,14 +197,14 @@ function Assets() {
               : "Filtra las asociaciones registradas en Visor OT"}
             disabled={assetType === "ALL"}
             value={assetType === "ALL" ? "ALL" : relationshipFilter}
-            onChange={(event) => setRelationshipFilter(event.target.value)}>
+            onChange={(event) => changeQueryFilter("relation", event.target.value)}>
             {relationshipOptions.map(({ value, label }) => (
               <option key={value} value={value}>{label}</option>
             ))}
           </select>
 
           <select className="table-filter-select" aria-label="Filtrar criticidad"
-            value={criticality} onChange={(event) => setCriticality(event.target.value)}>
+            value={criticality} onChange={(event) => changeQueryFilter("criticality", event.target.value)}>
             <option value="ALL">Todas las criticidades</option>
             {Object.entries(CRITICALITY_LABELS).map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
@@ -306,8 +285,7 @@ function Assets() {
                           aria-expanded={expandedAssetId === asset.id}
                           aria-controls={expandedAssetId === asset.id
                             ? "asset-relations-" + asset.id : undefined}
-                          onClick={() => setExpandedAssetId((current) =>
-                            current === asset.id ? null : asset.id)}>
+                          onClick={() => changeQueryFilter("expanded", expandedAssetId === asset.id ? "" : asset.id)}>
                           {expandedAssetId === asset.id
                             ? "Ocultar vinculaciones" : "Ver vinculaciones"}
                         </button>
@@ -320,9 +298,9 @@ function Assets() {
                       </td>
                       <td>
                         <div className="table-actions">
-                          <Link className="button-link" to={"/assets/" + asset.id}>Ver</Link>
+                          <Link className="button-link" to={"/assets/" + asset.id} state={navigationState}>Ver</Link>
                           {canEditAssets(user) && (
-                            <Link className="button-link" to={"/assets/" + asset.id + "/edit"}>
+                            <Link className="button-link" to={"/assets/" + asset.id + "/edit"} state={navigationState}>
                               Editar
                             </Link>
                           )}
@@ -340,7 +318,7 @@ function Assets() {
                       </tr>
                       <AssetRelationsRow
                         asset={asset} open={expandedAssetId === asset.id}
-                        canManage={canEditAssets(user)} />
+                        canManage={canEditAssets(user)} navigationState={navigationState} />
                     </Fragment>
                   ))}
                 </tbody>
@@ -352,9 +330,9 @@ function Assets() {
                 <span>Página {currentPage} de {totalPages}</span>
                 <div className="pagination-actions">
                   <button disabled={currentPage === 1}
-                    onClick={() => setCurrentPage((page) => page - 1)}>Anterior</button>
+                    onClick={() => changeQueryFilter("page", currentPage - 1)}>Anterior</button>
                   <button disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage((page) => page + 1)}>Siguiente</button>
+                    onClick={() => changeQueryFilter("page", currentPage + 1)}>Siguiente</button>
                 </div>
               </div>
             )}

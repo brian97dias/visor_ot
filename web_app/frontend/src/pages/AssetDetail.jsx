@@ -4,6 +4,7 @@ import {
 } from "react-router-dom";
 
 import { archiveAsset, getAsset, restoreAsset } from "../api/assets";
+import { getBackNavigation, navigationFromLocation } from "../utils/returnNavigation";
 import SuccessNotice from "../components/SuccessNotice";
 import ConfirmAssetStatusModal from "../components/ConfirmAssetStatusModal";
 import AssetInterfacesSection from "../components/AssetInterfacesSection";
@@ -34,6 +35,8 @@ function AssetDetail() {
   const { user } = useOutletContext();
   const location = useLocation();
   const navigate = useNavigate();
+  const back = getBackNavigation(location, "/assets");
+  const navigationState = navigationFromLocation(location);
   const [asset, setAsset] = useState(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState(location.state?.notice || "");
@@ -51,7 +54,9 @@ function AssetDetail() {
   useEffect(() => {
     if (!location.state?.notice) return;
     setNotice(location.state.notice);
-    navigate(location.pathname, { replace: true, state: null });
+    const preserved = { ...location.state };
+    delete preserved.notice;
+    navigate(location.pathname + location.search, { replace: true, state: preserved });
   }, [location.state, location.pathname, navigate]);
 
   async function confirmInventoryStatusChange() {
@@ -76,7 +81,7 @@ function AssetDetail() {
   if (error && !asset) {
     return <section className="page">
       <div className="error-message">{error}</div>
-      <Link className="button-link" to="/assets">Volver al inventario</Link>
+      <Link className="button-link" to={back.to} state={back.state}>Volver</Link>
     </section>;
   }
 
@@ -91,6 +96,7 @@ function AssetDetail() {
         <Link to="/assets">Inventario</Link><span>/</span><span>#{asset.id}</span>
       </div>
 
+      <Link className="button-secondary assets-back-link" to={back.to} state={back.state}>← Volver</Link>
       <header className="page-header assets-page-heading">
         <div>
           <span className="page-eyebrow">ACTIVO #{asset.id}</span>
@@ -100,7 +106,7 @@ function AssetDetail() {
 
         <div className="table-actions assets-detail-actions">
           {canEditAssets(user) && (
-            <Link className="button-primary assets-primary-link" to={"/assets/" + asset.id + "/edit"}>
+            <Link className="button-primary assets-primary-link" to={"/assets/" + asset.id + "/edit"} state={navigationState}>
               Editar activo
             </Link>
           )}
@@ -163,7 +169,7 @@ function AssetDetail() {
       )}
 
       {asset.software && <SoftwareHistorySection asset={asset} />}
-      {asset.hardware && <AssetInterfacesSection asset={asset} user={user} />}
+      {asset.hardware && <AssetInterfacesSection asset={asset} user={user} navigationState={navigationState} />}
       {asset.hardware && <AssetSoftwareSection asset={asset} user={user} />}
 
       <section className="panel assets-detail-section">

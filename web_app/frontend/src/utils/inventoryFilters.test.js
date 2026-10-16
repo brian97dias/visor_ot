@@ -33,6 +33,10 @@ test("hardware with zero software is distinguished from software-less physical d
   assert.deepEqual(ids(filterInventoryAssets(inventory,
     { assetType: "HARDWARE", relationshipFilter: "NO_SOFTWARE" })), [2, 3]);
 });
+test("hardware with linked interfaces", () => {
+  assert.deepEqual(ids(filterInventoryAssets(inventory,
+    { assetType: "HARDWARE", relationshipFilter: "HAS_INTERFACES" })), [1, 2]);
+});
 test("hardware without interfaces excludes devices with one or more", () => {
   assert.deepEqual(ids(filterInventoryAssets(inventory,
     { assetType: "HARDWARE", relationshipFilter: "NO_INTERFACES" })), [3]);
@@ -72,7 +76,7 @@ test("missing or invalid counts must not masquerade as zero associations", () =>
 });
 test("filter options are specific to each asset type", () => {
   assert.deepEqual(RELATIONSHIP_FILTERS.HARDWARE.map(x => x.value),
-    ["ALL", "HAS_SOFTWARE", "NO_SOFTWARE", "NO_INTERFACES"]);
+    ["ALL", "HAS_SOFTWARE", "NO_SOFTWARE", "NO_INTERFACES", "HAS_INTERFACES"]);
   assert.deepEqual(RELATIONSHIP_FILTERS.SOFTWARE.map(x => x.value),
     ["ALL", "HAS_HARDWARE", "NO_HARDWARE"]);
   assert.equal(matchesRelationshipFilter(

@@ -2196,3 +2196,6 @@ input {
 .asset-relations-toggle { display: block; }
 .assets-relation-counts { display: flex; flex-direction: column; align-items: flex-start; }
 .assets-relationship-filter:disabled { opacity: .65; cursor: not-allowed; }
+
+.assets-back-link { display: inline-flex; width: fit-content; margin-bottom: 14px; align-items: center; text-decoration: none; }
+.assets-back-link:focus-visible { outline: 2px solid #38bdf8; outline-offset: 3px; }
