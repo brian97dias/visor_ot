@@ -101,7 +101,7 @@ export default function AssetImport() {
       {error && <div role="alert" className="error-message">{error}</div>}
       {result && <div className="panel">
         <div className="interface-panel-padding">
-          <h2>Importación finalizada</h2>
+          <h2>Importación finalizada · #{result.import_id}</h2>
           <p>Creados: {result.created.length}. Actualizados: {result.updated.length}.
             Omitidos: {result.skipped.length}.</p>
           <Link to="/assets" className="button-primary">Consultar inventario</Link>

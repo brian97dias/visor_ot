@@ -14,7 +14,7 @@ from rest_framework.test import APIClient
 from openpyxl import Workbook
 
 from .asset_excel import HARDWARE_COLUMNS, SOFTWARE_COLUMNS
-from .models import Asset, Software, SoftwareCorrection, SoftwareInstallation
+from .models import Asset, AssetImportBatch, Software, SoftwareCorrection, SoftwareInstallation
 from .services import register_hardware_asset
 from .software_services import register_installed_software_asset
 
@@ -150,6 +150,13 @@ class ExcelImportTests(TestCase):
         self.assertEqual(self.hw.description, "Anterior")
         added = Asset.objects.get(pk=response.data["created"][0]["id"])
         self.assertEqual(added.replacement_currency, "AUD")
+        audit = AssetImportBatch.objects.get()
+        self.assertEqual(audit.imported_by, self.operator)
+        self.assertEqual(audit.created_count, 1)
+        self.assertEqual(audit.updated_count, 1)
+        self.assertEqual(response.data["import_id"], audit.pk)
+        self.assertEqual(audit.details["updated"][0]["fields"],
+                         ["numero_serie", "impacto_indisponibilidad"])
 
     def test_correction_of_software_version_requires_audit_reason(self):
         blob = xlsx([], [self._sw(version="V19")])
@@ -228,6 +235,7 @@ class ExcelImportTests(TestCase):
         self.assertEqual(result.status_code, 400)
         self.assertFalse(Asset.objects.filter(name="Nuevo hardware").exists())
         self.assertEqual(SoftwareCorrection.objects.count(), 0)
+        self.assertFalse(AssetImportBatch.objects.exists())
 
     def test_analyst_and_anonymous_cannot_import(self):
         blob = xlsx([self._hw()])
@@ -254,3 +262,25 @@ class ExcelImportTests(TestCase):
         book.save(output)
         result = self._preview(output.getvalue())
         self.assertEqual(result.status_code, 400)
+
+
+    def test_same_name_in_source_without_ids_must_be_reviewed(self):
+        first = self._hw(id_visor_ot=None, nombre_activo="PLC copia",
+                         numero_serie="S-A")
+        second = self._hw(id_visor_ot=None, nombre_activo="PLC copia",
+                          numero_serie="S-B")
+        result = self._preview(xlsx([first, second]))
+        self.assertEqual(result.data["summary"]["REVIEW"], 2)
+
+    def test_indian_rupee_cost_import_is_preserved(self):
+        new = self._hw(id_visor_ot=None, nombre_activo="Beckhoff CX1010",
+                       numero_serie="INR-001", moneda="INR",
+                       costo_reposicion=1777)
+        blob = xlsx([new])
+        prev = self._preview(blob).data
+        actions = self._choices(prev)
+        result = self._confirm(blob, prev, actions)
+        self.assertEqual(result.status_code, 200, result.data)
+        asset = Asset.objects.get(pk=result.data["created"][0]["id"])
+        self.assertEqual(asset.replacement_currency, "INR")
+        self.assertEqual(str(asset.replacement_cost), "1777.00")

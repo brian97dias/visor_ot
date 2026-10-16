@@ -269,6 +269,9 @@ def build_plan(rows):
         d, sheet = row["data"], row["sheet"]
         if d.get("id_visor_ot"):
             continue
+        name = _norm(d.get("nombre_activo"))
+        if name:
+            in_file[("NAME", sheet, name)].append(row["key"])
         if sheet == "Hardware":
             serial = _norm(d.get("numero_serie"))
             if serial:
