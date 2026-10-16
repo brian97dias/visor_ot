@@ -83,3 +83,56 @@ class HardwareSoftwareUnlinkView(APIView):
         )
         unlink_software(installation_id=installation.pk, user=request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+class SoftwareHistoryView(APIView):
+    permission_classes = [IsAuthenticated, SoftwareInstallationPermission]
+
+    def get(self, request, asset_id):
+        """Installation history and technical correction audit, read-only."""
+        from .models import Software, SoftwareCorrection
+
+        sw = get_object_or_404(
+            Software.objects.select_related("asset"),
+            pk=asset_id,
+            asset__asset_type=Asset.AssetType.SOFTWARE,
+        )
+        installations = SoftwareInstallation.objects.filter(
+            software=sw
+        ).select_related("hardware__asset", "registered_by", "unlinked_by")
+        corrections = SoftwareCorrection.objects.filter(
+            software=sw
+        ).select_related("changed_by")
+        return Response({
+            "software_asset_id": asset_id,
+            "active_installation_count": installations.filter(
+                unlinked_at__isnull=True
+            ).count(),
+            "installation_history_count": installations.count(),
+            "installations": [
+                {
+                    "id": row.id,
+                    "hardware_asset_id": row.hardware_id,
+                    "hardware_name": row.hardware.asset.name,
+                    "identity_snapshot": row.identity_snapshot,
+                    "registered_at": row.registered_at,
+                    "registered_by": row.registered_by.username,
+                    "unlinked_at": row.unlinked_at,
+                    "unlinked_by": row.unlinked_by.username if row.unlinked_by else None,
+                }
+                for row in installations
+            ],
+            "corrections": [
+                {
+                    "id": change.id,
+                    "changed_at": change.changed_at,
+                    "changed_by": change.changed_by.username,
+                    "reason": change.reason,
+                    "identity_before": change.identity_before,
+                    "identity_after": change.identity_after,
+                    "affected_active_installations": change.affected_active_installations,
+                }
+                for change in corrections
+            ],
+        })

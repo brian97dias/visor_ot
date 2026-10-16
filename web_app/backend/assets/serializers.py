@@ -152,10 +152,6 @@ class AssetCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     "software": "Indica el tipo y producto del software."
                 })
-            if "hardware_asset_id" not in attrs:
-                raise serializers.ValidationError({
-                    "hardware_asset_id": "Selecciona el hardware donde estará instalado el software."
-                })
             if ("hardware" in self.initial_data
                     or "interface_assignment" in self.initial_data):
                 raise serializers.ValidationError({
@@ -170,6 +166,13 @@ class AssetCreateSerializer(serializers.ModelSerializer):
 class AssetUpdateSerializer(serializers.ModelSerializer):
     hardware = HardwareSerializer(required=False)
     software = SoftwareSerializer(required=False)
+    correction_reason = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, max_length=1000,
+    )
+    confirm_shared_correction = serializers.BooleanField(write_only=True, required=False)
+    software_change_type = serializers.ChoiceField(
+        choices=("CORRECTION", "UPGRADE"), write_only=True, required=False,
+    )
 
     class Meta:
         model = Asset
@@ -182,6 +185,9 @@ class AssetUpdateSerializer(serializers.ModelSerializer):
             "replacement_currency",
             "hardware",
             "software",
+            "correction_reason",
+            "confirm_shared_correction",
+            "software_change_type",
         )
 
     def validate(self, attrs):
@@ -194,6 +200,12 @@ class AssetUpdateSerializer(serializers.ModelSerializer):
             if kind == Asset.AssetType.HARDWARE and "software" in self.initial_data:
                 raise serializers.ValidationError({
                     "software": "No puedes editar Software desde un activo Hardware."
+                })
+            if kind == Asset.AssetType.HARDWARE and any(key in self.initial_data for key in (
+                "correction_reason", "confirm_shared_correction", "software_change_type"
+            )):
+                raise serializers.ValidationError({
+                    "software": "Las correcciones de Software no aplican a Hardware."
                 })
             if kind == Asset.AssetType.SOFTWARE and "hardware" in self.initial_data:
                 raise serializers.ValidationError({
