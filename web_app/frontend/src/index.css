@@ -2072,3 +2072,15 @@ input {
     .software-install-modes { flex-direction: column; }
     .software-combobox { max-width: none; }
 }
+
+/* Software inventory technical correction confirmation */
+.software-correction-section { border-top: 1px solid #334155; }
+.software-correction-confirm {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    color: #cbd5e1;
+    margin: 10px 0;
+    line-height: 1.5;
+}
+.software-correction-confirm input { flex: none; margin-top: 4px; }

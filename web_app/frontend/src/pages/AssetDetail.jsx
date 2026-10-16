@@ -8,6 +8,7 @@ import SuccessNotice from "../components/SuccessNotice";
 import ConfirmAssetStatusModal from "../components/ConfirmAssetStatusModal";
 import AssetInterfacesSection from "../components/AssetInterfacesSection";
 import AssetSoftwareSection from "../components/AssetSoftwareSection";
+import SoftwareHistorySection from "../components/SoftwareHistorySection";
 import {
   canArchiveAssets,
   canEditAssets,
@@ -155,11 +156,13 @@ function AssetDetail() {
             <Field label="Versión" value={asset.software.version} />
           </div>
           <div className="interface-panel-padding interface-hint">
-            Las instalaciones de software en hardware se gestionarán en el incremento 3.
+            Este registro puede existir sin hardware. Las asociaciones se gestionan
+            desde Software instalado en los dispositivos hardware.
           </div>
         </section>
       )}
 
+      {asset.software && <SoftwareHistorySection asset={asset} />}
       {asset.hardware && <AssetInterfacesSection asset={asset} user={user} />}
       {asset.hardware && <AssetSoftwareSection asset={asset} user={user} />}
 
