@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test:unit": "node --test src/utils/softwareUi.test.js",
+    "test:unit": "node --test src/utils/softwareUi.test.js src/utils/hardwareAssociation.test.js",
     "lint": "oxlint",
     "preview": "vite preview"
   },
