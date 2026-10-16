@@ -95,3 +95,24 @@ export function unlinkInstalledSoftware(hardwareAssetId, installationId) {
 export function getSoftwareHistory(softwareAssetId) {
   return requestAssets("/api/assets/" + softwareAssetId + "/software-history/");
 }
+
+
+/** Reciprocal Software -> Hardware installation management. */
+export function getHardwareForSoftware(softwareAssetId) {
+  return requestAssets("/api/assets/" + softwareAssetId + "/hardware-installations/");
+}
+
+export function associateHardwareToSoftware(softwareAssetId, hardwareAssetId) {
+  return requestAssets("/api/assets/" + softwareAssetId + "/hardware-installations/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ hardware_asset_id: hardwareAssetId }),
+  });
+}
+
+export function unlinkHardwareFromSoftware(softwareAssetId, installationId) {
+  return requestAssets(
+    "/api/assets/" + softwareAssetId + "/hardware-installations/" + installationId + "/",
+    { method: "DELETE" },
+  );
+}
