@@ -190,7 +190,6 @@ export default function AssetRelationsRow({ asset, open, canManage }) {
               </p>
             </div>
             <div className="table-actions">
-              <Link className="button-secondary" to={"/assets/" + asset.id}>Ver detalle</Link>
               {canManage && asset.inventory_status === "ACTIVE" && (
                 <Link className="button-secondary" to={"/assets/" + asset.id + "/edit"}>
                   Gestionar asociaciones
