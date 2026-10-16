@@ -102,6 +102,7 @@ function InterfaceLinks({ value, onPage, loading, error }) {
               );
             })}
           </ul>
+          {loading && <p className="interface-hint" role="status">Cargando página de interfaces...</p>}
           {error && <p className="error-message" role="alert">{error}</p>}
           {totalPages > 1 && (
             <div className="asset-relation-pages">
@@ -202,7 +203,7 @@ export default function AssetRelationsRow({ asset, open, canManage }) {
                   setInterfaceError("");
                   setRevision((value) => value + 1);
                 }}>
-                Actualizar
+                Recargar vinculaciones
               </button>
             </div>
           </div>
