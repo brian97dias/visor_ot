@@ -118,29 +118,57 @@ def parse_workbook(file_bytes):
             for sheet_name in ("Hardware", "Software"):
                 sheet = workbook[sheet_name]
                 expected = [col[0] for col in COLUMNS[sheet_name]]
-                if sheet.max_column > len(expected):
-                    raise ValidationError({
-                        "file": f"{sheet_name}: contiene columnas adicionales no admitidas."
-                    })
-                if sheet.max_row > MAX_ROWS + 1:
-                    raise ValidationError({
-                        "file": f"{sheet_name}: máximo {MAX_ROWS} filas de activos."
-                    })
-                header = [_as_text(cell) for cell in next(
-                    sheet.iter_rows(min_row=1, max_row=1, max_col=len(expected),
-                                    values_only=True), ()
-                )]
-                if header != expected:
-                    raise ValidationError({
-                        "file": f"{sheet_name}: encabezados o orden de columnas incorrectos."
-                    })
-                for row_num, values in enumerate(sheet.iter_rows(
-                    min_row=2, max_col=len(expected), values_only=True
-                ), start=2):
-                    if all(v is None or str(v).strip() == "" for v in values):
+                # XLSX dimensions can include thousands of *formatted but
+                # empty* rows/columns. max_row / max_column cannot be used as
+                # the count of assets, nor as an indicator of extra data.
+                #
+                # The exporter puts headers on row 1. Earlier research
+                # templates placed them on row 5; keep both interoperable.
+                # Ignore decorative rows before the header and count only
+                # rows that have at least one non-empty value afterwards.
+                sheet.reset_dimensions()
+                header_row = None
+                sheet_count = 0
+                for row_num, values in enumerate(
+                    sheet.iter_rows(min_row=1, max_col=len(expected),
+                                    values_only=True),
+                    start=1,
+                ):
+                    # Streaming guard against absurd formatting ranges (or
+                    # malicious documents). A sheet with >20,000 rows must be
+                    # reduced before importing, even if most are styled only.
+                    if row_num > 20000:
+                        raise ValidationError({
+                            "file": (
+                                f"{sheet_name}: demasiadas filas de formato. "
+                                "Elimina el rango sobrante y vuelve a exportar."
+                            )
+                        })
+                    if header_row is None:
+                        header = [_as_text(value) for value in values]
+                        if header == expected:
+                            header_row = row_num
+                        elif row_num >= 5:
+                            raise ValidationError({
+                                "file": (
+                                    f"{sheet_name}: encabezados incorrectos. "
+                                    "Se esperan en la fila 1 o 5."
+                                )
+                            })
                         continue
-                    row = {"sheet": sheet_name, "row": row_num, "key": f"{sheet_name}:{row_num}",
-                           "data": {}, "errors": []}
+
+                    if all(value is None or str(value).strip() == "" for value in values):
+                        continue
+                    sheet_count += 1
+                    if sheet_count > MAX_ROWS or len(result) >= MAX_ROWS:
+                        raise ValidationError({
+                            "file": f"{sheet_name}: máximo {MAX_ROWS} activos con datos."
+                        })
+                    row = {
+                        "sheet": sheet_name, "row": row_num,
+                        "key": f"{sheet_name}:{row_num}",
+                        "data": {}, "errors": [],
+                    }
                     for column, raw in zip(expected, values):
                         try:
                             if isinstance(raw, str) and raw.startswith("="):
@@ -150,8 +178,10 @@ def parse_workbook(file_bytes):
                             row["data"][column] = None
                             row["errors"].append(f"{column}: {error}")
                     result.append(row)
-            if len(result) > MAX_ROWS:
-                raise ValidationError({"file": f"Máximo {MAX_ROWS} registros por archivo."})
+                if header_row is None:
+                    raise ValidationError({
+                        "file": f"{sheet_name}: no se encontraron los encabezados esperados."
+                    })
             return result
         finally:
             workbook.close()
