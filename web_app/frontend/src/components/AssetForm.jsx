@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getAssets } from "../api/assets";
+import { getAssets, getSoftwareHistory } from "../api/assets";
 import AssetSoftwareSection from "./AssetSoftwareSection";
 import SoftwareFields from "./SoftwareFields";
 import { Link } from "react-router-dom";
@@ -85,6 +85,11 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
   const [hardwareChoices, setHardwareChoices] = useState([]);
   const [loadingHardware, setLoadingHardware] = useState(false);
   const [hardwareError, setHardwareError] = useState("");
+  const [softwareHistory, setSoftwareHistory] = useState(null);
+  const [historyError, setHistoryError] = useState("");
+  const [correctionReason, setCorrectionReason] = useState("");
+  const [confirmShared, setConfirmShared] = useState(false);
+  const [softwareChangeType, setSoftwareChangeType] = useState("CORRECTION");
   const [localError, setLocalError] = useState("");
   const [interfaceAssignment, setInterfaceAssignment] = useState(null);
   const [pendingInterface, setPendingInterface] = useState(null);
@@ -103,6 +108,20 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
       .finally(() => { if (active) setLoadingHardware(false); });
     return () => { active = false; };
   }, [editing, values.asset_type]);
+
+  useEffect(() => {
+    if (!editing || asset.asset_type !== "SOFTWARE") return;
+    let active = true;
+    getSoftwareHistory(asset.id)
+      .then((info) => { if (active) setSoftwareHistory(info); })
+      .catch((err) => { if (active) setHistoryError(err.message); });
+    return () => { active = false; };
+  }, [asset?.id, asset?.asset_type, editing]);
+
+  const technicalChanged = editing && values.asset_type === "SOFTWARE"
+    && ["software_type", "manufacturer", "product", "version"].some(
+      (field) => values.software[field].trim() !== String(asset?.software?.[field] || "").trim()
+    );
 
   function change(field, value) {
     setValues((current) => ({ ...current, [field]: value }));
@@ -136,14 +155,37 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
     }
 
     const payload = buildPayload(values, asset, editing, canEditCriticality);
-    if (!editing && values.asset_type === "SOFTWARE") {
-      if (!hardwareAssetId || !hardwareChoices.some(
-        (item) => item.id === Number(hardwareAssetId)
-      )) {
-        setLocalError("Selecciona un hardware activo donde instalar el software.");
+    if (!editing && values.asset_type === "SOFTWARE" && hardwareAssetId) {
+      if (!hardwareChoices.some((item) => item.id === Number(hardwareAssetId))) {
+        setLocalError("El hardware seleccionado no está disponible.");
         return;
       }
       payload.hardware_asset_id = Number(hardwareAssetId);
+    }
+    if (editing && values.asset_type === "SOFTWARE" && technicalChanged) {
+      if (softwareChangeType === "UPGRADE") {
+        setLocalError("Para una actualización real, registra otra variante y reasigna el hardware.");
+        return;
+      }
+      if (!correctionReason.trim()) {
+        setLocalError("Explica el motivo de la corrección técnica.");
+        return;
+      }
+      if (historyError) {
+        setLocalError("No se pudo consultar el historial. Intenta recargar antes de corregir.");
+        return;
+      }
+      if (!softwareHistory) {
+        setLocalError("Espera mientras consultamos el historial de instalaciones.");
+        return;
+      }
+      if (softwareHistory.active_installation_count > 1 && !confirmShared) {
+        setLocalError("Confirma la corrección compartida con los hardware relacionados.");
+        return;
+      }
+      payload.correction_reason = correctionReason.trim();
+      payload.confirm_shared_correction = confirmShared;
+      payload.software_change_type = "CORRECTION";
     }
     if (!editing && values.asset_type === "HARDWARE" && interfaceAssignment) {
       if (interfaceAssignment.mode === "MANUAL" &&
@@ -324,17 +366,17 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
 
       {values.asset_type === "SOFTWARE" && !editing && (
         <div className="assets-form-section">
-          <h2>Hardware donde se instalará *</h2>
+          <h2>Hardware donde se instalará</h2>
           <p className="interface-hint">
-            El software debe registrarse con una primera instalación en un hardware
-            activo. Podrás asociarlo a otros dispositivos más adelante.
+            Opcional. Puedes registrar el software sin un hardware asociado
+            y vincularlo posteriormente desde el hardware correspondiente.
           </p>
           <div className="assets-field">
-            <label htmlFor="software-hardware">Hardware de destino *</label>
-            <select id="software-hardware" required disabled={loadingHardware || saving}
+            <label htmlFor="software-hardware">Hardware de destino (opcional)</label>
+            <select id="software-hardware" disabled={loadingHardware || saving}
               value={hardwareAssetId}
               onChange={(event) => setHardwareAssetId(event.target.value)}>
-              <option value="">Selecciona un hardware del inventario</option>
+              <option value="">Sin asociar por ahora</option>
               {hardwareChoices.map((item) => (
                 <option value={item.id} key={item.id}>
                   {item.name} · {item.hardware?.manufacturer || "Fabricante desconocido"}
@@ -345,9 +387,63 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
             {loadingHardware && <small>Cargando hardware...</small>}
             {hardwareError && <small role="alert">{hardwareError}</small>}
             {!loadingHardware && !hardwareError && hardwareChoices.length === 0 && (
-              <small>No hay hardware disponible. Registra un hardware primero.</small>
+              <small>No hay hardware disponible; puedes registrar el software sin asociarlo.</small>
             )}
           </div>
+        </div>
+      )}
+
+      {editing && values.asset_type === "SOFTWARE" && technicalChanged && (
+        <div className="assets-form-section software-correction-section">
+          <h2>Corrección de datos técnicos</h2>
+          <p className="interface-hint">
+            ¿Estás corrigiendo un dato que se registró incorrectamente o
+            registrando una actualización real del firmware?
+          </p>
+          <div className="assets-field">
+            <label htmlFor="software-change-type">Tipo de modificación</label>
+            <select id="software-change-type" value={softwareChangeType}
+              disabled={saving}
+              onChange={(event) => setSoftwareChangeType(event.target.value)}>
+              <option value="CORRECTION">Corregir información del inventario</option>
+              <option value="UPGRADE">Actualización real de software</option>
+            </select>
+          </div>
+          {softwareChangeType === "UPGRADE" ? (
+            <p className="interface-hint">
+              Una actualización real requiere una nueva variante. Conserva esta
+              versión y registra otra desde el inventario; después traslada
+              la instalación en el hardware correspondiente.
+            </p>
+          ) : (
+            <>
+              <div className="assets-field">
+                <label htmlFor="software-correction-reason">Motivo de la corrección *</label>
+                <textarea id="software-correction-reason" rows={2}
+                  maxLength={1000} disabled={saving}
+                  value={correctionReason}
+                  placeholder="Ej. Error de transcripción de la versión"
+                  onChange={(event) => setCorrectionReason(event.target.value)} />
+              </div>
+              {softwareHistory && (
+                <p className="interface-hint">
+                  Instalaciones vigentes: {softwareHistory.active_installation_count}.
+                  Registros históricos: {softwareHistory.installation_history_count}.
+                  Las identidades registradas anteriormente se conservarán.
+                </p>
+              )}
+              {historyError && <p className="error-message">{historyError}</p>}
+              {softwareHistory?.active_installation_count > 1 && (
+                <label className="software-correction-confirm">
+                  <input type="checkbox" checked={confirmShared}
+                    disabled={saving}
+                    onChange={(event) => setConfirmShared(event.target.checked)} />
+                  <span>Confirmo que el dato estaba incorrecto para todos los
+                    hardware que comparten esta variante.</span>
+                </label>
+              )}
+            </>
+          )}
         </div>
       )}
 

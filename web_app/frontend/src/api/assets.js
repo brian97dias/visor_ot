@@ -91,3 +91,7 @@ export function unlinkInstalledSoftware(hardwareAssetId, installationId) {
     { method: "DELETE" },
   );
 }
+
+export function getSoftwareHistory(softwareAssetId) {
+  return requestAssets("/api/assets/" + softwareAssetId + "/software-history/");
+}
