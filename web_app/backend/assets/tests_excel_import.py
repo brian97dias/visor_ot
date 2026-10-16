@@ -293,3 +293,62 @@ class ExcelImportTests(TestCase):
         self.assertEqual(result.status_code, 200, result.data)
         self.assertEqual(result.data["summary"]["ERROR"], 1)
         self.assertIn("formato Texto", str(result.data["rows"][0]["messages"]))
+
+
+    def test_sparse_hardware_sheet_with_excel_last_row_marker(self):
+        """A huge declared dimension must not mean a million inventory rows."""
+        from openpyxl import load_workbook
+
+        base = xlsx([self._hw()], [self._sw()])
+        wb = load_workbook(BytesIO(base))
+        sheet = wb["Hardware"]
+        sheet.row_dimensions[1048575].height = 12.8
+        sheet.row_dimensions[1048576].height = 12.8
+        # A formatted extra column must not be interpreted as real data.
+        sheet["R2"].number_format = "@"
+        output = BytesIO()
+        wb.save(output)
+        wb.close()
+        data = output.getvalue()
+
+        result = self._preview(data)
+        self.assertEqual(result.status_code, 200, result.data)
+        self.assertEqual(len(result.data["rows"]), 2)
+        self.assertEqual(result.data["summary"]["UPDATE"], 1)
+        self.assertEqual(result.data["summary"]["SAME"], 1)
+        self.assertEqual(result.data["rows"][0]["row"], 2)
+
+    def test_previews_legacy_template_with_header_in_row_five(self):
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        hw = wb.active
+        hw.title = "Hardware"
+        sw = wb.create_sheet("Software")
+        for worksheet, columns, values in (
+            (hw, HARDWARE_COLUMNS, self._hw()),
+            (sw, SOFTWARE_COLUMNS, self._sw()),
+        ):
+            headers = [key for key, _ in columns]
+            for i, header in enumerate(headers, start=1):
+                worksheet.cell(row=5, column=i, value=header)
+                if values.get(header) is not None:
+                    worksheet.cell(row=6, column=i, value=values[header])
+        output = BytesIO()
+        wb.save(output)
+        wb.close()
+
+        result = self._preview(output.getvalue())
+        self.assertEqual(result.status_code, 200, result.data)
+        self.assertEqual(len(result.data["rows"]), 2)
+        self.assertEqual([r["key"] for r in result.data["rows"]],
+                         ["Hardware:6", "Software:6"])
+
+    def test_more_than_five_hundred_populated_rows_still_rejected(self):
+        entries = [
+            {"nombre_activo": f"Dispositivo {index}", "rol": "PLC"}
+            for index in range(501)
+        ]
+        result = self._preview(xlsx(entries))
+        self.assertEqual(result.status_code, 400)
+        self.assertIn("500 activos con datos", str(result.data))
