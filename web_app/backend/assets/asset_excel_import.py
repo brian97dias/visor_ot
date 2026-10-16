@@ -9,6 +9,7 @@ from collections import Counter, defaultdict
 from decimal import Decimal, InvalidOperation
 from hashlib import sha256
 from io import BytesIO
+from zipfile import ZipFile, BadZipFile
 import json
 
 from django.core import signing
@@ -92,6 +93,13 @@ def parse_workbook(file_bytes):
     if not file_bytes.startswith(b"PK"):
         raise ValidationError({"file": "Selecciona un archivo XLSX válido."})
     try:
+        with ZipFile(BytesIO(file_bytes)) as archive:
+            # Bound decompression before openpyxl parses shared strings/XML.
+            if sum(item.file_size for item in archive.infolist()) > 20 * 1024 * 1024:
+                raise ValidationError({"file": "El Excel descomprimido supera 20 MB."})
+    except (BadZipFile, OSError) as error:
+        raise ValidationError({"file": "El archivo no es un XLSX válido."}) from error
+    try:
         from openpyxl import load_workbook
         workbook = load_workbook(BytesIO(file_bytes), read_only=True, data_only=False)
         try:
@@ -103,6 +111,10 @@ def parse_workbook(file_bytes):
             for sheet_name in ("Hardware", "Software"):
                 sheet = workbook[sheet_name]
                 expected = [col[0] for col in COLUMNS[sheet_name]]
+                if sheet.max_column > len(expected):
+                    raise ValidationError({
+                        "file": f"{sheet_name}: contiene columnas adicionales no admitidas."
+                    })
                 if sheet.max_row > MAX_ROWS + 1:
                     raise ValidationError({
                         "file": f"{sheet_name}: máximo {MAX_ROWS} filas de activos."
