@@ -410,14 +410,16 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
             </select>
           </div>
           {softwareChangeType === "UPGRADE" ? (
-            <p className="interface-hint">
-              Una actualización real requiere una nueva variante. Conserva esta
-              versión y registra otra desde el inventario; después traslada
-              la instalación en el hardware correspondiente.
-            </p>
-            <Link className="button-secondary" to="/assets/new?type=SOFTWARE">
-              Registrar nueva variante
-            </Link>
+            <>
+              <p className="interface-hint">
+                Una actualización real requiere una nueva variante. Conserva esta
+                versión y registra otra desde el inventario; después traslada
+                la instalación en el hardware correspondiente.
+              </p>
+              <Link className="button-secondary" to="/assets/new?type=SOFTWARE">
+                Registrar nueva variante
+              </Link>
+            </>
           ) : (
             <>
               <div className="assets-field">

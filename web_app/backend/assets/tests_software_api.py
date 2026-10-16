@@ -106,7 +106,7 @@ class SoftwareAssetAPITests(TestCase):
         self.assertEqual(updated.status_code, 200, updated.data)
         self.assertEqual(updated.data["software"]["product"], "TIA Portal")
         self.assertEqual(updated.data["software"]["version"], "V19")
-        self.assertEqual(updated.data["description"], "Version actualizada")
+        self.assertEqual(updated.data["description"], "Version corregida")
 
     def test_patch_shared_variant_cannot_change_version(self):
         software = self.client.post("/api/assets/", self.payload(), format="json").data
