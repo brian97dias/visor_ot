@@ -105,12 +105,12 @@ class SoftwarePayloadTests(SimpleTestCase):
         self.assertFalse(serializer.is_valid())
         self.assertIn("asset_type", serializer.errors)
 
-    def test_missing_first_hardware_is_rejected(self):
+    def test_software_without_hardware_is_a_valid_inventory_entry(self):
         payload = self.software_payload()
         payload.pop("hardware_asset_id")
         serializer = AssetCreateSerializer(data=payload)
-        self.assertFalse(serializer.is_valid())
-        self.assertIn("hardware_asset_id", serializer.errors)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertNotIn("hardware_asset_id", serializer.validated_data)
 
     def test_hardware_id_must_be_positive(self):
         serializer = AssetCreateSerializer(

@@ -216,7 +216,9 @@ class SoftwareDomainTests(TestCase):
     def test_version_can_change_before_any_installation(self):
         sw = self.register()
         update_software_asset(
-            asset_id=sw.pk, data={"software": {"version": "V19"}},
+            asset_id=sw.pk,
+            data={"software": {"version": "V19"},
+                  "correction_reason": "Versión registrada incorrectamente"},
             user=self.operator,
         )
         sw.refresh_from_db()
@@ -255,3 +257,120 @@ class SoftwareDomainTests(TestCase):
         with self.assertRaises(ValidationError):
             self.register(software_type="INVALID")
         self.assertEqual(Asset.objects.count(), 0)
+
+
+    def test_correction_after_unlink_preserves_snapshot_and_creates_audit(self):
+        from .models import SoftwareCorrection
+        sw, eng = self.register(), self.hardware("ENG-01")
+        inst = associate_software(
+            software_id=sw.pk, hardware_asset_id=eng.pk, user=self.operator,
+        )
+        unlink_software(installation_id=inst.pk, user=self.operator)
+        update_software_asset(
+            asset_id=sw.pk,
+            data={
+                "software": {"version": "V19"},
+                "correction_reason": "Versión anterior mal transcrita",
+            },
+            user=self.operator,
+        )
+        inst.refresh_from_db()
+        sw.refresh_from_db()
+        self.assertEqual(sw.software.version, "V19")
+        self.assertEqual(inst.identity_snapshot["version"], "V18")
+        change = SoftwareCorrection.objects.get(software_id=sw.pk)
+        self.assertEqual(change.reason, "Versión anterior mal transcrita")
+        self.assertEqual(change.identity_before["version"], "V18")
+        self.assertEqual(change.identity_after["version"], "V19")
+        self.assertEqual(change.affected_active_installations, 0)
+
+    def test_correction_preserves_current_installation_snapshot(self):
+        from .models import SoftwareCorrection
+        sw, eng = self.register(), self.hardware("ENG-01")
+        inst = associate_software(
+            software_id=sw.pk, hardware_asset_id=eng.pk, user=self.operator,
+        )
+        update_software_asset(
+            asset_id=sw.pk,
+            data={"software": {"product": "TIA Portal corregido"},
+                  "correction_reason": "Error de captura"},
+            user=self.operator,
+        )
+        inst.refresh_from_db()
+        self.assertEqual(inst.identity_snapshot["product"], "TIA Portal")
+        self.assertEqual(SoftwareCorrection.objects.get().affected_active_installations, 1)
+
+    def test_multiple_active_installations_need_explicit_confirmation(self):
+        from .models import SoftwareCorrection
+        sw = self.register()
+        for name in ("ENG-01", "ENG-02"):
+            eng = self.hardware(name)
+            associate_software(
+                software_id=sw.pk, hardware_asset_id=eng.pk, user=self.operator,
+            )
+        with self.assertRaises(ValidationError):
+            update_software_asset(
+                asset_id=sw.pk,
+                data={"software": {"version": "V18.1"},
+                      "correction_reason": "Corrección revisada"},
+                user=self.operator,
+            )
+        self.assertEqual(SoftwareCorrection.objects.count(), 0)
+        update_software_asset(
+            asset_id=sw.pk,
+            data={"software": {"version": "V18.1"},
+                  "correction_reason": "Corrección revisada",
+                  "confirm_shared_correction": True},
+            user=self.operator,
+        )
+        self.assertEqual(SoftwareCorrection.objects.get().affected_active_installations, 2)
+        self.assertEqual(sw.software.installations.filter(
+            unlinked_at__isnull=True
+        ).count(), 2)
+
+    def test_upgrade_never_overwrites_an_existing_variant(self):
+        sw = self.register()
+        with self.assertRaises(ValidationError):
+            update_software_asset(
+                asset_id=sw.pk,
+                data={"software": {"version": "V19"},
+                      "software_change_type": "UPGRADE",
+                      "correction_reason": "Actualización real"},
+                user=self.operator,
+            )
+        sw.refresh_from_db()
+        self.assertEqual(sw.software.version, "V18")
+
+    def test_correction_does_not_create_duplicate_known_variant(self):
+        from .models import SoftwareCorrection
+        sw_v18 = self.register()
+        sw_v19 = self.register(name="TIA Portal V19", version="V19")
+        with self.assertRaises(ValidationError):
+            update_software_asset(
+                asset_id=sw_v18.pk,
+                data={"software": {"version": "V19"},
+                      "correction_reason": "Error de inventario"},
+                user=self.operator,
+            )
+        self.assertEqual(SoftwareCorrection.objects.count(), 0)
+        self.assertEqual(sw_v19.software.version, "V19")
+        self.assertEqual(sw_v18.software.version, "V18")
+
+    def test_reinstallation_uses_corrected_identity_snapshot(self):
+        sw, eng = self.register(), self.hardware("ENG-01")
+        first = associate_software(
+            software_id=sw.pk, hardware_asset_id=eng.pk, user=self.operator,
+        )
+        unlink_software(installation_id=first.pk, user=self.operator)
+        update_software_asset(
+            asset_id=sw.pk,
+            data={"software": {"version": "V19"},
+                  "correction_reason": "Error de transcripción"},
+            user=self.operator,
+        )
+        newer = associate_software(
+            software_id=sw.pk, hardware_asset_id=eng.pk, user=self.operator,
+        )
+        first.refresh_from_db()
+        self.assertEqual(first.identity_snapshot["version"], "V18")
+        self.assertEqual(newer.identity_snapshot["version"], "V19")

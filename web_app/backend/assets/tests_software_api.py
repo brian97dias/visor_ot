@@ -99,7 +99,8 @@ class SoftwareAssetAPITests(TestCase):
         asset_id = response.data["id"]
         updated = self.client.patch(
             f"/api/assets/{asset_id}/",
-            {"software": {"version": "V19"}, "description": "Version actualizada"},
+            {"software": {"version": "V19"}, "description": "Version corregida",
+             "correction_reason": "Error en el registro de la versión"},
             format="json",
         )
         self.assertEqual(updated.status_code, 200, updated.data)
@@ -175,12 +176,14 @@ class SoftwareAssetAPITests(TestCase):
         self.assertEqual(restored.data["inventory_status"], "ACTIVE")
 
 
-    def test_missing_host_is_rejected_without_creating_software(self):
+    def test_software_may_be_registered_without_a_hardware(self):
         payload = self.payload()
         payload.pop("hardware_asset_id")
         response = self.client.post("/api/assets/", payload, format="json")
-        self.assertEqual(response.status_code, 400, response.data)
-        self.assertFalse(Software.objects.exists())
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(Software.objects.count(), 1)
+        from .models import SoftwareInstallation
+        self.assertFalse(SoftwareInstallation.objects.exists())
 
     def test_missing_hardware_target_rolls_back_entire_registration(self):
         payload = self.payload()
@@ -250,3 +253,73 @@ class SoftwareAssetAPITests(TestCase):
             format="json",
         )
         self.assertEqual(attempt.status_code, 400)
+
+
+    def test_correction_history_endpoint_includes_unlinked_installation(self):
+        from .models import SoftwareCorrection
+        created = self.client.post("/api/assets/", self.payload(), format="json")
+        asset_id = created.data["id"]
+        url = f"/api/assets/{self.host.pk}/software-installations/"
+        inst_id = self.client.get(url).data["results"][0]["id"]
+        self.assertEqual(
+            self.client.delete(url + str(inst_id) + "/").status_code, 204
+        )
+        patch = self.client.patch(
+            f"/api/assets/{asset_id}/",
+            {"software": {"version": "V19"},
+             "correction_reason": "Error inicial de captura"},
+            format="json",
+        )
+        self.assertEqual(patch.status_code, 200, patch.data)
+        history = self.client.get(f"/api/assets/{asset_id}/software-history/")
+        self.assertEqual(history.status_code, 200, history.data)
+        self.assertEqual(history.data["active_installation_count"], 0)
+        self.assertEqual(history.data["installation_history_count"], 1)
+        self.assertEqual(history.data["installations"][0]["identity_snapshot"]["version"], "V18")
+        self.assertEqual(history.data["corrections"][0]["identity_after"]["version"], "V19")
+        self.assertEqual(SoftwareCorrection.objects.count(), 1)
+
+    def test_upgrade_request_is_rejected_and_identity_unchanged(self):
+        created = self.client.post("/api/assets/", self.payload(), format="json")
+        asset_id = created.data["id"]
+        response = self.client.patch(
+            f"/api/assets/{asset_id}/",
+            {"software": {"version": "V19"},
+             "software_change_type": "UPGRADE",
+             "correction_reason": "Se actualizó la máquina"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertEqual(Software.objects.get(pk=asset_id).version, "V18")
+
+    def test_multiple_installations_require_confirmation_for_correction(self):
+        created = self.client.post("/api/assets/", self.payload(), format="json")
+        second = self.client.post("/api/assets/", {
+            "name": "ENG-02", "asset_type": "HARDWARE",
+            "hardware": {"role": "PLC"},
+        }, format="json")
+        self.assertEqual(second.status_code, 201, second.data)
+        self.assertEqual(self.client.post(
+            f"/api/assets/{second.data['id']}/software-installations/",
+            {"software_asset_id": created.data["id"]}, format="json",
+        ).status_code, 201)
+        url = f"/api/assets/{created.data['id']}/"
+        without = self.client.patch(
+            url, {"software": {"version": "V18.1"},
+                  "correction_reason": "Dato mal capturado"}, format="json",
+        )
+        self.assertEqual(without.status_code, 400)
+        with_confirmation = self.client.patch(
+            url, {"software": {"version": "V18.1"},
+                  "correction_reason": "Dato mal capturado",
+                  "confirm_shared_correction": True}, format="json",
+        )
+        self.assertEqual(with_confirmation.status_code, 200, with_confirmation.data)
+
+    def test_metadata_edit_works_without_correction_reason(self):
+        created = self.client.post("/api/assets/", self.payload(), format="json")
+        response = self.client.patch(
+            f"/api/assets/{created.data['id']}/",
+            {"description": "Solo cambió la descripción"}, format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
