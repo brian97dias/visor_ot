@@ -2084,3 +2084,21 @@ input {
     line-height: 1.5;
 }
 .software-correction-confirm input { flex: none; margin-top: 4px; }
+
+
+/* Excel inventory preview: each row is reviewed individually before commit. */
+.asset-import-row { margin: 12px 0; }
+.asset-import-row .panel-header h3 { margin: 0; font-size: 1rem; }
+.asset-import-row .panel-header p { margin: 4px 0 0; color: #94a3b8; font-size: .85rem; }
+.asset-import-summary { display: flex; flex-wrap: wrap; gap: 12px; }
+.asset-import-summary span { background: #14283a; border: 1px solid #334155;
+    border-radius: 6px; padding: 9px 12px; color: #cbd5e1; }
+.asset-import-warning { color: #fbbf24; overflow-wrap: anywhere; }
+.asset-import-action { display: flex; flex-direction: column; gap: 7px; padding-top: 12px;
+    color: #cbd5e1; font-size: .88rem; max-width: 400px; }
+.asset-import-action select { background: #0f172a; border: 1px solid #334155;
+    border-radius: 5px; color: #e2e8f0; padding: 10px; }
+.asset-import-correction { padding-top: 16px; display: flex; gap: 8px;
+    flex-direction: column; max-width: 720px; }
+.asset-import-correction textarea { background: #0f172a; color: #e2e8f0;
+    border: 1px solid #334155; border-radius: 5px; padding: 10px; }
