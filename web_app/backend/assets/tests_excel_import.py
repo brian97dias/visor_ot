@@ -284,3 +284,12 @@ class ExcelImportTests(TestCase):
         asset = Asset.objects.get(pk=result.data["created"][0]["id"])
         self.assertEqual(asset.replacement_currency, "INR")
         self.assertEqual(str(asset.replacement_cost), "1777.00")
+
+
+    def test_long_numeric_serial_requires_text_cell(self):
+        row = self._hw(id_visor_ot=None, nombre_activo="Router nuevo",
+                       numero_serie=12345678901234567)
+        result = self._preview(xlsx([row]))
+        self.assertEqual(result.status_code, 200, result.data)
+        self.assertEqual(result.data["summary"]["ERROR"], 1)
+        self.assertIn("formato Texto", str(result.data["rows"][0]["messages"]))

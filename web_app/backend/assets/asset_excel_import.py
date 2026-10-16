@@ -66,6 +66,13 @@ def _as_text(value):
 def _value(key, value):
     if value is None or value == "":
         return None
+    if key == "numero_serie" and isinstance(value, (int, float, Decimal)):
+        # Excel numeric cells preserve at most ~15 significant digits;
+        # 16+ digit serials must be entered as text to avoid false identity.
+        if len(str(abs(int(value)))) > 15:
+            raise ValueError(
+                "Serie numérica de más de 15 dígitos: usa formato Texto en Excel."
+            )
     if key == "id_visor_ot":
         if isinstance(value, bool):
             raise ValueError("El ID debe ser un número entero.")
