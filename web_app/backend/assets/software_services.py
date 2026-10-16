@@ -12,7 +12,8 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from users.models import User
 
-from .models import Asset, Hardware, Software, SoftwareInstallation
+from .models import Asset, Hardware, Software, SoftwareInstallation, SoftwareCorrection
+from .software_identity_snapshot import snapshot_software
 from .software_validation import normalize_software_fields, software_identity
 
 
@@ -145,19 +146,18 @@ def register_software_asset(*, data, user):
 
 @transaction.atomic
 def register_installed_software_asset(*, data, user):
-    """Create Software and its mandatory initial installation in one transaction.
-
-    Software remains an independent inventory identity so its history survives
-    unlinking, but the public registration workflow always requires a host.
-    """
+    """Register software independently, optionally associating its first host atomically."""
     values = data.copy()
     hardware_asset_id = values.pop("hardware_asset_id", None)
-    if not isinstance(hardware_asset_id, int) or hardware_asset_id < 1:
-        raise ValidationError({"hardware_asset_id": "Selecciona un hardware existente."})
+    if hardware_asset_id is not None and (
+        not isinstance(hardware_asset_id, int) or hardware_asset_id < 1
+    ):
+        raise ValidationError({"hardware_asset_id": "Selecciona un hardware válido."})
     asset = register_software_asset(data=values, user=user)
-    associate_software(
-        software_id=asset.pk, hardware_asset_id=hardware_asset_id, user=user
-    )
+    if hardware_asset_id is not None:
+        associate_software(
+            software_id=asset.pk, hardware_asset_id=hardware_asset_id, user=user
+        )
     return asset
 
 
@@ -170,6 +170,11 @@ def update_software_asset(*, asset_id, data, user):
     if "asset_type" in values:
         raise ValidationError({"asset_type": "El tipo del activo no se puede modificar."})
     software_values = values.pop("software", None)
+    correction_reason = values.pop("correction_reason", "")
+    confirm_shared_correction = values.pop("confirm_shared_correction", False)
+    software_change_type = values.pop("software_change_type", "CORRECTION")
+    if software_change_type not in ("CORRECTION", "UPGRADE"):
+        raise ValidationError({"software_change_type": "Usa CORRECTION o UPGRADE."})
     _validate_keys(values, _ASSET_FIELDS, location="asset")
     if software_values is not None:
         if not isinstance(software_values, dict):
@@ -199,19 +204,44 @@ def update_software_asset(*, asset_id, data, user):
             proposed[field] != getattr(software, field)
             for field in _VARIANT_FIELDS
         )
-        if changed and SoftwareInstallation.objects.filter(
-            software=software
-        ).exists():
-            raise ValidationError({
-                "software": (
-                    "Esta variante tiene historial de instalaciones. "
-                    "Conserva su identidad y registra otra variante para "
-                    "evitar alterar instalaciones vigentes o históricas."
-                ),
-            })
-        _check_variant_available(proposed, exclude_id=asset.pk)
-        for field, value in proposed.items():
-            setattr(software, field, value)
+        if changed:
+            if software_change_type == "UPGRADE":
+                raise ValidationError({
+                    "software_change_type": (
+                        "Una actualización real debe registrar otra variante "
+                        "y trasladar la instalación correspondiente."
+                    ),
+                })
+            if not isinstance(correction_reason, str) or not correction_reason.strip():
+                raise ValidationError({
+                    "correction_reason": "Explica el motivo de la corrección técnica."
+                })
+            if len(correction_reason.strip()) > 1000:
+                raise ValidationError({"correction_reason": "Máximo 1000 caracteres."})
+            active_count = SoftwareInstallation.objects.filter(
+                software=software, unlinked_at__isnull=True
+            ).count()
+            if active_count > 1 and confirm_shared_correction is not True:
+                raise ValidationError({
+                    "confirm_shared_correction": (
+                        f"Esta variante está asociada a {active_count} hardware activos. "
+                        "Confirma que la corrección corresponde al producto compartido."
+                    )
+                })
+            _check_variant_available(proposed, exclude_id=asset.pk)
+            identity_before = snapshot_software(software, source="before_correction")
+            for field, value in proposed.items():
+                setattr(software, field, value)
+            correction = SoftwareCorrection(
+                software=software,
+                changed_by=user,
+                reason=correction_reason.strip(),
+                identity_before=identity_before,
+                identity_after=snapshot_software(software, source="after_correction"),
+                affected_active_installations=active_count,
+            )
+        else:
+            correction = None
 
     for field, value in values.items():
         setattr(asset, field, value)
@@ -220,6 +250,8 @@ def update_software_asset(*, asset_id, data, user):
 
     if software_values:
         _save_validated(software)
+        if correction is not None:
+            _save_validated(correction)
     return asset
 
 
@@ -256,6 +288,7 @@ def associate_software(*, software_id, hardware_asset_id, user):
 
     return _save_validated(SoftwareInstallation(
         software=software, hardware=hardware, registered_by=user,
+        identity_snapshot=snapshot_software(software),
     ))
 
 
