@@ -14,6 +14,7 @@ class SoftwareInstallation(models.Model):
         "assets.Hardware", on_delete=models.PROTECT,
         related_name="software_installations",
     )
+    identity_snapshot = models.JSONField(default=dict)
     registered_at = models.DateTimeField(auto_now_add=True)
     registered_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
