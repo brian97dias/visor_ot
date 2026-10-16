@@ -12,6 +12,7 @@ from users.models import User
 from .models import Asset, SoftwareInstallation
 from .serializers import (
     HardwareSoftwareAssignSerializer, SoftwareInstallationReadSerializer,
+    SoftwareHardwareAssignSerializer, SoftwareHardwareInstallationReadSerializer,
 )
 from .software_services import associate_software, unlink_software
 
@@ -136,3 +137,71 @@ class SoftwareHistoryView(APIView):
                 for change in corrections
             ],
         })
+
+
+
+def software_asset_or_404(asset_id):
+    return get_object_or_404(
+        Asset, pk=asset_id, asset_type=Asset.AssetType.SOFTWARE
+    )
+
+
+def software_active_installations(software_asset_id):
+    return (
+        SoftwareInstallation.objects.filter(
+            software_id=software_asset_id, unlinked_at__isnull=True
+        )
+        .select_related("hardware__asset")
+        .order_by("hardware__asset__name", "id")
+    )
+
+
+class SoftwareHardwareInstallationView(APIView):
+    """Manage a software variant's active host associations from the Software side.
+
+    Uses the same SoftwareInstallation rows and domain services as the
+    Hardware-side API. Changes are immediately persisted and audited.
+    """
+    permission_classes = [IsAuthenticated, SoftwareInstallationPermission]
+
+    def get(self, request, asset_id):
+        software_asset_or_404(asset_id)
+        return Response({
+            "results": SoftwareHardwareInstallationReadSerializer(
+                software_active_installations(asset_id), many=True
+            ).data
+        })
+
+    def post(self, request, asset_id):
+        software_asset_or_404(asset_id)
+        if set(request.data.keys()) != {"hardware_asset_id"}:
+            raise ValidationError({
+                "hardware_asset_id": "Indica únicamente hardware_asset_id."
+            })
+        serializer = SoftwareHardwareAssignSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        installation = associate_software(
+            software_id=asset_id,
+            hardware_asset_id=serializer.validated_data["hardware_asset_id"],
+            user=request.user,
+        )
+        row = software_active_installations(asset_id).get(pk=installation.pk)
+        return Response(
+            SoftwareHardwareInstallationReadSerializer(row).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class SoftwareHardwareUnlinkView(APIView):
+    permission_classes = [IsAuthenticated, SoftwareInstallationPermission]
+
+    def delete(self, request, asset_id, installation_id):
+        software_asset_or_404(asset_id)
+        installation = get_object_or_404(
+            SoftwareInstallation,
+            pk=installation_id,
+            software_id=asset_id,
+            unlinked_at__isnull=True,
+        )
+        unlink_software(installation_id=installation.pk, user=request.user)
+        return Response(status=status.HTTP_204_NO_CONTENT)
