@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getAssets, getSoftwareHistory } from "../api/assets";
 import AssetSoftwareSection from "./AssetSoftwareSection";
+import SoftwareHardwareSection from "./SoftwareHardwareSection";
 import SoftwareFields from "./SoftwareFields";
 import { Link } from "react-router-dom";
 import InterfaceSelector from "./InterfaceSelector";
@@ -391,6 +392,10 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
             )}
           </div>
         </div>
+      )}
+
+      {editing && values.asset_type === "SOFTWARE" && (
+        <SoftwareHardwareSection asset={asset} user={user} />
       )}
 
       {editing && values.asset_type === "SOFTWARE" && technicalChanged && (
