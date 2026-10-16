@@ -493,6 +493,8 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
               <option value="COP">COP — Peso colombiano</option>
               <option value="USD">USD — Dólar estadounidense</option>
               <option value="EUR">EUR — Euro</option>
+              <option value="INR">INR — Rupia india</option>
+              <option value="AUD">AUD — Dólar australiano</option>
             </select>
           </div>
           <div className="assets-field assets-full-row">

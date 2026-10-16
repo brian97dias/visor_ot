@@ -20,6 +20,8 @@ class Asset(models.Model):
         COP = "COP", "Peso colombiano"
         USD = "USD", "Dólar estadounidense"
         EUR = "EUR", "Euro"
+        INR = "INR", "Rupia india"
+        AUD = "AUD", "Dólar australiano"
 
     class InventoryStatus(models.TextChoices):
         ACTIVE = "ACTIVE", "En inventario"
