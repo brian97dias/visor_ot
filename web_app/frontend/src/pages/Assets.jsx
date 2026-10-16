@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 
-import { archiveAsset, getAssets, restoreAsset } from "../api/assets";
+import { archiveAsset, exportAssetsExcel, getAssets, restoreAsset } from "../api/assets";
 import SuccessNotice from "../components/SuccessNotice";
 import ConfirmAssetStatusModal from "../components/ConfirmAssetStatusModal";
 import {
@@ -26,6 +26,7 @@ function Assets() {
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
+  const [exporting, setExporting] = useState(false);
   const [pendingAsset, setPendingAsset] = useState(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -84,6 +85,19 @@ function Assets() {
     setCurrentPage((page) => Math.min(page, totalPages));
   }, [totalPages]);
 
+  async function downloadInventory() {
+    if (exporting) return;
+    setError("");
+    setExporting(true);
+    try {
+      await exportAssetsExcel();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function confirmInventoryStatusChange() {
     if (!pendingAsset || busyId !== null) return;
 
@@ -121,11 +135,19 @@ function Assets() {
           <h1>Inventario</h1>
           <p>Registro de activos OT y su información técnica y operacional.</p>
         </div>
-        {canCreateAssets(user) && (
-          <Link className="button-primary assets-primary-link" to="/assets/new">
-            Registrar activo
-          </Link>
-        )}
+        <div className="table-actions">
+          <button type="button" className="button-secondary"
+            disabled={exporting}
+            title="Descarga todos los activos, incluidos los archivados, en dos hojas: Hardware y Software."
+            onClick={downloadInventory}>
+            {exporting ? "Preparando Excel..." : "Exportar Excel"}
+          </button>
+          {canCreateAssets(user) && (
+            <Link className="button-primary assets-primary-link" to="/assets/new">
+              Registrar activo
+            </Link>
+          )}
+        </div>
       </header>
 
       <SuccessNotice message={notice} onClose={() => setNotice("")} />

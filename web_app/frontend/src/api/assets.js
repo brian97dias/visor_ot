@@ -116,3 +116,31 @@ export function unlinkHardwareFromSoftware(softwareAssetId, installationId) {
     { method: "DELETE" },
   );
 }
+
+
+/** Download the full inventory as an XLSX, without writing to the database. */
+export async function exportAssetsExcel() {
+  const response = await authenticatedFetch("/api/assets/export/excel/");
+  if (!response.ok) {
+    let message = "No se pudo exportar el inventario.";
+    try {
+      const data = await response.json();
+      message = describeError(data, message);
+    } catch {
+      // An upstream gateway may send non-JSON error bodies.
+    }
+    throw new Error(message);
+  }
+  const payload = await response.blob();
+  const filename = response.headers.get("Content-Disposition")
+    ?.match(/filename="([^"]+)"/)?.[1] || "Visor_OT_Inventario.xlsx";
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(payload);
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Give the browser time to start transferring the Blob to the download manager.
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
