@@ -346,3 +346,149 @@ class SoftwareAssetAPITests(TestCase):
         self.assertEqual(edited.status_code, 400, edited.data)
         self.assertEqual(SoftwareCorrection.objects.count(), 0)
         self.assertEqual(Software.objects.get(pk=sw.data["id"]).version, "V18")
+
+
+    def test_software_side_lists_active_hardware_installations(self):
+        from .models import SoftwareInstallation
+        created = self.client.post("/api/assets/", self.payload(), format="json")
+        self.assertEqual(created.status_code, 201, created.data)
+        asset_id = created.data["id"]
+        res = self.client.get(f"/api/assets/{asset_id}/hardware-installations/")
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(len(res.data["results"]), 1)
+        row = res.data["results"][0]
+        self.assertEqual(row["hardware_asset_id"], self.host.pk)
+        self.assertEqual(row["hardware_name"], self.host.name)
+        self.assertEqual(row["hardware_role"], "PLC")
+        self.assertEqual(row["id"], SoftwareInstallation.objects.get().id)
+
+    def test_software_side_association_visible_on_both_sides(self):
+        sw = self.client.post("/api/assets/", self.payload(), format="json")
+        self.assertEqual(sw.status_code, 201, sw.data)
+        host_two = self.client.post("/api/assets/", {
+            "name": "PLC secundario", "asset_type": "HARDWARE",
+            "hardware": {
+                "role": "PLC", "manufacturer": "AutomationDirect",
+                "model": "DL205",
+            },
+        }, format="json")
+        self.assertEqual(host_two.status_code, 201, host_two.data)
+        url = f"/api/assets/{sw.data['id']}/hardware-installations/"
+        response = self.client.post(
+            url, {"hardware_asset_id": host_two.data["id"]}, format="json"
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["hardware_asset_id"], host_two.data["id"])
+        self.assertEqual(response.data["manufacturer"], "AutomationDirect")
+        self.assertEqual(len(self.client.get(url).data["results"]), 2)
+        reciprocal = self.client.get(
+            f"/api/assets/{host_two.data['id']}/software-installations/"
+        )
+        self.assertEqual(reciprocal.status_code, 200, reciprocal.data)
+        self.assertEqual(reciprocal.data["results"][0]["software_asset_id"], sw.data["id"])
+
+    def test_software_side_unlink_keeps_history_and_can_relink(self):
+        from .models import SoftwareInstallation
+        sw = self.client.post("/api/assets/", self.payload(), format="json")
+        self.assertEqual(sw.status_code, 201, sw.data)
+        url = f"/api/assets/{sw.data['id']}/hardware-installations/"
+        installation_id = self.client.get(url).data["results"][0]["id"]
+        unlink_url = url + str(installation_id) + "/"
+        unlinked = self.client.delete(unlink_url)
+        self.assertEqual(unlinked.status_code, 204)
+        self.assertEqual(self.client.get(url).data["results"], [])
+        self.assertEqual(self.client.delete(unlink_url).status_code, 404)
+        old = SoftwareInstallation.objects.get(pk=installation_id)
+        self.assertIsNotNone(old.unlinked_at)
+        self.assertEqual(old.identity_snapshot["version"], "V18")
+
+        installed_again = self.client.post(
+            url, {"hardware_asset_id": self.host.pk}, format="json",
+        )
+        self.assertEqual(installed_again.status_code, 201, installed_again.data)
+        self.assertNotEqual(installed_again.data["id"], installation_id)
+        self.assertEqual(SoftwareInstallation.objects.count(), 2)
+        self.assertEqual(self.client.get(url).data["results"][0]["id"],
+                         installed_again.data["id"])
+
+    def test_software_side_rejects_duplicate_active_pair(self):
+        from .models import SoftwareInstallation
+        sw = self.client.post("/api/assets/", self.payload(), format="json")
+        self.assertEqual(sw.status_code, 201, sw.data)
+        url = f"/api/assets/{sw.data['id']}/hardware-installations/"
+        again = self.client.post(
+            url, {"hardware_asset_id": self.host.pk}, format="json",
+        )
+        self.assertEqual(again.status_code, 400, again.data)
+        self.assertEqual(SoftwareInstallation.objects.count(), 1)
+
+    def test_software_side_prevents_cross_software_unlink(self):
+        from .models import SoftwareInstallation
+        sw_a = self.client.post("/api/assets/", self.payload(), format="json")
+        sw_b = self.client.post("/api/assets/", self.payload(version="V19"), format="json")
+        self.assertEqual(sw_a.status_code, 201, sw_a.data)
+        self.assertEqual(sw_b.status_code, 201, sw_b.data)
+        installation_id = SoftwareInstallation.objects.get(
+            software_id=sw_a.data["id"]
+        ).pk
+        url = (f"/api/assets/{sw_b.data['id']}/hardware-installations/"
+               f"{installation_id}/")
+        self.assertEqual(self.client.delete(url).status_code, 404)
+        self.assertTrue(SoftwareInstallation.objects.get(
+            pk=installation_id
+        ).is_active)
+
+    def test_software_side_validates_permissions_and_hardware_type(self):
+        sw = self.client.post("/api/assets/", self.payload(), format="json")
+        self.assertEqual(sw.status_code, 201, sw.data)
+        url = f"/api/assets/{sw.data['id']}/hardware-installations/"
+        existing_id = self.client.get(url).data["results"][0]["id"]
+        wrong_type = self.client.post(
+            url, {"hardware_asset_id": sw.data["id"]}, format="json"
+        )
+        self.assertEqual(wrong_type.status_code, 400, wrong_type.data)
+        missing = self.client.post(url, {}, format="json")
+        self.assertEqual(missing.status_code, 400, missing.data)
+        extra = self.client.post(
+            url, {"hardware_asset_id": self.host.pk, "unexpected": True},
+            format="json"
+        )
+        self.assertEqual(extra.status_code, 400, extra.data)
+
+        self.client.force_authenticate(self.analyst)
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertEqual(self.client.post(
+            url, {"hardware_asset_id": self.host.pk}, format="json"
+        ).status_code, 403)
+        self.assertEqual(self.client.delete(
+            url + str(existing_id) + "/"
+        ).status_code, 403)
+
+    def test_software_side_does_not_associate_archived_assets(self):
+        sw = self.client.post("/api/assets/", self.payload(), format="json")
+        self.assertEqual(sw.status_code, 201, sw.data)
+        other = self.client.post("/api/assets/", {
+            "name": "Hardware archivado", "asset_type": "HARDWARE",
+            "hardware": {"role": "PLC"},
+        }, format="json")
+        self.assertEqual(other.status_code, 201, other.data)
+        url = f"/api/assets/{sw.data['id']}/hardware-installations/"
+        self.assertEqual(self.client.post(
+            f"/api/assets/{other.data['id']}/archive/"
+        ).status_code, 200)
+        self.assertEqual(self.client.post(
+            url, {"hardware_asset_id": other.data["id"]}, format="json",
+        ).status_code, 400)
+        self.assertEqual(self.client.post(
+            f"/api/assets/{sw.data['id']}/archive/"
+        ).status_code, 200)
+        self.assertEqual(self.client.post(
+            url, {"hardware_asset_id": self.host.pk}, format="json",
+        ).status_code, 400)
+
+    def test_hardware_id_does_not_access_software_side_endpoint(self):
+        url = f"/api/assets/{self.host.pk}/hardware-installations/"
+        self.assertEqual(self.client.get(url).status_code, 404)
+        self.assertEqual(self.client.post(
+            url, {"hardware_asset_id": self.host.pk}, format="json"
+        ).status_code, 404)
