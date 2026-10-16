@@ -60,6 +60,19 @@ class AssetReadSerializer(serializers.ModelSerializer):
         )
 
 
+class AssetListReadSerializer(AssetReadSerializer):
+    """Inventory-only aggregates, not persisted fields on Asset."""
+
+    software_count = serializers.IntegerField(read_only=True)
+    interface_count = serializers.IntegerField(read_only=True)
+    hardware_count = serializers.IntegerField(read_only=True)
+
+    class Meta(AssetReadSerializer.Meta):
+        fields = AssetReadSerializer.Meta.fields + (
+            "software_count", "interface_count", "hardware_count",
+        )
+
+
 def validate_replacement_fields(attrs, instance=None):
     cost = attrs.get(
         "replacement_cost",

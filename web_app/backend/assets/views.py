@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse
+from django.db.models import Count, Q
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
@@ -13,6 +14,7 @@ from .permissions import AssetPermission, AssetArchivePermission
 from .serializers import (
     AssetCreateSerializer,
     AssetReadSerializer,
+    AssetListReadSerializer,
     AssetUpdateSerializer,
 )
 from .software_services import register_installed_software_asset, update_software_asset
@@ -32,6 +34,29 @@ def asset_queryset():
     )
 
 
+def asset_list_queryset():
+    """Attach current relationship counts to a single inventory queryset.
+
+    Using distinct counts avoids multiplying software and interface rows
+    for hardware that has several of each. Archived related assets remain
+    counted while their association is still active; only an explicit
+    unlink removes a SoftwareInstallation from these summaries.
+    """
+    return asset_queryset().annotate(
+        software_count=Count(
+            "hardware__software_installations",
+            filter=Q(hardware__software_installations__unlinked_at__isnull=True),
+            distinct=True,
+        ),
+        interface_count=Count("hardware__network_interfaces", distinct=True),
+        hardware_count=Count(
+            "software__installations",
+            filter=Q(software__installations__unlinked_at__isnull=True),
+            distinct=True,
+        ),
+    )
+
+
 class AssetListCreateView(APIView):
     permission_classes = [IsAuthenticated, AssetPermission]
 
@@ -47,12 +72,12 @@ class AssetListCreateView(APIView):
                 "inventory_status": "Usa ACTIVE, ARCHIVED o ALL."
             })
 
-        assets = asset_queryset()
+        assets = asset_list_queryset()
         if inventory_status != "ALL":
             assets = assets.filter(inventory_status=inventory_status)
 
         return Response({
-            "assets": AssetReadSerializer(assets, many=True).data,
+            "assets": AssetListReadSerializer(assets, many=True).data,
         })
 
     def post(self, request):
