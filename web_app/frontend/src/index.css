@@ -2111,3 +2111,82 @@ input {
     gap: 3px;
     white-space: nowrap;
 }
+
+
+/* Inventory relationship exploration - read-only expandable table row. */
+.asset-relations-toggle {
+    display: inline-block;
+    margin-top: 6px;
+    border: 0;
+    border-bottom: 1px solid currentColor;
+    padding: 2px 0;
+    background: transparent;
+    color: #38bdf8;
+    font: inherit;
+    font-size: .84rem;
+    cursor: pointer;
+    text-align: left;
+}
+.asset-relations-toggle:hover { color: #7dd3fc; }
+.asset-relations-toggle:focus-visible { outline: 2px solid #38bdf8; outline-offset: 3px; }
+.data-table .asset-relations-expanded > td {
+    padding: 0;
+    border-top: 2px solid #164e63;
+    background: #0a1928;
+}
+.data-table tbody .asset-relations-expanded:hover > td { background: #0a1928; }
+.asset-relations-content { padding: 18px 22px 22px; white-space: normal; }
+.asset-relations-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+}
+.asset-relations-heading h3 { margin: 0 0 6px; font-size: 1rem; }
+.asset-relations-heading p { max-width: 700px; margin: 0; }
+.asset-relations-columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+.asset-relations-single { grid-template-columns: minmax(0, 1fr); }
+.asset-relation-section {
+    min-width: 0;
+    border: 1px solid #293b4c;
+    background: #101f30;
+    border-radius: 8px;
+    padding: 14px;
+}
+.asset-relation-section h4 { margin: 0 0 10px; font-size: .95rem; }
+.asset-relation-section h4 span { color: #94a3b8; font-weight: 400; }
+.asset-relation-section p { margin: 10px 0 0; }
+.asset-relation-list { padding: 0; margin: 0; list-style: none; }
+.asset-relation-list > li {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    padding: 10px 0;
+    border-top: 1px solid #243547;
+    overflow-wrap: anywhere;
+}
+.asset-relation-list > li:first-child { border-top: 0; }
+.asset-relation-list > li a:not(.button-link) { color: #38bdf8; font-weight: 600; }
+.asset-relation-list .interface-hint { margin-top: 4px; }
+.asset-relation-archived { margin-left: 8px; color: #fbbf24; font-weight: 600; }
+.asset-relation-pages {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 14px;
+}
+.asset-relation-error { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+@media (max-width: 850px) {
+    .asset-relations-columns { grid-template-columns: minmax(0, 1fr); }
+    .asset-relations-content { padding: 14px; }
+}

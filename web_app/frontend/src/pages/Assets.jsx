@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 
 import { archiveAsset, exportAssetsExcel, getAssets, restoreAsset } from "../api/assets";
 import SuccessNotice from "../components/SuccessNotice";
 import ConfirmAssetStatusModal from "../components/ConfirmAssetStatusModal";
+import AssetRelationsRow from "../components/AssetRelationsRow";
 import {
   canArchiveAssets,
   canCreateAssets,
@@ -53,6 +54,7 @@ function Assets() {
   const [search, setSearch] = useState("");
   const [criticality, setCriticality] = useState("ALL");
   const [currentPage, setCurrentPage] = useState(1);
+  const [expandedAssetId, setExpandedAssetId] = useState(null);
 
   function changeQueryFilter(name, value) {
     const next = new URLSearchParams(searchParams);
@@ -78,6 +80,11 @@ function Assets() {
   useEffect(() => {
     setCurrentPage(1);
   }, [search, criticality, assetType, inventoryStatus]);
+
+  // An expanded row is tied to the current list view, not to a row index.
+  useEffect(() => {
+    setExpandedAssetId(null);
+  }, [search, criticality, assetType, inventoryStatus, currentPage]);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -246,7 +253,8 @@ function Assets() {
                 </thead>
                 <tbody>
                   {visible.map((asset) => (
-                    <tr key={asset.id}>
+                    <Fragment key={asset.id}>
+                      <tr>
                       <td>
                         <strong className="pcap-name">{asset.name}</strong>
                         <div className="pcap-path">ID #{asset.id}</div>
@@ -277,7 +285,18 @@ function Assets() {
                         </div>
                       </td>
                       <td>{CRITICALITY_LABELS[asset.criticality] || asset.criticality}</td>
-                      <td><AssetRelationshipsSummary asset={asset} /></td>
+                      <td>
+                        <AssetRelationshipsSummary asset={asset} />
+                        <button type="button" className="asset-relations-toggle"
+                          aria-expanded={expandedAssetId === asset.id}
+                          aria-controls={expandedAssetId === asset.id
+                            ? "asset-relations-" + asset.id : undefined}
+                          onClick={() => setExpandedAssetId((current) =>
+                            current === asset.id ? null : asset.id)}>
+                          {expandedAssetId === asset.id
+                            ? "Ocultar vinculaciones" : "Ver vinculaciones"}
+                        </button>
+                      </td>
                       <td>
                         <span className={asset.inventory_status === "ARCHIVED"
                           ? "status status-archived" : "status status-imported"}>
@@ -303,7 +322,11 @@ function Assets() {
                           )}
                         </div>
                       </td>
-                    </tr>
+                      </tr>
+                      <AssetRelationsRow
+                        asset={asset} open={expandedAssetId === asset.id}
+                        canManage={canEditAssets(user)} />
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
