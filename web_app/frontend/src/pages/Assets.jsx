@@ -5,6 +5,7 @@ import { archiveAsset, exportAssetsExcel, getAssets, restoreAsset } from "../api
 import SuccessNotice from "../components/SuccessNotice";
 import ConfirmAssetStatusModal from "../components/ConfirmAssetStatusModal";
 import AssetRelationsRow from "../components/AssetRelationsRow";
+import { filterInventoryAssets, RELATIONSHIP_FILTERS } from "../utils/inventoryFilters";
 import {
   canArchiveAssets,
   canCreateAssets,
@@ -34,7 +35,9 @@ function AssetRelationshipsSummary({ asset }) {
   }
   const hardwareCount = asset.hardware_count ?? 0;
   return (
-    <span>{hardwareCount} {hardwareCount === 1 ? "hardware asociado" : "hardware asociados"}</span>
+    <div className="assets-relation-counts">
+      <span>{hardwareCount} {hardwareCount === 1 ? "hardware asociado" : "hardware asociados"}</span>
+    </div>
   );
 }
 
@@ -53,10 +56,12 @@ function Assets() {
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
   const [criticality, setCriticality] = useState("ALL");
+  const [relationshipFilter, setRelationshipFilter] = useState("ALL");
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedAssetId, setExpandedAssetId] = useState(null);
 
   function changeQueryFilter(name, value) {
+    if (name === "type") setRelationshipFilter("ALL");
     const next = new URLSearchParams(searchParams);
     if ((name === "type" && value === "ALL") || (name === "inventory_status" && value === "ACTIVE")) {
       next.delete(name);
@@ -77,33 +82,30 @@ function Assets() {
     return () => { active = false; };
   }, [inventoryStatus]);
 
+  // URL navigation may change the asset type without using the dropdown.
+  // Never carry a Hardware-only criterion into a Software listing.
+  useEffect(() => {
+    setRelationshipFilter("ALL");
+  }, [assetType]);
+
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, criticality, assetType, inventoryStatus]);
+  }, [search, criticality, relationshipFilter, assetType, inventoryStatus]);
 
   // An expanded row is tied to the current list view, not to a row index.
   useEffect(() => {
     setExpandedAssetId(null);
-  }, [search, criticality, assetType, inventoryStatus, currentPage]);
+  }, [search, criticality, relationshipFilter, assetType, inventoryStatus, currentPage]);
 
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return assets.filter((asset) => {
-      if (assetType !== "ALL" && asset.asset_type !== assetType) return false;
-      if (criticality !== "ALL" && asset.criticality !== criticality) return false;
-      const searchable = [
-        asset.id, asset.name, asset.description, asset.asset_type,
-        asset.hardware?.manufacturer, asset.hardware?.model,
-        asset.hardware?.role,
-        asset.software?.software_type,
-        asset.software?.manufacturer,
-        asset.software?.product,
-        asset.software?.version,
-      ].filter((value) => value !== null && value !== undefined)
-        .join(" ").toLowerCase();
-      return !query || searchable.includes(query);
-    });
-  }, [assets, search, criticality, assetType]);
+  const relationshipOptions = RELATIONSHIP_FILTERS[assetType] ||
+    [{ value: "ALL", label: "Selecciona Hardware o Software" }];
+
+  const filtered = useMemo(() => filterInventoryAssets(assets, {
+    assetType,
+    criticality,
+    relationshipFilter,
+    search,
+  }), [assets, search, criticality, assetType, relationshipFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -207,6 +209,19 @@ function Assets() {
             <option value="ALL">Todos los tipos</option>
             <option value="HARDWARE">Hardware</option>
             <option value="SOFTWARE">Software</option>
+          </select>
+
+          <select className="table-filter-select assets-relationship-filter"
+            aria-label="Filtrar vinculaciones"
+            title={assetType === "ALL"
+              ? "Selecciona Hardware o Software para filtrar sus vinculaciones"
+              : "Filtra las asociaciones registradas en Visor OT"}
+            disabled={assetType === "ALL"}
+            value={assetType === "ALL" ? "ALL" : relationshipFilter}
+            onChange={(event) => setRelationshipFilter(event.target.value)}>
+            {relationshipOptions.map(({ value, label }) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
           </select>
 
           <select className="table-filter-select" aria-label="Filtrar criticidad"
