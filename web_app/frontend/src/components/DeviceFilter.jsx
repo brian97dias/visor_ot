@@ -33,7 +33,7 @@ export default function DeviceFilter({ selected, onChange }) {
     return () => { active = false; };
   }, []);
 
-  const selectedIds = selected.map((device) => device.id);
+  const selectedIds = selected;
   const choices = useMemo(() => {
     const token = normalize(query);
     if (!token || selected.length >= 2) return [];
@@ -49,16 +49,12 @@ export default function DeviceFilter({ selected, onChange }) {
 
   function add(device) {
     if (selected.length >= 2 || selectedIds.includes(device.id)) return;
-    onChange([...selected, {
-      id: device.id,
-      name: device.name,
-      role: device.hardware?.role || "Hardware",
-    }]);
+    onChange([...selected, device.id]);
     setQuery("");
   }
 
   function remove(id) {
-    onChange(selected.filter((device) => device.id !== id));
+    onChange(selected.filter((deviceId) => deviceId !== id));
   }
 
   return (
@@ -77,15 +73,18 @@ export default function DeviceFilter({ selected, onChange }) {
       </div>
 
       <div className="device-filter-tags" aria-label="Dispositivos seleccionados">
-        {selected.map((device) => (
-          <span className="device-filter-tag" key={device.id}>
-            <span>{device.name}</span>
-            <button type="button" className="device-filter-tag-remove"
-              aria-label={"Quitar filtro de " + device.name}
-              title={"Quitar " + device.name}
-              onClick={() => remove(device.id)}>×</button>
-          </span>
-        ))}
+        {selected.map((id) => {
+          const name = devices.find((device) => device.id === id)?.name || "Hardware #" + id;
+          return (
+            <span className="device-filter-tag" key={id}>
+              <span>{name}</span>
+              <button type="button" className="device-filter-tag-remove"
+                aria-label={"Quitar filtro de " + name}
+                title={"Quitar " + name}
+                onClick={() => remove(id)}>×</button>
+            </span>
+          );
+        })}
       </div>
 
       <div className="device-filter-input-wrap">

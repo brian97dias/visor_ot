@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { readPage, parseAssetIds, updateListParams } from "../utils/listUrlState";
+import { navigationFromLocation } from "../utils/returnNavigation";
 
 import { getCommunications } from "../api/network";
 import CommunicationEndpoint from "../components/CommunicationEndpoint";
@@ -28,14 +30,22 @@ const STATUS_CLASSES = {
 
 export default function Communications() {
   const navigate = useNavigate();
-  const [query, setQuery] = useState("");
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
-  const [minPackets, setMinPackets] = useState(1);
-  const [selectedDevices, setSelectedDevices] = useState([]);
-  const selectedAssetIds = selectedDevices.map((device) => device.id);
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = searchParams.get("q") || "";
+  const [search, setSearch] = useState(() => query.trim());
+  const statusParam = searchParams.get("status") || "ALL";
+  const statusFilter = Object.hasOwn(STATUS_LABELS, statusParam) ? statusParam : "ALL";
+  const requestedPackets = Number(searchParams.get("min_packets") || 1);
+  const minPackets = PACKET_OPTIONS.some(([n]) => n === requestedPackets) ? requestedPackets : 1;
+  const selectedAssetIds = parseAssetIds(searchParams.get("devices"));
   const assetKey = selectedAssetIds.join(",");
-  const [currentPage, setCurrentPage] = useState(1);
+  const currentPage = readPage(searchParams.get("page"));
+  const navigationState = navigationFromLocation(location);
+  function changeFilter(name, value, defaultValue = "") {
+    setSearchParams(updateListParams(searchParams, name, value, { defaultValue }),
+      { replace: name === "q" });
+  }
   const [response, setResponse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -45,11 +55,8 @@ export default function Communications() {
     return () => clearTimeout(timeoutId);
   }, [query]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, statusFilter, minPackets, assetKey]);
 
-  useEffect(() => {
+useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError("");
@@ -113,17 +120,14 @@ export default function Communications() {
               aria-label="Buscar comunicaciones"
               placeholder="Buscar IP, dispositivo, protocolo, puerto o servicio..."
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => changeFilter("q", event.target.value)}
             />
           </div>
 
           <select className="table-filter-select"
             aria-label="Filtrar clasificación"
             value={statusFilter}
-            onChange={(event) => {
-              setStatusFilter(event.target.value);
-              setCurrentPage(1);
-            }}>
+            onChange={(event) => changeFilter("status", event.target.value, "ALL")}>
             <option value="ALL">Todos los estados</option>
             <option value="NO_CLASIFICADA">No clasificadas</option>
             <option value="AUTORIZADA">Autorizadas</option>
@@ -133,10 +137,7 @@ export default function Communications() {
           <select className="table-filter-select"
             aria-label="Filtrar paquetes mínimos"
             value={minPackets}
-            onChange={(event) => {
-              setMinPackets(Number(event.target.value));
-              setCurrentPage(1);
-            }}>
+            onChange={(event) => changeFilter("min_packets", event.target.value, "1")}>
             {PACKET_OPTIONS.map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
             ))}
@@ -145,7 +146,7 @@ export default function Communications() {
           <span className="filtered-count">25 por página</span>
         </div>
 
-        <DeviceFilter selected={selectedDevices} onChange={setSelectedDevices} />
+        <DeviceFilter selected={selectedAssetIds} onChange={(ids) => changeFilter("devices", ids.join(","))} />
 
         {error && <div className="error-message">{error}</div>}
 
@@ -154,7 +155,7 @@ export default function Communications() {
         ) : !error && communications.length === 0 ? (
           <div className="empty-state">
             <strong>No se encontraron comunicaciones.</strong>
-            <p>{selectedDevices.length === 2
+            <p>{selectedAssetIds.length === 2
               ? "No se encontraron comunicaciones identificadas entre estos dos dispositivos en las ingestas activas."
               : selectedDevices.length === 1
                 ? "No se encontraron comunicaciones identificadas para este dispositivo en las ingestas activas."
@@ -193,7 +194,7 @@ export default function Communications() {
                     </td>
                     <td>
                       <button type="button" className="button-secondary"
-                        onClick={() => navigate("/communications/" + communication.id)}>
+                        onClick={() => navigate("/communications/" + communication.id, { state: navigationState })}>
                         Ver
                       </button>
                     </td>
@@ -212,11 +213,11 @@ export default function Communications() {
           </span>
           <div className="pagination-actions">
             <button type="button" disabled={isPending || page <= 1}
-              onClick={() => setCurrentPage(page - 1)}>
+              onClick={() => changeFilter("page", page - 1, "1")}>
               Anterior
             </button>
             <button type="button" disabled={isPending || page >= totalPages}
-              onClick={() => setCurrentPage(page + 1)}>
+              onClick={() => changeFilter("page", page + 1, "1")}>
               Siguiente
             </button>
           </div>

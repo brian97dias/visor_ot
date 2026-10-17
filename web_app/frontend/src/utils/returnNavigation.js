@@ -1,6 +1,6 @@
-/** Restrict return destinations to Visor OT's asset routes. */
+/** Restrict return destinations to approved internal routes. */
 export function isSafeReturnPath(value) {
-  return typeof value === "string" && /^\/assets(?:\/|\?|$)/.test(value)
+  return typeof value === "string" && /^\/(?:assets|communications|passive-analysis)(?:\/|\?|$)/.test(value)
     && !value.startsWith("//") && !/[\\\r\n]/.test(value);
 }
 export function sanitizeReturnState(state, depth = 0) {
