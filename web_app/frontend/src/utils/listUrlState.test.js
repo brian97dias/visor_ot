@@ -35,3 +35,22 @@ test("device IDs, pagination and internal targets are validated", () => {
   assert.equal(isSafeReturnPath("/communications-evil"),false);
   assert.equal(isSafeReturnPath("//evil.test"),false);
 });
+
+test("exact IP mode and search survive detail navigation and return", () => {
+  const params = new URLSearchParams(
+    "q=192.168.88.1&match_mode=EXACT_IP&status=NO_CLASIFICADA" +
+    "&min_packets=100&devices=5&page=3",
+  );
+  const location = {pathname: "/communications", search: "?" + params.toString()};
+  const back = getBackNavigation({ state: navigationFromLocation(location) });
+  assert.equal(back.to, "/communications?" + params.toString());
+
+  const next = updateListParams(params, "match_mode", "PARTIAL",
+    {defaultValue: "PARTIAL"});
+  assert.equal(next.has("match_mode"), false);
+  assert.equal(next.has("page"), false);
+  assert.equal(next.get("q"), "192.168.88.1");
+  assert.equal(next.get("status"), "NO_CLASIFICADA");
+  assert.equal(next.get("min_packets"), "100");
+  assert.equal(next.get("devices"), "5");
+});
