@@ -109,6 +109,14 @@ function AppLayout() {
             >
               Interfaces
             </NavLink>
+            <NavLink
+              to="/assets/systems"
+              className={({ isActive }) =>
+                isActive ? "nav-item nav-subitem active" : "nav-item nav-subitem"
+              }
+            >
+              Sistemas
+            </NavLink>
           </div>
         </nav>
 

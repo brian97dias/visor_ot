@@ -2221,3 +2221,9 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .communication-endpoint-unassigned {
   color: #94a3b8;
 }
+
+/* Systems OT shares the inventory forms and detail layout. */
+.assets-form-section .assets-field textarea:disabled {
+  opacity: .65;
+  cursor: not-allowed;
+}

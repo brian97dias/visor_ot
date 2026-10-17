@@ -21,6 +21,9 @@ import AssetDetail from "./pages/AssetDetail";
 import AssetEditor from "./pages/AssetEditor";
 import Interfaces from "./pages/Interfaces";
 import InterfaceDetail from "./pages/InterfaceDetail";
+import Systems from "./pages/Systems";
+import SystemDetail from "./pages/SystemDetail";
+import SystemEditor from "./pages/SystemEditor";
 
 
 function App() {
@@ -104,6 +107,10 @@ function App() {
           <Route path="/assets/import" element={<AssetImport />} />
           <Route path="/assets/interfaces" element={<Interfaces />} />
           <Route path="/assets/interfaces/:interfaceId" element={<InterfaceDetail />} />
+          <Route path="/assets/systems" element={<Systems />} />
+          <Route path="/assets/systems/new" element={<SystemEditor />} />
+          <Route path="/assets/systems/:systemId" element={<SystemDetail />} />
+          <Route path="/assets/systems/:systemId/edit" element={<SystemEditor />} />
           <Route path="/assets/hardware" element={<Navigate to="/assets?type=HARDWARE" replace />} />
           <Route path="/assets/new" element={<AssetEditor />} />
           <Route path="/assets/:assetId" element={<AssetDetail />} />
