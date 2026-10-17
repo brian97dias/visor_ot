@@ -50,8 +50,6 @@ export default function SystemRelationsRow({ system, open, navigationState }) {
             </p>
           </div>
           <div className="table-actions">
-            <Link className="button-secondary" to={"/assets/systems/" + system.id}
-              state={navigationState}>Ver sistema</Link>
             <button type="button" className="button-secondary" disabled={loading}
               onClick={() => { setData(null); setRevision(value => value + 1); }}>
               Recargar vinculaciones
