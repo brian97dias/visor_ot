@@ -5,6 +5,7 @@ import { canManageSystems, SYSTEM_CRITICALITY_LABELS, SYSTEM_STATUS_LABELS } fro
 import { getBackNavigation, navigationFromLocation } from "../utils/returnNavigation";
 import ConfirmSystemStatusModal from "../components/ConfirmSystemStatusModal";
 import SystemMembershipSection from "../components/SystemMembershipSection";
+import SystemSoftwareSection from "../components/SystemSoftwareSection";
 import SuccessNotice from "../components/SuccessNotice";
 
 function Field({label,value,wide=false}) {
@@ -32,6 +33,7 @@ export default function SystemDetail() {
   const [notice,setNotice]=useState(location.state?.notice||"");
   const [busy,setBusy]=useState(false);
   const [confirm,setConfirm]=useState(false);
+  const [softwareRevision,setSoftwareRevision]=useState(0);
 
   useEffect(()=>{
     let active=true;
@@ -100,7 +102,9 @@ export default function SystemDetail() {
         <Field label="Impacto de indisponibilidad" value={system.impact} wide/>
       </div>
     </section>
-    <SystemMembershipSection system={system} user={user}/>
+    <SystemMembershipSection system={system} user={user}
+      onMembershipsChange={()=>setSoftwareRevision(current=>current+1)}/>
+    <SystemSoftwareSection systemId={system.id} revision={softwareRevision}/>
     <section className="panel assets-detail-section">
       <div className="panel-header"><h2>Registro y auditoría</h2></div>
       <div className="assets-detail-grid">

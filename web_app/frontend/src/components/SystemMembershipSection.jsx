@@ -18,7 +18,7 @@ function prettyDate(value) {
  * Membership changes persist immediately, independently from the Hardware form.
  */
 export default function SystemMembershipSection({
-  system = null, asset = null, user, embedded = false,
+  system = null, asset = null, user, embedded = false, onMembershipsChange,
 }) {
   const mode = system ? "system" : "hardware";
   const id = system ? system.id : asset.id;
@@ -77,6 +77,7 @@ export default function SystemMembershipSection({
       else await addSystemToHardware(id, Number(selectedId));
       setShowChooser(false); setSelectedId("");
       setRevision(n => n + 1);
+      onMembershipsChange?.();
       setNotice("Asociación guardada. La pertenencia al sistema está vigente.");
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
@@ -90,6 +91,7 @@ export default function SystemMembershipSection({
       else await unlinkSystemFromHardware(id, pendingUnlink.id);
       setPendingUnlink(null);
       setRevision(n => n + 1);
+      onMembershipsChange?.();
       setNotice("Asociación desvinculada. Se conserva el historial.");
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }

@@ -2235,3 +2235,7 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 }
 .system-initial-choice input { accent-color: #38bdf8; }
 .system-initial-choice:focus-within { outline: 2px solid #38bdf8; outline-offset: 3px; }
+
+/* Derived Software visibility inside the OT System detail. */
+.system-software-hosts { display: flex; flex-direction: column; gap: 6px; }
+.system-software-host { line-height: 1.4; }

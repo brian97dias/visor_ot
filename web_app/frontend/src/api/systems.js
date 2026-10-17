@@ -56,6 +56,10 @@ export function unlinkHardwareFromSystem(id, membershipId) {
     method: "DELETE",
   });
 }
+/** Read-only inventory derived from current Hardware + SoftwareInstallation links. */
+export function getSystemSoftware(id) {
+  return requestSystem("/api/assets/systems/" + id + "/software/");
+}
 export function getHardwareSystems(assetId) {
   return requestSystem("/api/assets/" + assetId + "/systems/");
 }
