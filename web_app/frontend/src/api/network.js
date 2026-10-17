@@ -6,6 +6,7 @@ import {
 export async function getCommunications({
   page = 1,
   search = "",
+  matchMode = "PARTIAL",
   status = "ALL",
   minPackets = 1,
   includeInactive = false,
@@ -15,6 +16,7 @@ export async function getCommunications({
   const params = new URLSearchParams({
     page: String(page),
     search,
+    match_mode: matchMode,
     status,
     min_packets: String(minPackets),
     include_inactive: String(includeInactive),
@@ -37,7 +39,9 @@ export async function getCommunications({
   }
 
   if (!response.ok) {
-    throw new Error(data.detail || "No fue posible obtener las comunicaciones.");
+    const validation = data.search || data.match_mode;
+    const message = Array.isArray(validation) ? validation.join(" ") : validation;
+    throw new Error(message || data.detail || "No fue posible obtener las comunicaciones.");
   }
 
   if (!Array.isArray(data.results)) {
