@@ -2206,3 +2206,18 @@ a.entity-link:hover, a.entity-link:active { color: #bae6fd; }
 a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outline-offset: 3px; }
 .assets-detail-grid strong a.entity-link:link,
 .assets-detail-grid strong a.entity-link:visited { color: #7dd3fc; }
+
+/* Ambiguous communication endpoints: context is not a confirmed asset identity. */
+.communication-endpoint-candidate,
+.communication-endpoint-unassigned {
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.communication-endpoint-candidate .entity-link {
+  font-weight: 600;
+}
+.communication-endpoint-unassigned {
+  color: #94a3b8;
+}
