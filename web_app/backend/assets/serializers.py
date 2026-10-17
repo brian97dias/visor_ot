@@ -128,6 +128,7 @@ class AssetCreateSerializer(serializers.ModelSerializer):
     software = SoftwareSerializer(required=False)
     interface_assignment = InterfaceAssignmentSerializer(required=False)
     hardware_asset_id = serializers.IntegerField(min_value=1, required=False, write_only=True)
+    system_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), required=False, allow_empty=True, write_only=True)
 
     class Meta:
         model = Asset
@@ -143,6 +144,7 @@ class AssetCreateSerializer(serializers.ModelSerializer):
             "software",
             "interface_assignment",
             "hardware_asset_id",
+            "system_ids",
         )
 
     def validate(self, attrs):
@@ -166,12 +168,16 @@ class AssetCreateSerializer(serializers.ModelSerializer):
                     "software": "Indica el tipo y producto del software."
                 })
             if ("hardware" in self.initial_data
-                    or "interface_assignment" in self.initial_data):
+                    or "interface_assignment" in self.initial_data
+                    or "system_ids" in self.initial_data):
                 raise serializers.ValidationError({
                     "software": "Una variante de software no registra hardware ni interfaces directamente."
                 })
         else:
             raise serializers.ValidationError({"asset_type": "Tipo de activo inválido."})
+        if "system_ids" in attrs:
+            if len(attrs["system_ids"]) != len(set(attrs["system_ids"])):
+                raise serializers.ValidationError({"system_ids": "No repitas un sistema."})
         validate_replacement_fields(attrs)
         return attrs
 

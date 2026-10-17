@@ -6,5 +6,6 @@ from .software_installation import SoftwareInstallation
 from .software_correction import SoftwareCorrection
 from .asset_import_batch import AssetImportBatch
 from .ot_system import OTSystem
+from .system_membership import SystemMembership
 
-__all__ = ["Asset", "Hardware", "NetworkInterface", "Software", "SoftwareInstallation", "SoftwareCorrection", "AssetImportBatch", "OTSystem"]
+__all__ = ["Asset", "Hardware", "NetworkInterface", "Software", "SoftwareInstallation", "SoftwareCorrection", "AssetImportBatch", "OTSystem", "SystemMembership"]

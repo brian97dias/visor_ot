@@ -5,6 +5,7 @@ from rest_framework.exceptions import ValidationError as APIValidationError
 
 from .models import Asset, Hardware
 from .interface_assignment import identify_interface, create_identified_interface
+from .system_membership_services import associate_hardware_to_system
 
 
 def save_validated(instance):
@@ -25,6 +26,7 @@ def register_hardware_asset(*, data, user):
     values = data.copy()
     hardware_values = values.pop("hardware")
     assignment = values.pop("interface_assignment", None)
+    system_ids = values.pop("system_ids", [])
 
     asset = Asset(
         **values,
@@ -48,6 +50,14 @@ def register_hardware_asset(*, data, user):
                 declared_ip=assignment.get("declared_ip"),
                 user=user,
             )
+    for system_id in system_ids:
+        # Registration and all optional memberships share a transaction.
+        from .models import OTSystem
+        if not OTSystem.objects.filter(pk=system_id).exists():
+            raise APIValidationError({"system_ids": "Uno de los sistemas seleccionados no existe."})
+        associate_hardware_to_system(
+            system_id=system_id, hardware_asset_id=asset.pk, user=user,
+        )
     return asset
 
 

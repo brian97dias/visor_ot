@@ -41,7 +41,7 @@ class SystemPermission(BasePermission):
             return request.user.role in (
                 User.Role.ADMIN, User.Role.ANALYST, User.Role.OPERATOR,
             )
-        if request.method in ("POST", "PATCH"):
+        if request.method in ("POST", "PATCH", "DELETE"):
             return request.user.role in (User.Role.ADMIN, User.Role.OPERATOR)
         return False
 

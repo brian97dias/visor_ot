@@ -27,6 +27,11 @@ class Hardware(models.Model):
     role = models.CharField(max_length=20, choices=Role.choices)
     serial_number = models.CharField(max_length=150, blank=True)
     physical_location = models.CharField(max_length=255, blank=True)
+    systems = models.ManyToManyField(
+        "assets.OTSystem", through="assets.SystemMembership",
+        related_name="member_hardware", blank=True,
+    )
+    # The M2M manager includes historical links; filter unlinked_at for current memberships.
     software = models.ManyToManyField(
         "assets.Software",
         through="assets.SoftwareInstallation",

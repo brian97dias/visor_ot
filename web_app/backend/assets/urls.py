@@ -12,6 +12,11 @@ from .software_installation_views import (
     SoftwareHardwareUnlinkView,
 )
 
+from .system_membership_views import (
+    SystemHardwareView, SystemHardwareUnlinkView,
+    HardwareSystemsView, HardwareSystemUnlinkView,
+)
+
 from .system_views import (
     SystemListCreateView, SystemDetailView, SystemArchiveView, SystemRestoreView,
 )
@@ -30,6 +35,8 @@ urlpatterns = [
     path("systems/<int:system_id>/", SystemDetailView.as_view(), name="ot-system-detail"),
     path("systems/<int:system_id>/archive/", SystemArchiveView.as_view(), name="ot-system-archive"),
     path("systems/<int:system_id>/restore/", SystemRestoreView.as_view(), name="ot-system-restore"),
+    path("systems/<int:system_id>/hardware/", SystemHardwareView.as_view(), name="ot-system-hardware"),
+    path("systems/<int:system_id>/hardware/<int:membership_id>/", SystemHardwareUnlinkView.as_view(), name="ot-system-hardware-unlink"),
     path("interfaces/", InterfaceListCreateView.as_view(), name="interface-list-create"),
     path("interfaces/<int:interface_id>/", InterfaceDetailView.as_view(), name="interface-detail"),
     path("interfaces/<int:interface_id>/identify/", InterfaceIdentifyView.as_view(), name="interface-identify"),
@@ -39,6 +46,8 @@ urlpatterns = [
     path("import/preview/", AssetImportPreviewView.as_view(), name="asset-import-preview"),
     path("import/confirm/", AssetImportConfirmView.as_view(), name="asset-import-confirm"),
     path("<int:asset_id>/interfaces/", AssetInterfaceAssignView.as_view(), name="asset-interface-assign"),
+    path("<int:asset_id>/systems/", HardwareSystemsView.as_view(), name="hardware-systems"),
+    path("<int:asset_id>/systems/<int:membership_id>/", HardwareSystemUnlinkView.as_view(), name="hardware-systems-unlink"),
     path("<int:asset_id>/software-installations/", HardwareSoftwareInstallationView.as_view(), name="asset-software-installations"),
     path("<int:asset_id>/software-history/", SoftwareHistoryView.as_view(), name="asset-software-history"),
     path("<int:asset_id>/hardware-installations/", SoftwareHardwareInstallationView.as_view(), name="software-hardware-installations"),
