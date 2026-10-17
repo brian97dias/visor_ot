@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { getAssets, getSoftwareHistory } from "../api/assets";
+import { getSystems } from "../api/systems";
+import SystemMembershipSection from "./SystemMembershipSection";
 import AssetSoftwareSection from "./AssetSoftwareSection";
 import SoftwareHardwareSection from "./SoftwareHardwareSection";
 import SoftwareFields from "./SoftwareFields";
@@ -94,12 +96,32 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
   const [softwareChangeType, setSoftwareChangeType] = useState("CORRECTION");
   const [localError, setLocalError] = useState("");
   const [interfaceAssignment, setInterfaceAssignment] = useState(null);
+  const [systemChoices, setSystemChoices] = useState([]);
+  const [selectedSystemIds, setSelectedSystemIds] = useState([]);
+  const [systemError, setSystemError] = useState("");
+  const [loadingSystems, setLoadingSystems] = useState(false);
   const [pendingInterface, setPendingInterface] = useState(null);
   const [showCreateSelector, setShowCreateSelector] = useState(false);
   const dirty = JSON.stringify(values) !== JSON.stringify(initialValues(asset, initialType))
     || (!editing && hardwareAssetId !== String(initialHardwareId || ""))
-    || (!editing && interfaceAssignment !== null);
+    || (!editing && interfaceAssignment !== null)
+    || (!editing && values.asset_type === "HARDWARE" && selectedSystemIds.length > 0);
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+
+  useEffect(() => {
+    if (editing || values.asset_type !== "HARDWARE") return;
+    let active = true;
+    setLoadingSystems(true);
+    setSystemError("");
+    getSystems("ACTIVE").then(rows => {
+      if (active) setSystemChoices(rows);
+    }).catch(err => {
+      if (active) setSystemError(err.message);
+    }).finally(() => {
+      if (active) setLoadingSystems(false);
+    });
+    return () => { active = false; };
+  }, [editing, values.asset_type]);
 
   useEffect(() => {
     if (editing || values.asset_type !== "SOFTWARE") return;
@@ -162,6 +184,13 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
     }
 
     const payload = buildPayload(values, asset, editing, canEditCriticality);
+    if (!editing && values.asset_type === "HARDWARE" && selectedSystemIds.length) {
+      if (systemError || selectedSystemIds.some(id=>!systemChoices.some(s=>s.id===id))) {
+        setLocalError("Uno de los sistemas seleccionados ya no está disponible.");
+        return;
+      }
+      payload.system_ids = selectedSystemIds;
+    }
     if (!editing && values.asset_type === "SOFTWARE" && hardwareAssetId) {
       if (!hardwareChoices.some((item) => item.id === Number(hardwareAssetId))) {
         setLocalError("El hardware seleccionado no está disponible.");
@@ -236,6 +265,7 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
                   change("asset_type", kind);
                   setInterfaceAssignment(null);
                   setPendingInterface(null);
+                  setSelectedSystemIds([]);
                   setShowCreateSelector(false);
                   setLocalError("");
                 }}>
@@ -292,6 +322,27 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
           </div>
         </div>
       </div>
+
+      {!editing && <div className="assets-form-section">
+        <h2>Sistemas OT (opcional)</h2>
+        <p className="interface-hint">
+          Puedes asociar este hardware a uno o varios sistemas registrados.
+          También puedes hacerlo después desde el detalle del Hardware o del Sistema.
+        </p>
+        {loadingSystems && <p className="interface-hint">Cargando sistemas...</p>}
+        {systemError && <p className="error-message" role="alert">{systemError}</p>}
+        {!loadingSystems && !systemError && systemChoices.length===0 &&
+          <p className="interface-hint">Todavía no hay sistemas activos disponibles.</p>}
+        {systemChoices.map(system=>(
+          <label className="system-initial-choice" key={system.id}>
+            <input type="checkbox" checked={selectedSystemIds.includes(system.id)}
+              disabled={saving || loadingSystems}
+              onChange={event=>setSelectedSystemIds(current=>event.target.checked
+                ? [...current,system.id] : current.filter(id=>id!==system.id))}/>
+            <span>{system.name}</span>
+          </label>
+        ))}
+      </div>}
 
       {editing ? (
         <AssetInterfacesSection asset={asset} user={user} embedded />
@@ -467,6 +518,9 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
       {editing && values.asset_type === "HARDWARE" && (
         <AssetSoftwareSection asset={asset} user={user} embedded />
       )}
+
+      {editing && values.asset_type === "HARDWARE" &&
+        <SystemMembershipSection asset={asset} user={user} embedded />}
 
       <div className="assets-form-section">
         <h2>Clasificación y valoración</h2>

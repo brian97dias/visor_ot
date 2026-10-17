@@ -2,6 +2,7 @@ import { authenticatedFetch } from "./client";
 
 async function requestSystem(path, options) {
   const response = await authenticatedFetch(path, options);
+  if (response.status === 204 && response.ok) return null;
   let data;
   try { data = await response.json(); }
   catch { throw new Error("El servidor devolvió una respuesta inválida."); }

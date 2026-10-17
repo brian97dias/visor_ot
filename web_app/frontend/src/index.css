@@ -2227,3 +2227,11 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   opacity: .65;
   cursor: not-allowed;
 }
+
+/* Optional systems selection while registering a new Hardware asset. */
+.system-initial-choice {
+  display: flex; align-items: center; gap: 10px; width: fit-content;
+  margin: 8px 0; color: #cbd5e1; cursor: pointer;
+}
+.system-initial-choice input { accent-color: #38bdf8; }
+.system-initial-choice:focus-within { outline: 2px solid #38bdf8; outline-offset: 3px; }

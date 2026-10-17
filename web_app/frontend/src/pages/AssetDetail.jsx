@@ -9,6 +9,7 @@ import SuccessNotice from "../components/SuccessNotice";
 import ConfirmAssetStatusModal from "../components/ConfirmAssetStatusModal";
 import AssetInterfacesSection from "../components/AssetInterfacesSection";
 import AssetSoftwareSection from "../components/AssetSoftwareSection";
+import SystemMembershipSection from "../components/SystemMembershipSection";
 import SoftwareHistorySection from "../components/SoftwareHistorySection";
 import {
   canArchiveAssets,
@@ -171,6 +172,7 @@ function AssetDetail() {
       {asset.software && <SoftwareHistorySection asset={asset} />}
       {asset.hardware && <AssetInterfacesSection asset={asset} user={user} navigationState={navigationState} />}
       {asset.hardware && <AssetSoftwareSection asset={asset} user={user} />}
+      {asset.hardware && <SystemMembershipSection asset={asset} user={user} />}
 
       <section className="panel assets-detail-section">
         <div className="panel-header"><h2>Registro y auditoría</h2></div>

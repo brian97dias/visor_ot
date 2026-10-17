@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useOutletContext, useSearchParams } from "react-router-dom";
-import { getSystems } from "../api/systems";
+import { getSystems, archiveSystem, restoreSystem } from "../api/systems";
+import ConfirmSystemStatusModal from "../components/ConfirmSystemStatusModal";
+import SuccessNotice from "../components/SuccessNotice";
 import { navigationFromLocation } from "../utils/returnNavigation";
 import { readPage, updateListParams } from "../utils/listUrlState";
 import { canManageSystems, filterSystems,
@@ -20,6 +22,9 @@ export default function Systems() {
   const [rows,setRows]=useState([]);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
+  const [notice,setNotice]=useState("");
+  const [selectedStatusChange,setSelectedStatusChange]=useState(null);
+  const [busy,setBusy]=useState(false);
   function change(name,value,defaultValue="") {
     setParams(updateListParams(params,name,value,{defaultValue}),{replace:name==="q"});
   }
@@ -31,6 +36,23 @@ export default function Systems() {
       .finally(()=>{if(active)setLoading(false);});
     return ()=>{active=false;};
   },[status]);
+  async function confirmStatusChange() {
+    if (!selectedStatusChange || busy) return;
+    setBusy(true);setError("");setNotice("");
+    try {
+      const updated=selectedStatusChange.status==="ARCHIVED"
+        ? await restoreSystem(selectedStatusChange.id)
+        : await archiveSystem(selectedStatusChange.id);
+      setRows(current=>current.flatMap(item=>{
+        if(item.id!==updated.id) return [item];
+        return status==="ALL" || status===updated.status ? [updated] : [];
+      }));
+      setNotice(updated.status==="ARCHIVED"?
+        "Sistema archivado correctamente.":"Sistema restaurado correctamente.");
+    }catch(err){setError(err.message);}
+    finally{setBusy(false);setSelectedStatusChange(null);}
+  }
+
   const filtered=useMemo(()=>filterSystems(rows,{search,criticality}),[rows,search,criticality]);
   const pages=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE));
   const page=Math.min(readPage(params.get("page")),pages);
@@ -46,6 +68,7 @@ export default function Systems() {
         <Link className="button-primary assets-primary-link" to="/assets/systems/new"
           state={ctx}>Registrar sistema</Link>}
     </header>
+    <SuccessNotice message={notice} onClose={()=>setNotice("")}/>
     {error&&<div className="error-message" role="alert">{error}</div>}
     <div className="panel">
       <div className="panel-header">
@@ -88,6 +111,10 @@ export default function Systems() {
                 <Link className="button-secondary" to={"/assets/systems/"+item.id} state={ctx}>Ver</Link>
                 {canManageSystems(user)&&item.status==="ACTIVE"&&
                   <Link className="button-secondary" to={"/assets/systems/"+item.id+"/edit"} state={ctx}>Editar</Link>}
+                {canManageSystems(user)&&<button className="button-secondary assets-archive-button"
+                  type="button" disabled={busy} onClick={()=>setSelectedStatusChange(item)}>
+                  {item.status==="ARCHIVED"?"Restaurar":"Archivar"}
+                </button>}
               </div></td>
             </tr>)}</tbody>
           </table>
@@ -100,5 +127,8 @@ export default function Systems() {
         </div>
       </div>}
     </div>
+    {selectedStatusChange&&<ConfirmSystemStatusModal system={selectedStatusChange}
+      busy={busy} onCancel={()=>setSelectedStatusChange(null)}
+      onConfirm={confirmStatusChange}/>}
   </section>;
 }
