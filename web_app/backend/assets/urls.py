@@ -17,6 +17,8 @@ from .system_membership_views import (
     HardwareSystemsView, HardwareSystemUnlinkView,
 )
 
+from .system_software_views import SystemSoftwareView
+
 from .system_views import (
     SystemListCreateView, SystemDetailView, SystemArchiveView, SystemRestoreView,
 )
@@ -36,6 +38,7 @@ urlpatterns = [
     path("systems/<int:system_id>/archive/", SystemArchiveView.as_view(), name="ot-system-archive"),
     path("systems/<int:system_id>/restore/", SystemRestoreView.as_view(), name="ot-system-restore"),
     path("systems/<int:system_id>/hardware/", SystemHardwareView.as_view(), name="ot-system-hardware"),
+    path("systems/<int:system_id>/software/", SystemSoftwareView.as_view(), name="ot-system-software"),
     path("systems/<int:system_id>/hardware/<int:membership_id>/", SystemHardwareUnlinkView.as_view(), name="ot-system-hardware-unlink"),
     path("interfaces/", InterfaceListCreateView.as_view(), name="interface-list-create"),
     path("interfaces/<int:interface_id>/", InterfaceDetailView.as_view(), name="interface-detail"),
