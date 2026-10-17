@@ -86,6 +86,9 @@ class CommunicationListView(APIView):
         include_inactive = filters.get("include_inactive", "false").lower() == "true"
         status_filter = filters.get("status", "ALL")
         search = filters.get("search", "").strip()[:100]
+        match_mode = filters.get("match_mode", "PARTIAL")
+        if match_mode not in ("PARTIAL", "EXACT_IP"):
+            raise ValidationError({"match_mode": "Elige PARTIAL o EXACT_IP."})
         asset_ids = parse_asset_ids(filters.get("asset_ids"))
 
         if status_filter != "ALL" and status_filter not in Communication.Status.values:
@@ -114,9 +117,9 @@ class CommunicationListView(APIView):
         if status_filter != "ALL":
             queryset = queryset.filter(status=status_filter)
 
-        if search:
+        if match_mode == "EXACT_IP" or search:
             queryset = queryset.filter(
-                build_communication_search_criteria(search)
+                build_communication_search_criteria(search, match_mode=match_mode)
             )
         if asset_ids:
             by_hardware = hardware_participation_filter(asset_ids)
