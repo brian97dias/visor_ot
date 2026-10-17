@@ -33,6 +33,7 @@ export default function Communications() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
+  const matchMode = searchParams.get("match_mode") === "EXACT_IP" ? "EXACT_IP" : "PARTIAL";
   const [search, setSearch] = useState(() => query.trim());
   const statusParam = searchParams.get("status") || "ALL";
   const statusFilter = Object.hasOwn(STATUS_LABELS, statusParam) ? statusParam : "ALL";
@@ -65,6 +66,7 @@ useEffect(() => {
     getCommunications({
       page: currentPage,
       search,
+      matchMode,
       status: statusFilter,
       minPackets,
       assetIds: selectedAssetIds,
@@ -83,7 +85,7 @@ useEffect(() => {
       });
 
     return () => controller.abort();
-  }, [currentPage, search, statusFilter, minPackets, assetKey]);
+  }, [currentPage, search, matchMode, statusFilter, minPackets, assetKey]);
 
   // Avoid displaying the previous query's count while a search is pending.
   const isPending = loading || query.trim() !== search;
@@ -118,11 +120,21 @@ useEffect(() => {
             <input
               type="search"
               aria-label="Buscar comunicaciones"
-              placeholder="Buscar IP, dispositivo, protocolo, puerto o servicio..."
+              placeholder={matchMode === "EXACT_IP"
+                ? "Buscar IPv4 o IPv6 completa..."
+                : "Buscar IP, dispositivo, protocolo, puerto o servicio..."}
               value={query}
               onChange={(event) => changeFilter("q", event.target.value)}
             />
           </div>
+
+          <select className="table-filter-select"
+            aria-label="Modo de búsqueda"
+            value={matchMode}
+            onChange={(event) => changeFilter("match_mode", event.target.value, "PARTIAL")}>
+            <option value="PARTIAL">Coincidencia parcial</option>
+            <option value="EXACT_IP">IP exacta</option>
+          </select>
 
           <select className="table-filter-select"
             aria-label="Filtrar clasificación"
@@ -157,7 +169,7 @@ useEffect(() => {
             <strong>No se encontraron comunicaciones.</strong>
             <p>{selectedAssetIds.length === 2
               ? "No se encontraron comunicaciones identificadas entre estos dos dispositivos en las ingestas activas."
-              : selectedDevices.length === 1
+              : selectedAssetIds.length === 1
                 ? "No se encontraron comunicaciones identificadas para este dispositivo en las ingestas activas."
                 : "Prueba otro valor de búsqueda, clasificación o mínimo de paquetes."}</p>
           </div>
