@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import { getSystemHardware, getSystemSoftware } from "../api/systems";
 import { ROLE_LABELS, SOFTWARE_TYPE_LABELS } from "../utils/assetPermissions";
+import { groupSoftwareByHardware } from "../utils/systemRelations";
 
 /**
  * Read-only, lazy expansion of System -> Hardware -> installed Software.
@@ -29,15 +30,7 @@ export default function SystemRelationsRow({ system, open, navigationState }) {
   }, [open, data, revision, system.id]);
 
   const softwareByHost = useMemo(() => {
-    const map = new Map();
-    for (const software of data?.software?.results || []) {
-      for (const host of software.hardware || []) {
-        const group = map.get(host.hardware_asset_id) || [];
-        group.push(software);
-        map.set(host.hardware_asset_id, group);
-      }
-    }
-    return map;
+    return groupSoftwareByHardware(data?.software?.results || []);
   }, [data]);
 
   if (!open) return null;

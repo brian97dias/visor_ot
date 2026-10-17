@@ -30,7 +30,7 @@ export default function Systems() {
   const [busy,setBusy]=useState(false);
   function change(name,value,defaultValue="") {
     const next=updateListParams(params,name,value,{defaultValue});
-    if (name!=="page") next.delete("expanded");
+    next.delete("expanded");
     setParams(next,{replace:name==="q"});
   }
   function toggleRelations(systemId) {
@@ -120,7 +120,7 @@ export default function Systems() {
               <td>
                 <div className="assets-relation-counts">
                   <span>{item.hardware_count ?? 0} {item.hardware_count===1?"dispositivo":"dispositivos"}</span>
-                  <span className="pcap-path">{item.software_count ?? 0} software relacionados</span>
+                  <span className="pcap-path">{item.software_count ?? 0} {item.software_count===1?"software relacionado":"software relacionados"}</span>
                 </div>
                 <button type="button" className="asset-relations-toggle"
                   aria-expanded={expandedSystemId===item.id}
