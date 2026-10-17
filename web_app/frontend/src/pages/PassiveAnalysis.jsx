@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 
+import { readPage, updateListParams } from "../utils/listUrlState";
+import { navigationFromLocation } from "../utils/returnNavigation";
 import {
   analyzePcap,
   excludeIngestion,
@@ -17,6 +19,12 @@ function PassiveAnalysis() {
   const { user } = useOutletContext();
   const canManageAnalysis = user?.role === "ADMIN" || user?.role === "ANALYST";
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigationState = navigationFromLocation(location);
+  function changeFilter(name, value, defaultValue = "ALL", pageKey = "pcap_page") {
+    setSearchParams(updateListParams(searchParams, name, value, {defaultValue,pageKey}),
+      {replace: name.endsWith("_q")});
+  }
   const [ingestions, setIngestions] = useState([]);
 
   const [importingPcaps, setImportingPcaps] = useState(new Set());
@@ -69,13 +77,9 @@ function PassiveAnalysis() {
   const activeTab =
     searchParams.get("tab") === "observations" ? "observations" : "pcaps";
 
-  const [search, setSearch] = useState("");
-
-  const [pcapStatusFilter, setPcapStatusFilter] = useState("ALL");
-
-  const [ingestionStatusFilter, setIngestionStatusFilter] = useState("ALL");
-
-  const [currentPage, setCurrentPage] = useState(1);
+  const search = searchParams.get(activeTab === "pcaps" ? "pcap_q" : "ingestion_q") || "";
+  const pcapStatusFilter = searchParams.get("pcap_status") || "ALL";
+  const ingestionStatusFilter = searchParams.get("ingestion_status") || "ALL";
 
   const [loading, setLoading] = useState(true);
 
@@ -97,9 +101,7 @@ function PassiveAnalysis() {
     loadPcaps();
   }, []);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, pcapStatusFilter, ingestionStatusFilter]);
+
 
   const loadIngestions = async () => {
     try {
@@ -187,6 +189,7 @@ function PassiveAnalysis() {
   }, [ingestions, search, ingestionStatusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredPcaps.length / PAGE_SIZE));
+  const currentPage = Math.min(readPage(searchParams.get("pcap_page")), totalPages);
 
   const paginatedPcaps = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
@@ -197,33 +200,11 @@ function PassiveAnalysis() {
   }, [filteredPcaps, currentPage]);
 
   const changeTab = (tab) => {
-    setCurrentPage(1);
-
-    setSearch("");
-
-    setPcapStatusFilter("ALL");
-
-    setIngestionStatusFilter("ALL");
-
-    if (tab === "observations") {
-      setSearchParams({
-        tab: "observations",
-      });
-
-      return;
-    }
-
-    setSearchParams({});
+    setSearchParams(updateListParams(searchParams, "tab", tab,
+      {defaultValue: "pcaps", resetPage: false}));
   };
-
-  const goToPreviousPage = () => {
-    setCurrentPage((page) => Math.max(1, page - 1));
-  };
-
-  const goToNextPage = () => {
-    setCurrentPage((page) => Math.min(totalPages, page + 1));
-  };
-
+  const goToPreviousPage = () => changeFilter("pcap_page", Math.max(1,currentPage-1), "1");
+  const goToNextPage = () => changeFilter("pcap_page", Math.min(totalPages,currentPage+1), "1");
   const handleIngestionStatus = async (ingestion) => {
     setError("");
 
@@ -398,14 +379,14 @@ function PassiveAnalysis() {
                 type="search"
                 placeholder="Buscar por nombre o ruta..."
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => changeFilter(activeTab === "pcaps" ? "pcap_q" : "ingestion_q", event.target.value, "", activeTab === "pcaps" ? "pcap_page" : "ingestion_page")}
               />
             </div>
 
             <select
               className="table-filter-select"
               value={pcapStatusFilter}
-              onChange={(event) => setPcapStatusFilter(event.target.value)}
+              onChange={(event) => changeFilter("pcap_status", event.target.value)}
             >
               <option value="ALL">Todos los estados</option>
 
@@ -495,7 +476,7 @@ function PassiveAnalysis() {
                                 <button
                                   className="button-secondary"
                                   onClick={() =>
-                                    navigate(`/passive-analysis/${pcap.id}`)
+                                    navigate(`/passive-analysis/${pcap.id}`, {state:navigationState})
                                   }
                                 >
                                   Ver análisis
@@ -505,9 +486,7 @@ function PassiveAnalysis() {
                                   <button
                                     className="button-secondary"
                                     onClick={() =>
-                                      navigate(
-                                        `/passive-analysis/imports/${pcap.ingestion_id}`,
-                                      )
+                                      navigate(`/passive-analysis/imports/${pcap.ingestion_id}`, {state:navigationState})
                                     }
                                   >
                                     Ver ingesta
@@ -602,7 +581,7 @@ function PassiveAnalysis() {
             <select
               className="table-filter-select"
               value={ingestionStatusFilter}
-              onChange={(event) => setIngestionStatusFilter(event.target.value)}
+              onChange={(event) => changeFilter("ingestion_status", event.target.value, "ALL", "ingestion_page")}
             >
               <option value="ALL">Todos los estados</option>
 
@@ -687,9 +666,7 @@ function PassiveAnalysis() {
                           <button
                             className="button-secondary"
                             onClick={() =>
-                              navigate(
-                                `/passive-analysis/imports/${ingestion.id}`,
-                              )
+                              navigate(`/passive-analysis/imports/${ingestion.id}`, {state:navigationState})
                             }
                           >
                             Ver

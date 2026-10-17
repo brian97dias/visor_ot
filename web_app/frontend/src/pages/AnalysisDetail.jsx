@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { getBackNavigation } from "../utils/returnNavigation";
 
 import ObservationBrowser from "../components/ObservationBrowser";
 import CommunicationObservationModal from "../components/CommunicationObservationModal";
@@ -7,6 +8,8 @@ import CommunicationObservationModal from "../components/CommunicationObservatio
 export default function AnalysisDetail() {
   const { pcapId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const back = getBackNavigation(location, "/passive-analysis");
   const [overview, setOverview] = useState(null);
   const [activeTab, setActiveTab] = useState("interfaces");
   const [selectedCommunication, setSelectedCommunication] = useState(null);
@@ -14,13 +17,14 @@ export default function AnalysisDetail() {
   return (
     <section className="page">
       <div className="breadcrumbs">
-        <button onClick={() => navigate("/passive-analysis")}>
+        <button onClick={() => navigate(back.to,{state:back.state})}>
           Red / Análisis pasivo
         </button>
         <span>/</span>
         <span>{overview?.capture?.filename || pcapId}</span>
       </div>
 
+      <Link className="button-secondary assets-back-link" to={back.to} state={back.state}>← Volver</Link>
       <header className="analysis-detail-header">
         <div className="analysis-title-row">
           <h1>{overview?.capture?.filename || "Cargando análisis..."}</h1>

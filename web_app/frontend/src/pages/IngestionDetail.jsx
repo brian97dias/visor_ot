@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { getIngestion } from "../api/ingestion";
+import { getBackNavigation } from "../utils/returnNavigation";
 import ObservationBrowser from "../components/ObservationBrowser";
 import CommunicationObservationModal from "../components/CommunicationObservationModal";
 
 export default function IngestionDetail() {
   const { ingestionId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const back = getBackNavigation(location, "/passive-analysis?tab=observations");
   const [ingestion, setIngestion] = useState(null);
   const [activeTab, setActiveTab] = useState("interfaces");
   const [selectedCommunication, setSelectedCommunication] = useState(null);
@@ -29,7 +32,7 @@ export default function IngestionDetail() {
       <section className="page">
         <div className="error-message">{error || "Importación no disponible."}</div>
         <button className="button-secondary"
-          onClick={() => navigate("/passive-analysis?tab=observations")}>Volver</button>
+          onClick={() => navigate(back.to,{state:back.state})}>Volver</button>
       </section>
     );
   }
@@ -43,6 +46,7 @@ export default function IngestionDetail() {
         <span>/</span><span>#{ingestion.id}</span>
       </div>
 
+      <Link className="button-secondary assets-back-link" to={back.to} state={back.state}>← Volver</Link>
       <header className="analysis-detail-header">
         <div className="analysis-title-row">
           <h1>{ingestion.filename}</h1>

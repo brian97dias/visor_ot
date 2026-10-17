@@ -1,19 +1,28 @@
 import { useEffect, useState } from "react";
-import { Link, useOutletContext } from "react-router-dom";
+import { Link, useLocation, useOutletContext, useSearchParams } from "react-router-dom";
 
 import { createInterface, getInterfaces } from "../api/interfaces";
 import { canCreateAssets } from "../utils/assetPermissions";
 import SuccessNotice from "../components/SuccessNotice";
+import { readPage, updateListParams } from "../utils/listUrlState";
+import { navigationFromLocation } from "../utils/returnNavigation";
 
 export default function Interfaces() {
   const { user } = useOutletContext();
   const canManage = canCreateAssets(user);
-  const [query, setQuery] = useState("");
-  const [search, setSearch] = useState("");
-  const [matchMode, setMatchMode] = useState("PARTIAL");
-  const [identification, setIdentification] = useState("ALL");
-  const [evidence, setEvidence] = useState("ACTIVE");
-  const [page, setPage] = useState(1);
+  const location = useLocation();
+  const [params, setParams] = useSearchParams();
+  const navigationState = navigationFromLocation(location);
+  const query = params.get("q") || "";
+  const [search,setSearch] = useState(() => query.trim());
+  const matchMode = params.get("match") === "EXACT_IP" ? "EXACT_IP" : "PARTIAL";
+  const identification = ["IDENTIFIED","UNIDENTIFIED"].includes(params.get("identification"))
+    ? params.get("identification") : "ALL";
+  const evidence = ["ALL","NO_ACTIVE"].includes(params.get("evidence")) ? params.get("evidence") : "ACTIVE";
+  const page = readPage(params.get("page"));
+  function changeFilter(name,value,defaultValue="") {
+    setParams(updateListParams(params,name,value,{defaultValue}),{replace:name==="q"});
+  }
   const [response, setResponse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -28,7 +37,7 @@ export default function Interfaces() {
     const handle = setTimeout(() => setSearch(query.trim()), 350);
     return () => clearTimeout(handle);
   }, [query]);
-  useEffect(() => { setPage(1); }, [search, matchMode, identification, evidence]);
+
 
   useEffect(() => {
     let active = true;
@@ -58,16 +67,17 @@ export default function Interfaces() {
       // A manual interface has no PCAP evidence yet and is intentionally
       // excluded from the default ACTIVE filter. Make the new record visible.
       const identity = result.mac || result.declared_ip;
-      setEvidence("ALL");
-      // A newly registered interface may have only a MAC. Avoid leaving
-      // an exact-IP-only mode active when focusing its new identity.
-      setMatchMode("PARTIAL");
-      setQuery(identity);
-      setSearch(identity);
+      const next = new URLSearchParams(params);
+      next.set("evidence","ALL");
+      next.delete("match");
+      next.delete("identification");
+      next.set("q",identity);
+      next.delete("page");
+      setParams(next);
+      setSearch(identity.trim());
       setShowForm(false);
       setMac("");
       setDeclaredIp("");
-      setPage(1);
       setRevision((value) => value + 1);
     } catch (err) {
       setError(err.message);
@@ -141,22 +151,22 @@ export default function Interfaces() {
             <input type="search" value={query}
               aria-label="Buscar MAC o IP"
               placeholder={matchMode === "EXACT_IP" ? "Escribe la IP completa..." : "Buscar MAC o IP..."}
-              onChange={(event) => setQuery(event.target.value)} />
+              onChange={(event) => changeFilter("q",event.target.value)} />
           </div>
           <select className="table-filter-select"
             value={matchMode} aria-label="Tipo de coincidencia de interfaces"
-            onChange={(event) => setMatchMode(event.target.value)}>
+            onChange={(event) => changeFilter("match",event.target.value,"PARTIAL")}>
             <option value="PARTIAL">Coincidencia parcial</option>
             <option value="EXACT_IP">IP exacta</option>
           </select>
           <select className="table-filter-select" value={identification}
-            aria-label="Estado de identificación" onChange={(event) => setIdentification(event.target.value)}>
+            aria-label="Estado de identificación" onChange={(event) => changeFilter("identification",event.target.value,"ALL")}>
             <option value="ALL">Todas las identificaciones</option>
             <option value="IDENTIFIED">Identificadas</option>
             <option value="UNIDENTIFIED">Sin identificar</option>
           </select>
           <select className="table-filter-select" value={evidence}
-            aria-label="Estado de evidencia" onChange={(event) => setEvidence(event.target.value)}>
+            aria-label="Estado de evidencia" onChange={(event) => changeFilter("evidence",event.target.value,"ACTIVE")}>
             <option value="ALL">Toda la evidencia</option>
             <option value="ACTIVE">Evidencia activa</option>
             <option value="NO_ACTIVE">Sin evidencia activa</option>
@@ -182,7 +192,7 @@ export default function Interfaces() {
                     </td>
                     <td>{item.is_identified ? "Identificada" : "No identificada"}</td>
                     <td>{item.has_active_evidence ? "Activa" : "Solo histórica / ninguna"}</td>
-                    <td><Link className="button-secondary" to={"/assets/interfaces/" + item.id}>Ver detalle</Link></td>
+                    <td><Link className="button-secondary" to={"/assets/interfaces/" + item.id} state={navigationState}>Ver detalle</Link></td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -192,9 +202,9 @@ export default function Interfaces() {
           <span>Página {shownPage} de {pages}</span>
           <div className="pagination-actions">
             <button type="button" disabled={loading || shownPage <= 1}
-              onClick={() => setPage(shownPage - 1)}>Anterior</button>
+              onClick={() => changeFilter("page",shownPage-1,"1")}>Anterior</button>
             <button type="button" disabled={loading || shownPage >= pages}
-              onClick={() => setPage(shownPage + 1)}>Siguiente</button>
+              onClick={() => changeFilter("page",shownPage+1,"1")}>Siguiente</button>
           </div>
         </div>
       </div>

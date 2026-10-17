@@ -5,6 +5,7 @@ import {
 
 import {
   Link,
+  useLocation,
   useParams,
   useOutletContext,
 } from "react-router-dom";
@@ -14,6 +15,7 @@ import {
   getCommunication,
 } from "../api/network";
 import CommunicationEndpoint from "../components/CommunicationEndpoint";
+import { getBackNavigation, navigationFromLocation } from "../utils/returnNavigation";
 
 
 function getStatusLabel(status) {
@@ -55,6 +57,9 @@ function getStatusClass(status) {
 
 function CommunicationDetail() {
   const { user } = useOutletContext();
+  const location = useLocation();
+  const back = getBackNavigation(location, "/communications");
+  const navigationState = navigationFromLocation(location);
   const canClassify = user?.role === "ADMIN" || user?.role === "ANALYST";
 
   const {
@@ -217,7 +222,7 @@ function CommunicationDetail() {
 
         <span>/</span>
 
-        <Link to="/communications">
+        <Link to={back.to} state={back.state}>
           Comunicaciones
         </Link>
 
@@ -230,6 +235,7 @@ function CommunicationDetail() {
       </div>
 
 
+      <Link className="button-secondary assets-back-link" to={back.to} state={back.state}>← Volver</Link>
       <header className="analysis-detail-header">
 
         <div>
@@ -660,9 +666,7 @@ function CommunicationDetail() {
 
                         <Link
                           className="button-link"
-                          to={
-                            `/passive-analysis/imports/${evidence.ingestion_id}`
-                          }
+                          to={`/passive-analysis/imports/${evidence.ingestion_id}`} state={navigationState}
                         >
                           Ver ingesta
                         </Link>
