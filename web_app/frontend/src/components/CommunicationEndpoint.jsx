@@ -23,7 +23,7 @@ export default function CommunicationEndpoint({ ip, resolution }) {
 
   return (
     <div className="communication-endpoint">
-      <Link className="communication-device-link"
+      <Link className="communication-device-link entity-link"
         to={"/assets/" + device.asset_id}
         title={"Identificado con ARP de la captura y asociación manual; MAC " + device.mac}>
         {device.asset_name}

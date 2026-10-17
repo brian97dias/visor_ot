@@ -90,7 +90,7 @@ export default function InterfaceDetail() {
           <div><span>IP observadas</span><strong>{entry.observed_ips?.join(", ") || "No observadas"}</strong></div>
           <div><span>Activo relacionado</span>
             <strong>{entry.hardware
-              ? <Link to={"/assets/" + entry.hardware.asset} state={navigationFromLocation(location)}>{entry.hardware.asset_name}</Link>
+              ? <Link className="entity-link" to={"/assets/" + entry.hardware.asset} state={navigationFromLocation(location)}>{entry.hardware.asset_name}</Link>
               : "Sin asociar"}</strong>
           </div>
           <div><span>Rol</span><strong>{entry.hardware?.role || "Sin identificar"}</strong></div>

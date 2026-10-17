@@ -190,7 +190,7 @@ export default function AssetSoftwareSection({ asset, user, embedded = false }) 
               {installed.map((row) => (
                 <tr key={row.id}>
                   <td>
-                    <Link to={"/assets/" + row.software_asset_id}>{row.name}</Link>
+                    <Link className="entity-link" to={"/assets/" + row.software_asset_id}>{row.name}</Link>
                     <div className="pcap-path">
                       {row.software.manufacturer || "Fabricante desconocido"} · {row.software.product}
                     </div>

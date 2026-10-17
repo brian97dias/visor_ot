@@ -2199,3 +2199,10 @@ input {
 
 .assets-back-link { display: inline-flex; width: fit-content; margin-bottom: 14px; align-items: center; text-decoration: none; }
 .assets-back-link:focus-visible { outline: 2px solid #38bdf8; outline-offset: 3px; }
+
+/* Accessible entity links on the dark theme: visited links must not revert to browser purple. */
+a.entity-link:link, a.entity-link:visited { color: #7dd3fc; text-decoration: underline; text-underline-offset: 2px; }
+a.entity-link:hover, a.entity-link:active { color: #bae6fd; }
+a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outline-offset: 3px; }
+.assets-detail-grid strong a.entity-link:link,
+.assets-detail-grid strong a.entity-link:visited { color: #7dd3fc; }

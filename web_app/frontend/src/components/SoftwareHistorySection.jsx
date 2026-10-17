@@ -45,7 +45,7 @@ export default function SoftwareHistorySection({ asset }) {
                 <tbody>
                   {history.installations.map((row) => (
                     <tr key={row.id}>
-                      <td><Link to={"/assets/" + row.hardware_asset_id}>{row.hardware_name}</Link></td>
+                      <td><Link className="entity-link" to={"/assets/" + row.hardware_asset_id}>{row.hardware_name}</Link></td>
                       <td>
                         {identityText(row.identity_snapshot)}
                         {row.identity_snapshot?._source === "migration_current_value_not_verified" && (

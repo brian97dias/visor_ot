@@ -133,7 +133,7 @@ export default function SoftwareHardwareSection({ asset, user, onInstallationsCh
             <tbody>
               {installed.map((row) => (
                 <tr key={row.id}>
-                  <td><Link to={"/assets/" + row.hardware_asset_id}>{row.hardware_name}</Link></td>
+                  <td><Link className="entity-link" to={"/assets/" + row.hardware_asset_id}>{row.hardware_name}</Link></td>
                   <td>{[row.manufacturer, row.model].filter(Boolean).join(" · ") || "Sin registrar"}</td>
                   <td>{ROLE_LABELS[row.hardware_role] || row.hardware_role}</td>
                   <td>
