@@ -12,6 +12,10 @@ from .software_installation_views import (
     SoftwareHardwareUnlinkView,
 )
 
+from .system_views import (
+    SystemListCreateView, SystemDetailView, SystemArchiveView, SystemRestoreView,
+)
+
 from .views import (
     AssetArchiveView,
     AssetExportExcelView,
@@ -22,6 +26,10 @@ from .views import (
 
 
 urlpatterns = [
+    path("systems/", SystemListCreateView.as_view(), name="ot-system-list-create"),
+    path("systems/<int:system_id>/", SystemDetailView.as_view(), name="ot-system-detail"),
+    path("systems/<int:system_id>/archive/", SystemArchiveView.as_view(), name="ot-system-archive"),
+    path("systems/<int:system_id>/restore/", SystemRestoreView.as_view(), name="ot-system-restore"),
     path("interfaces/", InterfaceListCreateView.as_view(), name="interface-list-create"),
     path("interfaces/<int:interface_id>/", InterfaceDetailView.as_view(), name="interface-detail"),
     path("interfaces/<int:interface_id>/identify/", InterfaceIdentifyView.as_view(), name="interface-identify"),

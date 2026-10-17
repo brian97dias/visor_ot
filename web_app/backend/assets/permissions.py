@@ -31,6 +31,21 @@ class AssetPermission(BasePermission):
         return False
 
 
+class SystemPermission(BasePermission):
+    """Read: all OT roles. Write: administrators and operators only."""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.method in SAFE_METHODS:
+            return request.user.role in (
+                User.Role.ADMIN, User.Role.ANALYST, User.Role.OPERATOR,
+            )
+        if request.method in ("POST", "PATCH"):
+            return request.user.role in (User.Role.ADMIN, User.Role.OPERATOR)
+        return False
+
+
 class AssetArchivePermission(BasePermission):
     """Solo administrador y operador pueden archivar o restaurar activos."""
 
