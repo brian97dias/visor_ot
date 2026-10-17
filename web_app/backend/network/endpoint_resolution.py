@@ -22,6 +22,57 @@ def canonical_mac(mac):
         return None
 
 
+def ambiguous_endpoint(ip, evidence, side, ip_bindings):
+    """Report candidates without upgrading an ambiguous endpoint to identified.
+
+    Candidates require an IP/MAC ARP binding in the *same active ingestion*
+    as a contributing communication observation. Other ARP bindings for that
+    IP in that ingestion remain candidates even if the communication observed
+    only one of those MACs. No unrelated capture/IP is considered.
+    """
+    candidates = {}
+    for observation in evidence:
+        observed = observation.get(side + "_macs")
+        if not isinstance(observed, list) or not observed:
+            continue
+        observed_macs = {canonical_mac(mac) for mac in observed}
+        observed_macs.discard(None)
+        bindings = ip_bindings.get((observation["ingestion_id"], ip), {})
+        if not observed_macs.intersection(bindings):
+            continue
+
+        for mac, identity in bindings.items():
+            if not mac:
+                continue
+            interface_id, asset_id, asset_name, role = (
+                identity if identity is not None else (None, None, None, None)
+            )
+            # Retain separate MAC evidence even when two interfaces map to
+            # the same asset. Deduplicating the *label* belongs to the UI.
+            key = (mac, interface_id, asset_id)
+            candidates[key] = {
+                "mac": mac,
+                "interface_id": interface_id,
+                "asset_id": asset_id,
+                "asset_name": asset_name,
+            }
+
+    return {
+        "status": "AMBIGUOUS",
+        "identity": None,
+        "candidates": [
+            candidates[key] for key in sorted(
+                candidates,
+                key=lambda item: (
+                    item[0],
+                    item[1] if item[1] is not None else -1,
+                    item[2] if item[2] is not None else -1,
+                ),
+            )
+        ],
+    }
+
+
 def resolve_endpoint(ip, evidence, side, ip_bindings):
     """Pure resolver. Missing/contradictory evidence never produces a device name.
 
@@ -41,13 +92,13 @@ def resolve_endpoint(ip, evidence, side, ip_bindings):
         if None in macs:
             return {"status": "UNKNOWN", "identity": None}
         if len(macs) != 1:
-            return {"status": "AMBIGUOUS", "identity": None}
+            return ambiguous_endpoint(ip, evidence, side, ip_bindings)
 
         mac = next(iter(macs))
         bindings = ip_bindings.get((observation["ingestion_id"], ip), {})
 
         if len(bindings) > 1:
-            return {"status": "AMBIGUOUS", "identity": None}
+            return ambiguous_endpoint(ip, evidence, side, ip_bindings)
         if not bindings or mac not in bindings:
             return {"status": "UNKNOWN", "identity": None}
 
@@ -58,7 +109,7 @@ def resolve_endpoint(ip, evidence, side, ip_bindings):
         candidates.add((mac, identity))
 
     if len(candidates) != 1:
-        return {"status": "AMBIGUOUS", "identity": None}
+        return ambiguous_endpoint(ip, evidence, side, ip_bindings)
 
     mac, (interface_id, asset_id, asset_name, role) = next(iter(candidates))
     if asset_id is None:
