@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useOutletContext, useSearchParams } from "react-router-dom";
 import { getSystems, archiveSystem, restoreSystem } from "../api/systems";
 import ConfirmSystemStatusModal from "../components/ConfirmSystemStatusModal";
 import SuccessNotice from "../components/SuccessNotice";
+import SystemRelationsRow from "../components/SystemRelationsRow";
 import { navigationFromLocation } from "../utils/returnNavigation";
 import { readPage, updateListParams } from "../utils/listUrlState";
+import { readPositiveInt } from "../utils/inventoryUrlState";
 import { canManageSystems, filterSystems,
   SYSTEM_STATUS_LABELS, SYSTEM_CRITICALITY_LABELS } from "../utils/systemUi";
 
@@ -19,6 +21,7 @@ export default function Systems() {
   const criticality=Object.hasOwn(SYSTEM_CRITICALITY_LABELS,params.get("criticality"))
     ?params.get("criticality"):"ALL";
   const search=params.get("q")||"";
+  const expandedSystemId=readPositiveInt(params.get("expanded"),null);
   const [rows,setRows]=useState([]);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
@@ -26,7 +29,15 @@ export default function Systems() {
   const [selectedStatusChange,setSelectedStatusChange]=useState(null);
   const [busy,setBusy]=useState(false);
   function change(name,value,defaultValue="") {
-    setParams(updateListParams(params,name,value,{defaultValue}),{replace:name==="q"});
+    const next=updateListParams(params,name,value,{defaultValue});
+    if (name!=="page") next.delete("expanded");
+    setParams(next,{replace:name==="q"});
+  }
+  function toggleRelations(systemId) {
+    const next=updateListParams(params,"expanded",
+      expandedSystemId===systemId?"":String(systemId),
+      {defaultValue:"",resetPage:false});
+    setParams(next,{replace:true});
   }
   useEffect(()=>{
     let active=true;
@@ -45,7 +56,7 @@ export default function Systems() {
         : await archiveSystem(selectedStatusChange.id);
       setRows(current=>current.flatMap(item=>{
         if(item.id!==updated.id) return [item];
-        return status==="ALL" || status===updated.status ? [updated] : [];
+        return status==="ALL" || status===updated.status ? [{...item,...updated}] : [];
       }));
       setNotice(updated.status==="ARCHIVED"?
         "Sistema archivado correctamente.":"Sistema restaurado correctamente.");
@@ -102,10 +113,22 @@ export default function Systems() {
           <p>{rows.length===0?"Todavía no hay sistemas en esta vista.":"Prueba otros filtros."}</p>
         </div>:!error&&<div className="table-container">
           <table className="data-table">
-            <thead><tr><th>Sistema</th><th>Criticidad</th><th>Estado</th><th>Acciones</th></tr></thead>
-            <tbody>{visible.map(item=><tr key={item.id}>
+            <thead><tr><th>Sistema</th><th>Criticidad</th><th>Vinculaciones</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody>{visible.map(item=><Fragment key={item.id}><tr>
               <td><strong>{item.name}</strong><small className="interface-hint">Sistema #{item.id}</small></td>
               <td>{SYSTEM_CRITICALITY_LABELS[item.criticality]||item.criticality}</td>
+              <td>
+                <div className="assets-relation-counts">
+                  <span>{item.hardware_count ?? 0} {item.hardware_count===1?"dispositivo":"dispositivos"}</span>
+                  <span className="pcap-path">{item.software_count ?? 0} software relacionados</span>
+                </div>
+                <button type="button" className="asset-relations-toggle"
+                  aria-expanded={expandedSystemId===item.id}
+                  aria-controls={expandedSystemId===item.id?"system-relations-"+item.id:undefined}
+                  onClick={()=>toggleRelations(item.id)}>
+                  {expandedSystemId===item.id?"Ocultar relaciones":"Ver relaciones"}
+                </button>
+              </td>
               <td>{SYSTEM_STATUS_LABELS[item.status]||item.status}</td>
               <td><div className="table-actions">
                 <Link className="button-secondary" to={"/assets/systems/"+item.id} state={ctx}>Ver</Link>
@@ -116,7 +139,10 @@ export default function Systems() {
                   {item.status==="ARCHIVED"?"Restaurar":"Archivar"}
                 </button>}
               </div></td>
-            </tr>)}</tbody>
+            </tr>
+            <SystemRelationsRow system={item} open={expandedSystemId===item.id}
+              navigationState={ctx}/>
+            </Fragment>)}</tbody>
           </table>
         </div>}
       {!loading&&!error&&<div className="pagination">
