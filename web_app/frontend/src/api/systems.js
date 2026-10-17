@@ -39,3 +39,33 @@ export function archiveSystem(id) {
 export function restoreSystem(id) {
   return requestSystem("/api/assets/systems/" + id + "/restore/", { method: "POST" });
 }
+
+/** Current associations and historical unlink audit on a system. */
+export function getSystemHardware(id) {
+  return requestSystem("/api/assets/systems/" + id + "/hardware/");
+}
+export function addHardwareToSystem(id, hardwareAssetId) {
+  return requestSystem("/api/assets/systems/" + id + "/hardware/", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ hardware_asset_id: hardwareAssetId }),
+  });
+}
+export function unlinkHardwareFromSystem(id, membershipId) {
+  return requestSystem("/api/assets/systems/" + id + "/hardware/" + membershipId + "/", {
+    method: "DELETE",
+  });
+}
+export function getHardwareSystems(assetId) {
+  return requestSystem("/api/assets/" + assetId + "/systems/");
+}
+export function addSystemToHardware(assetId, systemId) {
+  return requestSystem("/api/assets/" + assetId + "/systems/", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ system_id: systemId }),
+  });
+}
+export function unlinkSystemFromHardware(assetId, membershipId) {
+  return requestSystem("/api/assets/" + assetId + "/systems/" + membershipId + "/", {
+    method: "DELETE",
+  });
+}
