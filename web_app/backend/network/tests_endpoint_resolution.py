@@ -108,3 +108,80 @@ class EndpointResolutionTests(SimpleTestCase):
             {(7, "192.168.88.15"): {MAC_A: IDENTITY_A}},
         )
         self.assertEqual(result["status"], "IDENTIFIED")
+
+
+    def test_ambiguous_ip_shows_assigned_and_unassigned_mac_candidates(self):
+        ip = "192.168.88.1"
+        unassigned = "b0:99:28:d9:1a:24"
+        assigned = ("83", 20, "Westermo Lynx 3643-0105", "SWITCH")
+        result = resolve_endpoint(
+            ip,
+            [observation(7, [MAC_A])],
+            "client",
+            {(7, ip): {
+                MAC_A: (83, 20, assigned[2], assigned[3]),
+                unassigned: (116, None, None, None),
+            }},
+        )
+        self.assertEqual(result["status"], "AMBIGUOUS")
+        self.assertIsNone(result["identity"])
+        self.assertEqual(len(result["candidates"]), 2)
+        candidates = {item["mac"]: item for item in result["candidates"]}
+        self.assertEqual(candidates[MAC_A]["asset_name"], "Westermo Lynx 3643-0105")
+        self.assertIsNone(candidates[unassigned]["asset_id"])
+        self.assertEqual(candidates[unassigned]["interface_id"], 116)
+
+    def test_two_macs_for_one_hardware_are_still_ambiguous(self):
+        ip = "192.168.88.1"
+        result = resolve_endpoint(
+            ip, [observation(7, [MAC_A])], "client",
+            {(7, ip): {
+                MAC_A: IDENTITY_A,
+                MAC_B: (113, IDENTITY_A[1], IDENTITY_A[2], IDENTITY_A[3]),
+            }},
+        )
+        self.assertEqual(result["status"], "AMBIGUOUS")
+        self.assertEqual(
+            {item["asset_id"] for item in result["candidates"]}, {1}
+        )
+        self.assertEqual(len(result["candidates"]), 2)
+
+    def test_candidates_do_not_include_unrelated_capture_or_ip(self):
+        ip = "192.168.88.1"
+        result = resolve_endpoint(
+            ip, [observation(7, [MAC_A])], "client",
+            {
+                (7, ip): {MAC_A: IDENTITY_A, MAC_B: None},
+                (8, ip): {"b0:99:28:d9:1a:24": IDENTITY_B},
+                (7, "192.168.88.2"): {"00:11:22:33:44:55": IDENTITY_B},
+            },
+        )
+        self.assertEqual(result["status"], "AMBIGUOUS")
+        self.assertEqual({c["mac"] for c in result["candidates"]}, {MAC_A, MAC_B})
+
+    def test_candidates_on_server_side_and_multiple_active_ingestions(self):
+        ip = "192.168.88.1"
+        result = resolve_endpoint(
+            ip, [observation(7, [MAC_A], "server"),
+                 observation(9, [MAC_B], "server")],
+            "server",
+            {(7, ip): {MAC_A: IDENTITY_A}, (9, ip): {MAC_B: IDENTITY_B}},
+        )
+        self.assertEqual(result["status"], "AMBIGUOUS")
+        self.assertEqual(
+            {row["asset_id"] for row in result["candidates"]}, {1, 2}
+        )
+
+    def test_missing_or_mismatching_evidence_stays_unknown_without_candidates(self):
+        ip = "192.168.88.1"
+        for macs, bindings in [
+            (None, {MAC_A: IDENTITY_A, MAC_B: IDENTITY_B}),
+            ([MAC_A], {MAC_B: IDENTITY_B}),
+        ]:
+            with self.subTest(macs=macs):
+                result = resolve_endpoint(
+                    ip, [observation(7, macs)], "client",
+                    {(7, ip): bindings},
+                )
+                self.assertEqual(result["status"], "UNKNOWN")
+                self.assertIsNone(result["identity"])
