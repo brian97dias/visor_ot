@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import { getHardwareForSoftware, getInstalledSoftware } from "../api/assets";
 import { getInterfaces } from "../api/interfaces";
+import { getHardwareSystems } from "../api/systems";
 import { ROLE_LABELS, SOFTWARE_TYPE_LABELS } from "../utils/assetPermissions";
 
 function InventoryState({ value }) {
@@ -37,6 +38,28 @@ function SoftwareLinks({ results, navigationState }) {
       )}
     </section>
   );
+}
+
+function SystemLinks({ results, navigationState }) {
+  return <section className="asset-relation-section asset-relations-systems">
+    <h4>Sistemas OT vinculados <span>({results.length})</span></h4>
+    {results.length === 0 ? (
+      <p className="interface-hint">Este hardware no pertenece a ningún sistema OT registrado.</p>
+    ) : <ul className="asset-relation-list">
+      {results.map(row => <li key={row.id}>
+        <div>
+          <Link className="entity-link" to={"/assets/systems/" + row.system_id}
+            state={navigationState}>{row.system_name}</Link>
+          <div className="interface-hint">
+            Sistema OT
+            <InventoryState value={row.system_status}/>
+          </div>
+        </div>
+        <Link className="button-link" to={"/assets/systems/" + row.system_id}
+          state={navigationState}>Ver sistema</Link>
+      </li>)}
+    </ul>}
+  </section>;
 }
 
 function HardwareLinks({ results, navigationState }) {
@@ -144,8 +167,10 @@ export default function AssetRelationsRow({ asset, open, canManage, navigationSt
       ? Promise.all([
           getInstalledSoftware(asset.id),
           getInterfaces({ hardwareId: asset.id, evidence: "ALL", page: 1 }),
-        ]).then(([software, interfaces]) => ({
+          getHardwareSystems(asset.id),
+        ]).then(([software, interfaces, systems]) => ({
           software: software.results || [], interfaces,
+          systems: systems.results || [],
         }))
       : getHardwareForSoftware(asset.id).then((hardware) => ({
           hardware: hardware.results || [],
@@ -222,6 +247,7 @@ export default function AssetRelationsRow({ asset, open, canManage, navigationSt
                 <>
                   <SoftwareLinks results={links.software} navigationState={navigationState} />
                   <InterfaceLinks value={links.interfaces} onPage={changeInterfacePage} loading={interfaceLoading} error={interfaceError} navigationState={navigationState} />
+                  <SystemLinks results={links.systems} navigationState={navigationState} />
                 </>
               ) : <HardwareLinks results={links.hardware} navigationState={navigationState} />}
             </div>

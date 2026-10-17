@@ -26,11 +26,12 @@ function AssetRelationshipsSummary({ asset }) {
   if (asset.asset_type === "HARDWARE") {
     const softwareCount = asset.software_count ?? 0;
     const interfaceCount = asset.interface_count ?? 0;
+    const systemCount = asset.system_count ?? 0;
     return (
       <div className="assets-relation-counts">
-        <span>{softwareCount} {softwareCount === 1 ? "software asociado" : "software asociados"}</span>
+        <span>{softwareCount} software · {interfaceCount} {interfaceCount === 1 ? "interfaz" : "interfaces"}</span>
         <span className="pcap-path">
-          {interfaceCount} {interfaceCount === 1 ? "interfaz asociada" : "interfaces asociadas"}
+          {systemCount} {systemCount === 1 ? "sistema OT" : "sistemas OT"}
         </span>
       </div>
     );
@@ -280,15 +281,17 @@ function Assets() {
                       </td>
                       <td>{CRITICALITY_LABELS[asset.criticality] || asset.criticality}</td>
                       <td>
-                        <AssetRelationshipsSummary asset={asset} />
-                        <button type="button" className="asset-relations-toggle"
-                          aria-expanded={expandedAssetId === asset.id}
-                          aria-controls={expandedAssetId === asset.id
-                            ? "asset-relations-" + asset.id : undefined}
-                          onClick={() => changeQueryFilter("expanded", expandedAssetId === asset.id ? "" : asset.id)}>
-                          {expandedAssetId === asset.id
-                            ? "Ocultar vinculaciones" : "Ver vinculaciones"}
-                        </button>
+                        <div className="assets-relation-summary-row">
+                          <AssetRelationshipsSummary asset={asset} />
+                          <button type="button" className="asset-relations-toggle"
+                            aria-expanded={expandedAssetId === asset.id}
+                            aria-controls={expandedAssetId === asset.id
+                              ? "asset-relations-" + asset.id : undefined}
+                            onClick={() => changeQueryFilter("expanded", expandedAssetId === asset.id ? "" : asset.id)}>
+                            {expandedAssetId === asset.id
+                              ? "Ocultar relaciones" : "Ver relaciones"}
+                          </button>
+                        </div>
                       </td>
                       <td>
                         <span className={asset.inventory_status === "ARCHIVED"

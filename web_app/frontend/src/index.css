@@ -2239,3 +2239,28 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 /* Derived Software visibility inside the OT System detail. */
 .system-software-hosts { display: flex; flex-direction: column; gap: 6px; }
 .system-software-host { line-height: 1.4; }
+
+/* Contextual relation summaries and three-panel Hardware inventory expansion. */
+.assets-relation-summary-row {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; column-gap: 12px; row-gap: 5px; min-width: 0;
+}
+.assets-relation-summary-row .assets-relation-counts { gap: 3px; min-width: 0; }
+.assets-relation-summary-row .asset-relations-toggle { margin-top: 0; flex-shrink: 0; }
+.asset-relations-systems { grid-column: 1 / -1; }
+.system-relations-software-count { margin-left: 6px; }
+.system-hardware-tree, .system-hardware-software-list { margin: 0; padding: 0; list-style: none; }
+.system-hardware-tree { display: grid; gap: 10px; }
+.system-hardware-tree-item {
+  background: #0d1b2a; border: 1px solid #293b4c;
+  border-radius: 7px; padding: 12px 14px; min-width: 0;
+}
+.system-hardware-tree-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+.system-hardware-software-list { border-left: 1px solid #475569; margin: 9px 0 0 8px; padding-left: 16px; }
+.system-hardware-software-list li { padding: 5px 0; display: flex; flex-wrap: wrap; gap: 6px 10px; }
+.system-no-software { margin-left: 18px !important; }
+@media (max-width: 850px) {
+  .assets-relation-summary-row { align-items: flex-start; }
+  .system-hardware-software-list li { display: block; }
+  .system-hardware-software-list li .interface-hint { display: block; }
+}
