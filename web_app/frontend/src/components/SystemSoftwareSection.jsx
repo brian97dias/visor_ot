@@ -23,6 +23,7 @@ export default function SystemSoftwareSection({ systemId, revision = 0 }) {
     let current = true;
     setLoading(true);
     setError("");
+    setData(null);
     getSystemSoftware(systemId)
       .then(result => { if (current) setData(result); })
       .catch(err => { if (current) setError(err.message); })
