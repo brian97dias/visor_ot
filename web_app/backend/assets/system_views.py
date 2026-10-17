@@ -1,5 +1,6 @@
 """Sistemas OT: lifecycle API. Memberships arrive in the next increment."""
 from django.shortcuts import get_object_or_404
+from django.db.models import Count, Q
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -8,12 +9,35 @@ from rest_framework.views import APIView
 
 from .models import OTSystem
 from .permissions import SystemPermission
-from .system_serializers import OTSystemReadSerializer, OTSystemWriteSerializer
+from .system_serializers import OTSystemReadSerializer, OTSystemListSerializer, OTSystemWriteSerializer
 from .system_services import register_system, update_system, change_system_status
 
 
 def system_queryset():
     return OTSystem.objects.select_related("created_by", "updated_by", "archived_by")
+
+
+def system_list_queryset():
+    """Count *current* member Hardware and distinct software variants in one query.
+
+    This counts recorded relationships, not a physically verified inventory.
+    A still-current link remains counted when its counterpart is archived.
+    """
+    return system_queryset().annotate(
+        hardware_count=Count(
+            "memberships__hardware_id",
+            filter=Q(memberships__unlinked_at__isnull=True),
+            distinct=True,
+        ),
+        software_count=Count(
+            "memberships__hardware__software_installations__software_id",
+            filter=Q(
+                memberships__unlinked_at__isnull=True,
+                memberships__hardware__software_installations__unlinked_at__isnull=True,
+            ),
+            distinct=True,
+        ),
+    )
 
 
 class SystemListCreateView(APIView):
@@ -23,10 +47,10 @@ class SystemListCreateView(APIView):
         state = request.query_params.get("status", "ACTIVE")
         if state not in ("ACTIVE", "ARCHIVED", "ALL"):
             raise ValidationError({"status": "Usa ACTIVE, ARCHIVED o ALL."})
-        systems = system_queryset()
+        systems = system_list_queryset()
         if state != "ALL":
             systems = systems.filter(status=state)
-        return Response({"systems": OTSystemReadSerializer(systems, many=True).data})
+        return Response({"systems": OTSystemListSerializer(systems, many=True).data})
 
     def post(self, request):
         serializer = OTSystemWriteSerializer(data=request.data)

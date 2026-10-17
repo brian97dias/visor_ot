@@ -19,6 +19,17 @@ class OTSystemReadSerializer(serializers.ModelSerializer):
         )
 
 
+class OTSystemListSerializer(OTSystemReadSerializer):
+    """Read-only aggregates, intentionally absent from the detail contract."""
+    hardware_count = serializers.IntegerField(read_only=True)
+    software_count = serializers.IntegerField(read_only=True)
+
+    class Meta(OTSystemReadSerializer.Meta):
+        fields = OTSystemReadSerializer.Meta.fields + (
+            "hardware_count", "software_count",
+        )
+
+
 class OTSystemWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = OTSystem

@@ -49,6 +49,11 @@ def asset_list_queryset():
             distinct=True,
         ),
         interface_count=Count("hardware__network_interfaces", distinct=True),
+        system_count=Count(
+            "hardware__system_memberships__system_id",
+            filter=Q(hardware__system_memberships__unlinked_at__isnull=True),
+            distinct=True,
+        ),
         hardware_count=Count(
             "software__installations",
             filter=Q(software__installations__unlinked_at__isnull=True),

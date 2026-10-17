@@ -65,11 +65,12 @@ class AssetListReadSerializer(AssetReadSerializer):
 
     software_count = serializers.IntegerField(read_only=True)
     interface_count = serializers.IntegerField(read_only=True)
+    system_count = serializers.IntegerField(read_only=True)
     hardware_count = serializers.IntegerField(read_only=True)
 
     class Meta(AssetReadSerializer.Meta):
         fields = AssetReadSerializer.Meta.fields + (
-            "software_count", "interface_count", "hardware_count",
+            "software_count", "interface_count", "hardware_count", "system_count",
         )
 
 
