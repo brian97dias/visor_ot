@@ -27,6 +27,7 @@ function initialValues(asset, initialType = "HARDWARE") {
     hardware: {
       manufacturer: asset?.hardware?.manufacturer || "",
       model: asset?.hardware?.model || "",
+      cpu_model: asset?.hardware?.cpu_model || "",
       role: asset?.hardware?.role || "PLC",
       serial_number: asset?.hardware?.serial_number || "",
       physical_location: asset?.hardware?.physical_location || "",
@@ -157,10 +158,12 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
   }
 
   function changeHardware(field, value) {
-    setValues((current) => ({
-      ...current,
-      hardware: { ...current.hardware, [field]: value },
-    }));
+    setValues((current) => {
+      const hardware = { ...current.hardware, [field]: value };
+      // Changing away from PLC also clears any previously registered CPU.
+      if (field === "role" && value !== "PLC") hardware.cpu_model = "";
+      return { ...current, hardware };
+    });
   }
 
   function changeSoftware(field, value) {
@@ -306,6 +309,15 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
               ))}
             </select>
           </div>
+          {values.hardware.role === "PLC" && (
+            <div className="assets-field">
+              <label htmlFor="asset-cpu-model">Modelo de CPU (opcional)</label>
+              <input id="asset-cpu-model" maxLength={100}
+                value={values.hardware.cpu_model}
+                onChange={(event) => changeHardware("cpu_model", event.target.value)}
+                placeholder="Ej. 1215C" />
+            </div>
+          )}
           <div className="assets-field">
             <label htmlFor="asset-serial">Número de serie</label>
             <input id="asset-serial" maxLength={150}

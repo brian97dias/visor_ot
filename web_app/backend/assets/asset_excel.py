@@ -25,6 +25,7 @@ HARDWARE_COLUMNS = (
     ("costo_reposicion", "replacement_cost"),
     ("moneda", "replacement_currency"),
     ("estado_inventario", "inventory_status"),
+    ("modelo_cpu", "cpu_model"),
 )
 SOFTWARE_COLUMNS = (
     ("id_visor_ot", "id"),
@@ -73,6 +74,7 @@ def asset_values(asset):
         fields = {
             "manufacturer": hardware.manufacturer,
             "model": hardware.model,
+            "cpu_model": hardware.cpu_model,
             "role": hardware.role,
             "serial_number": hardware.serial_number,
             "physical_location": hardware.physical_location,

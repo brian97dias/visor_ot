@@ -29,7 +29,7 @@ PREVIEW_SALT = "assets.excel.import.v1"
 BASE = ("nombre_activo", "descripcion", "criticidad",
         "impacto_indisponibilidad", "costo_reposicion", "moneda")
 TECH = {
-    "Hardware": ("fabricante", "modelo", "rol", "numero_serie", "ubicacion_fisica"),
+    "Hardware": ("fabricante", "modelo", "rol", "numero_serie", "ubicacion_fisica", "modelo_cpu"),
     "Software": ("tipo_software", "fabricante", "producto", "version"),
 }
 GENERAL_MAP = {
@@ -44,6 +44,7 @@ TECH_MAP = {
     "Hardware": {
         "fabricante": "manufacturer", "modelo": "model", "rol": "role",
         "numero_serie": "serial_number", "ubicacion_fisica": "physical_location",
+        "modelo_cpu": "cpu_model",
     },
     "Software": {
         "tipo_software": "software_type", "fabricante": "manufacturer",
@@ -167,7 +168,14 @@ def parse_workbook(file_bytes):
                         })
                     if header_row is None:
                         header = [_as_text(value) for value in values]
-                        if header == expected:
+                        # Older exports had no modelo_cpu column. Its blank
+                        # trailing value remains None, so legacy books still import.
+                        legacy_hw = (
+                            sheet_name == "Hardware"
+                            and header[:-1] == expected[:-1]
+                            and header[-1] == ""
+                        )
+                        if header == expected or legacy_hw:
                             header_row = row_num
                         elif row_num >= 5:
                             raise ValidationError({

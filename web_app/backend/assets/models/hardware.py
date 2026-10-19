@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -24,6 +25,7 @@ class Hardware(models.Model):
     )
     manufacturer = models.CharField(max_length=200, blank=True)
     model = models.CharField(max_length=200, blank=True)
+    cpu_model = models.CharField(max_length=100, blank=True)
     role = models.CharField(max_length=20, choices=Role.choices)
     serial_number = models.CharField(max_length=150, blank=True)
     physical_location = models.CharField(max_length=255, blank=True)
@@ -38,6 +40,21 @@ class Hardware(models.Model):
         related_name="host_hardware",
         blank=True,
     )
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(role="PLC") | models.Q(cpu_model=""),
+                name="hardware_cpu_model_only_plc",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.role != self.Role.PLC and self.cpu_model:
+            raise ValidationError({
+                "cpu_model": "El modelo de CPU solo se registra para hardware con rol PLC."
+            })
 
     @property
     def active_software(self):

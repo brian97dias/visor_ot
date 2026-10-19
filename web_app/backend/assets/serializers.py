@@ -10,10 +10,18 @@ class HardwareSerializer(serializers.ModelSerializer):
         fields = (
             "manufacturer",
             "model",
+            "cpu_model",
             "role",
             "serial_number",
             "physical_location",
         )
+
+    def validate(self, attrs):
+        if attrs.get("role") != Hardware.Role.PLC and attrs.get("cpu_model"):
+            raise serializers.ValidationError({
+                "cpu_model": "El modelo de CPU solo se registra para hardware con rol PLC."
+            })
+        return attrs
 
 
 class SoftwareSerializer(serializers.ModelSerializer):
@@ -230,6 +238,18 @@ class AssetUpdateSerializer(serializers.ModelSerializer):
             if kind == Asset.AssetType.SOFTWARE and "hardware" in self.initial_data:
                 raise serializers.ValidationError({
                     "hardware": "No puedes editar Hardware desde un activo Software."
+                })
+        if (self.instance is not None
+                and self.instance.asset_type == Asset.AssetType.HARDWARE
+                and "hardware" in attrs):
+            data = attrs["hardware"]
+            role = data.get("role", self.instance.hardware.role)
+            cpu_model = data.get("cpu_model", self.instance.hardware.cpu_model)
+            if role != Hardware.Role.PLC and cpu_model:
+                raise serializers.ValidationError({
+                    "hardware": {
+                        "cpu_model": "El modelo de CPU solo se registra para hardware con rol PLC."
+                    }
                 })
         validate_replacement_fields(attrs, instance=self.instance)
         return attrs

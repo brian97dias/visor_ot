@@ -144,6 +144,9 @@ function AssetDetail() {
           <div className="assets-detail-grid">
             <Field label="Fabricante" value={asset.hardware.manufacturer} />
             <Field label="Modelo / familia" value={asset.hardware.model} />
+            {asset.hardware.role === "PLC" && (
+              <Field label="Modelo de CPU" value={asset.hardware.cpu_model} />
+            )}
             <Field label="Rol" value={ROLE_LABELS[asset.hardware.role] || asset.hardware.role} />
             <Field label="Número de serie" value={asset.hardware.serial_number} />
             <Field label="Ubicación física" value={asset.hardware.physical_location} />
