@@ -95,3 +95,46 @@ En fase 1, mostrar en `AssetDetail.jsx` una sección *Identificación CPE* y una
 6. Fase 5: exportación y pruebas de regresión completas.
 
 **Pendientes antes de crear migraciones:** validación definitiva de campos y de la entidad de historial `AssetCpeDecision`; contratos de error y límites máximos de paginación; comportamiento del worker en recuperación de trabajos `RUNNING` tras reinicio. En fase 0 **no se han ejecutado** todavía cambios de esquema ni consultas de NVD.
+
+
+## Fase 1 — Primer descubrimiento funcional de hardware
+
+**Disponible en \`feature/vulnerability\`:** búsqueda manual para activos \`HARDWARE\`, colas persistidas y dos estrategias \`keywordSearch\`/\`cpeMatchString\`, con candidatos deduplicados, correspondencia explicable y paginación limitada.
+
+### Cómo ejecutar (tres terminales)
+
+Desde \`web_app/backend\` con el virtualenv activado y PostgreSQL disponible:
+
+\`\`\`bash
+python manage.py migrate
+python manage.py check
+python manage.py test vulnerabilities --settings=config.settings_test_sqlite
+python manage.py runserver
+\`\`\`
+
+Abre **otra terminal**, también en \`web_app/backend\`, y ejecuta:
+
+\`\`\`bash
+python manage.py run_cpe_worker
+\`\`\`
+
+Deja este proceso abierto durante las búsquedas. El worker requiere PostgreSQL y rechaza una segunda instancia. **Es intencional** que espere hasta 30 segundos antes de la primera petición NVD y un mínimo de siete segundos entre peticiones (incluidas páginas y reintentos). La cola continúa almacenada aunque cierres React.
+
+Desde \`web_app/frontend\`:
+
+\`\`\`bash
+npm run build
+npm run dev
+\`\`\`
+
+Abre un hardware Siemens con \`manufacturer=Siemens\`, \`model=SIMATIC S7-1200\`, \`cpu_model=1215C\`. En su detalle, entra a **Identificación CPE** y usa **Buscar candidatos**. El estado debe cambiar \`QUEUED → RUNNING → COMPLETED\`. Los resultados proceden de NVD; los tests usan respuestas simuladas. La opción **Ampliar búsqueda por familia** omite deliberadamente la CPU para consultar candidatos de la familia.
+
+Solo \`ADMIN\` y \`ANALYST\` pueden solicitar búsquedas; \`OPERATOR\` puede verlas. Si no se conoce fabricante o familia, el backend responde 400. Si un candidato específico no aparece, no presupongas que NVD carece de ese CPE: amplía la búsqueda.
+
+### Límites de la fase 1
+
+- Por consulta se recuperan hasta tres páginas de cien resultados; por ejecución se conservan hasta 250 candidatos distintos. \`result_truncated\` advierte sobre búsquedas parciales. No hay todavía caché entre ejecuciones (fase 3).
+- No se automatiza el disparo tras registrar/editar activos (fase 3). No se buscan CPE de \`Software\` (fase 4).
+- Si el worker es terminado bruscamente, las ejecuciones \`RUNNING\` antiguas se marcarán \`FAILED\` al reiniciar. Las \`QUEUED\` permanecerán. Solicita otra búsqueda para reintentar.
+- El historial de búsqueda conserva datos técnicos y candidatos normalizados pero no la respuesta JSON bruta de NVD. No se persisten asociaciones validadas; eso corresponde a la fase 2.
+- El código de pruebas NO envía peticiones reales a NVD. Para confirmar conectividad y nomenclatura es necesaria la prueba visual de laboratorio.

@@ -22,18 +22,23 @@ class PublicNvdPacer:
 
     Cross-worker exclusivity comes from PostgreSQL advisory locking in command.
     """
-    def __init__(self, wait=time.sleep, clock=time.monotonic):
+    def __init__(self, wait=time.sleep, clock=time.monotonic, guard=None):
         self.wait, self.clock = wait, clock
+        self.guard = guard
         self.not_before = clock() + 30
         self.last_request = None
 
     def pace(self):
+        if self.guard:
+            self.guard()
         target = self.not_before
         if self.last_request is not None:
             target = max(target, self.last_request + 7)
         delay = target - self.clock()
         if delay > 0:
             self.wait(delay)
+        if self.guard:
+            self.guard()
         self.last_request = self.clock()
 
 

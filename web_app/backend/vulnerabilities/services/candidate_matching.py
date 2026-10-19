@@ -1,4 +1,5 @@
 """Merge official NVD CPE records with explainable inventory correspondence."""
+import re
 from .identity import normalized, cpu_spelling
 
 
@@ -22,7 +23,7 @@ def classify(candidate, identity):
         if wanted_cpu in product:
             return "SPECIFIC", "Coinciden fabricante, familia y CPU."
         # A different CPU explicitly named in the same family is a contradiction.
-        name_cpu = __import__("re").search(r"cpu[_-]?([0-9]{3,5}[a-z]?)", _cpe_part(cpe_name, 4))
+        name_cpu = re.search(r"cpu[_-]?([0-9]{3,5}[a-z]?)", _cpe_part(cpe_name, 4))
         if name_cpu:
             return "POSSIBLE_INCOMPATIBILITY", "El CPE especifica una CPU distinta."
         return "FAMILY", "Coincide la familia; el CPE no especifica la CPU inventariada."

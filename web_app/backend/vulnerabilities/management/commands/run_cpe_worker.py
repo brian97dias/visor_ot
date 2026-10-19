@@ -33,7 +33,11 @@ class Command(BaseCommand):
         if not locked:
             raise CommandError("Ya existe otro trabajador NVD en ejecución.")
         self.stdout.write("Worker CPE activo. Espera inicial de seguridad: 30 s antes de consultar NVD.")
-        pacer = PublicNvdPacer()
+        def require_lock():
+            if connection.connection is not session or connection.connection.closed:
+                raise CommandError("Se perdió el lock de PostgreSQL: consulta NVD cancelada.")
+
+        pacer = PublicNvdPacer(guard=require_lock)
         try:
             # After crashes never present abandoned RUNNING results as live.
             CpeSearchRun.objects.filter(status=CpeSearchRun.Status.RUNNING).update(
