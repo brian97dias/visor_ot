@@ -10,6 +10,8 @@ def _cpe_part(cpe_name, position):
 
 def classify(candidate, identity):
     cpe_name = candidate["cpe_name"]
+    if _cpe_part(cpe_name, 2) != "h":
+        return "POSSIBLE_INCOMPATIBILITY", "Este CPE no identifica hardware (tipo h)."
     vendor = normalized(_cpe_part(cpe_name, 3))
     product = normalized(_cpe_part(cpe_name, 4))
     wanted_vendor = normalized(identity.get("manufacturer"))
