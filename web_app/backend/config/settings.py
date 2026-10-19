@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "ingestion",
     "network",
     "assets",
+    "vulnerabilities",
 ]
 
 MIDDLEWARE = [
