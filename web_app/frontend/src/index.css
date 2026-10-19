@@ -2272,3 +2272,19 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   .system-hardware-software-list li { display: block; }
   .system-hardware-software-list li .interface-hint { display: block; }
 }
+
+/* Phase 1: CPE discovery */
+.cpe-copy { padding: 16px 24px; color: #94a3b8; line-height: 1.55; }
+.cpe-action { padding: 0 24px 20px; }
+.cpe-status { font-size: .85rem; color: #94a3b8; }
+.cpe-status[data-status="COMPLETED"] { color: #86efac; }
+.cpe-status[data-status="FAILED"] { color: #fca5a5; }
+.cpe-tools { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+.cpe-card { padding: 18px; border: 1px solid #334155; border-radius: 8px; background: #111827; margin: 12px 0; }
+.cpe-card h3 { margin: 0 0 8px; }
+.cpe-card code, .cpe-copy code { overflow-wrap: anywhere; color: #93c5fd; }
+.cpe-card code { display: block; margin-bottom: 10px; }
+.cpe-card p { color: #94a3b8; margin: 8px 0; }
+.cpe-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.cpe-tags span { border: 1px solid #475569; padding: 3px 7px; border-radius: 5px; font-size: .78rem; }
+.cpe-warning { border: 1px solid #a16207; background: #42200655; color: #fde68a; border-radius: 7px; padding: 12px 15px; margin: 12px 0; }

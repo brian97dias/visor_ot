@@ -18,6 +18,7 @@ import CommunicationDetail from "./pages/CommunicationDetail";
 import Assets from "./pages/Assets";
 import AssetImport from "./pages/AssetImport";
 import AssetDetail from "./pages/AssetDetail";
+import AssetCpeDiscovery from "./pages/AssetCpeDiscovery";
 import AssetEditor from "./pages/AssetEditor";
 import Interfaces from "./pages/Interfaces";
 import InterfaceDetail from "./pages/InterfaceDetail";
@@ -115,6 +116,7 @@ function App() {
           <Route path="/assets/new" element={<AssetEditor />} />
           <Route path="/assets/:assetId" element={<AssetDetail />} />
           <Route path="/assets/:assetId/edit" element={<AssetEditor />} />
+          <Route path="/assets/:assetId/cpe" element={<AssetCpeDiscovery />} />
 
         </Route>
 

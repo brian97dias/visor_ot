@@ -1,0 +1,29 @@
+import { authenticatedFetch } from "./client";
+
+async function request(path, options) {
+  const response = await authenticatedFetch(path, options);
+  let body;
+  try { body = await response.json(); }
+  catch { throw new Error("Respuesta inválida del servicio CPE."); }
+  if (!response.ok) {
+    const detail = Object.values(body || {})[0];
+    throw new Error(Array.isArray(detail) ? detail.join(", ") :
+      typeof detail === "string" ? detail : JSON.stringify(detail || body));
+  }
+  return body;
+}
+
+export function startCpeSearch(id, scope = "SPECIFIC") {
+  return request("/api/vulnerabilities/assets/" + id + "/cpe-searches/", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scope }),
+  });
+}
+export async function latestCpeSearch(id) {
+  const data = await request("/api/vulnerabilities/assets/" + id + "/cpe-searches/latest/");
+  return data.run;
+}
+export async function readCpeSearch(id, runId) {
+  const data = await request("/api/vulnerabilities/assets/" + id + "/cpe-searches/" + runId + "/");
+  return data.run;
+}

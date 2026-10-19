@@ -11,6 +11,7 @@ import AssetInterfacesSection from "../components/AssetInterfacesSection";
 import AssetSoftwareSection from "../components/AssetSoftwareSection";
 import SystemMembershipSection from "../components/SystemMembershipSection";
 import SoftwareHistorySection from "../components/SoftwareHistorySection";
+import AssetCpeSection from "../components/AssetCpeSection";
 import {
   canArchiveAssets,
   canEditAssets,
@@ -172,6 +173,7 @@ function AssetDetail() {
         </section>
       )}
 
+      {asset.hardware && <AssetCpeSection asset={asset} />}
       {asset.software && <SoftwareHistorySection asset={asset} />}
       {asset.hardware && <AssetInterfacesSection asset={asset} user={user} navigationState={navigationState} />}
       {asset.hardware && <AssetSoftwareSection asset={asset} user={user} />}
