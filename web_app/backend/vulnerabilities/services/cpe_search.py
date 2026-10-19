@@ -91,11 +91,9 @@ def execute_run(run, pacer, fetcher=fetch_page):
                     truncated = True
             details["status"] = "COMPLETED"
             _persist(run, {"queries": queries})
-            if len(dedup) >= MAX_TOTAL_CANDIDATES:
-                # Retain provenance from both strategies whenever possible, but
-                # prevent extra NVD calls once the budget is exhausted.
-                truncated = True
-                break
+            # Continue to the next strategy even after the candidate cap:
+            # an official CPE already kept may also be found by both methods.
+            # The page cap above prevents unbounded additional requests.
         _persist(run, {
             "status": CpeSearchRun.Status.COMPLETED,
             "finished_at": timezone.now(),

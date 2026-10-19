@@ -186,3 +186,43 @@ class CpeSearchAPITests(TestCase):
         self.asset.hardware.cpu_model = "1214C"
         self.asset.hardware.save(update_fields=["cpu_model"])
         self.assertFalse(serialize_run(run)["identity_is_current"])
+
+
+class NvdHttpClientTests(SimpleTestCase):
+    def test_url_encoding_and_response_parsing_without_network(self):
+        import io
+        import json
+        from .services.nvd_client import fetch_page, NVD_CPE_URL
+        pacer = Mock()
+        payload = {"products": [nvd_record()], "totalResults": 1}
+        raw = io.BytesIO(json.dumps(payload).encode("utf-8"))
+        with patch("vulnerabilities.services.nvd_client.urlopen", return_value=raw) as urlopen:
+            result = fetch_page("cpeMatchString", "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c*", 0, pacer)
+        self.assertEqual(result, payload)
+        self.assertEqual(pacer.pace.call_count, 1)
+        request = urlopen.call_args.args[0]
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 20)
+        self.assertIn("services.nvd.nist.gov", request.full_url)
+        self.assertIn("cpeMatchString=", request.full_url)
+        self.assertIn("startIndex=0", request.full_url)
+
+    def test_http_429_is_retried_with_pacing(self):
+        import io
+        import json
+        from urllib.error import HTTPError
+        from .services.nvd_client import fetch_page
+        error = HTTPError("https://services.nvd.nist.gov", 429, "rate limit", {"Retry-After": "3"}, None)
+        raw = io.BytesIO(json.dumps({"products": [], "totalResults": 0}).encode("utf-8"))
+        pacer = Mock()
+        with patch("vulnerabilities.services.nvd_client.urlopen", side_effect=[error, raw]):
+            result = fetch_page("keywordSearch", "Siemens SIMATIC S7-1200", 0, pacer)
+        self.assertEqual(result["products"], [])
+        self.assertEqual(pacer.pace.call_count, 2)
+        pacer.wait.assert_called_once_with(3)
+
+    def test_bad_strategy_cannot_make_network_request(self):
+        from .services.nvd_client import fetch_page
+        with patch("vulnerabilities.services.nvd_client.urlopen") as urlopen:
+            with self.assertRaises(ValueError):
+                fetch_page("apiKey", "anything", 0, Mock())
+        urlopen.assert_not_called()

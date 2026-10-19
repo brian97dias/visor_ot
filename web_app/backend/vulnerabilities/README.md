@@ -1,7 +1,7 @@
 # VISOR OT — Módulo de identificación CPE
 
 **Rama:** `feature/vulnerability`  
-**Fase 0:** integración y especificación; **sin modelos persistentes, migraciones ni consultas HTTP a NVD**.
+**Fase 1:** descubrimiento de CPE de hardware implementado. Existe la tabla `CpeSearchRun` y un trabajador NVD independiente. Las asociaciones confirmadas, el caché y los CVE todavía no están implementados.
 
 ## Alcance aprobado
 
@@ -11,7 +11,7 @@ Responsabilidades: `assets` conserva `Asset`, `Hardware`, `Software` y `Software
 
 ## Modelo de datos propuesto (antes de migrar)
 
-Las tablas siguientes **todavía no existen**. Se revisarán antes de aplicar sus respectivas migraciones.
+`CpeSearchRun` existe desde la migración inicial de la fase 1. Las entidades de fases posteriores **todavía no existen** y se revisarán antes de sus respectivas migraciones.
 
 ### Fase 1 — `CpeSearchRun`
 
@@ -47,7 +47,7 @@ Una entrada por consulta individual equivalente (`strategy`, parámetros normali
 
 ## Contrato HTTP propuesto
 
-**Estos endpoints no están implementados en la fase 0.** Requieren autenticación JWT y verificación explícita de permisos por rol, igual que el resto de VISOR OT.
+Los tres endpoints de la fase 1 están implementados. Los de las fases posteriores son propuestas pendientes. Todos requieren autenticación JWT y permisos específicos por rol.
 
 | Fase | Método y endpoint | Resultado |
 | --- | --- | --- |
