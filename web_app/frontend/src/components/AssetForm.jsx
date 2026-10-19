@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getAssets, getSoftwareHistory } from "../api/assets";
 import { getSystems } from "../api/systems";
 import SystemMembershipSection from "./SystemMembershipSection";
 import AssetSoftwareSection from "./AssetSoftwareSection";
 import SoftwareHardwareSection from "./SoftwareHardwareSection";
 import SoftwareFields from "./SoftwareFields";
+import { validateSoftwareCorrection } from "../utils/softwareCorrection";
 import { Link } from "react-router-dom";
 import InterfaceSelector from "./InterfaceSelector";
 import AssetInterfacesSection from "./AssetInterfacesSection";
@@ -81,7 +82,7 @@ function buildPayload(values, original, editing, canEditCriticality) {
   return differences;
 }
 
-function AssetForm({ asset = null, user, onSave, saving, error, initialType = "HARDWARE", initialHardwareId = "", onDirtyChange, backTo, backState, onBackClick }) {
+function AssetForm({ asset = null, user, onSave, saving, error, onErrorClear, initialType = "HARDWARE", initialHardwareId = "", onDirtyChange, backTo, backState, onBackClick }) {
   const editing = Boolean(asset);
   const canEditCriticality = canEditAssetCriticality(user);
   const [values, setValues] = useState(() => initialValues(asset, initialType));
@@ -93,6 +94,8 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
   const [softwareHistoryRevision, setSoftwareHistoryRevision] = useState(0);
   const [historyError, setHistoryError] = useState("");
   const [correctionReason, setCorrectionReason] = useState("");
+  const correctionReasonRef = useRef(null);
+  const [correctionReasonError, setCorrectionReasonError] = useState("");
   const [confirmShared, setConfirmShared] = useState(false);
   const [softwareChangeType, setSoftwareChangeType] = useState("CORRECTION");
   const [localError, setLocalError] = useState("");
@@ -155,6 +158,7 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
 
   function change(field, value) {
     setValues((current) => ({ ...current, [field]: value }));
+    onErrorClear?.();
   }
 
   function changeHardware(field, value) {
@@ -164,6 +168,7 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
       if (field === "role" && value !== "PLC") hardware.cpu_model = "";
       return { ...current, hardware };
     });
+    onErrorClear?.();
   }
 
   function changeSoftware(field, value) {
@@ -171,6 +176,7 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
       ...current,
       software: { ...current.software, [field]: value },
     }));
+    onErrorClear?.();
   }
 
   async function submit(event) {
@@ -202,26 +208,25 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
       payload.hardware_asset_id = Number(hardwareAssetId);
     }
     if (editing && values.asset_type === "SOFTWARE" && technicalChanged) {
-      if (softwareChangeType === "UPGRADE") {
-        setLocalError("Para una actualización real, registra otra variante y reasigna el hardware.");
+      const validation = validateSoftwareCorrection({
+        changeType: softwareChangeType,
+        reason: correctionReason,
+        historyError,
+        history: softwareHistory,
+        confirmShared,
+      });
+      if (validation) {
+        if (validation.field === "reason") {
+          setCorrectionReasonError(validation.message);
+          // The global save button is far below this input.
+          // Focus makes the missing requirement visible immediately.
+          correctionReasonRef.current?.focus();
+        } else {
+          setLocalError(validation.message);
+        }
         return;
       }
-      if (!correctionReason.trim()) {
-        setLocalError("Explica el motivo de la corrección técnica.");
-        return;
-      }
-      if (historyError) {
-        setLocalError("No se pudo consultar el historial. Intenta recargar antes de corregir.");
-        return;
-      }
-      if (!softwareHistory) {
-        setLocalError("Espera mientras consultamos el historial de instalaciones.");
-        return;
-      }
-      if (softwareHistory.active_installation_count > 1 && !confirmShared) {
-        setLocalError("Confirma la corrección compartida con los hardware relacionados.");
-        return;
-      }
+      setCorrectionReasonError("");
       payload.correction_reason = correctionReason.trim();
       payload.confirm_shared_correction = confirmShared;
       payload.software_change_type = "CORRECTION";
@@ -479,7 +484,12 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
             <label htmlFor="software-change-type">Tipo de modificación</label>
             <select id="software-change-type" value={softwareChangeType}
               disabled={saving}
-              onChange={(event) => setSoftwareChangeType(event.target.value)}>
+              onChange={(event) => {
+                setSoftwareChangeType(event.target.value);
+                setCorrectionReasonError("");
+                setLocalError("");
+                onErrorClear?.();
+              }}>
               <option value="CORRECTION">Corregir información del inventario</option>
               <option value="UPGRADE">Actualización real de software</option>
             </select>
@@ -500,10 +510,27 @@ function AssetForm({ asset = null, user, onSave, saving, error, initialType = "H
               <div className="assets-field">
                 <label htmlFor="software-correction-reason">Motivo de la corrección *</label>
                 <textarea id="software-correction-reason" rows={2}
+                  ref={correctionReasonRef}
                   maxLength={1000} disabled={saving}
                   value={correctionReason}
+                  aria-invalid={Boolean(correctionReasonError)}
+                  aria-describedby={correctionReasonError ? "software-correction-reason-error" : undefined}
                   placeholder="Ej. Error de transcripción de la versión"
-                  onChange={(event) => setCorrectionReason(event.target.value)} />
+                  onChange={(event) => {
+                    setCorrectionReason(event.target.value);
+                    setCorrectionReasonError("");
+                    onErrorClear?.();
+                  }} />
+                {correctionReasonError && (
+                  <small id="software-correction-reason-error"
+                    className="field-validation-error" role="alert">
+                    {correctionReasonError}
+                  </small>
+                )}
+                <small>
+                  Indica por qué corriges fabricante, producto o versión. No es el
+                  impacto de indisponibilidad del activo.
+                </small>
               </div>
               {softwareHistory && (
                 <p className="interface-hint">

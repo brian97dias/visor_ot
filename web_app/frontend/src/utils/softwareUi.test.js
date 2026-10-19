@@ -5,6 +5,7 @@ import { matchesSoftware, softwareLabel } from "./softwareSearch.js";
 import {
   buildInstalledSoftwarePayload, validateNewSoftware,
 } from "./softwareRegistration.js";
+import { validateSoftwareCorrection } from "./softwareCorrection.js";
 
 const installed = {
   id: 4,
@@ -88,4 +89,43 @@ test("zero is preserved as a declared replacement cost", () => {
   const payload = buildInstalledSoftwarePayload(form, 3);
   assert.equal(payload.replacement_cost, "0");
   assert.equal(payload.replacement_currency, "COP");
+});
+
+test("software correction: missing reason is tied to the reason field", () => {
+  const context = {
+    changeType: "CORRECTION",
+    reason: "",
+    history: { active_installation_count: 1 },
+    historyError: "",
+    confirmShared: false,
+  };
+  assert.deepEqual(validateSoftwareCorrection(context), {
+    field: "reason", message: "Explica el motivo de la corrección técnica.",
+  });
+  // Typing into a different field such as impact is not a correction reason.
+  assert.deepEqual(validateSoftwareCorrection({ ...context, reason: "   " }), {
+    field: "reason", message: "Explica el motivo de la corrección técnica.",
+  });
+  assert.equal(validateSoftwareCorrection({
+    ...context, reason: "  Ajuste de nombre para correlación NVD  ",
+  }), null);
+});
+
+test("software correction: preserved rules for update and shared installations", () => {
+  const context = {
+    changeType: "CORRECTION",
+    reason: "Error de transcripción",
+    history: { active_installation_count: 2 },
+    historyError: "",
+    confirmShared: false,
+  };
+  assert.match(validateSoftwareCorrection(context).message, /compartida/);
+  assert.equal(validateSoftwareCorrection({ ...context, confirmShared: true }), null);
+  assert.match(validateSoftwareCorrection({ ...context, history: null }).message, /Espera/);
+  assert.match(validateSoftwareCorrection({
+    ...context, historyError: "No disponible",
+  }).message, /No se pudo consultar/);
+  assert.match(validateSoftwareCorrection({
+    ...context, changeType: "UPGRADE",
+  }).message, /nueva variante/);
 });

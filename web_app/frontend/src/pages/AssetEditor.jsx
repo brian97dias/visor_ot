@@ -124,6 +124,7 @@ function AssetEditor() {
         onSave={save}
         saving={saving}
         error={error}
+        onErrorClear={() => setError("")}
         onDirtyChange={setDirty}
         backTo={back.to}
         backState={back.state}

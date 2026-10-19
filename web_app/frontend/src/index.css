@@ -1456,6 +1456,14 @@ input {
     color: #94a3b8;
 }
 
+.assets-field .field-validation-error {
+    color: #fecaca;
+}
+
+.assets-field [aria-invalid="true"] {
+    border-color: #ef4444;
+}
+
 .assets-type-select {
     display: flex;
     flex-wrap: wrap;
