@@ -1,0 +1,67 @@
+"""Single-process, PostgreSQL-locked NVD worker. Start in a separate terminal."""
+import time
+
+from django.core.management.base import BaseCommand, CommandError
+from django.db import connection
+from django.utils import timezone
+
+from vulnerabilities.models import CpeSearchRun
+from vulnerabilities.services.cpe_search import execute_run
+from vulnerabilities.services.nvd_client import PublicNvdPacer
+
+# Arbitrary constant reserved for VISOR OT's NVD outbound worker.
+ADVISORY_LOCK_ID = 7221001215
+
+
+class Command(BaseCommand):
+    help = "Procesa búsquedas CPE pendientes (solo una instancia global en PostgreSQL)."
+
+    def add_arguments(self, parser):
+        parser.add_argument("--once", action="store_true", help="Procesa como máximo un trabajo y termina.")
+        parser.add_argument("--poll-seconds", type=float, default=2)
+
+    def handle(self, *args, **options):
+        if connection.vendor != "postgresql":
+            raise CommandError("El trabajador NVD requiere PostgreSQL para su lock global.")
+        if options["poll_seconds"] < 0.5:
+            raise CommandError("--poll-seconds debe ser al menos 0.5")
+        connection.ensure_connection()
+        session = connection.connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_try_advisory_lock(%s)", [ADVISORY_LOCK_ID])
+            locked = cursor.fetchone()[0]
+        if not locked:
+            raise CommandError("Ya existe otro trabajador NVD en ejecución.")
+        self.stdout.write("Worker CPE activo. Espera inicial de seguridad: 30 s antes de consultar NVD.")
+        pacer = PublicNvdPacer()
+        try:
+            # After crashes never present abandoned RUNNING results as live.
+            CpeSearchRun.objects.filter(status=CpeSearchRun.Status.RUNNING).update(
+                status=CpeSearchRun.Status.FAILED,
+                error_message="El trabajador se interrumpió. Solicita una nueva búsqueda.",
+                finished_at=timezone.now(),
+            )
+            while True:
+                # A lost/reopened PostgreSQL session also loses its advisory lock.
+                # Stop rather than risk issuing requests without exclusivity.
+                if connection.connection is not session or connection.connection.closed:
+                    raise CommandError("Se perdió la sesión de bloqueo NVD; reinicia el trabajador.")
+                run = CpeSearchRun.objects.filter(
+                    status=CpeSearchRun.Status.QUEUED
+                ).order_by("created_at", "pk").first()
+                if run is not None:
+                    self.stdout.write(f"Buscando CPE: trabajo #{run.pk}, activo #{run.asset_id}")
+                    execute_run(run, pacer)
+                    self.stdout.write(f"Trabajo #{run.pk}: {run.status}, {len(run.candidates)} candidatos")
+                elif options["once"]:
+                    break
+                if options["once"] and run is not None:
+                    break
+                if run is None:
+                    time.sleep(options["poll_seconds"])
+        except KeyboardInterrupt:
+            self.stdout.write("Trabajador detenido. Trabajos pendientes conservados.")
+        finally:
+            if connection.connection is session and not connection.connection.closed:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT pg_advisory_unlock(%s)", [ADVISORY_LOCK_ID])

@@ -1,7 +1,11 @@
-"""Reserved API namespace for CPE discovery and validation.
+"""CPE search endpoints, scoped to the existing inventory Asset identifiers."""
+from django.urls import path
 
-No public views are exposed in phase 0. Add routes with tests incrementally.
-"""
+from .views import CpeSearchStartView, CpeSearchLatestView, CpeSearchDetailView
 
 app_name = "vulnerabilities"
-urlpatterns = []
+urlpatterns = [
+    path("assets/<int:asset_id>/cpe-searches/", CpeSearchStartView.as_view(), name="cpe-search-start"),
+    path("assets/<int:asset_id>/cpe-searches/latest/", CpeSearchLatestView.as_view(), name="cpe-search-latest"),
+    path("assets/<int:asset_id>/cpe-searches/<int:run_id>/", CpeSearchDetailView.as_view(), name="cpe-search-detail"),
+]
