@@ -72,7 +72,8 @@ def build_queries(identity, scope="SPECIFIC"):
     # Avoid repeating CPU when the model already incorporates its designation.
     keywords = [manufacturer, family]
     if exact and normalized(cpu) not in normalized(family):
-        keywords += ["CPU", compact(identity.get("cpu_model"))]
+        cpu_label = compact(identity.get("cpu_model"))
+        keywords.append(cpu_label if cpu_label.lower().startswith("cpu") else "CPU " + cpu_label)
     keyword = " ".join(keywords)
     vendor = vendor_spelling(manufacturer)
     product = family_spelling(family)
