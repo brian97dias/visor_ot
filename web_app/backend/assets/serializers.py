@@ -17,7 +17,8 @@ class HardwareSerializer(serializers.ModelSerializer):
         )
 
     def validate(self, attrs):
-        if attrs.get("role") != Hardware.Role.PLC and attrs.get("cpu_model"):
+        if ("role" in attrs and attrs["role"] != Hardware.Role.PLC
+                and attrs.get("cpu_model")):
             raise serializers.ValidationError({
                 "cpu_model": "El modelo de CPU solo se registra para hardware con rol PLC."
             })
