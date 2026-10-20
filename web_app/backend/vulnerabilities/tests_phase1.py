@@ -1,5 +1,5 @@
 """Phase 1 CPE API and worker tests. All NVD calls are mocked."""
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.db import connection
@@ -325,7 +325,9 @@ class WorkerLockStatusTests(SimpleTestCase):
         self.assertEqual(command_lock, ADVISORY_LOCK_ID)
 
     def test_postgres_lock_detection_is_read_only(self):
-        fake = Mock()
+        # Django's connection.cursor() is used as a context manager.
+        # MagicMock implements __enter__/__exit__; Mock does not.
+        fake = MagicMock()
         fake.vendor = "postgresql"
         cursor = fake.cursor.return_value.__enter__.return_value
         cursor.fetchone.return_value = (True,)
