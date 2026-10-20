@@ -271,7 +271,7 @@ export default function AssetCpeDiscovery() {
         <div className="cpe-candidate-heading">
           <div>
             <h2 id="cpe-candidate-title">CPE candidatos</h2>
-            <p>Resultados de NVD aún sin decisión y revisiones reabiertas.</p>
+            <p>Resultados de NVD aún sin decisión y decisiones deshechas.</p>
           </div>
           <span className="record-count">{candidatesToReview.length + reopenedMissing.length} disponibles</span>
         </div>
@@ -303,7 +303,7 @@ export default function AssetCpeDiscovery() {
             <article className="cpe-card" key={"reopened-" + item.id}>
               <h3>{item.title}</h3>
               <CpeEvidence cpeName={item.cpe_name} cpeNameId={item.cpe_name_id}/>
-              <span className="cpe-review-status" data-validation="REOPENED">Revisión reabierta</span>
+              <span className="cpe-review-status" data-validation="REOPENED">Decisión deshecha</span>
               <p>Este CPE no figura en la última búsqueda. Ejecuta otra búsqueda
                 para volver a evaluar su aplicabilidad. Su historial permanece guardado.</p>
             </article>

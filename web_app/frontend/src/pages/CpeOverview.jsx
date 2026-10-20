@@ -13,7 +13,7 @@ const STATUS = {
   EVALUATED: "Evaluado",
   NO_RESULTS: "Sin resultados",
   FAILED: "Error de consulta",
-  STALE: "Identidad modificada",
+  STALE: "Revisión necesaria",
   NOT_SUPPORTED: "Software: disponible en fase 4",
 };
 
