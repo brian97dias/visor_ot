@@ -9,6 +9,7 @@ import CpeEvidence from "../components/CpeEvidence";
 import CpeDiscoveryTrace from "../components/CpeDiscoveryTrace";
 import CpeCandidateExplanation from "../components/CpeCandidateExplanation";
 import CpeAdvancedSearch from "../components/CpeAdvancedSearch";
+import CpeReferences from "../components/CpeReferences";
 import {
   unreviewedCpeCandidates, reopenedWithoutCurrentCandidate, reviewedCpeAssociations,
 } from "../utils/cpeReview";
@@ -241,6 +242,8 @@ export default function AssetCpeDiscovery() {
                       </span>
                     </div>
                     <CpeEvidence cpeName={item.cpe_name} cpeNameId={item.cpe_name_id} />
+                    <CpeReferences references={item.nvd_references}
+                      sourceRunId={item.references_source_run_id} showMissing />
                     {run.candidates?.some(c =>
                       c.cpe_name_id?.toLowerCase() === item.cpe_name_id?.toLowerCase()) &&
                       <CpeCandidateExplanation candidate={run.candidates.find(c =>
@@ -291,6 +294,7 @@ export default function AssetCpeDiscovery() {
             <article className="cpe-card" key={c.cpe_name_id}>
               <h3>{c.title}</h3>
               <CpeEvidence cpeName={c.cpe_name} cpeNameId={c.cpe_name_id}/>
+              <CpeReferences references={c.nvd_references} sourceRunId={run.id} />
               <CpeCandidateExplanation candidate={c}/>
               <div className="cpe-tags">
                 <span>Tipo: hardware ({c.cpe_type})</span>
@@ -309,6 +313,8 @@ export default function AssetCpeDiscovery() {
             <article className="cpe-card" key={"reopened-" + item.id}>
               <h3>{item.title}</h3>
               <CpeEvidence cpeName={item.cpe_name} cpeNameId={item.cpe_name_id}/>
+              <CpeReferences references={item.nvd_references}
+                sourceRunId={item.references_source_run_id} showMissing />
               <span className="cpe-review-status" data-validation="REOPENED">Decisión deshecha</span>
               <p>Este CPE no figura en la última búsqueda. Ejecuta otra búsqueda
                 para volver a evaluar su aplicabilidad. Su historial permanece guardado.</p>

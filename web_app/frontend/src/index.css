@@ -2624,3 +2624,21 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   .cpe-advanced-grid { grid-template-columns: 1fr; }
   .cpe-advanced-content { padding: 14px; }
 }
+
+
+/* Phase 5: references from the NVD CPE catalogue (not analyst validation). */
+.cpe-references { margin: 13px 0; border: 1px solid #34455a; border-radius: 7px;
+  background: #111e2f; padding: 12px 14px; overflow-wrap: anywhere; }
+.cpe-references-heading { display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 4px 12px; margin-bottom: 8px; }
+.cpe-references-heading strong { color: #e2e8f0; font-size: .84rem; }
+.cpe-references-heading span { color: #a3b5c9; font-size: .74rem; }
+.cpe-references ul { padding: 0; margin: 0; list-style: none; display: grid; gap: 10px; }
+.cpe-references li { display: flex; align-items: baseline; flex-wrap: wrap; gap: 7px 11px; font-size: .78rem; }
+.cpe-references .cpe-reference-group { color: #bae6fd; font-weight: 600; }
+.cpe-references .cpe-reference-type { color: #94a3b8; }
+.cpe-references a { color: #a9bbd3; text-underline-offset: 3px; }
+.cpe-references a:visited { color: #a9bbd3; }
+.cpe-references a:hover { color: #e2edf9; }
+.cpe-references a:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 3px; }
+.cpe-references p { color: #96a9c2; font-size: .74rem; line-height: 1.5; margin: 9px 0 0; }
