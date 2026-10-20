@@ -71,3 +71,41 @@ npm run build
    de las referencias almacenadas en un trabajo anterior.
 
 Las búsquedas de software y la correlación CVE quedan fuera de esta fase.
+
+## Refinamiento — enlace directo a Product
+
+La interfaz de candidatos y CPE revisados ahora muestra exclusivamente
+las entradas cuyo type es Product, con el botón «Ver producto ↗»
+que abre la URL exacta que NVD incluye en products[].cpe.refs.
+
+No se muestra Advisory ni otras categorías en esta vista de identidad
+técnica. El backend conserva las referencias originales estructuradas
+para trazabilidad y para futuras funciones de vulnerabilidades.
+
+Las búsquedas históricas ejecutadas antes de la fase 5 no almacenaban
+nvd_references en CpeSearchRun.candidates. Por tanto, un cpeNameId
+con referencias en el JSON actual de NVD puede continuar sin Product
+en la búsqueda histórica. Hay que ejecutar **una nueva búsqueda**
+con el worker actualizado. No se consulta NVD desde el frontend ni en GET.
+
+Para los CPE confirmados o rechazados, GET asociaciones puede obtener
+referencias Product desde las últimas diez búsquedas completadas del
+mismo activo, comparando exactamente el UUID. De esta forma el analista
+no tiene que deshacer ni repetir su decisión. La lectura es de solo
+lectura: NO modifica AssetCpe, Cpe ni AssetCpeDecision. Conserva
+procedencia con el ID de búsqueda que originalmente obtuvo los enlaces.
+
+Se agregan tres pruebas de regresión para enriquecimiento de asociaciones
+históricas, conservación de referencias antiguas y exclusión de UUID
+ajenos. React verifica que solamente se presenten URLs Product.
+
+### Verificación
+
+1. Reinicia python manage.py run_cpe_worker después de actualizar.
+2. Repite una búsqueda para Advantech ADAM-5000.
+3. Verifica ADAM-3600: Producto → Ver producto ↗ cuando NVD devuelve
+   una URL Product HTTPS.
+4. Repite la búsqueda Siemens SIMATIC S7-1200 CPU 1215C.
+5. Verifica que las asociaciones previas del mismo UUID muestren Product
+   sin modificar ninguna decisión del historial.
+6. CPE Name abre el JSON CPE de NVD, Ver producto abre la URL en refs.
