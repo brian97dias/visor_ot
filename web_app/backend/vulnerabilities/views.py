@@ -11,9 +11,9 @@ from assets.models import Asset
 from users.models import User
 from vulnerabilities.models import CpeSearchRun
 from .services.cpe_search import create_run, serialize_run
-from .services.candidate_matching import hardware_candidates
 from .models import AssetCpe
 from .services.identity import fingerprint, hardware_identity
+from .services.cpe_overview import count_current_cpes, is_outdated_association
 
 
 class CpeSearchPermission(BasePermission):
@@ -71,70 +71,81 @@ class CpeSearchDetailView(APIView):
 
 
 class CpeOverviewView(APIView):
-    """Read-only overview of discovery and explicit analyst validations."""
+    """One lifecycle status plus CPE counts from current completed search."""
     permission_classes = [IsAuthenticated, CpeSearchPermission]
 
     def get(self, request):
-        latest = CpeSearchRun.objects.filter(asset_id=OuterRef("pk")).order_by(
-            "-created_at", "-pk"
+        ordered_runs = CpeSearchRun.objects.filter(
+            asset_id=OuterRef("pk")
+        ).order_by("-created_at", "-pk")
+        latest = ordered_runs.values("pk")[:1]
+        latest_completed = ordered_runs.filter(
+            status=CpeSearchRun.Status.COMPLETED
         ).values("pk")[:1]
-        assets = list(Asset.objects.filter(
-            inventory_status=Asset.InventoryStatus.ACTIVE
-        ).select_related("hardware", "software").annotate(
-            last_cpe_run_id=Subquery(latest)
-        ).order_by("name", "pk"))
-        ids = {asset.last_cpe_run_id for asset in assets if asset.last_cpe_run_id}
-        runs = CpeSearchRun.objects.in_bulk(ids)
+        assets = list(
+            Asset.objects.filter(inventory_status=Asset.InventoryStatus.ACTIVE)
+            .select_related("hardware", "software")
+            .annotate(
+                last_cpe_run_id=Subquery(latest),
+                last_completed_cpe_run_id=Subquery(latest_completed),
+            )
+            .order_by("name", "pk")
+        )
+        run_ids = {
+            pk for asset in assets
+            for pk in (asset.last_cpe_run_id, asset.last_completed_cpe_run_id)
+            if pk is not None
+        }
+        runs = CpeSearchRun.objects.in_bulk(run_ids)
         associations_by_asset = {}
         for association in AssetCpe.objects.filter(
             asset_id__in=[asset.pk for asset in assets]
-        ).only("asset_id", "validation_status", "validated_identity_fingerprint"):
+        ).select_related("cpe"):
             associations_by_asset.setdefault(association.asset_id, []).append(association)
+
         results = []
         for asset in assets:
-            run = runs.get(asset.last_cpe_run_id)
-            current_fingerprint = (
+            latest_run = runs.get(asset.last_cpe_run_id)
+            completed_run = runs.get(asset.last_completed_cpe_run_id)
+            associations = associations_by_asset.get(asset.pk, [])
+            identity = (
                 fingerprint(hardware_identity(asset))
                 if asset.asset_type == Asset.AssetType.HARDWARE else ""
             )
-            decisions = associations_by_asset.get(asset.pk, [])
-            confirmed = sum(
-                item.validation_status == AssetCpe.Validation.CONFIRMED
-                and item.validated_identity_fingerprint == current_fingerprint
-                for item in decisions
-            )
-            pending = sum(
-                item.validation_status == AssetCpe.Validation.PENDING
-                and item.validated_identity_fingerprint == current_fingerprint
-                for item in decisions
-            )
-            needs_review = any(
-                item.validation_status != AssetCpe.Validation.REOPENED
-                and item.validated_identity_fingerprint != current_fingerprint
-                for item in decisions
-            )
-            reopened = [
-                item for item in decisions
-                if item.validation_status == AssetCpe.Validation.REOPENED
-            ]
+            counts = count_current_cpes(completed_run, associations, identity)
+            outdated = any(is_outdated_association(a, identity) for a in associations)
+            # A current decision absent from the latest completed valid search
+            # cannot be silently treated as validated by that search.
+            unmatched_decisions = sum(
+                a.validation_status in (
+                    AssetCpe.Validation.CONFIRMED, AssetCpe.Validation.REJECTED
+                )
+                and a.validated_identity_fingerprint == identity
+                and str(a.cpe.cpe_name_id).lower() not in counts["candidate_ids"]
+                for a in associations
+            ) if counts["available"] else 0
             if asset.asset_type == Asset.AssetType.SOFTWARE:
                 state = "NOT_SUPPORTED"
-            elif needs_review:
-                state = "STALE"
-            elif confirmed:
-                state = "CONFIRMED"
-            elif pending:
-                state = "PENDING_VALIDATION"
-            elif reopened:
-                state = "REOPENED"
-            elif run is None:
+            elif latest_run is None:
                 state = "NOT_SEARCHED"
-            elif run.identity_fingerprint != fingerprint(hardware_identity(asset)):
+            elif latest_run.status in (
+                CpeSearchRun.Status.QUEUED, CpeSearchRun.Status.RUNNING,
+            ):
+                state = latest_run.status
+            elif latest_run.status == CpeSearchRun.Status.FAILED:
+                state = "FAILED"
+            elif outdated or unmatched_decisions:
                 state = "STALE"
-            elif run.status == CpeSearchRun.Status.COMPLETED:
-                state = "CANDIDATES" if hardware_candidates(run.candidates) else "NO_RESULTS"
+            elif not counts["available"]:
+                state = "STALE"
+            elif counts["total"] == 0:
+                state = "NO_RESULTS"
+            elif counts["unreviewed"] == 0:
+                state = "EVALUATED"
+            elif counts["confirmed"] or counts["rejected"]:
+                state = "IN_REVIEW"
             else:
-                state = run.status
+                state = "TO_REVIEW"
 
             hardware = getattr(asset, "hardware", None)
             software = getattr(asset, "software", None)
@@ -152,12 +163,20 @@ class CpeOverviewView(APIView):
                 "role": hardware.role if hardware else "",
                 "version": software.version if software else "",
                 "identification_status": state,
-                "run_id": run.pk if run else None,
-                "candidate_count": len(hardware_candidates(run.candidates)) if run else 0,
-                "confirmed_count": confirmed,
-                "pending_validation_count": pending,
-                "reviewed_count": len(decisions) - len(reopened),
-                "reopened_count": len(reopened),
-                "last_search_at": run.created_at if run else None,
+                "run_id": latest_run.pk if latest_run else None,
+                "candidate_count": counts["total"],
+                "confirmed_count": counts["confirmed"],
+                "rejected_count": counts["rejected"],
+                "unreviewed_count": counts["unreviewed"],
+                "legacy_pending_count": counts["legacy_pending"],
+                # Kept for backwards compatibility; reopened are NOT reviewed.
+                "reopened_count": sum(
+                    a.validation_status == AssetCpe.Validation.REOPENED
+                    for a in associations
+                ),
+                "reviewed_count": counts["confirmed"] + counts["rejected"]
+                    + counts["legacy_pending"],
+                "out_of_scope_count": unmatched_decisions,
+                "last_search_at": latest_run.created_at if latest_run else None,
             })
         return Response({"results": results})
