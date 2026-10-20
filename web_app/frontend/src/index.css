@@ -2425,3 +2425,38 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   .cpe-review-actions .cpe-decision-button { flex: 1 1 160px; }
   .cpe-review-confirmation { padding: 12px; }
 }
+
+
+/* Official NVD provenance: IDs are visible, accessible and wrap on small screens. */
+.cpe-evidence { display: grid; gap: 8px; margin: 10px 0 13px; }
+.cpe-evidence-label {
+  display: inline-block; margin-right: 9px; color: #94a3b8;
+  font-size: .78rem; font-weight: 600;
+}
+.cpe-evidence code {
+  color: #93c5fd; font-size: .78rem; overflow-wrap: anywhere;
+}
+.cpe-evidence a, .cpe-query-links a {
+  color: #7dd3fc; font-size: .83rem; text-decoration: underline;
+  text-underline-offset: 3px; width: fit-content;
+}
+.cpe-evidence a:hover, .cpe-query-links a:hover { color: #bae6fd; }
+.cpe-evidence a:focus-visible, .cpe-query-links a:focus-visible {
+  outline: 2px solid #bae6fd; outline-offset: 3px;
+}
+.cpe-query-list { display: grid; gap: 14px; padding-left: 20px; }
+.cpe-query-list li { overflow-wrap: anywhere; }
+.cpe-query-list code { overflow-wrap: anywhere; }
+.cpe-query-method { font-weight: 600; color: #e2e8f0; }
+.cpe-query-links { display: flex; gap: 8px 16px; flex-wrap: wrap; margin-top: 6px; }
+.cpe-overview-status[data-status="REOPENED"] { color: #7dd3fc; }
+.cpe-review-actions .cpe-decision-reopen {
+  background: #164e63; color: #ecfeff; border-color: #22d3ee;
+}
+.cpe-review-actions .cpe-decision-reopen:hover:not(:disabled) {
+  background: #155e75; border-color: #67e8f9;
+}
+.cpe-review-confirmation[data-tone="reopen"] { border-color: #0e7490; }
+.cpe-review-status[data-validation="REOPENED"] {
+  color: #7dd3fc; border-color: #0e7490;
+}

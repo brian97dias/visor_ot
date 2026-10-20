@@ -33,8 +33,10 @@ export default function AssetCpeSection({ asset }) {
     {ready && <p className="cpe-copy">
       CPE confirmados: {associations.filter(item =>
         item.validation_status === "CONFIRMED" && !item.needs_review).length}.
-      {" "}Asociaciones por revisar: {associations.filter(item =>
+      {" "}Pendientes: {associations.filter(item =>
         item.validation_status === "PENDING" || item.needs_review).length}.
+      {" "}Reabiertos: {associations.filter(item =>
+        item.validation_status === "REOPENED").length}.
     </p>}
     <div className="cpe-action">
       <Link className="button-secondary" to={"/assets/" + asset.id + "/cpe"}>

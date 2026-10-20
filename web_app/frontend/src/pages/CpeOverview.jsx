@@ -14,6 +14,7 @@ const STATUS = {
   NOT_SUPPORTED: "Software: disponible en fase 4",
   CONFIRMED: "CPE confirmado",
   PENDING_VALIDATION: "Validación pendiente",
+  REOPENED: "Revisión reabierta",
 };
 
 export default function CpeOverview() {
@@ -137,6 +138,8 @@ export default function CpeOverview() {
                     {row.confirmed_count} confirmado(s)</div>}
                   {row.pending_validation_count > 0 && <div className="cpe-overview-subtitle">
                     {row.pending_validation_count} validación(es) pendiente(s)</div>}
+                  {row.reopened_count > 0 && <div className="cpe-overview-subtitle">
+                    {row.reopened_count} revisión(es) reabierta(s)</div>}
                 </td>
                 <td>{row.asset_type === "HARDWARE"
                   ? <Link className="button-secondary"
