@@ -59,10 +59,12 @@ def _retry_seconds(headers):
     return 15
 
 
-def fetch_page(strategy, parameter, start_index, pacer):
+def fetch_page(strategy, parameter, start_index, pacer, *, results_per_page=PAGE_SIZE):
     if strategy not in ("keywordSearch", "cpeMatchString"):
         raise ValueError("Estrategia de consulta inválida.")
-    params = {strategy: parameter, "startIndex": start_index, "resultsPerPage": PAGE_SIZE}
+    if type(results_per_page) is not int or not 1 <= results_per_page <= 1000:
+        raise ValueError("results_per_page debe estar entre 1 y 1000.")
+    params = {strategy: parameter, "startIndex": start_index, "resultsPerPage": results_per_page}
     url = NVD_CPE_URL + "?" + urlencode(params)
     request = Request(url, headers={"User-Agent": "VisorOT-CPE-Research/1.0", "Accept": "application/json"})
     for attempt in range(2):
