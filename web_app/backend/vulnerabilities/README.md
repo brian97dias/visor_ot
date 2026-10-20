@@ -187,7 +187,7 @@ Solicitud de ejemplo:
 
 `{"run_id": 1, "cpe_name_id": "09f448d2-f606-44ab-8891-c27a3ff64002", "status": "CONFIRMED", "justification": "La placa indica CPU 1215C"}`
 
-Los estados son `PENDING`, `CONFIRMED` y `REJECTED`. La justificación es opcional en los tres estados; cuando se informa, se conserva en la asociación y en su historial de auditoría. La decisión sigue siendo explícita y requiere una confirmación final en pantalla. Solo `ADMIN` y `ANALYST` pueden modificar decisiones; `OPERATOR` puede consultarlas. Un CPE pertenece al catálogo global y puede asociarse a varios activos, pero cada par `(asset, cpe)` es único. Intentar crearlo dos veces devuelve `409`; para modificar la decisión se utiliza `PATCH`.
+Los estados son `PENDING`, `CONFIRMED`, `REJECTED` y `REOPENED`. La justificación es opcional en todos los estados; cuando se informa, se conserva en la asociación y en su historial de auditoría. La decisión sigue siendo explícita y requiere una confirmación final en pantalla. Solo `ADMIN` y `ANALYST` pueden modificar decisiones; `OPERATOR` puede consultarlas. Un CPE pertenece al catálogo global y puede asociarse a varios activos, pero cada par `(asset, cpe)` es único. Intentar crearlo dos veces devuelve `409`; para modificar la decisión se utiliza `PATCH`.
 
 El backend comprueba que la búsqueda pertenece al activo, está `COMPLETED`, contiene el CPE oficial de tipo `h` y conserva la misma huella técnica del activo. La transacción bloquea únicamente la fila de `Asset` para evitar el problema PostgreSQL `FOR UPDATE` sobre un `OUTER JOIN` nullable. Si cambia fabricante, modelo o CPU, las asociaciones permanecen, pero `needs_review: true` indica que hay que repetir la búsqueda antes de volver a validar. Cada acción agrega un registro en `AssetCpeDecision`.
 
@@ -205,10 +205,48 @@ El proceso `run_cpe_worker` es necesario para ejecutar **nuevas búsquedas NVD**
 
 ### Refinamiento visual y de validación de fase 2
 
-La interfaz separa **CPE revisados** de **CPE candidatos**. La lista de candidatos filtra por `cpe_name_id` oficial (sin distinguir mayúsculas/minúsculas) las asociaciones que ya tienen cualquier decisión: `CONFIRMED`, `REJECTED` o `PENDING`. No se eliminan de NVD ni del historial; únicamente dejan de duplicarse en pantalla. Las decisiones anteriores siguen accesibles en el apartado de revisados, incluso si su CPE ya no aparece entre los resultados actuales.
+La interfaz separa **CPE revisados** de **CPE candidatos**. La lista de candidatos filtra por `cpe_name_id` oficial las asociaciones con decisiones vigentes: `CONFIRMED`, `REJECTED` o `PENDING`. Las asociaciones `REOPENED` vuelven a candidatos. No se eliminan de NVD ni del historial; únicamente dejan de duplicarse en pantalla. Las decisiones anteriores siguen accesibles en el apartado de revisados, incluso si su CPE ya no aparece entre los resultados actuales.
 
-Las acciones utilizan controles visuales diferenciados (verde para seleccionar/confirmar, rojo para rechazar, ámbar para dejar pendiente). La primera pulsación **elige una acción sin modificar PostgreSQL**. En el segundo paso aparece una explicación y el campo opcional para el motivo, seguido del botón definitivo de confirmación y Cancelar. Tras guardar se cierra el formulario y se actualiza la lista. Para modificar una decisión previa se utiliza **Cambiar decisión** en su asociación revisada; requiere evidencia de la búsqueda actual y una identidad técnica vigente.
+Las acciones utilizan controles visuales diferenciados (verde para seleccionar/confirmar, rojo para rechazar, ámbar para dejar pendiente). La primera pulsación **elige una acción sin modificar PostgreSQL**. En el segundo paso aparece una explicación y el campo opcional para el motivo, seguido del botón definitivo de confirmación y Cancelar. Tras guardar se cierra el formulario y se actualiza la lista. Para modificar una decisión previa se utiliza **Cambiar decisión**. Confirmar, rechazar o dejar pendiente exige evidencia actual; **Reabrir revisión** retira una decisión anterior sin requerir otra búsqueda.
 
 El backend valida un límite de 1000 caracteres para el motivo cuando se informa, pero no exige rellenarlo. El historial `AssetCpeDecision` sigue capturando estado, usuario, fuente, fecha y huella técnica aunque la justificación esté vacía. Estas mejoras no requieren migraciones nuevas.
 
 Pruebas del frontend: `npm run test:unit` incluye `src/utils/cpeReview.test.js`; el backend suma un test para motivo omitido y reemplaza la antigua prueba de obligatoriedad por revisiones sin motivo. Ejecutar `npm run build` y `python manage.py test vulnerabilities --settings=config.settings_test_sqlite` antes de cerrar el refinamiento.
+
+## Refinamiento de fase 2 — Trazabilidad NVD y reapertura
+
+La migración `0003_cpe_reopened` incorpora `REOPENED` a `AssetCpe` y `AssetCpeDecision`, sin eliminar decisiones anteriores ni alterar la unicidad de `(asset, cpe)`.
+
+### Enlaces verificables a NVD
+
+Cada candidato y cada asociación muestran el nombre CPE completo y su `cpe_name_id` (UUID). El enlace **Consultar CPE en NVD** utiliza `https://services.nvd.nist.gov/rest/json/cpes/2.0?cpeNameId={uuid}`. Para `keywordSearch` y `cpeMatchString`, el frontend reconstruye enlaces JSON de cada página ejecutada usando `URLSearchParams`, `startIndex` y `resultsPerPage=100`. Son consultas **actuales** a NVD, no instantáneas históricas. No almacenamos respuestas JSON brutas.
+
+El resumen muestra únicamente el total de candidatos de hardware (`h`); las cantidades brutas de NVD siguen en `queries` para auditoría interna. Se mantienen los dos registros Siemens cuando sus `cpeNameId` son distintos; no se deduplican por títulos parecidos ni se alerta sobre supuestas equivalencias. La interfaz muestra el método de descubrimiento, el tipo y la deprecación, sin presentar una coincidencia textual como confirmación. La clasificación interna distingue `cpu_1215c` de la variante `cpu_12_1215c` sin descartar esta última.
+
+### Reabrir revisión
+
+Solo `ADMIN` y `ANALYST` pueden retirar una decisión; `OPERATOR` tiene lectura. En **CPE revisados → Cambiar decisión → Reabrir revisión**, se abre una confirmación con justificación opcional. La petición `PATCH /api/vulnerabilities/assets/{asset_id}/cpes/{association_id}/` admite `{"status":"REOPENED"}` sin `run_id`. Mantiene `source_run` como evidencia histórica y añade una entrada al historial con usuario, fecha, estado previo y huella actual. La reapertura puede realizarse incluso si el inventario cambió: retirar una decisión no ratifica su aplicabilidad.
+
+Las revisiones reabiertas regresan a **CPE candidatos**. Cuando ese UUID está en la búsqueda vigente, guardar otra decisión hace `PATCH` sobre la misma asociación y preserva toda la auditoría. Si no está en la búsqueda actual, permanece visible como reabierto, pero requiere una nueva búsqueda antes de confirmarse. `REOPENED` no puede crearse por `POST`; el backend impide repetir el mismo estado sin evidencia nueva (HTTP 409). La revalidación del mismo estado sí se permite con una nueva búsqueda válida.
+
+En la vista global aparecen `REOPENED` y `reopened_count`, separados de `reviewed_count`. Las acciones de CPE revisados excluyen el estado ya guardado.
+
+### Validación local
+
+En `web_app/backend`:
+
+```bash
+python manage.py migrate
+python manage.py check
+python manage.py makemigrations --check --dry-run
+python manage.py test vulnerabilities --settings=config.settings_test_sqlite
+```
+
+En `web_app/frontend`:
+
+```bash
+npm run test:unit
+npm run build
+```
+
+Con el Siemens CPU 1215C, comprobar los dos UUID distintos, abrir el JSON de NVD, reabrir el CPE ya rechazado, volverlo a seleccionar y verificar que siga existiendo una única fila `AssetCpe` con historial completo. Para reabrir una decisión no se requiere ejecutar el worker.
