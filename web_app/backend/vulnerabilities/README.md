@@ -187,7 +187,7 @@ Solicitud de ejemplo:
 
 `{"run_id": 1, "cpe_name_id": "09f448d2-f606-44ab-8891-c27a3ff64002", "status": "CONFIRMED", "justification": "La placa indica CPU 1215C"}`
 
-Los estados son `PENDING`, `CONFIRMED` y `REJECTED`. Confirmar o rechazar requiere justificación; dejar pendiente es explícito y permite justificación vacía. Solo `ADMIN` y `ANALYST` pueden modificar decisiones; `OPERATOR` puede consultarlas. Un CPE pertenece al catálogo global y puede asociarse a varios activos, pero cada par `(asset, cpe)` es único. Intentar crearlo dos veces devuelve `409`; para modificar la decisión se utiliza `PATCH`.
+Los estados son `PENDING`, `CONFIRMED` y `REJECTED`. La justificación es opcional en los tres estados; cuando se informa, se conserva en la asociación y en su historial de auditoría. La decisión sigue siendo explícita y requiere una confirmación final en pantalla. Solo `ADMIN` y `ANALYST` pueden modificar decisiones; `OPERATOR` puede consultarlas. Un CPE pertenece al catálogo global y puede asociarse a varios activos, pero cada par `(asset, cpe)` es único. Intentar crearlo dos veces devuelve `409`; para modificar la decisión se utiliza `PATCH`.
 
 El backend comprueba que la búsqueda pertenece al activo, está `COMPLETED`, contiene el CPE oficial de tipo `h` y conserva la misma huella técnica del activo. La transacción bloquea únicamente la fila de `Asset` para evitar el problema PostgreSQL `FOR UPDATE` sobre un `OUTER JOIN` nullable. Si cambia fabricante, modelo o CPU, las asociaciones permanecen, pero `needs_review: true` indica que hay que repetir la búsqueda antes de volver a validar. Cada acción agrega un registro en `AssetCpeDecision`.
 
@@ -197,8 +197,18 @@ El backend comprueba que la búsqueda pertenece al activo, está `COMPLETED`, co
 2. Comprobar que las migraciones coincidan con los modelos: `python manage.py makemigrations --check --dry-run`.
 3. Ejecutar `python manage.py test vulnerabilities --settings=config.settings_test_sqlite`.
 4. Desde React, abrir el hardware Siemens SIMATIC S7-1200 y su Identificación CPE (la búsqueda completada se reutiliza).
-5. Escribir una justificación y pulsar **Confirmar CPE** en uno de los candidatos `h`.
-6. Verificar la asociación confirmada y el historial; después seleccionar **Rechazar** con nueva justificación y comprobar que ambas decisiones continúan registradas.
+5. En **CPE candidatos**, pulsar **Seleccionar CPE** en uno de los candidatos `h`. Se abre un formulario con justificación opcional. Pulsar **Confirmar asociación** para guardar.
+6. Verificar que el candidato sale de **CPE candidatos** y aparece solo en **CPE revisados** con su estado, motivo como texto (si se informó), autor e historial. Pulsar **Cambiar decisión** y seleccionar **Rechazar candidato**; confirmar la segunda acción y comprobar que ambas decisiones siguen en el historial.
 7. Volver a `/vulnerabilities/cpe` y verificar el estado global, sin perder filtros ni paginación.
 
 El proceso `run_cpe_worker` es necesario para ejecutar **nuevas búsquedas NVD**; leer y validar candidatos ya encontrados no lo necesita. Las pruebas nuevas están en `tests_phase2.py`, y el caso previo `test_global_overview_includes_unsearched_and_completed_hardware` fue corregido para incluir un CPE oficial `h` válido.
+
+### Refinamiento visual y de validación de fase 2
+
+La interfaz separa **CPE revisados** de **CPE candidatos**. La lista de candidatos filtra por `cpe_name_id` oficial (sin distinguir mayúsculas/minúsculas) las asociaciones que ya tienen cualquier decisión: `CONFIRMED`, `REJECTED` o `PENDING`. No se eliminan de NVD ni del historial; únicamente dejan de duplicarse en pantalla. Las decisiones anteriores siguen accesibles en el apartado de revisados, incluso si su CPE ya no aparece entre los resultados actuales.
+
+Las acciones utilizan controles visuales diferenciados (verde para seleccionar/confirmar, rojo para rechazar, ámbar para dejar pendiente). La primera pulsación **elige una acción sin modificar PostgreSQL**. En el segundo paso aparece una explicación y el campo opcional para el motivo, seguido del botón definitivo de confirmación y Cancelar. Tras guardar se cierra el formulario y se actualiza la lista. Para modificar una decisión previa se utiliza **Cambiar decisión** en su asociación revisada; requiere evidencia de la búsqueda actual y una identidad técnica vigente.
+
+El backend valida un límite de 1000 caracteres para el motivo cuando se informa, pero no exige rellenarlo. El historial `AssetCpeDecision` sigue capturando estado, usuario, fuente, fecha y huella técnica aunque la justificación esté vacía. Estas mejoras no requieren migraciones nuevas.
+
+Pruebas del frontend: `npm run test:unit` incluye `src/utils/cpeReview.test.js`; el backend suma un test para motivo omitido y reemplaza la antigua prueba de obligatoriedad por revisiones sin motivo. Ejecutar `npm run build` y `python manage.py test vulnerabilities --settings=config.settings_test_sqlite` antes de cerrar el refinamiento.
