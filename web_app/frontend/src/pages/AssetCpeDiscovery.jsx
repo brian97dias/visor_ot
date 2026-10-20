@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useOutletContext, useParams } from "react-router-dom";
 import { getAsset } from "../api/assets";
 import {
-  latestCpeSearch, readCpeSearch, startCpeSearch, getAssetCpeAssociations,
+  latestCpeSearch, readCpeSearch, startCpeSearch, startAdvancedCpeSearch, getAssetCpeAssociations,
 } from "../api/vulnerabilities";
 import CandidateCpeReview from "../components/CandidateCpeReview";
 import CpeEvidence from "../components/CpeEvidence";
 import CpeDiscoveryTrace from "../components/CpeDiscoveryTrace";
 import CpeCandidateExplanation from "../components/CpeCandidateExplanation";
+import CpeAdvancedSearch from "../components/CpeAdvancedSearch";
 import {
   unreviewedCpeCandidates, reopenedWithoutCurrentCandidate, reviewedCpeAssociations,
 } from "../utils/cpeReview";
@@ -114,6 +115,25 @@ export default function AssetCpeDiscovery() {
       setWorking(false);
     }
   }
+  async function advancedSearch(payload) {
+    if (working || pending) return;
+    setWorking(true);
+    setPollingPaused(false);
+    setError("");
+    try {
+      const response = await startAdvancedCpeSearch(assetId, payload);
+      // The work was already stored in PostgreSQL if this read fails.
+      try {
+        setRun(await readCpeSearch(assetId, response.run_id));
+      } catch (err) {
+        setError("La búsqueda quedó en cola, pero no se pudo consultar su estado: " + err.message);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setWorking(false);
+    }
+  }
   if (loading) return <section className="page">Cargando identificación CPE...</section>;
   if (!asset) return <section className="page"><p className="error-message">{error}</p>
     <Link to={"/assets/" + assetId}>Volver</Link></section>;
@@ -144,6 +164,9 @@ export default function AssetCpeDiscovery() {
         <button className="button-secondary" type="button" disabled={working || pending}
           onClick={() => search("BROAD")}>Ampliar búsqueda por familia</button>
       </div>}
+    {allowed && asset.asset_type === "HARDWARE" && asset.inventory_status === "ACTIVE" &&
+      <CpeAdvancedSearch key={assetId} asset={asset} busy={working || pending}
+        onStart={advancedSearch} />}
     {!allowed && <p className="cpe-copy">Tu usuario puede consultar, pero no iniciar búsquedas CPE.</p>}
     {run && pending && (pollingPaused || Boolean(error)) && (
       <div className="cpe-tools">
@@ -160,7 +183,8 @@ export default function AssetCpeDiscovery() {
           <span className="cpe-status" data-status={run.status}>{statusText[run.status] || run.status}</span>
         </div>
         <div className="cpe-copy">
-          <p>Alcance: {run.scope === "BROAD" ? "Familia" : "Específico"} ·
+          <p>Alcance: {run.trigger === "ADVANCED" ? "Avanzada · consulta controlada" :
+            run.scope === "BROAD" ? "Familia" : "Específico"} ·
             {" "}{run.candidate_count} candidatos de hardware encontrados.</p>
           <p>Fecha: {new Date(run.created_at).toLocaleString("es-CO")}</p>
           {pending && <>

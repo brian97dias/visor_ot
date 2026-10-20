@@ -19,6 +19,12 @@ export function startCpeSearch(id, scope = "SPECIFIC") {
     body: JSON.stringify({ scope }),
   });
 }
+export function startAdvancedCpeSearch(id, payload) {
+  return request("/api/vulnerabilities/assets/" + id + "/cpe-searches/advanced/", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
 export async function latestCpeSearch(id) {
   const data = await request("/api/vulnerabilities/assets/" + id + "/cpe-searches/latest/");
   return data.run;

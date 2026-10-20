@@ -22,3 +22,9 @@ test("CPE UUID returns a direct official NVD lookup URL", () => {
   assert.equal(nvdQueryUrl({strategy:"unknown",parameter:"x"}), null);
   assert.equal(nvdQueryUrl({strategy:"keywordSearch",parameter:"x"}, -1), null);
 });
+
+test("advanced NVD links retain stored start index across pages", () => {
+  const query = {strategy:"keywordSearch", parameter:"Rockwell", start_index:200};
+  assert.equal(new URL(nvdQueryUrl(query)).searchParams.get("startIndex"), "200");
+  assert.equal(new URL(nvdQueryUrl(query, 1)).searchParams.get("startIndex"), "300");
+});

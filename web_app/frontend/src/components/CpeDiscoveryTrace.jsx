@@ -24,6 +24,11 @@ export default function CpeDiscoveryTrace({ queries, truncated }) {
       <div className="cpe-trace-detail">
         {group.level === "LEGACY" && <p className="cpe-trace-muted">
           Registro histórico sin niveles: no se puede reconstruir su evaluación.</p>}
+        {group.level === "ADVANCED" && group.queries[0] && <p>
+          <strong>Tramo solicitado:</strong> página inicial {
+            Number(group.queries[0].start_index || 0) / 100 + 1
+          } · máximo {group.queries[0].max_pages || 1} página(s).
+        </p>}
         {group.result && <p><strong>Evaluación:</strong> {resultLabel(group.result)}</p>}
         {group.nextReason && <p><strong>Ampliación:</strong> {reasonLabel(group.nextReason)}</p>}
         {group.stopReason && <p><strong>Límite:</strong> {reasonLabel(group.stopReason)}</p>}

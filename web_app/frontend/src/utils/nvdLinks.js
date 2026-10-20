@@ -9,7 +9,9 @@ export function nvdQueryUrl(query, page = 0) {
   }
   const url = new URL(ENDPOINT);
   url.searchParams.set(query.strategy, query.parameter);
-  url.searchParams.set("startIndex", String(page * NVD_PAGE_SIZE));
+  const initial = Number.isInteger(query.start_index) && query.start_index >= 0
+    ? query.start_index : 0;
+  url.searchParams.set("startIndex", String(initial + page * NVD_PAGE_SIZE));
   url.searchParams.set("resultsPerPage", String(NVD_PAGE_SIZE));
   return url.toString();
 }

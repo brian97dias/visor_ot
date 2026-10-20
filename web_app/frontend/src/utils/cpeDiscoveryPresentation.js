@@ -1,5 +1,5 @@
 /** Read-only presentation of NVD CPE discovery. No inferred validations. */
-const LEVEL = {SPECIFIC:"Nivel 1 · Específico",FAMILY:"Nivel 2 · Familia",MANUFACTURER:"Nivel 3 · Fabricante",LEGACY:"Consulta histórica"};
+const LEVEL = {SPECIFIC:"Nivel 1 · Específico",FAMILY:"Nivel 2 · Familia",MANUFACTURER:"Nivel 3 · Fabricante",ADVANCED:"Búsqueda avanzada",LEGACY:"Consulta histórica"};
 const OUTCOME = {
  SUFFICIENT_PERTINENT_CANDIDATES:"Coincidencia técnica suficiente para detener la ampliación",
  NO_PERTINENT_CANDIDATES:"Sin coincidencia técnica suficiente; se puede ampliar",
@@ -15,8 +15,10 @@ const REASON = {
  PER_STRATEGY_PAGE_LIMIT:"Se alcanzó el límite de páginas de esta estrategia",
  CANDIDATE_LIMIT:"Se alcanzó el máximo de candidatos",
  REQUEST_FAILED:"La consulta a NVD no terminó correctamente",
+ ADVANCED_PAGE_LIMIT:"Se alcanzó el número de páginas solicitado por el analista",
+ ADVANCED_OFFSET:"Se inició desde una página posterior; no se examinaron todas las páginas anteriores",
 };
-const STATUSES = {COMPLETED:"Completada",RUNNING:"En ejecución",PARTIAL:"Parcial",SKIPPED:"No ejecutada",FAILED:"Fallida"};
+const STATUSES = {COMPLETED:"Completada",RUNNING:"En ejecución",PARTIAL:"Parcial",SKIPPED:"No ejecutada",FAILED:"Fallida",PLANNED:"En cola"};
 const CLASSIFICATION = {
  SPECIFIC:["Coincidencia técnica específica","specific"],
  FAMILY:["Coincidencia de familia","family"],
@@ -24,7 +26,7 @@ const CLASSIFICATION = {
  NEEDS_INFO:["Requiere información adicional","needs-info"],
  POSSIBLE_INCOMPATIBILITY:["Posible incompatibilidad","incompatible"],
 };
-const ORDER=["SPECIFIC","FAMILY","MANUFACTURER"];
+const ORDER=["SPECIFIC","FAMILY","MANUFACTURER","ADVANCED"];
 export const levelName = level => LEVEL[level] || "Nivel no registrado";
 export const resultLabel = value => OUTCOME[value] || (value ? "Resultado sin descripción registrada" : "Sin evaluación registrada");
 export const reasonLabel = value => REASON[value] || (value ? "Motivo técnico: " + value : "");
