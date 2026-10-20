@@ -11,6 +11,7 @@ from assets.models import Asset
 from vulnerabilities.models import Cpe, CpeSearchRun, AssetCpe, AssetCpeDecision
 from .candidate_matching import hardware_candidates
 from .identity import fingerprint, hardware_identity
+from .nvd_references import safe_references
 
 
 class ReviewConflict(APIException):
@@ -63,13 +64,17 @@ def select_evidence(asset, run_id, cpe_name_id):
     return run, current, candidate
 
 
-def get_or_update_catalogue(candidate):
+def get_or_update_catalogue(candidate, source_run):
     cpe_id = UUID(str(candidate["cpe_name_id"]))
     values = {
         "cpe_name": candidate["cpe_name"],
         "title": (candidate.get("title") or candidate["cpe_name"])[:400],
         "deprecated": bool(candidate.get("deprecated", False)),
     }
+    references = safe_references(candidate.get("nvd_references"))
+    if references:
+        values["nvd_references"] = references
+        values["references_source_run"] = source_run
     created_at = _date(candidate.get("nvd_created_at"))
     modified_at = _date(candidate.get("nvd_modified_at"))
     if created_at:
@@ -131,7 +136,7 @@ def decide(asset_id, user, data, association_id=None):
                 raise ReviewConflict("La asociación ya tiene ese estado y no hay evidencia nueva.")
 
     if association is None:
-        catalogue = get_or_update_catalogue(candidate)
+        catalogue = get_or_update_catalogue(candidate, run)
         if AssetCpe.objects.filter(asset=asset, cpe=catalogue).exists():
             raise ReviewConflict()
         association = AssetCpe.objects.create(
@@ -142,6 +147,8 @@ def decide(asset_id, user, data, association_id=None):
         old_status = ""
     else:
         old_status = association.validation_status
+        if candidate is not None:
+            get_or_update_catalogue(candidate, run)
         association.source_run = run
         association.validation_status = status
         association.justification = reason
@@ -169,6 +176,8 @@ def serialize_association(association, current_fingerprint):
         "cpe_name": catalogue.cpe_name,
         "title": catalogue.title,
         "deprecated": catalogue.deprecated,
+        "nvd_references": safe_references(catalogue.nvd_references),
+        "references_source_run_id": catalogue.references_source_run_id,
         "validation_status": association.validation_status,
         "justification": association.justification,
         "validated_at": association.validated_at,

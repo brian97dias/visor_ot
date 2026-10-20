@@ -9,6 +9,11 @@ class Cpe(models.Model):
     cpe_name = models.CharField(max_length=500)
     title = models.CharField(max_length=400)
     deprecated = models.BooleanField(default=False)
+    nvd_references = models.JSONField(default=list, blank=True)
+    references_source_run = models.ForeignKey(
+        "vulnerabilities.CpeSearchRun", null=True, blank=True,
+        on_delete=models.PROTECT, related_name="referenced_catalogue_cpes"
+    )
     nvd_created_at = models.DateTimeField(null=True, blank=True)
     nvd_modified_at = models.DateTimeField(null=True, blank=True)
     fetched_at = models.DateTimeField(auto_now=True)

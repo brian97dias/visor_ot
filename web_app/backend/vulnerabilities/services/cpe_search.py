@@ -14,6 +14,7 @@ from .candidate_matching import (
 from .nvd_client import fetch_page, PAGE_SIZE, MAX_PAGES_PER_STRATEGY, MAX_TOTAL_CANDIDATES
 from .worker_lock import worker_lock_held
 from .advanced_query import validate_advanced_query
+from .nvd_references import combine_references
 
 # Shared across all discovery levels: never reset budgets on fallback.
 MAX_TOTAL_PAGE_FETCHES = 8
@@ -145,6 +146,9 @@ def execute_advanced_run(run, pacer, fetcher=fetch_page):
                 if item["cpe_name_id"] in dedup:
                     old = dedup[item["cpe_name_id"]]
                     old["methods"] = sorted(set(old["methods"] + item["methods"]))
+                    old["nvd_references"] = combine_references(
+                        old.get("nvd_references", []), item.get("nvd_references", [])
+                    )
                 elif len(dedup) < MAX_TOTAL_CANDIDATES:
                     item["discovery_levels"] = ["ADVANCED"]
                     dedup[item["cpe_name_id"]] = item
@@ -312,6 +316,9 @@ def execute_run(run, pacer, fetcher=fetch_page):
                         if item["cpe_name_id"] in dedup:
                             old = dedup[item["cpe_name_id"]]
                             old["methods"] = sorted(set(old["methods"] + item["methods"]))
+                            old["nvd_references"] = combine_references(
+                                old.get("nvd_references", []), item.get("nvd_references", [])
+                            )
                             old["discovery_levels"] = sorted(set(
                                 old.get("discovery_levels", []) + [level]
                             ))

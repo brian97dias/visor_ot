@@ -1,5 +1,6 @@
 """Merge official NVD CPE records with explainable inventory correspondence."""
 import re
+from .nvd_references import safe_references, combine_references
 from .identity import (
     normalized, cpu_spelling, family_term, vendor_variants, catalog_code_prefix,
 )
@@ -127,6 +128,7 @@ def normalize_candidate(record, identity, strategy):
         "version": _cpe_part(name, 5),
         "nvd_created_at": cpe.get("created"),
         "nvd_modified_at": cpe.get("lastModified"),
+        "nvd_references": safe_references(cpe.get("refs")),
         "methods": [strategy],
     }
     item["match_level"], item["match_reason"] = classify(item, identity)
@@ -141,6 +143,9 @@ def merge_candidates(results):
             merged[key] = entry
         else:
             merged[key]["methods"] = sorted(set(merged[key]["methods"] + entry["methods"]))
+            merged[key]["nvd_references"] = combine_references(
+                merged[key].get("nvd_references", []), entry.get("nvd_references", [])
+            )
     return sorted(
         merged.values(),
         key=lambda v: (PRIORITY.get(v["match_level"], 99), v["deprecated"], v["title"].lower(), v["cpe_name"]),
