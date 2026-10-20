@@ -6,10 +6,11 @@ import {
 } from "../api/vulnerabilities";
 import CandidateCpeReview from "../components/CandidateCpeReview";
 import CpeEvidence from "../components/CpeEvidence";
+import CpeDiscoveryTrace from "../components/CpeDiscoveryTrace";
+import CpeCandidateExplanation from "../components/CpeCandidateExplanation";
 import {
   unreviewedCpeCandidates, reopenedWithoutCurrentCandidate, reviewedCpeAssociations,
 } from "../utils/cpeReview";
-import { nvdQueryUrl } from "../utils/nvdLinks";
 
 const statusText = {
   QUEUED: "Pendiente de ejecución", RUNNING: "Consultando NVD",
@@ -191,31 +192,7 @@ export default function AssetCpeDiscovery() {
             <p>Sin candidatos de hardware (tipo h) en las consultas realizadas.
               Esto no descarta que exista un CPE en NVD.</p>}
           {run.result_truncated && <p className="cpe-warning">Resultados limitados; la lista no es exhaustiva.</p>}
-          <h3>Consultas NVD</h3>
-          <ul className="cpe-query-list">{(run.queries || []).map((query,i) =>
-            <li key={i}>
-              <span className="cpe-query-method">{query.strategy}</span>:
-              {" "}{nvdQueryUrl(query, 0) && Number(query.pages) > 0
-                ? <a className="cpe-query-param-link" href={nvdQueryUrl(query, 0)}
-                    target="_blank" rel="noopener noreferrer">
-                    <code>{query.parameter}</code> ↗
-                  </a>
-                : <code>{query.parameter}</code>}
-              {Number(query.pages) > 1 && <div className="cpe-query-links">
-                {Array.from({ length: Math.min(Number(query.pages), 3) - 1 },
-                  (_, i) => {
-                    const page = i + 1;
-                    return <a key={page} href={nvdQueryUrl(query, page)}
-                      target="_blank" rel="noopener noreferrer">
-                      Ver JSON en NVD (página {page + 1}) ↗
-                    </a>;
-                  })}
-              </div>}
-            </li>)}</ul>
-          <p className="cpe-hint">
-            Los enlaces consultan NVD en tiempo real. Su contenido puede haber
-            cambiado desde que VISOR OT realizó esta búsqueda; no es una copia archivada.
-          </p>
+          <CpeDiscoveryTrace queries={run.queries} truncated={run.result_truncated} />
         </div>
       </section>
       <section className="panel cpe-review-summary">
@@ -286,6 +263,7 @@ export default function AssetCpeDiscovery() {
             <article className="cpe-card" key={c.cpe_name_id}>
               <h3>{c.title}</h3>
               <CpeEvidence cpeName={c.cpe_name} cpeNameId={c.cpe_name_id}/>
+              <CpeCandidateExplanation candidate={c}/>
               <div className="cpe-tags">
                 <span>Tipo: hardware ({c.cpe_type})</span>
                 <span>{c.deprecated ? "Deprecado en NVD" : "No deprecado en NVD"}</span>
