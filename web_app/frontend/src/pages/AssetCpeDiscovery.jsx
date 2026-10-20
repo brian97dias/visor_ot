@@ -5,17 +5,16 @@ import {
   latestCpeSearch, readCpeSearch, startCpeSearch, getAssetCpeAssociations,
 } from "../api/vulnerabilities";
 import CandidateCpeReview from "../components/CandidateCpeReview";
-import { unreviewedCpeCandidates } from "../utils/cpeReview";
+import CpeEvidence from "../components/CpeEvidence";
+import {
+  unreviewedCpeCandidates, reopenedWithoutCurrentCandidate, reviewedCpeAssociations,
+} from "../utils/cpeReview";
+import { nvdQueryUrl } from "../utils/nvdLinks";
 
 const statusText = {
   QUEUED: "Pendiente de ejecución", RUNNING: "Consultando NVD",
   COMPLETED: "Finalizada", FAILED: "Error de consulta",
 };
-const matchText = {
-  SPECIFIC: "Coincidencia específica", FAMILY: "Coincidencia de familia",
-  NEEDS_INFO: "Requiere información", POSSIBLE_INCOMPATIBILITY: "Posible incompatibilidad",
-};
-
 export default function AssetCpeDiscovery() {
   const { assetId } = useParams();
   const { user } = useOutletContext();
@@ -36,6 +35,11 @@ export default function AssetCpeDiscovery() {
   const allowed = ["ADMIN", "ANALYST"].includes(user?.role);
   const pending = ["QUEUED", "RUNNING"].includes(run?.status);
   const candidatesToReview = unreviewedCpeCandidates(run?.candidates, associations);
+  const reviewed = reviewedCpeAssociations(associations);
+  const reopenedMissing = reopenedWithoutCurrentCandidate(run?.candidates, associations);
+  const findAssociation = id => associations.find(
+    item => item.cpe_name_id.toLowerCase() === String(id).toLowerCase()
+  );
 
   useEffect(() => {
     let active = true;
@@ -155,7 +159,8 @@ export default function AssetCpeDiscovery() {
           <span className="cpe-status" data-status={run.status}>{statusText[run.status] || run.status}</span>
         </div>
         <div className="cpe-copy">
-          <p>Alcance: {run.scope === "BROAD" ? "Familia" : "Específico"} · Candidatos: {run.candidate_count}.</p>
+          <p>Alcance: {run.scope === "BROAD" ? "Familia" : "Específico"} ·
+            {" "}{run.candidate_count} candidatos de hardware encontrados.</p>
           <p>Fecha: {new Date(run.created_at).toLocaleString("es-CO")}</p>
           {pending && <>
             <p>La búsqueda permanece guardada en PostgreSQL aunque abandones esta página.</p>
@@ -187,9 +192,25 @@ export default function AssetCpeDiscovery() {
               Esto no descarta que exista un CPE en NVD.</p>}
           {run.result_truncated && <p className="cpe-warning">Resultados limitados; la lista no es exhaustiva.</p>}
           <h3>Consultas NVD</h3>
-          <ul>{(run.queries || []).map((query,i) =>
-            <li key={i}>{query.strategy}: <code>{query.parameter}</code> ·
-              {query.pages} página(s) · {query.retrieved} registro(s) NVD sin filtrar</li>)}</ul>
+          <ul className="cpe-query-list">{(run.queries || []).map((query,i) =>
+            <li key={i}>
+              <span className="cpe-query-method">{query.strategy}</span>:
+              {" "}<code>{query.parameter}</code>
+              <div className="cpe-query-links">
+                {Array.from({ length: Math.min(Math.max(Number(query.pages) || 0, 0), 3) },
+                  (_, page) => {
+                    const url = nvdQueryUrl(query, page);
+                    return url && <a key={page} href={url}
+                      target="_blank" rel="noopener noreferrer">
+                      Ver JSON en NVD (página {page + 1}) ↗
+                    </a>;
+                  })}
+              </div>
+            </li>)}</ul>
+          <p className="cpe-hint">
+            Los enlaces consultan NVD en tiempo real. Su contenido puede haber
+            cambiado desde que VISOR OT realizó esta búsqueda; no es una copia archivada.
+          </p>
         </div>
       </section>
       <section className="panel cpe-review-summary">
@@ -197,14 +218,14 @@ export default function AssetCpeDiscovery() {
           <h2>CPE revisados</h2>
           <p>Identificaciones con una decisión registrada por un analista.</p>
         </div>
-          <span className="record-count">{associations.length} asociaciones</span>
+          <span className="record-count">{reviewed.length} asociaciones revisadas</span>
         </div>
         <div className="cpe-copy">
           {associationError && <p className="cpe-warning" role="alert">{associationError}</p>}
-          {associations.length === 0
+          {reviewed.length === 0
             ? <p>Aún no hay asociaciones CPE registradas por un analista.</p>
             : <div className="cpe-association-list">
-                {associations.map(item => (
+                {reviewed.map(item => (
                   <div className="cpe-association" key={item.id}>
                     <div className="cpe-review-row">
                       <strong>{item.title}</strong>
@@ -213,7 +234,7 @@ export default function AssetCpeDiscovery() {
                          item.validation_status === "REJECTED" ? "Rechazado" : "Pendiente"}
                       </span>
                     </div>
-                    <code>{item.cpe_name}</code>
+                    <CpeEvidence cpeName={item.cpe_name} cpeNameId={item.cpe_name_id} />
                     <p><strong>Justificación:</strong> {item.justification || "No registrada (opcional)"}</p>
                     <p>Revisado por {item.validated_by || "Usuario retirado"} ·
                       {" "}{new Date(item.validated_at).toLocaleString("es-CO")}</p>
@@ -245,33 +266,44 @@ export default function AssetCpeDiscovery() {
         <div className="cpe-candidate-heading">
           <div>
             <h2 id="cpe-candidate-title">CPE candidatos</h2>
-            <p>Resultados de NVD que todavía no tienen una decisión registrada.</p>
+            <p>Resultados de NVD aún sin decisión y revisiones reabiertas.</p>
           </div>
-          <span className="record-count">{candidatesToReview.length} sin revisar</span>
+          <span className="record-count">{candidatesToReview.length + reopenedMissing.length} disponibles</span>
         </div>
-        {candidatesToReview.length === 0 ? (
+        {candidatesToReview.length === 0 && reopenedMissing.length === 0 ? (
           <div className="panel cpe-copy">
             {run.status === "COMPLETED" && run.candidate_count > 0
-              ? "Todos los candidatos de esta búsqueda ya tienen una decisión. Puedes consultarlos en «CPE revisados»."
+              ? "Todos los candidatos de esta búsqueda tienen una decisión. Consulta «CPE revisados»."
               : "No hay candidatos pendientes de revisión en esta búsqueda."}
           </div>
-        ) : candidatesToReview.map(c => (
-          <article className="cpe-card" key={c.cpe_name_id}>
-            <h3>{c.title}</h3><code>{c.cpe_name}</code>
-            <div className="cpe-tags">
-              <span>{matchText[c.match_level] || c.match_level}</span>
-              <span>Tipo: {c.cpe_type}</span>
-              <span>{c.deprecated ? "Deprecado" : "No deprecado"}</span>
-              <span>Método: {c.methods.join(" y ")}</span>
-            </div>
-            <p>{c.match_reason}</p>
-            <CandidateCpeReview
-              candidate={c} assetId={assetId} run={run}
-              allowed={allowed && asset.inventory_status === "ACTIVE"}
-              onReviewed={refreshAssociations}
-            />
-          </article>
-        ))}
+        ) : <>
+          {candidatesToReview.map(c => (
+            <article className="cpe-card" key={c.cpe_name_id}>
+              <h3>{c.title}</h3>
+              <CpeEvidence cpeName={c.cpe_name} cpeNameId={c.cpe_name_id}/>
+              <div className="cpe-tags">
+                <span>Tipo: hardware ({c.cpe_type})</span>
+                <span>{c.deprecated ? "Deprecado en NVD" : "No deprecado en NVD"}</span>
+                <span>Encontrado por: {(c.methods || []).join(" y ")}</span>
+              </div>
+              <CandidateCpeReview
+                candidate={c} assetId={assetId} run={run}
+                association={findAssociation(c.cpe_name_id)}
+                allowed={allowed && asset.inventory_status === "ACTIVE"}
+                onReviewed={refreshAssociations}
+              />
+            </article>
+          ))}
+          {reopenedMissing.map(item => (
+            <article className="cpe-card" key={"reopened-" + item.id}>
+              <h3>{item.title}</h3>
+              <CpeEvidence cpeName={item.cpe_name} cpeNameId={item.cpe_name_id}/>
+              <span className="cpe-review-status" data-validation="REOPENED">Revisión reabierta</span>
+              <p>Este CPE no figura en la última búsqueda. Ejecuta otra búsqueda
+                para volver a evaluar su aplicabilidad. Su historial permanece guardado.</p>
+            </article>
+          ))}
+        </>}
         {run.candidate_count > 0 && <p className="cpe-hint">
           NVD propone coincidencias, pero solo una decisión expresa del analista
           registra su asociación con el activo.
