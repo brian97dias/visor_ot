@@ -11,6 +11,7 @@ from assets.models import Asset
 from users.models import User
 from vulnerabilities.models import CpeSearchRun
 from .services.cpe_search import create_run, serialize_run
+from .services.candidate_matching import hardware_candidates
 from .services.identity import fingerprint, hardware_identity
 
 
@@ -93,7 +94,7 @@ class CpeOverviewView(APIView):
             elif run.identity_fingerprint != fingerprint(hardware_identity(asset)):
                 state = "STALE"
             elif run.status == CpeSearchRun.Status.COMPLETED:
-                state = "CANDIDATES" if run.candidates else "NO_RESULTS"
+                state = "CANDIDATES" if hardware_candidates(run.candidates) else "NO_RESULTS"
             else:
                 state = run.status
 
@@ -114,7 +115,7 @@ class CpeOverviewView(APIView):
                 "version": software.version if software else "",
                 "identification_status": state,
                 "run_id": run.pk if run else None,
-                "candidate_count": len(run.candidates) if run else 0,
+                "candidate_count": len(hardware_candidates(run.candidates)) if run else 0,
                 "last_search_at": run.created_at if run else None,
             })
         return Response({"results": results})

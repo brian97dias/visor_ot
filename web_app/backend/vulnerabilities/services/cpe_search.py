@@ -7,7 +7,7 @@ from assets.models import Asset
 from vulnerabilities.models import CpeSearchRun
 
 from .identity import hardware_identity, fingerprint, build_queries
-from .candidate_matching import normalize_candidate, merge_candidates
+from .candidate_matching import normalize_candidate, merge_candidates, hardware_candidates
 from .nvd_client import fetch_page, PAGE_SIZE, MAX_PAGES_PER_STRATEGY, MAX_TOTAL_CANDIDATES
 from .worker_lock import worker_lock_held
 
@@ -126,6 +126,7 @@ def serialize_run(run):
         is_current = run.identity_fingerprint == current
     except (ValueError, AttributeError):
         is_current = False
+    candidates = hardware_candidates(run.candidates)
     return {
         "id": run.pk,
         "asset_id": run.asset_id,
@@ -139,8 +140,8 @@ def serialize_run(run):
         "identity_snapshot": run.identity_snapshot,
         "identity_is_current": is_current,
         "queries": run.queries,
-        "candidates": run.candidates,
-        "candidate_count": len(run.candidates),
+        "candidates": candidates,
+        "candidate_count": len(candidates),
         "result_truncated": run.result_truncated,
         "error_message": run.error_message,
         "created_at": run.created_at,

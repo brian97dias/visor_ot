@@ -12,7 +12,7 @@ from assets.services import register_hardware_asset
 from assets.software_services import register_installed_software_asset
 from .models import CpeSearchRun
 from .services.identity import build_queries, fingerprint, hardware_identity
-from .services.candidate_matching import merge_candidates
+from .services.candidate_matching import merge_candidates, normalize_candidate
 from .services.cpe_search import create_run, execute_run, serialize_run
 from .services.nvd_client import PublicNvdPacer, NvdError
 from .services.worker_lock import worker_lock_held, ADVISORY_LOCK_ID
@@ -213,6 +213,52 @@ class CpeSearchAPITests(TestCase):
         self.asset.hardware.save(update_fields=["manufacturer"])
         self.assertEqual(self.client.post(self.base, {}, format="json").status_code, 400)
         self.assertFalse(CpeSearchRun.objects.exists())
+
+    def test_keyword_search_excludes_firmware_os_cpe_and_keeps_hardware(self):
+        created = self.client.post(self.base, {}, format="json")
+        run = CpeSearchRun.objects.get(pk=created.data["run_id"])
+        firmware = {
+            "cpe": {
+                "cpeNameId": "firmware-os",
+                "cpeName": "cpe:2.3:o:siemens:simatic_s7-1200_cpu_1215c_firmware:4.5.0:*:*:*:*:*:*:*",
+                "titles": [{"lang": "en", "title": "Firmware"}],
+            }
+        }
+        def fake(strategy, parameter, offset, pacer):
+            return {
+                "products": [nvd_record(), firmware] if strategy == "keywordSearch"
+                else [nvd_record()],
+                "totalResults": 2 if strategy == "keywordSearch" else 1,
+            }
+        execute_run(run, Mock(), fetcher=fake)
+        self.assertEqual(run.status, CpeSearchRun.Status.COMPLETED)
+        self.assertEqual(len(run.candidates), 1)
+        self.assertEqual(run.candidates[0]["cpe_type"], "h")
+        self.assertEqual(run.queries[0]["retrieved"], 2)  # NVD raw count
+        self.assertEqual(serialize_run(run)["candidate_count"], 1)
+
+    def test_legacy_run_filters_out_os_and_firmware_without_erasing_history(self):
+        created = self.client.post(self.base, {}, format="json")
+        run = CpeSearchRun.objects.get(pk=created.data["run_id"])
+        legacy_os = {
+            "cpe_name_id": "legacy-os", "cpe_type": "o",
+            "cpe_name": "cpe:2.3:o:siemens:simatic_s7-1200_firmware:4.5.0:*:*:*:*:*:*:*",
+            "title": "Siemens firmware",
+        }
+        run.status = CpeSearchRun.Status.COMPLETED
+        run.candidates = [legacy_os]
+        run.save(update_fields=["status", "candidates"])
+        response = self.client.get(self.base + str(run.pk) + "/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["run"]["candidate_count"], 0)
+        self.assertEqual(response.data["run"]["candidates"], [])
+        overview = self.client.get("/api/vulnerabilities/cpe-overview/")
+        row = next(item for item in overview.data["results"]
+                   if item["asset_id"] == self.asset.pk)
+        self.assertEqual(row["identification_status"], "NO_RESULTS")
+        self.assertEqual(row["candidate_count"], 0)
+        run.refresh_from_db()
+        self.assertEqual(run.candidates, [legacy_os])
 
     def test_worker_deduplicates_and_preserves_provenance(self):
         created = self.client.post(self.base, {}, format="json")

@@ -45,6 +45,10 @@ def normalize_candidate(record, identity, strategy):
     name = cpe.get("cpeName")
     if not isinstance(name_id, str) or not isinstance(name, str):
         return None
+    # keywordSearch can return hardware, firmware/OS and applications.
+    # Phase 1 inventories hardware only; keep other CPE types out of results.
+    if _cpe_part(name, 2) != "h":
+        return None
     titles = cpe.get("titles") or []
     title = next((t.get("title") for t in titles if t.get("lang") == "en" and t.get("title")), None)
     title = title or next((t.get("title") for t in titles if t.get("title")), name)
@@ -73,3 +77,17 @@ def merge_candidates(results):
         merged.values(),
         key=lambda v: (PRIORITY.get(v["match_level"], 99), v["deprecated"], v["title"].lower(), v["cpe_name"]),
     )
+
+
+
+def hardware_candidates(candidates):
+    """Read-time filter for search runs created before hardware-only filtering.
+
+    The original JSON is retained as historical evidence. The UI and subsequent
+    validation must never suggest firmware/OS CPEs for a hardware-only search.
+    """
+    return [
+        item for item in (candidates or [])
+        if isinstance(item, dict) and isinstance(item.get("cpe_name"), str)
+        and _cpe_part(item["cpe_name"], 2) == "h"
+    ]
