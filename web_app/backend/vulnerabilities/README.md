@@ -324,3 +324,48 @@ La cadena automática de descubrimiento se amplía usando la infraestructura exi
 **Pruebas**: ocho casos nuevos offline en `tests_progressive.py` para fabricante, relación ADAM-5550, alcance `BROAD`, pertinencia, truncamiento, timeout, presupuesto compartido y deduplicación entre niveles. Ejecutar `python manage.py check`, `python manage.py makemigrations --check --dry-run` y `python manage.py test vulnerabilities --settings=config.settings_test_sqlite` desde `web_app/backend`.
 
 Para la prueba manual de ADAM-5000 Series: ejecutar el worker, lanzar búsqueda específica y revisar `queries[].level`. El nivel `MANUFACTURER` solo aparecerá cuando las etapas anteriores sean insuficientes. ADAM-5550 puede aparecer como `RELATED` si se encuentra en las páginas efectivamente consultadas; nunca se confirma automáticamente.
+
+
+## Refinamiento fase 2 — Alias controlados y prefijos de producto (2026-10-20)
+
+El inventario conserva el fabricante original. `vendor_variants()` genera alias CPE de búsqueda,
+sin alterar identidad técnica, fingerprint ni registros ya confirmados. Las excepciones
+documentadas incluyen Rockwell Automation → `rockwellautomation` y
+Axis Communications → `axis`, más grafías normalizadas con guion o guion bajo.
+Un alias permite recuperar candidatos; no demuestra correspondencia de modelo.
+
+Para modelos con prefijo de catálogo numérico explícito y separador
+(1783-EMS08T/B → 1783), el nivel MANUFACTURER consulta primero
+`cpe:2.3:h:rockwellautomation:1783*` y variantes antes de las
+consultas generales del fabricante. Un CPE 1783-NATR se clasifica como
+`RELATED` por prefijo industrial: NO identifica el mismo producto ni se valida
+automáticamente. AXIS 206 y 207 no comparten una regla de catálogo:
+la proximidad numérica no autoriza relacionarlos.
+
+Presupuestos acumulados: MAX_TOTAL_PAGE_FETCHES=8 por ejecución y
+MAX_TOTAL_CANDIDATES=250; máximo 2 páginas por consulta de fabricante y
+MAX_MANUFACTURER_LEVEL_PAGES=4 compartidas entre todas las grafías y consultas
+del fabricante. Cuando faltan consultas por ejecutar, el resultado se marca
+`result_truncated=True` y stop_reason `MANUFACTURER_LEVEL_LIMIT`.
+Las solicitudes que fallan conservan estado FAILED. La cola, frecuencia NVD,
+los candidatos y las decisiones auditadas mantienen su semántica original.
+
+### Fases siguientes del descubrimiento progresivo (acuerdos vigentes)
+
+- Fase 3 — Explicación y clasificación visual: agrupar consultas por nivel
+  SPECIFIC/FAMILY/MANUFACTURER, mostrar alias empleado, razón de ampliación,
+  candidatos filtrados y truncamientos. Mantener la categoría RELATED
+  diferenciada de una identificación confirmada. Contrastar Rockwell y AXIS.
+- Fase 4 — Búsqueda avanzada: consultas controladas keywordSearch/cpeMatchString,
+  alias editables propuestos, parámetros auditados y límites compartidos;
+  nunca ejecutar URL arbitraria ni consultas desde React a NVD.
+- Fase 5 — Referencias oficiales: conservar refs NVD de producto y avisos en
+  candidatos y CPE confirmados, con URLs seguras y trazabilidad de origen.
+
+Estas fases de descubrimiento refinado no sustituyen otros pendientes
+históricos del sistema, como caché, software, exportación y CVE.
+El soporte CPE de software continúa diferido.
+
+Pruebas: `python manage.py test vulnerabilities --settings=config.settings_test_sqlite`
+(9 nuevas pruebas para variantes, catálogo, falsos positivos, límites y fallos),
+más `npm run test:unit` y `npm run build` desde el frontend.
