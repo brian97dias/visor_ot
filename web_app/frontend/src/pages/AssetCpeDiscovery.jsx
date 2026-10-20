@@ -16,8 +16,10 @@ export default function AssetCpeDiscovery() {
   const { assetId } = useParams();
   const { user } = useOutletContext();
   const location = useLocation();
-  const returnTo = location.state?.fromCpeOverview
-    ? "/vulnerabilities/cpe" : "/assets/" + assetId;
+  const query = typeof location.state?.cpeOverviewSearch === "string"
+    && location.state.cpeOverviewSearch.startsWith("?")
+    ? location.state.cpeOverviewSearch : "";
+  const returnTo = "/vulnerabilities/cpe" + query;
   const [asset, setAsset] = useState(null);
   const [run, setRun] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -92,10 +94,13 @@ export default function AssetCpeDiscovery() {
     <Link to={"/assets/" + assetId}>Volver</Link></section>;
 
   return <section className="page">
-    <div className="breadcrumbs"><span>Activos</span><span>/</span>
-      <Link to={"/assets/" + assetId}>{asset.name}</Link><span>/</span><span>CPE</span></div>
+    <nav className="breadcrumbs" aria-label="Ruta de navegación">
+      <span>Vulnerabilidades</span><span>/</span>
+      <Link to={returnTo}>Identificación CPE</Link><span>/</span>
+      <span>{asset.name}</span>
+    </nav>
     <Link className="button-secondary assets-back-link" to={returnTo}>
-      {location.state?.fromCpeOverview ? "← Volver a Identificación CPE" : "← Volver al activo"}
+      ← Volver a Identificación CPE
     </Link>
     <header className="page-header"><span className="page-eyebrow">IDENTIFICACIÓN CPE</span>
       <h1>Descubrimiento de candidatos</h1>
@@ -158,12 +163,13 @@ export default function AssetCpeDiscovery() {
           </>}
           {run.status === "FAILED" && <p role="alert">{run.error_message}</p>}
           {run.status === "COMPLETED" && run.candidate_count === 0 &&
-            <p>Sin coincidencias en las consultas realizadas. Esto no descarta que exista un CPE.</p>}
+            <p>Sin candidatos de hardware (tipo h) en las consultas realizadas.
+              Esto no descarta que exista un CPE en NVD.</p>}
           {run.result_truncated && <p className="cpe-warning">Resultados limitados; la lista no es exhaustiva.</p>}
           <h3>Consultas NVD</h3>
           <ul>{(run.queries || []).map((query,i) =>
             <li key={i}>{query.strategy}: <code>{query.parameter}</code> ·
-              {query.pages} página(s) · {query.retrieved} resultado(s)</li>)}</ul>
+              {query.pages} página(s) · {query.retrieved} registro(s) NVD sin filtrar</li>)}</ul>
         </div>
       </section>
       {run.candidates?.map(c => <article className="cpe-card" key={c.cpe_name_id}>
@@ -171,7 +177,6 @@ export default function AssetCpeDiscovery() {
         <div className="cpe-tags">
           <span>{matchText[c.match_level] || c.match_level}</span>
           <span>Tipo: {c.cpe_type}</span>
-          <span>Versión: {["*","-",""].includes(c.version) ? "No especificada" : c.version}</span>
           <span>{c.deprecated ? "Deprecado" : "No deprecado"}</span>
           <span>Método: {c.methods.join(" y ")}</span>
         </div>

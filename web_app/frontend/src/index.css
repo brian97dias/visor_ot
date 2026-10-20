@@ -2323,3 +2323,6 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 @media (max-width: 620px) {
   .cpe-overview-toolbar select, .cpe-overview-toolbar input { width: 100%; }
 }
+
+/* CPE overview count: hardware and software inside one summary tile. */
+.cpe-overview-stat small { display: block; margin-top: 7px; color: #7dd3fc; font-size: .78rem; }
