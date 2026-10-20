@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useOutletContext, useParams } from "react-router-dom";
+import { Link, useLocation, useOutletContext, useParams } from "react-router-dom";
 import { getAsset } from "../api/assets";
 import { latestCpeSearch, readCpeSearch, startCpeSearch } from "../api/vulnerabilities";
 
@@ -15,6 +15,9 @@ const matchText = {
 export default function AssetCpeDiscovery() {
   const { assetId } = useParams();
   const { user } = useOutletContext();
+  const location = useLocation();
+  const returnTo = location.state?.fromCpeOverview
+    ? "/vulnerabilities/cpe" : "/assets/" + assetId;
   const [asset, setAsset] = useState(null);
   const [run, setRun] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -67,7 +70,9 @@ export default function AssetCpeDiscovery() {
   return <section className="page">
     <div className="breadcrumbs"><span>Activos</span><span>/</span>
       <Link to={"/assets/" + assetId}>{asset.name}</Link><span>/</span><span>CPE</span></div>
-    <Link className="button-secondary assets-back-link" to={"/assets/" + assetId}>← Volver al activo</Link>
+    <Link className="button-secondary assets-back-link" to={returnTo}>
+      {location.state?.fromCpeOverview ? "← Volver a Identificación CPE" : "← Volver al activo"}
+    </Link>
     <header className="page-header"><span className="page-eyebrow">IDENTIFICACIÓN CPE</span>
       <h1>Descubrimiento de candidatos</h1>
       <p>{asset.hardware?.manufacturer} · {asset.hardware?.model}

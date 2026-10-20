@@ -138,3 +138,10 @@ Solo `ADMIN` y `ANALYST` pueden solicitar búsquedas; `OPERATOR` puede verlas. S
 - Si el worker es terminado bruscamente, las ejecuciones `RUNNING` antiguas se marcarán `FAILED` al reiniciar. Las `QUEUED` permanecerán. Solicita otra búsqueda para reintentar.
 - El historial de búsqueda conserva datos técnicos y candidatos normalizados pero no la respuesta JSON bruta de NVD. No se persisten asociaciones validadas; eso corresponde a la fase 2.
 - El código de pruebas NO envía peticiones reales a NVD. Para confirmar conectividad y nomenclatura es necesaria la prueba visual de laboratorio.
+
+
+## Navegación global de identificación CPE (entre fases 1 y 2)
+
+Se habilitó `/vulnerabilities/cpe` y el grupo **VULNERABILIDADES** con iconos en el menú lateral. La vista global consulta mediante `GET /api/vulnerabilities/cpe-overview/` un resumen de activos inventariados y su última búsqueda: sin búsqueda, en cola, consultando, candidatos por revisar, sin resultados, error o identidad modificada. Para Software indica explícitamente que las búsquedas estarán disponibles en la fase 4. No muestra asociaciones confirmadas antes de la fase 2. La vista incluye filtro, búsqueda, actualización manual y navegación hacia la pantalla CPE ya existente en el detalle de cada hardware. `Análisis CVE (futuro)` es un elemento informativo deshabilitado, no una ruta funcional.
+
+Este endpoint global es **solo lectura**, autorizado para los tres roles del inventario y no invoca NVD. No requiere nuevas migraciones ni modifica los mecanismos del worker.

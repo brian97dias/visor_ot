@@ -19,15 +19,18 @@ export default function CpeOverview() {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("ALL");
   const [search, setSearch] = useState("");
+  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setError("");
     getCpeOverview()
       .then(items => { if (active) setRows(items); })
       .catch(err => { if (active) setError(err.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [revision]);
 
   const visible = useMemo(() => rows.filter(row => {
     if (filter !== "ALL" && filter !== row.identification_status) return false;
@@ -71,6 +74,10 @@ export default function CpeOverview() {
           {Object.entries(STATUS).map(([value, label]) =>
             <option value={value} key={value}>{label}</option>)}
         </select>
+        <button className="button-secondary" type="button" disabled={loading}
+          onClick={() => setRevision(current => current + 1)}>
+          {loading ? "Actualizando..." : "Actualizar estados"}
+        </button>
       </div>
       {error && <div className="error-message" role="alert">{error}</div>}
       {loading ? <div className="empty-state">Cargando estados CPE...</div>
@@ -104,7 +111,8 @@ export default function CpeOverview() {
                   ? row.candidate_count : "—"}</td>
                 <td>{row.asset_type === "HARDWARE"
                   ? <Link className="button-secondary"
-                      to={"/assets/" + row.asset_id + "/cpe"}>Revisar</Link>
+                      to={"/assets/" + row.asset_id + "/cpe"}
+                      state={{ fromCpeOverview: true }}>Revisar</Link>
                   : <Link className="button-secondary"
                       to={"/assets/" + row.asset_id}>Ver activo</Link>}</td>
               </tr>)}</tbody>
