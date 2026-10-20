@@ -5,6 +5,7 @@ import {
   latestCpeSearch, readCpeSearch, startCpeSearch, getAssetCpeAssociations,
 } from "../api/vulnerabilities";
 import CandidateCpeReview from "../components/CandidateCpeReview";
+import { unreviewedCpeCandidates } from "../utils/cpeReview";
 
 const statusText = {
   QUEUED: "Pendiente de ejecución", RUNNING: "Consultando NVD",
@@ -34,6 +35,7 @@ export default function AssetCpeDiscovery() {
   const [associationError, setAssociationError] = useState("");
   const allowed = ["ADMIN", "ANALYST"].includes(user?.role);
   const pending = ["QUEUED", "RUNNING"].includes(run?.status);
+  const candidatesToReview = unreviewedCpeCandidates(run?.candidates, associations);
 
   useEffect(() => {
     let active = true;
@@ -191,8 +193,11 @@ export default function AssetCpeDiscovery() {
         </div>
       </section>
       <section className="panel cpe-review-summary">
-        <div className="panel-header"><h2>Asociaciones revisadas</h2>
-          <span className="record-count">{associations.length} decisiones registradas</span>
+        <div className="panel-header"><div>
+          <h2>CPE revisados</h2>
+          <p>Identificaciones con una decisión registrada por un analista.</p>
+        </div>
+          <span className="record-count">{associations.length} asociaciones</span>
         </div>
         <div className="cpe-copy">
           {associationError && <p className="cpe-warning" role="alert">{associationError}</p>}
@@ -209,7 +214,9 @@ export default function AssetCpeDiscovery() {
                       </span>
                     </div>
                     <code>{item.cpe_name}</code>
-                    <p>{item.justification || "Sin justificación registrada"}</p>
+                    <p><strong>Justificación:</strong> {item.justification || "No registrada (opcional)"}</p>
+                    <p>Revisado por {item.validated_by || "Usuario retirado"} ·
+                      {" "}{new Date(item.validated_at).toLocaleString("es-CO")}</p>
                     {item.needs_review && <p className="cpe-warning">
                       La identidad técnica del activo cambió: esta asociación necesita nueva revisión.
                     </p>}
@@ -222,30 +229,54 @@ export default function AssetCpeDiscovery() {
                         {history.justification ? " — " + history.justification : ""}
                       </li>)}</ul>
                     </details>
+                    <CandidateCpeReview
+                      candidate={run.candidates?.find(c =>
+                        c.cpe_name_id.toLowerCase() === item.cpe_name_id.toLowerCase())}
+                      assetId={assetId} run={run} association={item}
+                      allowed={allowed && asset.inventory_status === "ACTIVE"}
+                      onReviewed={refreshAssociations}
+                    />
                   </div>
                 ))}
               </div>}
         </div>
       </section>
-      {run.candidates?.map(c => <article className="cpe-card" key={c.cpe_name_id}>
-        <h3>{c.title}</h3><code>{c.cpe_name}</code>
-        <div className="cpe-tags">
-          <span>{matchText[c.match_level] || c.match_level}</span>
-          <span>Tipo: {c.cpe_type}</span>
-          <span>{c.deprecated ? "Deprecado" : "No deprecado"}</span>
-          <span>Método: {c.methods.join(" y ")}</span>
+      <section className="cpe-candidate-section" aria-labelledby="cpe-candidate-title">
+        <div className="cpe-candidate-heading">
+          <div>
+            <h2 id="cpe-candidate-title">CPE candidatos</h2>
+            <p>Resultados de NVD que todavía no tienen una decisión registrada.</p>
+          </div>
+          <span className="record-count">{candidatesToReview.length} sin revisar</span>
         </div>
-        <p>{c.match_reason}</p>
-        <CandidateCpeReview
-          candidate={c} assetId={assetId} run={run}
-          association={associations.find(item => item.cpe_name_id.toLowerCase() === c.cpe_name_id.toLowerCase())}
-          allowed={allowed && asset.inventory_status === "ACTIVE"}
-          onReviewed={refreshAssociations}
-        />
-      </article>)}
-      {run.candidate_count > 0 && <p className="cpe-copy">
-        Los resultados NVD no se confirman automáticamente. Una asociación solo
-        existe cuando el analista guarda una decisión de revisión.</p>}
+        {candidatesToReview.length === 0 ? (
+          <div className="panel cpe-copy">
+            {run.status === "COMPLETED" && run.candidate_count > 0
+              ? "Todos los candidatos de esta búsqueda ya tienen una decisión. Puedes consultarlos en «CPE revisados»."
+              : "No hay candidatos pendientes de revisión en esta búsqueda."}
+          </div>
+        ) : candidatesToReview.map(c => (
+          <article className="cpe-card" key={c.cpe_name_id}>
+            <h3>{c.title}</h3><code>{c.cpe_name}</code>
+            <div className="cpe-tags">
+              <span>{matchText[c.match_level] || c.match_level}</span>
+              <span>Tipo: {c.cpe_type}</span>
+              <span>{c.deprecated ? "Deprecado" : "No deprecado"}</span>
+              <span>Método: {c.methods.join(" y ")}</span>
+            </div>
+            <p>{c.match_reason}</p>
+            <CandidateCpeReview
+              candidate={c} assetId={assetId} run={run}
+              allowed={allowed && asset.inventory_status === "ACTIVE"}
+              onReviewed={refreshAssociations}
+            />
+          </article>
+        ))}
+        {run.candidate_count > 0 && <p className="cpe-hint">
+          NVD propone coincidencias, pero solo una decisión expresa del analista
+          registra su asociación con el activo.
+        </p>}
+      </section>
     </>}
   </section>;
 }
