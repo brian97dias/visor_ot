@@ -12,7 +12,7 @@ from .nvd_client import fetch_page, PAGE_SIZE, MAX_PAGES_PER_STRATEGY, MAX_TOTAL
 from .worker_lock import worker_lock_held
 
 
-def create_run(asset_id, user, scope):
+def create_run(asset_id, user, scope, *, return_reused=False):
     with transaction.atomic():
         # Lock only Asset: the reverse OneToOne "hardware" is nullable for
         # software assets, and PostgreSQL rejects FOR UPDATE on its OUTER JOIN.
@@ -30,11 +30,12 @@ def create_run(asset_id, user, scope):
             scope=scope, status__in=(CpeSearchRun.Status.QUEUED, CpeSearchRun.Status.RUNNING)
         ).first()
         if existing is not None:
-            return existing
-        return CpeSearchRun.objects.create(
+            return (existing, True) if return_reused else existing
+        run = CpeSearchRun.objects.create(
             asset=asset, requested_by=user, scope=scope, identity_snapshot=identity,
             identity_fingerprint=digest,
         )
+        return (run, False) if return_reused else run
 
 
 def _persist(run, fields):
