@@ -27,3 +27,9 @@ export async function readCpeSearch(id, runId) {
   const data = await request("/api/vulnerabilities/assets/" + id + "/cpe-searches/" + runId + "/");
   return data.run;
 }
+
+/** Single read-only overview, avoids one request per inventory asset. */
+export async function getCpeOverview() {
+  const data = await request("/api/vulnerabilities/cpe-overview/");
+  return data.results;
+}

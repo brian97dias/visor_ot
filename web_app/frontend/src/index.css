@@ -2288,3 +2288,31 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cpe-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .cpe-tags span { border: 1px solid #475569; padding: 3px 7px; border-radius: 5px; font-size: .78rem; }
 .cpe-warning { border: 1px solid #a16207; background: #42200655; color: #fde68a; border-radius: 7px; padding: 12px 15px; margin: 12px 0; }
+
+/* Sidebar icon navigation: retains VISOR OT's existing dark palette. */
+.sidebar-brand-title { display: flex; align-items: center; gap: 11px; }
+.sidebar-brand-title .sidebar-icon { width: 22px; height: 22px; color: #e2e8f0; }
+.sidebar-brand-title span { margin: 0; }
+.sidebar-nav { overflow-y: auto; min-height: 0; }
+.sidebar-nav .nav-item { display: flex; align-items: center; gap: 11px; }
+.sidebar-nav .nav-subitem { padding-left: 12px; }
+.sidebar-icon { display: block; flex: 0 0 19px; width: 19px; height: 19px; stroke: currentColor; }
+.nav-item .sidebar-icon { color: #94a3b8; }
+.nav-item.active .sidebar-icon { color: #38bdf8; }
+.nav-item-disabled { opacity: .55; cursor: not-allowed; user-select: none; }
+.nav-item-disabled:hover { background: transparent; color: #94a3b8; }
+
+/* Global CPE work overview (before phase 2 validation workflows). */
+.cpe-overview-stats { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+.cpe-overview-stat { background: #111827; border: 1px solid #263244; border-radius: 9px; padding: 14px 18px; min-width: 140px; }
+.cpe-overview-stat strong { display: block; font-size: 1.4rem; color: #e2e8f0; }
+.cpe-overview-stat span { display: block; font-size: .78rem; color: #94a3b8; margin-top: 3px; }
+.cpe-overview-toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 18px 20px; border-bottom: 1px solid #263244; }
+.cpe-overview-toolbar input { min-width: 210px; flex: 1 1 260px; color: #f8fafc; background: #0f172a; border: 1px solid #334155; border-radius: 7px; padding: 10px; font: inherit; }
+.cpe-overview-toolbar select { color: #f8fafc; background: #0f172a; border: 1px solid #334155; border-radius: 7px; padding: 10px; font: inherit; }
+.cpe-overview-status { font-size: .84rem; color: #cbd5e1; }
+.cpe-overview-status[data-status="CANDIDATES"] { color: #fbbf24; }
+.cpe-overview-status[data-status="FAILED"], .cpe-overview-status[data-status="STALE"] { color: #fca5a5; }
+.cpe-overview-status[data-status="RUNNING"] { color: #7dd3fc; }
+.cpe-overview-subtitle { color: #94a3b8; font-size: .78rem; margin-top: 5px; }
+.cpe-overview-note { color: #94a3b8; padding: 15px 20px; font-size: .84rem; }

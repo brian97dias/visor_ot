@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { getCurrentUser } from "../api/auth";
+import SidebarIcon from "./SidebarIcon";
 
 function AppLayout() {
   const navigate = useNavigate();
@@ -50,73 +51,72 @@ function AppLayout() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <span>VISOR OT</span>
-
+          <div className="sidebar-brand-title">
+            <SidebarIcon name="panel" />
+            <span>VISOR OT</span>
+          </div>
           <small>Gestión de activos OT</small>
         </div>
 
-        <nav className="sidebar-nav">
-          <NavLink
-            to="/dashboard"
-            className={({ isActive }) =>
-              isActive ? "nav-item active" : "nav-item"
-            }
-          >
-            Dashboard
+        <nav className="sidebar-nav" aria-label="Navegación principal">
+          <NavLink to="/dashboard" className={({ isActive }) =>
+            isActive ? "nav-item active" : "nav-item"
+          }>
+            <SidebarIcon name="dashboard" />
+            <span>Dashboard</span>
           </NavLink>
 
           <div className="nav-section">
             <span className="nav-section-title">RED</span>
-
-            <NavLink
-              to="/passive-analysis"
-              className={({ isActive }) =>
-                isActive
-                  ? "nav-item nav-subitem active"
-                  : "nav-item nav-subitem"
-              }
-            >
-              Análisis pasivo
+            <NavLink to="/passive-analysis" className={({ isActive }) =>
+              isActive ? "nav-item nav-subitem active" : "nav-item nav-subitem"
+            }>
+              <SidebarIcon name="network" />
+              <span>Análisis pasivo</span>
             </NavLink>
-            <NavLink
-              to="/communications"
-              className={({ isActive }) =>
-                isActive
-                  ? "nav-item nav-subitem active"
-                  : "nav-item nav-subitem"
-              }
-            >
-              Comunicaciones
+            <NavLink to="/communications" className={({ isActive }) =>
+              isActive ? "nav-item nav-subitem active" : "nav-item nav-subitem"
+            }>
+              <SidebarIcon name="communications" />
+              <span>Comunicaciones</span>
             </NavLink>
           </div>
 
           <div className="nav-section">
             <span className="nav-section-title">ACTIVOS</span>
-            <NavLink
-              end
-              to="/assets"
-              className={({ isActive }) =>
-                isActive ? "nav-item nav-subitem active" : "nav-item nav-subitem"
-              }
-            >
-              Inventario
+            <NavLink end to="/assets" className={({ isActive }) =>
+              isActive ? "nav-item nav-subitem active" : "nav-item nav-subitem"
+            }>
+              <SidebarIcon name="inventory" />
+              <span>Inventario</span>
             </NavLink>
-            <NavLink
-              to="/assets/interfaces"
-              className={({ isActive }) =>
-                isActive ? "nav-item nav-subitem active" : "nav-item nav-subitem"
-              }
-            >
-              Interfaces
+            <NavLink to="/assets/interfaces" className={({ isActive }) =>
+              isActive ? "nav-item nav-subitem active" : "nav-item nav-subitem"
+            }>
+              <SidebarIcon name="interfaces" />
+              <span>Interfaces</span>
             </NavLink>
-            <NavLink
-              to="/assets/systems"
-              className={({ isActive }) =>
-                isActive ? "nav-item nav-subitem active" : "nav-item nav-subitem"
-              }
-            >
-              Sistemas
+            <NavLink to="/assets/systems" className={({ isActive }) =>
+              isActive ? "nav-item nav-subitem active" : "nav-item nav-subitem"
+            }>
+              <SidebarIcon name="systems" />
+              <span>Sistemas</span>
             </NavLink>
+          </div>
+
+          <div className="nav-section">
+            <span className="nav-section-title">VULNERABILIDADES</span>
+            <NavLink to="/vulnerabilities/cpe" className={({ isActive }) =>
+              isActive ? "nav-item nav-subitem active" : "nav-item nav-subitem"
+            }>
+              <SidebarIcon name="fingerprint" />
+              <span>Identificación CPE</span>
+            </NavLink>
+            <span className="nav-item nav-subitem nav-item-disabled"
+              aria-disabled="true" title="Disponible en una fase futura">
+              <SidebarIcon name="shield" />
+              <span>Análisis CVE (futuro)</span>
+            </span>
           </div>
         </nav>
 
