@@ -2494,3 +2494,64 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cpe-overview-status[data-status="EVALUATED"] { color: #86efac; }
 .cpe-overview-status[data-status="IN_REVIEW"] { color: #fcd34d; }
 .cpe-overview-status[data-status="TO_REVIEW"] { color: #cbd5e1; }
+
+
+/* CPE bulk discovery: selection across pages, safe modal confirmation. */
+.cpe-select-cell { width: 40px; padding-left: 12px !important; padding-right: 8px !important; }
+.cpe-select-cell input[type="checkbox"] { width: 16px; height: 16px; accent-color: #38bdf8; cursor: pointer; }
+.cpe-row-selected { background: rgba(14, 165, 233, .09); }
+.cpe-bulk-selection-bar {
+  display: flex; gap: 10px 15px; align-items: center; flex-wrap: wrap;
+  margin: 10px 16px; padding: 12px 14px; border: 1px solid #1e5b75;
+  border-radius: 8px; background: #102c3d;
+}
+.cpe-bulk-selection-bar strong { color: #f1f5f9; font-size: .91rem; }
+.cpe-bulk-selection-bar span { color: #aec1d3; font-size: .8rem; margin-right: auto; }
+.cpe-row-actions { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.cpe-row-actions > button, .cpe-row-actions > a { white-space: nowrap; font-size: .8rem; }
+.cpe-row-actions > button:disabled { opacity: .45; cursor: not-allowed; }
+.cpe-bulk-notice { margin: 12px 16px; padding: 10px 13px; border-radius: 7px;
+  border: 1px solid #256a63; background: #102f2d; color: #b9efdb; font-size: .86rem; }
+.cpe-bulk-progress { display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px; padding: 10px 16px; font-size: .8rem; color: #cbd5e1; }
+.cpe-bulk-progress-note { color: #94a3b8; }
+.cpe-bulk-overlay { position: fixed; inset: 0; z-index: 200;
+  background: rgba(2, 6, 23, .78); display: flex; justify-content: center; align-items: center;
+  padding: 24px 12px; }
+.cpe-bulk-dialog {
+  max-width: 670px; width: 100%; max-height: min(88vh, 850px); overflow-y: auto;
+  border-radius: 12px; background: #101827; border: 1px solid #334155;
+  box-shadow: 0 24px 85px rgba(0,0,0,.48); padding: 22px;
+}
+.cpe-bulk-dialog-heading { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.cpe-bulk-dialog h2 { font-size: 1.35rem; margin: 4px 0 14px; color: #f1f5f9; }
+.cpe-bulk-dialog p { color: #cbd5e1; line-height: 1.5; font-size: .9rem; }
+.cpe-bulk-close { border: 1px solid #475569; background: #19263a;
+  color: #e2e8f0; cursor: pointer; border-radius: 6px; width: 31px; height: 31px; }
+.cpe-bulk-close:disabled { opacity: .5; cursor: not-allowed; }
+.cpe-bulk-preview { border: 1px solid #334155; border-radius: 8px;
+  max-height: 280px; overflow-y: auto; }
+.cpe-bulk-preview-item { padding: 10px 14px; border-bottom: 1px solid #243248;
+  display: flex; gap: 5px; flex-direction: column; }
+.cpe-bulk-preview-item:last-child { border-bottom: 0; }
+.cpe-bulk-preview-item strong { color: #e2e8f0; font-size: .85rem; }
+.cpe-bulk-preview-item span, .cpe-bulk-preview-item small { color: #94a3b8; font-size: .78rem; }
+.cpe-bulk-result-queued, .cpe-bulk-result-reused { color: #86efac !important; }
+.cpe-bulk-result-unsupported, .cpe-bulk-result-skipped { color: #fcd34d !important; }
+.cpe-bulk-result-not_found, .cpe-bulk-result-invalid_identity { color: #fca5a5 !important; }
+.cpe-bulk-metadata { padding: 14px 0; display: grid; gap: 10px; }
+.cpe-bulk-metadata > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 5px 15px; font-size: .83rem; }
+.cpe-bulk-metadata span { color: #94a3b8; }
+.cpe-bulk-metadata strong { color: #e2e8f0; }
+.cpe-bulk-warning { padding: 11px; border: 1px solid #92400e; border-radius: 6px;
+  background: rgba(120,53,15,.15); color: #fde68a !important; }
+.cpe-bulk-hint { padding: 12px 0; font-size: .82rem !important; }
+.cpe-bulk-dialog-actions { border-top: 1px solid #334155; padding-top: 15px;
+  display: flex; flex-wrap: wrap; gap: 9px; justify-content: flex-end; }
+.cpe-bulk-dialog-actions button:focus-visible, .cpe-select-cell input:focus-visible,
+.cpe-row-actions button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 3px; }
+@media (max-width: 640px) {
+  .cpe-bulk-dialog { padding: 16px; }
+  .cpe-bulk-dialog-actions button { flex: 1 1 200px; }
+  .cpe-row-actions { flex-direction: column; align-items: flex-start; }
+}

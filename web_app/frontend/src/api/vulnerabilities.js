@@ -54,3 +54,12 @@ export async function updateAssetCpeAssociation(id, associationId, payload) {
     body: JSON.stringify(payload),
   });
 }
+
+/** Bulk enqueue is specific-only; software is explicitly reported, never queued yet. */
+export function startBulkCpeSearch(assetIds) {
+  return request("/api/vulnerabilities/cpe-searches/bulk/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ asset_ids: assetIds, scope: "SPECIFIC" }),
+  });
+}

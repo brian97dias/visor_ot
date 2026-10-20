@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test:unit": "node --test src/utils/cpeOverviewPresentation.test.js src/utils/nvdLinks.test.js src/utils/cpeReview.test.js src/utils/cpeOverviewUrlState.test.js src/utils/softwareUi.test.js src/utils/hardwareAssociation.test.js src/utils/inventoryFilters.test.js src/utils/inventoryNavigation.test.js src/utils/listUrlState.test.js src/utils/endpointCandidates.test.js src/utils/systemUi.test.js src/utils/systemRelations.test.js",
+    "test:unit": "node --test src/utils/cpeBulkSelection.test.js src/utils/cpeOverviewPresentation.test.js src/utils/nvdLinks.test.js src/utils/cpeReview.test.js src/utils/cpeOverviewUrlState.test.js src/utils/softwareUi.test.js src/utils/hardwareAssociation.test.js src/utils/inventoryFilters.test.js src/utils/inventoryNavigation.test.js src/utils/listUrlState.test.js src/utils/endpointCandidates.test.js src/utils/systemUi.test.js src/utils/systemRelations.test.js",
     "lint": "oxlint",
     "preview": "vite preview"
   },
