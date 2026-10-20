@@ -1,7 +1,7 @@
 # VISOR OT — Módulo de identificación CPE
 
 **Rama:** `feature/vulnerability`  
-**Fase 1:** descubrimiento de CPE de hardware implementado. Existe la tabla `CpeSearchRun` y un trabajador NVD independiente. Las asociaciones confirmadas, el caché y los CVE todavía no están implementados.
+**Fase 2:** catálogo CPE, asociaciones y decisiones auditadas implementadas. El caché, CVE y búsqueda de software siguen pendientes.
 
 ## Alcance aprobado
 
@@ -11,7 +11,7 @@ Responsabilidades: `assets` conserva `Asset`, `Hardware`, `Software` y `Software
 
 ## Modelo de datos propuesto (antes de migrar)
 
-`CpeSearchRun` existe desde la migración inicial de la fase 1. Las entidades de fases posteriores **todavía no existen** y se revisarán antes de sus respectivas migraciones.
+`CpeSearchRun` pertenece a `0001_initial`; `Cpe`, `AssetCpe` y `AssetCpeDecision` se crean en `0002_cpe_validation`. El caché de fase 3 sigue pendiente.
 
 ### Fase 1 — `CpeSearchRun`
 
@@ -37,7 +37,7 @@ Una ejecución de descubrimiento ligada a `assets.Asset` (`ForeignKey`, `PROTECT
 
 `AssetCpe` materializa la relación N:M entre `Asset` y `Cpe`. Contendrá `asset`, `cpe`, `validation_status` (`PENDING`, `CONFIRMED`, `REJECTED`), `justification`, `validated_at`, `validated_by` y `validated_identity_fingerprint`. Restricción única para el par (`asset`, `cpe`). **Sin `is_primary`.**
 
-Los candidatos automáticos permanecerán en `CpeSearchRun`; solo la acción de un usuario creará o modificará `AssetCpe`, incluso cuando el usuario elija `PENDING` explícitamente. Para conservar decisiones previas, se propone `AssetCpeDecision` como historial inmutable (`asset_cpe`, estado previo/nuevo, justificación, actor, fecha y huella de identidad) en la fase 2. **Validar este detalle antes de la migración**.
+Los candidatos automáticos permanecerán en `CpeSearchRun`; solo la acción de un usuario creará o modificará `AssetCpe`, incluso cuando el usuario elija `PENDING` explícitamente. Para conservar decisiones previas se implementó `AssetCpeDecision`, con estado previo/nuevo, justificación, actor, búsqueda de origen, fecha y huella de identidad. No hay endpoints para editar o borrar estas evidencias.
 
 Las asociaciones confirmadas no se eliminan tras cambiar fabricante, modelo, CPU, producto o versión. Una comparación con `validated_identity_fingerprint` deberá indicarlas como **requieren revisión**.
 
@@ -47,7 +47,7 @@ Una entrada por consulta individual equivalente (`strategy`, parámetros normali
 
 ## Contrato HTTP propuesto
 
-Los tres endpoints de la fase 1 están implementados. Los de las fases posteriores son propuestas pendientes. Todos requieren autenticación JWT y permisos específicos por rol.
+Los endpoints de las fases 1 y 2 están implementados. Los de fases 3 a 5 siguen siendo propuestas. Todos requieren autenticación y permisos específicos por rol.
 
 | Fase | Método y endpoint | Resultado |
 | --- | --- | --- |
@@ -94,7 +94,7 @@ En fase 1, mostrar en `AssetDetail.jsx` una sección *Identificación CPE* y una
 5. Fase 4: firmware Siemens sin/con versión y con/sin contexto de hardware.
 6. Fase 5: exportación y pruebas de regresión completas.
 
-**Pendientes de las próximas fases:** confirmar `AssetCpeDecision` antes de las migraciones de la fase 2, definir caché (fase 3), búsquedas de software (fase 4) y exportación de laboratorio (fase 5). La fase 1 ya introduce la migración `0001_initial` de `CpeSearchRun`.
+**Pendientes de las próximas fases:** caché y búsquedas automáticas (fase 3), software (fase 4) y exportación (fase 5). La migración de fase 2 ya incorpora las decisiones auditadas.
 
 
 ## Fase 1 — Primer descubrimiento funcional de hardware
@@ -169,3 +169,36 @@ El menú usa geometrías SVG oficiales de Lucide y la vista global tiene filtros
 La respuesta `keywordSearch` de NVD puede incluir CPE de hardware (`h`), sistemas operativos/firmware (`o`) y aplicaciones (`a`). Este módulo solo propone candidatos con la tercera parte de `cpeName` igual a `h`, tanto para búsquedas nuevas como al consultar ejecuciones históricas. Para auditoría, se mantienen los datos históricos en `CpeSearchRun.candidates`; el filtrado de historiales anteriores se hace en la lectura de la API. El conteo global y el conteo por búsqueda reflejan **candidatos de hardware**, mientras `queries[*].retrieved` sigue siendo el total bruto recuperado de NVD, antes del filtro. No confundir ambos contadores.
 
 En los resultados de hardware no se muestra una etiqueta de versión; el valor original permanece en el `cpeName` oficial y en el registro JSON normalizado. Una revisión o versión de hardware puede existir según la nomenclatura de NVD, pero no se debe interpretar como firmware. La identificación de firmware y software sigue planificada para la fase 4. **Filtrar por tipo h no confirma que un candidato corresponda al dispositivo:** el analista decidirá en la fase 2.
+
+
+## Fase 2 — Validación humana de candidatos CPE
+
+**Migración:** ejecutar `python manage.py migrate` para crear `Cpe`, `AssetCpe` y `AssetCpeDecision`, sin modificar el inventario.
+
+### API de revisión
+
+| Método | Endpoint | Comportamiento |
+| --- | --- | --- |
+| `GET` | `/api/vulnerabilities/assets/{asset_id}/cpes/` | Asociaciones del activo e historial |
+| `POST` | `/api/vulnerabilities/assets/{asset_id}/cpes/` | Decisión inicial para un candidato encontrado |
+| `PATCH` | `/api/vulnerabilities/assets/{asset_id}/cpes/{association_id}/` | Nueva decisión sobre asociación existente |
+
+Solicitud de ejemplo:
+
+`{"run_id": 1, "cpe_name_id": "09f448d2-f606-44ab-8891-c27a3ff64002", "status": "CONFIRMED", "justification": "La placa indica CPU 1215C"}`
+
+Los estados son `PENDING`, `CONFIRMED` y `REJECTED`. Confirmar o rechazar requiere justificación; dejar pendiente es explícito y permite justificación vacía. Solo `ADMIN` y `ANALYST` pueden modificar decisiones; `OPERATOR` puede consultarlas. Un CPE pertenece al catálogo global y puede asociarse a varios activos, pero cada par `(asset, cpe)` es único. Intentar crearlo dos veces devuelve `409`; para modificar la decisión se utiliza `PATCH`.
+
+El backend comprueba que la búsqueda pertenece al activo, está `COMPLETED`, contiene el CPE oficial de tipo `h` y conserva la misma huella técnica del activo. La transacción bloquea únicamente la fila de `Asset` para evitar el problema PostgreSQL `FOR UPDATE` sobre un `OUTER JOIN` nullable. Si cambia fabricante, modelo o CPU, las asociaciones permanecen, pero `needs_review: true` indica que hay que repetir la búsqueda antes de volver a validar. Cada acción agrega un registro en `AssetCpeDecision`.
+
+### Demostración con Siemens CPU 1215C
+
+1. Ejecutar `python manage.py migrate` y `python manage.py check`.
+2. Comprobar que las migraciones coincidan con los modelos: `python manage.py makemigrations --check --dry-run`.
+3. Ejecutar `python manage.py test vulnerabilities --settings=config.settings_test_sqlite`.
+4. Desde React, abrir el hardware Siemens SIMATIC S7-1200 y su Identificación CPE (la búsqueda completada se reutiliza).
+5. Escribir una justificación y pulsar **Confirmar CPE** en uno de los candidatos `h`.
+6. Verificar la asociación confirmada y el historial; después seleccionar **Rechazar** con nueva justificación y comprobar que ambas decisiones continúan registradas.
+7. Volver a `/vulnerabilities/cpe` y verificar el estado global, sin perder filtros ni paginación.
+
+El proceso `run_cpe_worker` es necesario para ejecutar **nuevas búsquedas NVD**; leer y validar candidatos ya encontrados no lo necesita. Las pruebas nuevas están en `tests_phase2.py`, y el caso previo `test_global_overview_includes_unsearched_and_completed_hardware` fue corregido para incluir un CPE oficial `h` válido.
