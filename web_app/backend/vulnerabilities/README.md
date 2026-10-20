@@ -306,3 +306,21 @@ Desde `web_app/backend`: `python manage.py check` y `python manage.py test vulne
 Desde `web_app/frontend`: `npm run test:unit` y `npm run build`. `cpeBulkSelection.test.js` comprueba persistencia de IDs entre páginas, deselección y selección mixta.
 
 Prueba funcional: con `run_cpe_worker` en otra terminal, seleccionar Siemens + Hirschmann + un software. Confirmar: hardware en cola, software omitido; volver a la tabla y observar `QUEUED` → `RUNNING` → estados posteriores. Volver a pulsar Buscar sobre un hardware todavía en cola debe reutilizar su trabajo, sin crear otro.
+
+## Fase 2 — Descubrimiento progresivo por fabricante (hardware)
+
+La cadena automática de descubrimiento se amplía usando la infraestructura existente, sin migraciones ni búsquedas de software:
+
+- `SPECIFIC`: específico → familia → fabricante, si el nivel anterior se completó sin correspondencias pertinentes.
+- `BROAD`: familia → fabricante. `CpeSearchRun.scope` registra el alcance solicitado y `queries[].level` los niveles ejecutados.
+- `MANUFACTURER`: consulta NVD Products CPE con `cpeMatchString=cpe:2.3:h:<vendor_normalizado>`. No se usa la API CVE.
+
+**Pertinencia**: solo se almacenan candidatos CPE de tipo hardware, fabricante coincidente y relación explicable con modelo/familia (`SPECIFIC`, `FAMILY`, `RELATED`, `NEEDS_INFO`). La búsqueda puede recuperar otros productos del fabricante, pero quedan filtrados y contabilizados en `queries[].filtered_hardware_results`. Ninguna clasificación confirma automáticamente un CPE.
+
+**Presupuesto global**: se conservan `MAX_TOTAL_PAGE_FETCHES=8`, `MAX_PAGES_PER_STRATEGY=3` y `MAX_TOTAL_CANDIDATES=250`. El nivel fabricante tiene un límite adicional `MAX_MANUFACTURER_PAGES=2`, consumido dentro del mismo presupuesto global. Si faltan páginas: `result_truncated=True` y motivo `MANUFACTURER_PAGE_LIMIT` o `GLOBAL_PAGE_LIMIT`; la vista global informa `PARTIAL_RESULTS` en vez de `NO_RESULTS`. Un error NVD mantiene `FAILED`.
+
+**Compatibilidad**: deduplicación por UUID, procedencia por `methods` y `discovery_levels`; JSON históricos interpretables, sin nuevas migraciones ni cambios en las asociaciones, auditoría, cola PostgreSQL y worker NVD.
+
+**Pruebas**: ocho casos nuevos offline en `tests_progressive.py` para fabricante, relación ADAM-5550, alcance `BROAD`, pertinencia, truncamiento, timeout, presupuesto compartido y deduplicación entre niveles. Ejecutar `python manage.py check`, `python manage.py makemigrations --check --dry-run` y `python manage.py test vulnerabilities --settings=config.settings_test_sqlite` desde `web_app/backend`.
+
+Para la prueba manual de ADAM-5000 Series: ejecutar el worker, lanzar búsqueda específica y revisar `queries[].level`. El nivel `MANUFACTURER` solo aparecerá cuando las etapas anteriores sean insuficientes. ADAM-5550 puede aparecer como `RELATED` si se encuentra en las páginas efectivamente consultadas; nunca se confirma automáticamente.
