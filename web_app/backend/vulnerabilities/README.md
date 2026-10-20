@@ -273,3 +273,36 @@ El CPE Name es el único enlace individual a NVD por cpeNameId. El UUID sigue vi
 Un confirmado y un rechazado entre dos encontrados: EVALUATED, 2 encontrados, 1 confirmado, 1 rechazado y 0 por revisar. Tras deshacer el rechazo: IN_REVIEW, 2 encontrados, 1 confirmado, 0 rechazados y 1 por revisar. Volver a evaluar: EVALUATED.
 
 Desde web_app/backend ejecutar python manage.py check; python manage.py makemigrations --check --dry-run; python manage.py test vulnerabilities --settings=config.settings_test_sqlite. Desde web_app/frontend ejecutar npm run test:unit y npm run build. No se requieren migraciones nuevas en este refinamiento.
+
+
+## Incremento de fase 2 — Búsquedas CPE masivas desde el inventario
+
+**No requiere migraciones:** usa la tabla persistente `CpeSearchRun` y el worker `python manage.py run_cpe_worker` existentes. No hay llamadas NVD durante las solicitudes HTTP.
+
+### API
+
+Endpoint `POST /api/vulnerabilities/cpe-searches/bulk/` (roles `ADMIN` y `ANALYST`), con cuerpo:
+
+`{"asset_ids":[10,8,3],"scope":"SPECIFIC"}`
+
+`scope` solo admite `SPECIFIC` (o puede omitirse). Se admiten entre 1 y 100 identificadores por solicitud; los IDs repetidos se consolidan. La búsqueda ampliada `BROAD` sigue realizándose individualmente desde la ficha del hardware. Cada activo se valida y encola en una transacción independiente, reutilizando un trabajo `QUEUED` o `RUNNING` con la misma identidad y alcance. Un activo erróneo no impide procesar a los demás.
+
+La respuesta devuelve `results[]` en el orden de los IDs, con `asset_id`, `asset_name`, `asset_type`, `outcome`, `run_id` cuando corresponda y `message` para omisiones o errores. Outcomes: `QUEUED`, `REUSED`, `UNSUPPORTED` (software), `SKIPPED` (archivado), `NOT_FOUND` e `INVALID_IDENTITY`. `summary` incorpora `received`, `queued`, `reused`, `skipped` y `failed`. Se devuelve HTTP 202 si se encoló o reutilizó al menos uno; HTTP 200 cuando todos quedaron omitidos o fallidos. Errores de estructura en la petición devuelven 400, y los operadores obtienen 403.
+
+Actualmente se **puede seleccionar software**, pero su búsqueda se omite de manera explícita y **nunca se crea un CpeSearchRun imposible de ejecutar**. En la fase de software el mismo endpoint podrá implementar el despacho de su tipo de activo sin cambiar la selección frontend.
+
+### Interfaz
+
+La vista `Vulnerabilidades → Identificación CPE` incluye casillas por fila y selección de la página actual. Los IDs permanecen seleccionados al cambiar filtros o páginas; el botón `Limpiar selección` los descarta. La confirmación muestra todos los activos seleccionados, alcance específico, funcionamiento secuencial y advertencia de software diferido, antes de enviar una única petición. Después se muestra una respuesta individual por activo. La selección se limpia al recibir una respuesta exitosa.
+
+En hardware aparecen dos botones: `Buscar`, que encola directamente una búsqueda `SPECIFIC` sin abandonar la tabla, y `Revisar`, que mantiene la navegación y los filtros. En software la selección masiva está permitida, pero el botón individual Buscar está deshabilitado hasta implementar su descubrimiento.
+
+El frontend consulta `cpe-overview` periódicamente cada 10 segundos solo mientras haya búsquedas `QUEUED` o `RUNNING`, con una pausa de seguridad a los cinco minutos y un botón de consulta manual. Nunca invoca NVD directamente. Si el worker está apagado los trabajos quedan pendientes en PostgreSQL.
+
+### Verificación
+
+Desde `web_app/backend`: `python manage.py check` y `python manage.py test vulnerabilities --settings=config.settings_test_sqlite`. La batería `tests_bulk.py` cubre cola, duplicados, roles, búsqueda específica, identidad inválida, hardware/software mixtos, archivos y ejecución HTTP sin NVD.
+
+Desde `web_app/frontend`: `npm run test:unit` y `npm run build`. `cpeBulkSelection.test.js` comprueba persistencia de IDs entre páginas, deselección y selección mixta.
+
+Prueba funcional: con `run_cpe_worker` en otra terminal, seleccionar Siemens + Hirschmann + un software. Confirmar: hardware en cola, software omitido; volver a la tabla y observar `QUEUED` → `RUNNING` → estados posteriores. Volver a pulsar Buscar sobre un hardware todavía en cola debe reutilizar su trabajo, sin crear otro.
