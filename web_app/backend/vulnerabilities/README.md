@@ -369,3 +369,35 @@ El soporte CPE de software continúa diferido.
 Pruebas: `python manage.py test vulnerabilities --settings=config.settings_test_sqlite`
 (9 nuevas pruebas para variantes, catálogo, falsos positivos, límites y fallos),
 más `npm run test:unit` y `npm run build` desde el frontend.
+
+## Fase 3 — Clasificación y trazabilidad visual del descubrimiento progresivo
+
+Se incorporó un recorrido de consultas en `AssetCpeDiscovery` que agrupa
+`CpeSearchRun.queries` por `SPECIFIC`, `FAMILY` y `MANUFACTURER`; muestra
+términos CPE y keywordSearch, enlaces a JSON NVD, páginas, resultados por consulta,
+hardware procesado, productos filtrados, motivos de ampliación, límites y
+finalizaciones parciales. Los registros recuperados por consulta NO equivalen
+a candidatos únicos (pueden repetirse entre estrategias y páginas).
+
+Cada candidato revisable muestra clasificación automática `match_level`,
+explicación `match_reason`, niveles `discovery_levels` y métodos `methods`.
+Los CPE con decisión registrada también muestran su clasificación de la
+última búsqueda únicamente si ese candidato sigue apareciendo en ella.
+Las decisiones del analista (CONFIRMED / REJECTED), justificación e historial
+son independientes y siguen siendo la única validación oficial.
+
+Se preserva la lectura de búsquedas históricas sin nivel o clasificación,
+con aviso de metadatos no registrados; no se atribuyen niveles retroactivamente.
+No hay cambios en modelos, migraciones, endpoint, worker ni llamadas adicionales
+a NVD. Las fases 4 (búsqueda avanzada controlada) y 5 (refs NVD oficiales)
+siguen pendientes.
+
+Pruebas nuevas: 5 casos en `cpeDiscoveryPresentation.test.js` sobre agrupación,
+conteo no único, búsqueda histórica, Rockwell 1783-NATR (RELATED),
+AXIS 206/207 (no equivalencia) y Siemens CPU 1215C.
+
+Verificar desde `web_app/frontend`: `npm run test:unit` y `npm run build`.
+Desde `web_app/backend`: `python manage.py check` y
+`python manage.py test vulnerabilities --settings=config.settings_test_sqlite`.
+Validación funcional: revisar consultas agrupadas del Rockwell,
+evidencia de límites parciales en AXIS y clasificación específica Siemens.

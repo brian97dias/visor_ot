@@ -217,6 +217,10 @@ export default function AssetCpeDiscovery() {
                       </span>
                     </div>
                     <CpeEvidence cpeName={item.cpe_name} cpeNameId={item.cpe_name_id} />
+                    {run.candidates?.some(c =>
+                      c.cpe_name_id?.toLowerCase() === item.cpe_name_id?.toLowerCase()) &&
+                      <CpeCandidateExplanation candidate={run.candidates.find(c =>
+                        c.cpe_name_id?.toLowerCase() === item.cpe_name_id?.toLowerCase())}/>}
                     <p><strong>Justificación:</strong> {item.justification || "No registrada (opcional)"}</p>
                     <p>Revisado por {item.validated_by || "Usuario retirado"} ·
                       {" "}{new Date(item.validated_at).toLocaleString("es-CO")}</p>
