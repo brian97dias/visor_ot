@@ -32,6 +32,30 @@ def vendor_spelling(value):
     return re.sub(r"[^a-z0-9_]", "", re.sub(r"[\s_-]+", "_", ascii_text(value).lower())).strip("_")
 
 
+# Controlled alternatives for CPE vendors, not changes to inventory or trust.
+KNOWN_CPE_VENDOR_ALIASES = {
+    "rockwell_automation": ("rockwellautomation",),
+    "axis_communications": ("axis",),
+}
+
+
+def vendor_variants(value):
+    """Return deterministic CPE vendor alternatives with duplicates removed."""
+    canonical = vendor_spelling(value)
+    if not canonical:
+        return []
+    variants = [*KNOWN_CPE_VENDOR_ALIASES.get(canonical, ()), canonical]
+    if "_" in canonical:
+        variants.extend((canonical.replace("_", ""), canonical.replace("_", "-")))
+    return list(dict.fromkeys(filter(None, variants)))
+
+
+def catalog_code_prefix(value):
+    """1783-EMS08T/B -> 1783; not Axis 206 -> 20, nor nearby 206/207."""
+    match = re.match(r"^([0-9]{3,5})[-_/][A-Za-z0-9]", compact(value))
+    return match.group(1) if match else ""
+
+
 def cpu_spelling(value):
     value = re.sub(r"^\s*cpu[\s_:-]*", "", compact(value), flags=re.I)
     return re.sub(r"[^a-z0-9]", "", ascii_text(value).lower())
@@ -84,12 +108,15 @@ def build_level_queries(identity, level):
         return build_queries({**identity, "model": family_term(identity.get("model")),
                               "cpu_model": ""}, "BROAD")
     if level == "MANUFACTURER":
-        vendor = vendor_spelling(identity.get("manufacturer"))
-        if not vendor:
+        variants = vendor_variants(identity.get("manufacturer"))
+        if not variants:
             raise ValueError("Registra un fabricante válido para ampliar a fabricante.")
-        # NVD Products API supports CPE prefixes that omit the product field.
-        # Keep part 'h' to avoid fetching OS, firmware and applications.
-        return [{"strategy": "cpeMatchString", "parameter": f"cpe:2.3:h:{vendor}"}]
+        code = catalog_code_prefix(identity.get("model"))
+        # Narrow catalog-code requests before broad vendor-only requests.
+        params = [f"cpe:2.3:h:{v}:{code}*" for v in variants] if code else []
+        params += [f"cpe:2.3:h:{v}" for v in variants]
+        return [{"strategy": "cpeMatchString", "parameter": q}
+                for q in dict.fromkeys(params)]
     raise ValueError("Nivel de descubrimiento CPE no permitido.")
 
 

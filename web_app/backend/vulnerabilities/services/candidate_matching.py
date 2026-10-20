@@ -1,11 +1,26 @@
 """Merge official NVD CPE records with explainable inventory correspondence."""
 import re
-from .identity import normalized, cpu_spelling, family_term
+from .identity import (
+    normalized, cpu_spelling, family_term, vendor_variants, catalog_code_prefix,
+)
 
 
 def _cpe_part(cpe_name, position):
     parts = cpe_name.split(":")
     return parts[position] if len(parts) > position else ""
+
+
+def matches_vendor(value, identity):
+    """Match only enumerated CPE vendor aliases, not arbitrary similar brands."""
+    return normalized(value) in {
+        normalized(v) for v in vendor_variants(identity.get("manufacturer"))
+    }
+
+
+def shares_catalog_code(product, identity):
+    """A shared industrial prefix is related only; it proves no equivalence."""
+    code = catalog_code_prefix(identity.get("model"))
+    return bool(code and re.match(r"^" + re.escape(code) + r"(?=[_-]|$)", product.lower()))
 
 
 def classify(candidate, identity):
@@ -14,10 +29,9 @@ def classify(candidate, identity):
         return "POSSIBLE_INCOMPATIBILITY", "Este CPE no identifica hardware (tipo h)."
     vendor = normalized(_cpe_part(cpe_name, 3))
     product = normalized(_cpe_part(cpe_name, 4))
-    wanted_vendor = normalized(identity.get("manufacturer"))
     wanted_model = normalized(identity.get("model"))
     wanted_cpu = cpu_spelling(identity.get("cpu_model"))
-    if vendor and wanted_vendor and vendor != wanted_vendor:
+    if not matches_vendor(_cpe_part(cpe_name, 3), identity):
         return "POSSIBLE_INCOMPATIBILITY", "El fabricante del CPE no coincide con el inventario."
     if wanted_model and wanted_model not in product:
         term = family_term(identity.get("model"))
@@ -28,6 +42,9 @@ def classify(candidate, identity):
         if (normalized(term) != wanted_model and
                 re.match(r"^" + prefix + r"(?:[_-]|[0-9]|$)", raw_product)):
             return "RELATED", "Comparte prefijo de una serie declarada; el modelo exacto difiere."
+        if shares_catalog_code(raw_product, identity):
+            return ("RELATED", "Solo comparte un prefijo de catálogo, no el modelo "
+                    "exacto; exige revisión del analista.")
         return "POSSIBLE_INCOMPATIBILITY", "El producto CPE no corresponde claramente a la familia."
     if wanted_cpu:
         product_raw = _cpe_part(cpe_name, 4).lower()
@@ -57,7 +74,7 @@ def is_manufacturer_related(candidate, identity):
     """
     if _cpe_part(candidate.get("cpe_name", ""), 2) != "h":
         return False
-    if normalized(_cpe_part(candidate["cpe_name"], 3)) != normalized(identity.get("manufacturer")):
+    if not matches_vendor(_cpe_part(candidate["cpe_name"], 3), identity):
         return False
     return candidate.get("match_level") in ("SPECIFIC", "FAMILY", "RELATED", "NEEDS_INFO")
 
@@ -70,7 +87,7 @@ def is_pertinent(candidate, identity):
     """
     cpe_name = candidate.get("cpe_name", "")
     if (_cpe_part(cpe_name, 2) != "h" or candidate.get("deprecated")
-            or normalized(_cpe_part(cpe_name, 3)) != normalized(identity.get("manufacturer"))):
+            or not matches_vendor(_cpe_part(cpe_name, 3), identity)):
         return False
     model = normalized(identity.get("model"))
     product = normalized(_cpe_part(cpe_name, 4))

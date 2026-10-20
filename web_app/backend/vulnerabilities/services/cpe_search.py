@@ -19,6 +19,8 @@ MAX_TOTAL_PAGE_FETCHES = 8
 # A manufacturer may have thousands of records; avoid scanning the full catalog.
 # This per-level limit never overrides the smaller remaining global budget.
 MAX_MANUFACTURER_PAGES = 2
+# Shared by ALL vendor spellings and product-prefix probes in the third level.
+MAX_MANUFACTURER_LEVEL_PAGES = 4
 
 
 def create_run(asset_id, user, scope, *, return_reused=False):
@@ -71,6 +73,7 @@ def execute_run(run, pacer, fetcher=fetch_page):
     queries = []
     dedup = {}
     fetched_pages = 0
+    manufacturer_pages = 0
     truncated = False
     seen_queries = set()
     levels = (
@@ -107,9 +110,18 @@ def execute_run(run, pacer, fetcher=fetch_page):
                 queries.append(details)
                 _persist(run, {"queries": queries})
                 if (fetched_pages >= MAX_TOTAL_PAGE_FETCHES or
-                        len(dedup) >= MAX_TOTAL_CANDIDATES):
+                        len(dedup) >= MAX_TOTAL_CANDIDATES or
+                        (level == "MANUFACTURER" and
+                         manufacturer_pages >= MAX_MANUFACTURER_LEVEL_PAGES)):
                     details["status"] = "SKIPPED"
-                    details["stop_reason"] = "GLOBAL_BUDGET_EXHAUSTED"
+                    details["stop_reason"] = (
+                        "MANUFACTURER_LEVEL_LIMIT" if (
+                            level == "MANUFACTURER"
+                            and manufacturer_pages >= MAX_MANUFACTURER_LEVEL_PAGES
+                            and fetched_pages < MAX_TOTAL_PAGE_FETCHES
+                            and len(dedup) < MAX_TOTAL_CANDIDATES
+                        ) else "GLOBAL_BUDGET_EXHAUSTED"
+                    )
                     truncated = level_partial = True
                     _persist(run, {"queries": queries})
                     break
@@ -123,9 +135,16 @@ def execute_run(run, pacer, fetcher=fetch_page):
                         details["stop_reason"] = "GLOBAL_PAGE_LIMIT"
                         truncated = level_partial = True
                         break
+                    if (level == "MANUFACTURER"
+                            and manufacturer_pages >= MAX_MANUFACTURER_LEVEL_PAGES):
+                        details["stop_reason"] = "MANUFACTURER_LEVEL_LIMIT"
+                        truncated = level_partial = True
+                        break
                     # Count a page fetch even if the HTTP call fails; the pacer
                     # itself protects retries, and the FAILED status is retained.
                     fetched_pages += 1
+                    if level == "MANUFACTURER":
+                        manufacturer_pages += 1
                     data = fetcher(query["strategy"], query["parameter"], page * PAGE_SIZE, pacer)
                     products = data["products"]
                     total = int(data.get("totalResults", 0))
@@ -184,6 +203,11 @@ def execute_run(run, pacer, fetcher=fetch_page):
                 details["status"] = "PARTIAL" if level_partial else "COMPLETED"
                 _persist(run, {"queries": queries, "result_truncated": truncated})
                 if level_partial:
+                    break
+                if level == "MANUFACTURER" and any(
+                    is_pertinent(dedup[uuid], run.identity_snapshot)
+                    for uuid in level_uuids if uuid in dedup
+                ):
                     break
 
             strong = sum(is_pertinent(dedup[uuid], run.identity_snapshot)
