@@ -237,3 +237,104 @@ class CpeDecisionTests(TestCase):
             "run_id": run.pk,
         }, format="json")
         self.assertEqual(response.status_code, 404, response.data)
+
+
+    def test_reopen_moves_decision_back_to_candidates_and_preserves_history(self):
+        first = self.create()
+        self.assertEqual(first.status_code, 201, first.data)
+        association_id = first.data["association"]["id"]
+        endpoint = self.api + f"{association_id}/"
+
+        reopened = self.client.patch(endpoint, {
+            "status": "REOPENED", "justification": "Deseo revisar otro CPE",
+        }, format="json")
+        self.assertEqual(reopened.status_code, 200, reopened.data)
+        self.assertEqual(reopened.data["association"]["validation_status"], "REOPENED")
+        self.assertEqual(reopened.data["association"]["source_run_id"], self.run.pk)
+        self.assertEqual(
+            [x["new_status"] for x in reopened.data["association"]["history"]],
+            ["CONFIRMED", "REOPENED"],
+        )
+        global_response = self.client.get("/api/vulnerabilities/cpe-overview/")
+        global_row = next(x for x in global_response.data["results"]
+                          if x["asset_id"] == self.asset.pk)
+        self.assertEqual(global_row["identification_status"], "REOPENED")
+        self.assertEqual(global_row["reviewed_count"], 0)
+        self.assertEqual(global_row["reopened_count"], 1)
+        self.assertEqual(global_row["confirmed_count"], 0)
+
+        # A second decision must PATCH the same association, never create again.
+        second = self.client.patch(endpoint, self.decision(
+            status="CONFIRMED", justification="CPU verificada contra la placa"
+        ), format="json")
+        self.assertEqual(second.status_code, 200, second.data)
+        self.assertEqual(AssetCpe.objects.count(), 1)
+        self.assertEqual(Cpe.objects.count(), 1)
+        self.assertEqual(
+            [x["new_status"] for x in second.data["association"]["history"]],
+            ["CONFIRMED", "REOPENED", "CONFIRMED"],
+        )
+
+    def test_reopen_without_current_run_after_identity_change(self):
+        first = self.create()
+        self.assertEqual(first.status_code, 201, first.data)
+        self.asset.hardware.cpu_model = "1214C"
+        self.asset.hardware.save(update_fields=["cpu_model"])
+        endpoint = self.api + f"{first.data['association']['id']}/"
+        response = self.client.patch(endpoint, {"status": "REOPENED"}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertFalse(response.data["association"]["needs_review"])
+        self.assertEqual(AssetCpeDecision.objects.count(), 2)
+        # The old search is no longer valid for another confirmation.
+        impossible = self.client.patch(endpoint, self.decision(), format="json")
+        self.assertEqual(impossible.status_code, 400, impossible.data)
+        self.assertEqual(AssetCpeDecision.objects.count(), 2)
+
+    def test_reopen_requires_existing_association_and_cannot_repeat(self):
+        no_record = self.client.post(self.api, {
+            "run_id": self.run.pk, "cpe_name_id": OFFICIAL_ID,
+            "status": "REOPENED",
+        }, format="json")
+        self.assertEqual(no_record.status_code, 400, no_record.data)
+        first = self.create()
+        endpoint = self.api + f"{first.data['association']['id']}/"
+        bad_run = self.client.patch(endpoint, {
+            "run_id": self.run.pk, "status": "REOPENED",
+        }, format="json")
+        self.assertEqual(bad_run.status_code, 400, bad_run.data)
+        self.assertEqual(self.client.patch(
+            endpoint, {"status": "REOPENED"}, format="json"
+        ).status_code, 200)
+        repeated = self.client.patch(endpoint, {"status": "REOPENED"}, format="json")
+        self.assertEqual(repeated.status_code, 409, repeated.data)
+        self.assertEqual(AssetCpeDecision.objects.count(), 2)
+
+    def test_identical_decision_is_conflict_but_new_run_supports_revalidation(self):
+        first = self.create()
+        endpoint = self.api + f"{first.data['association']['id']}/"
+        repeated = self.client.patch(endpoint, self.decision(), format="json")
+        self.assertEqual(repeated.status_code, 409, repeated.data)
+        self.assertEqual(AssetCpeDecision.objects.count(), 1)
+
+        fresh = self.completed_search(self.asset)
+        again = self.client.patch(endpoint, {
+            **self.decision(), "run_id": fresh.pk,
+        }, format="json")
+        self.assertEqual(again.status_code, 200, again.data)
+        self.assertEqual(again.data["association"]["source_run_id"], fresh.pk)
+        self.assertEqual(AssetCpeDecision.objects.count(), 2)
+
+    def test_only_analyst_can_reopen_and_history_is_preserved(self):
+        first = self.create()
+        endpoint = self.api + f"{first.data['association']['id']}/"
+        self.client.force_authenticate(self.operator)
+        forbidden = self.client.patch(endpoint, {"status": "REOPENED"}, format="json")
+        self.assertEqual(forbidden.status_code, 403, forbidden.data)
+        self.client.force_authenticate(self.admin)
+        permitted = self.client.patch(endpoint, {"status": "REOPENED"}, format="json")
+        self.assertEqual(permitted.status_code, 200, permitted.data)
+        history = list(AssetCpeDecision.objects.order_by("pk"))
+        self.assertEqual(len(history), 2)
+        self.assertEqual(history[0].new_status, "CONFIRMED")
+        self.assertEqual(history[1].previous_status, "CONFIRMED")
+        self.assertEqual(history[1].actor, self.admin)
