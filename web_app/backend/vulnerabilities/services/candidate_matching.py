@@ -22,8 +22,14 @@ def classify(candidate, identity):
     if wanted_model and wanted_model not in product:
         return "POSSIBLE_INCOMPATIBILITY", "El producto CPE no corresponde claramente a la familia."
     if wanted_cpu:
+        product_raw = _cpe_part(cpe_name, 4).lower()
+        if re.search(r"(?:^|[_-])cpu[_-]?" + re.escape(wanted_cpu) + r"$", product_raw):
+            # This is a precise textual designation, never human validation.
+            return "SPECIFIC", "El nombre del producto CPE indica la CPU inventariada."
         if wanted_cpu in product:
-            return "SPECIFIC", "Coinciden fabricante, familia y CPU."
+            # E.g. cpu_12_1215c is not the same product string as cpu_1215c.
+            # Keep the record but do not call it an exact textual match.
+            return "FAMILY", "La familia y el texto de CPU aparecen con otros componentes."
         # A different CPU explicitly named in the same family is a contradiction.
         name_cpu = re.search(r"cpu[_-]?([0-9]{3,5}[a-z]?)", _cpe_part(cpe_name, 4))
         if name_cpu:

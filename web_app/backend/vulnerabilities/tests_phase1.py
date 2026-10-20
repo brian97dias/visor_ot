@@ -273,6 +273,9 @@ class CpeSearchAPITests(TestCase):
         ]
         merged = merge_candidates(normalized)
         self.assertEqual(len(merged), 2)
+        levels = {item["cpe_name_id"]: item["match_level"] for item in merged}
+        self.assertEqual(levels["09f448d2-f606-44ab-8891-c27a3ff64002"], "SPECIFIC")
+        self.assertEqual(levels["72c1d71f-72a7-4520-8773-0d1cfc32e0b9"], "FAMILY")
         self.assertEqual({item["cpe_name_id"] for item in merged}, {
             "09f448d2-f606-44ab-8891-c27a3ff64002",
             "72c1d71f-72a7-4520-8773-0d1cfc32e0b9",
