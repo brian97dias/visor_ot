@@ -2350,3 +2350,78 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cpe-review-form-error { color: #fecaca !important; font-size: .83rem !important; }
 .cpe-overview-status[data-status="CONFIRMED"] { color: #86efac; }
 .cpe-overview-status[data-status="PENDING_VALIDATION"] { color: #fcd34d; }
+
+
+/* CPE review: legible actions and a progressive two-step decision flow. */
+.cpe-candidate-section { margin-top: 24px; }
+.cpe-candidate-heading {
+  display: flex; flex-wrap: wrap; gap: 12px;
+  align-items: center; justify-content: space-between;
+  margin: 0 0 12px;
+}
+.cpe-candidate-heading h2 { margin: 0 0 5px; font-size: 1.12rem; color: #f1f5f9; }
+.cpe-candidate-heading p { margin: 0; color: #94a3b8; font-size: .85rem; }
+.cpe-candidate-heading .record-count { white-space: nowrap; }
+.cpe-association { background: #101b2c; }
+.cpe-association > p { margin: 8px 0; color: #cbd5e1; font-size: .85rem; }
+.cpe-association > p strong { color: #e2e8f0; }
+.cpe-review-form { margin-top: 14px; padding-top: 14px; border-top: 1px solid #334155; }
+.cpe-review-form .cpe-review-actions { margin: 0; }
+.cpe-review-form .cpe-hint { margin: 10px 0 0; }
+.cpe-review-confirmation {
+  margin-top: 13px; padding: 16px;
+  border: 1px solid #334155; border-radius: 8px;
+  background: #101e30;
+}
+.cpe-review-confirmation[data-tone="confirm"] { border-color: #166534; }
+.cpe-review-confirmation[data-tone="reject"] { border-color: #991b1b; }
+.cpe-review-confirmation[data-tone="pending"] { border-color: #92400e; }
+.cpe-review-confirmation h4 { color: #f1f5f9; margin: 0 0 5px; font-size: .98rem; }
+.cpe-review-confirmation p { color: #cbd5e1; margin: 0 0 14px; font-size: .85rem; }
+.cpe-review-confirmation .cpe-review-actions { margin-top: 13px; }
+.cpe-review-form .cpe-optional { color: #94a3b8; font-weight: 400; }
+.cpe-review-actions .cpe-decision-button,
+.cpe-review-form > .cpe-decision-button {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 9px 15px; border: 1px solid transparent; border-radius: 7px;
+  font: inherit; font-size: .86rem; font-weight: 600;
+  line-height: 1.35; transition: background-color .15s ease, border-color .15s ease;
+  cursor: pointer;
+}
+.cpe-review-actions .cpe-decision-confirm {
+  background: #065f46; border-color: #34d399; color: #ecfdf5;
+}
+.cpe-review-actions .cpe-decision-confirm:hover:not(:disabled) {
+  background: #047857; border-color: #6ee7b7;
+}
+.cpe-review-actions .cpe-decision-reject {
+  background: #7f1d1d; border-color: #f87171; color: #fff1f2;
+}
+.cpe-review-actions .cpe-decision-reject:hover:not(:disabled) {
+  background: #991b1b; border-color: #fca5a5;
+}
+.cpe-review-actions .cpe-decision-pending {
+  background: #78350f; border-color: #fbbf24; color: #fffbeb;
+}
+.cpe-review-actions .cpe-decision-pending:hover:not(:disabled) {
+  background: #92400e; border-color: #fcd34d;
+}
+.cpe-review-actions .cpe-decision-cancel,
+.cpe-review-form > .cpe-decision-edit {
+  background: #192940; color: #e0f2fe; border-color: #64748b;
+}
+.cpe-review-actions .cpe-decision-cancel:hover:not(:disabled),
+.cpe-review-form > .cpe-decision-edit:hover:not(:disabled) {
+  background: #27445c; border-color: #7dd3fc;
+}
+.cpe-review-actions .cpe-decision-button:disabled {
+  cursor: not-allowed; opacity: .55;
+}
+.cpe-review-actions .cpe-decision-button:focus-visible,
+.cpe-review-form > .cpe-decision-button:focus-visible {
+  outline: 2px solid #bae6fd; outline-offset: 3px;
+}
+@media (max-width: 620px) {
+  .cpe-review-actions .cpe-decision-button { flex: 1 1 160px; }
+  .cpe-review-confirmation { padding: 12px; }
+}
