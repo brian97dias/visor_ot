@@ -71,7 +71,7 @@ class CpeSearchDetailView(APIView):
 
 
 class CpeOverviewView(APIView):
-    """Read-only work queue overview. No CPE decisions are persisted in phase 1."""
+    """Read-only overview of discovery and explicit analyst validations."""
     permission_classes = [IsAuthenticated, CpeSearchPermission]
 
     def get(self, request):
