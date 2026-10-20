@@ -13,6 +13,7 @@ from .candidate_matching import (
 )
 from .nvd_client import fetch_page, PAGE_SIZE, MAX_PAGES_PER_STRATEGY, MAX_TOTAL_CANDIDATES
 from .worker_lock import worker_lock_held
+from .advanced_query import validate_advanced_query
 
 # Shared across all discovery levels: never reset budgets on fallback.
 MAX_TOTAL_PAGE_FETCHES = 8
@@ -49,10 +50,146 @@ def create_run(asset_id, user, scope, *, return_reused=False):
         return (run, False) if return_reused else run
 
 
+
+def create_advanced_run(asset_id, user, payload):
+    """Queue a validated manual plan; reuses only an identical active manual job."""
+    with transaction.atomic():
+        asset = Asset.objects.select_for_update().get(pk=asset_id)
+        if asset.inventory_status != Asset.InventoryStatus.ACTIVE:
+            raise ValidationError({"asset": "Solo se buscan CPE de hardware activo."})
+        identity = hardware_identity(asset)
+        try:
+            build_queries(identity, "SPECIFIC")
+            plan = validate_advanced_query(identity, payload)
+        except ValueError as exc:
+            raise ValidationError({"advanced": str(exc)}) from exc
+        digest = fingerprint(identity)
+        for existing in CpeSearchRun.objects.filter(
+            asset=asset, identity_fingerprint=digest, trigger="ADVANCED",
+            status__in=(CpeSearchRun.Status.QUEUED, CpeSearchRun.Status.RUNNING),
+        ):
+            if existing.queries:
+                prior = existing.queries[0]
+                if all(prior.get(k) == v for k, v in plan.items()):
+                    return existing, True
+        run = CpeSearchRun.objects.create(
+            asset=asset, requested_by=user, scope=CpeSearchRun.Scope.SPECIFIC,
+            trigger="ADVANCED", identity_snapshot=identity,
+            identity_fingerprint=digest,
+            queries=[{**plan, "level": "ADVANCED", "status": "PLANNED"}],
+        )
+        return run, False
+
+
 def _persist(run, fields):
     for key, value in fields.items():
         setattr(run, key, value)
     run.save(update_fields=list(fields))
+
+
+def execute_advanced_run(run, pacer, fetcher=fetch_page):
+    """Execute a single manual strategy with stored offset and page budget.
+
+    Uses the same worker lock and public NVD pacer as automatic discovery.
+    Filtering always uses the *inventoried* identity, never the user's claim.
+    """
+    if run.status != CpeSearchRun.Status.QUEUED:
+        return run
+    raw_plan = run.queries[0] if run.queries else {}
+    try:
+        plan = validate_advanced_query(run.identity_snapshot, {
+            key: raw_plan.get(key) for key in
+            ("strategy", "parameter", "start_index", "max_pages")
+        })
+    except ValueError as exc:
+        _persist(run, {"status": CpeSearchRun.Status.FAILED,
+                       "error_message": str(exc),
+                       "finished_at": timezone.now()})
+        return run
+    details = {
+        **plan, "level": "ADVANCED", "status": "RUNNING",
+        "pages": 0, "total_results": None, "retrieved": 0,
+        "hardware_results": 0, "filtered_hardware_results": 0,
+        "related_results": 0, "pertinent_results": 0,
+    }
+    dedup = {}
+    truncated = bool(plan["start_index"])
+    _persist(run, {
+        "status": CpeSearchRun.Status.RUNNING, "started_at": timezone.now(),
+        "queries": [details], "candidates": [],
+        "result_truncated": truncated, "error_message": "",
+    })
+    try:
+        for index in range(plan["max_pages"]):
+            start = plan["start_index"] + index * PAGE_SIZE
+            data = fetcher(plan["strategy"], plan["parameter"], start, pacer)
+            products = data["products"]
+            total = int(data.get("totalResults", 0))
+            details["pages"] += 1
+            details["total_results"] = total
+            details["retrieved"] += len(products)
+            for row in products:
+                item = normalize_candidate(row, run.identity_snapshot, plan["strategy"])
+                if item is None:
+                    continue
+                details["hardware_results"] += 1
+                if not is_manufacturer_related(item, run.identity_snapshot):
+                    details["filtered_hardware_results"] += 1
+                    continue
+                if is_pertinent(item, run.identity_snapshot):
+                    details["pertinent_results"] += 1
+                elif item["match_level"] == "RELATED":
+                    details["related_results"] += 1
+                if item["cpe_name_id"] in dedup:
+                    old = dedup[item["cpe_name_id"]]
+                    old["methods"] = sorted(set(old["methods"] + item["methods"]))
+                elif len(dedup) < MAX_TOTAL_CANDIDATES:
+                    item["discovery_levels"] = ["ADVANCED"]
+                    dedup[item["cpe_name_id"]] = item
+                else:
+                    truncated = True
+                    details["stop_reason"] = "CANDIDATE_LIMIT"
+                    break
+            _persist(run, {
+                "queries": [details], "candidates": merge_candidates(list(dedup.values())),
+                "result_truncated": truncated,
+            })
+            if details.get("stop_reason"):
+                break
+            if start + len(products) >= total or not products:
+                break
+        else:
+            if plan["start_index"] + details["retrieved"] < (details["total_results"] or 0):
+                truncated = True
+                details["stop_reason"] = "ADVANCED_PAGE_LIMIT"
+
+        if plan["start_index"] and not details.get("stop_reason"):
+            details["stop_reason"] = "ADVANCED_OFFSET"
+        details["level_result"] = (
+            "PARTIAL_RESULTS" if truncated else
+            "SUFFICIENT_PERTINENT_CANDIDATES" if details["pertinent_results"] else
+            "NO_PERTINENT_CANDIDATES"
+        )
+        details["level_unique_hardware_candidates"] = len(dedup)
+        details["level_pertinent_candidates"] = sum(
+            is_pertinent(item, run.identity_snapshot) for item in dedup.values()
+        )
+        details["status"] = "PARTIAL" if truncated else "COMPLETED"
+        _persist(run, {
+            "status": CpeSearchRun.Status.COMPLETED, "finished_at": timezone.now(),
+            "queries": [details], "candidates": merge_candidates(list(dedup.values())),
+            "result_truncated": truncated,
+        })
+    except Exception as exc:
+        details["status"] = "FAILED"
+        details["stop_reason"] = "REQUEST_FAILED"
+        _persist(run, {
+            "status": CpeSearchRun.Status.FAILED,
+            "error_message": str(exc)[:1000], "finished_at": timezone.now(),
+            "queries": [details], "candidates": merge_candidates(list(dedup.values())),
+            "result_truncated": truncated,
+        })
+    return run
 
 
 def execute_run(run, pacer, fetcher=fetch_page):
@@ -65,6 +202,8 @@ def execute_run(run, pacer, fetcher=fetch_page):
     """
     if run.status != CpeSearchRun.Status.QUEUED:
         return run
+    if getattr(run, "trigger", None) == "ADVANCED":
+        return execute_advanced_run(run, pacer, fetcher)
     _persist(run, {
         "status": CpeSearchRun.Status.RUNNING,
         "started_at": timezone.now(), "error_message": "",
