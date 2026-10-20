@@ -115,10 +115,14 @@ export default function AssetCpeDiscovery() {
           onClick={() => search("BROAD")}>Ampliar búsqueda por familia</button>
       </div>}
     {!allowed && <p className="cpe-copy">Tu usuario puede consultar, pero no iniciar búsquedas CPE.</p>}
-    {run && <div className="cpe-tools">
-      <button className="button-secondary" type="button" disabled={refreshing}
-        onClick={refresh}>{refreshing ? "Consultando estado..." : "Actualizar estado"}</button>
-    </div>}
+    {run && pending && (pollingPaused || Boolean(error)) && (
+      <div className="cpe-tools">
+        <button className="button-secondary" type="button" disabled={refreshing}
+          onClick={refresh}>
+          {refreshing ? "Consultando estado..." : "Consultar estado ahora"}
+        </button>
+      </div>
+    )}
     {!run ? <section className="panel cpe-copy">Sin búsquedas previas para este hardware.
       Se requieren fabricante y modelo/familia para comenzar.</section> : <>
       <section className="panel">
@@ -145,7 +149,8 @@ export default function AssetCpeDiscovery() {
               No fue posible consultar la disponibilidad del trabajador.</p>}
             {pollingPaused && <p className="cpe-warning" role="status">
               La consulta automática se pausó tras cinco minutos para evitar
-              solicitudes indefinidas. Puedes pulsar «Actualizar estado».
+              solicitudes indefinidas. Puedes utilizar «Consultar estado ahora»
+              para verificar el resultado sin iniciar otra búsqueda.
               Si el trabajador está detenido, reinícialo en otra terminal.
             </p>}
             {!pollingPaused && <p className="cpe-hint">
