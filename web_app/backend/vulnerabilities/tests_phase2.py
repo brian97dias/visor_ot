@@ -244,7 +244,7 @@ class CpeDecisionTests(TestCase):
         self.assertEqual(created.status_code, 201)
         response = self.client.get("/api/vulnerabilities/cpe-overview/")
         item = next(x for x in response.data["results"] if x["asset_id"] == self.asset.pk)
-        self.assertEqual(item["identification_status"], "CONFIRMED")
+        self.assertEqual(item["identification_status"], "EVALUATED")
         self.assertEqual(item["confirmed_count"], 1)
         self.assertEqual(item["reviewed_count"], 1)
 
@@ -279,7 +279,7 @@ class CpeDecisionTests(TestCase):
         global_response = self.client.get("/api/vulnerabilities/cpe-overview/")
         global_row = next(x for x in global_response.data["results"]
                           if x["asset_id"] == self.asset.pk)
-        self.assertEqual(global_row["identification_status"], "REOPENED")
+        self.assertEqual(global_row["identification_status"], "TO_REVIEW")
         self.assertEqual(global_row["reviewed_count"], 0)
         self.assertEqual(global_row["reopened_count"], 1)
         self.assertEqual(global_row["confirmed_count"], 0)
@@ -359,3 +359,131 @@ class CpeDecisionTests(TestCase):
         self.assertEqual(history[0].new_status, "CONFIRMED")
         self.assertEqual(history[1].previous_status, "CONFIRMED")
         self.assertEqual(history[1].actor, self.admin)
+
+    def test_overview_evaluated_with_one_confirmed_and_one_rejected(self):
+        second_uuid = "72c1d71f-72a7-4520-8773-0d1cfc32e0b9"
+        second = candidate(
+            name_id=second_uuid,
+            cpe_name="cpe:2.3:h:siemens:simatic_s7-1200_cpu_12_1215c:-:*:*:*:*:*:*:*",
+        )
+        self.run.candidates.append(second)
+        self.run.save(update_fields=["candidates"])
+        confirmed = self.create()
+        self.assertEqual(confirmed.status_code, 201, confirmed.data)
+        rejected = self.client.post(self.api, {
+            "run_id": self.run.pk, "cpe_name_id": second_uuid,
+            "status": "REJECTED", "justification": "",
+        }, format="json")
+        self.assertEqual(rejected.status_code, 201, rejected.data)
+
+        def overview():
+            response = self.client.get("/api/vulnerabilities/cpe-overview/")
+            self.assertEqual(response.status_code, 200, response.data)
+            return next(x for x in response.data["results"] if x["asset_id"] == self.asset.pk)
+
+        evaluated = overview()
+        self.assertEqual(evaluated["identification_status"], "EVALUATED")
+        self.assertEqual(
+            (evaluated["candidate_count"], evaluated["confirmed_count"],
+             evaluated["rejected_count"], evaluated["unreviewed_count"]), (2, 1, 1, 0)
+        )
+
+        endpoint = self.api + f'{rejected.data["association"]["id"]}/'
+        undone = self.client.patch(endpoint, {"status": "REOPENED"}, format="json")
+        self.assertEqual(undone.status_code, 200, undone.data)
+        reviewing = overview()
+        self.assertEqual(reviewing["identification_status"], "IN_REVIEW")
+        self.assertEqual(
+            (reviewing["candidate_count"], reviewing["confirmed_count"],
+             reviewing["rejected_count"], reviewing["unreviewed_count"]), (2, 1, 0, 1)
+        )
+        again = self.client.patch(endpoint, {
+            "run_id": self.run.pk, "status": "REJECTED",
+        }, format="json")
+        self.assertEqual(again.status_code, 200, again.data)
+        self.assertEqual(overview()["identification_status"], "EVALUATED")
+        self.assertEqual(AssetCpe.objects.count(), 2)
+        self.assertEqual(
+            [h.new_status for h in AssetCpeDecision.objects.filter(
+                association_id=rejected.data["association"]["id"]).order_by("pk")
+            ], ["REJECTED", "REOPENED", "REJECTED"]
+        )
+
+    def test_overview_rejected_only_is_evaluated_without_a_confirmation(self):
+        result = self.create(status="REJECTED", justification="")
+        self.assertEqual(result.status_code, 201, result.data)
+        data = self.client.get("/api/vulnerabilities/cpe-overview/").data
+        row = next(x for x in data["results"] if x["asset_id"] == self.asset.pk)
+        self.assertEqual(row["identification_status"], "EVALUATED")
+        self.assertEqual(row["confirmed_count"], 0)
+        self.assertEqual(row["rejected_count"], 1)
+        self.assertEqual(row["unreviewed_count"], 0)
+
+    def test_overview_uses_last_completed_run_while_new_one_is_queued(self):
+        first = self.create()
+        self.assertEqual(first.status_code, 201, first.data)
+        waiting = CpeSearchRun.objects.create(
+            asset=self.asset, requested_by=self.analyst,
+            status=CpeSearchRun.Status.QUEUED,
+            identity_snapshot=hardware_identity(self.asset),
+            identity_fingerprint=fingerprint(hardware_identity(self.asset)),
+            candidates=[],
+        )
+        response = self.client.get("/api/vulnerabilities/cpe-overview/")
+        row = next(x for x in response.data["results"] if x["asset_id"] == self.asset.pk)
+        self.assertEqual(row["identification_status"], "QUEUED")
+        self.assertEqual(row["run_id"], waiting.pk)
+        self.assertEqual(row["candidate_count"], 1)
+        self.assertEqual(row["confirmed_count"], 1)
+        self.assertEqual(row["unreviewed_count"], 0)
+
+    def test_historical_pending_remains_readable_and_counted_as_unreviewed(self):
+        # Existing PENDING rows from previous releases must not be deleted.
+        self.run.candidates.append(candidate(
+            name_id="72c1d71f-72a7-4520-8773-0d1cfc32e0b9",
+            cpe_name="cpe:2.3:h:siemens:simatic_s7-1200_cpu_12_1215c:-:*:*:*:*:*:*:*",
+        ))
+        self.run.save(update_fields=["candidates"])
+        response = self.create()
+        self.assertEqual(response.status_code, 201, response.data)
+        catalogue = Cpe.objects.create(
+            cpe_name_id="72c1d71f-72a7-4520-8773-0d1cfc32e0b9",
+            cpe_name="cpe:2.3:h:siemens:simatic_s7-1200_cpu_12_1215c:-:*:*:*:*:*:*:*",
+            title="Siemens CPU 12 1215C",
+        )
+        from django.utils import timezone
+        AssetCpe.objects.create(
+            asset=self.asset, cpe=catalogue, source_run=self.run,
+            validation_status="PENDING", validated_by=self.analyst,
+            validated_at=timezone.now(),
+            validated_identity_fingerprint=fingerprint(hardware_identity(self.asset)),
+        )
+        response = self.client.get("/api/vulnerabilities/cpe-overview/")
+        row = next(x for x in response.data["results"] if x["asset_id"] == self.asset.pk)
+        self.assertEqual(row["identification_status"], "IN_REVIEW")
+        self.assertEqual(row["candidate_count"], 2)
+        self.assertEqual(row["confirmed_count"], 1)
+        self.assertEqual(row["rejected_count"], 0)
+        self.assertEqual(row["legacy_pending_count"], 1)
+        self.assertEqual(row["unreviewed_count"], 1)
+
+    def test_outside_new_search_is_not_counted_as_confirmed(self):
+        first = self.create()
+        self.assertEqual(first.status_code, 201, first.data)
+        newer = CpeSearchRun.objects.create(
+            asset=self.asset, requested_by=self.analyst,
+            status=CpeSearchRun.Status.COMPLETED,
+            identity_snapshot=hardware_identity(self.asset),
+            identity_fingerprint=fingerprint(hardware_identity(self.asset)),
+            candidates=[candidate(
+                name_id="72c1d71f-72a7-4520-8773-0d1cfc32e0b9",
+                cpe_name="cpe:2.3:h:siemens:simatic_s7-1200_cpu_12_1215c:-:*:*:*:*:*:*:*"
+            )],
+        )
+        row = next(x for x in self.client.get(
+            "/api/vulnerabilities/cpe-overview/").data["results"] if x["asset_id"] == self.asset.pk)
+        self.assertEqual(row["identification_status"], "STALE")
+        self.assertEqual(row["run_id"], newer.pk)
+        self.assertEqual(row["candidate_count"], 1)
+        self.assertEqual(row["confirmed_count"], 0)
+        self.assertEqual(row["out_of_scope_count"], 1)

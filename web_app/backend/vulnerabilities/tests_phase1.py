@@ -148,7 +148,7 @@ class CpeSearchAPITests(TestCase):
         response = self.client.get("/api/vulnerabilities/cpe-overview/")
         row = next(row for row in response.data["results"]
                    if row["asset_id"] == self.asset.pk)
-        self.assertEqual(row["identification_status"], "CANDIDATES")
+        self.assertEqual(row["identification_status"], "TO_REVIEW")
         self.assertEqual(row["candidate_count"], 1)
 
         self.asset.hardware.cpu_model = "1214C"
