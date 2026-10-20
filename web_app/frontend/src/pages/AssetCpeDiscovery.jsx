@@ -195,17 +195,22 @@ export default function AssetCpeDiscovery() {
           <ul className="cpe-query-list">{(run.queries || []).map((query,i) =>
             <li key={i}>
               <span className="cpe-query-method">{query.strategy}</span>:
-              {" "}<code>{query.parameter}</code>
-              <div className="cpe-query-links">
-                {Array.from({ length: Math.min(Math.max(Number(query.pages) || 0, 0), 3) },
-                  (_, page) => {
-                    const url = nvdQueryUrl(query, page);
-                    return url && <a key={page} href={url}
+              {" "}{nvdQueryUrl(query, 0) && Number(query.pages) > 0
+                ? <a className="cpe-query-param-link" href={nvdQueryUrl(query, 0)}
+                    target="_blank" rel="noopener noreferrer">
+                    <code>{query.parameter}</code> ↗
+                  </a>
+                : <code>{query.parameter}</code>}
+              {Number(query.pages) > 1 && <div className="cpe-query-links">
+                {Array.from({ length: Math.min(Number(query.pages), 3) - 1 },
+                  (_, i) => {
+                    const page = i + 1;
+                    return <a key={page} href={nvdQueryUrl(query, page)}
                       target="_blank" rel="noopener noreferrer">
                       Ver JSON en NVD (página {page + 1}) ↗
                     </a>;
                   })}
-              </div>
+              </div>}
             </li>)}</ul>
           <p className="cpe-hint">
             Los enlaces consultan NVD en tiempo real. Su contenido puede haber
