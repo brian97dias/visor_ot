@@ -324,6 +324,19 @@ class WorkerLockStatusTests(SimpleTestCase):
         from .management.commands.run_cpe_worker import ADVISORY_LOCK_ID as command_lock
         self.assertEqual(command_lock, ADVISORY_LOCK_ID)
 
+    def test_postgres_lock_detection_is_read_only(self):
+        fake = Mock()
+        fake.vendor = "postgresql"
+        cursor = fake.cursor.return_value.__enter__.return_value
+        cursor.fetchone.return_value = (True,)
+        with patch("vulnerabilities.services.worker_lock.connection", fake):
+            self.assertTrue(worker_lock_held())
+        sql, args = cursor.execute.call_args.args
+        self.assertIn("FROM pg_locks", sql)
+        self.assertNotIn("pg_try_advisory_lock", sql)
+        self.assertEqual(args, [str(ADVISORY_LOCK_ID >> 32),
+                                str(ADVISORY_LOCK_ID & 0xFFFFFFFF)])
+
     def test_non_postgres_returns_unknown(self):
         from django.db import connection
         if connection.vendor != "postgresql":
