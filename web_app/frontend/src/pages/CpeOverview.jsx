@@ -159,7 +159,12 @@ export default function CpeOverview() {
         " (trabajo #" + result.run_id + "). Se procesará en la cola NVD.");
       pollStartedAt.current = Date.now();
       setPollingPaused(false);
-      await refreshOverview();
+      try {
+        await refreshOverview();
+      } catch (refreshError) {
+        setError("La búsqueda ya está registrada, pero no se pudo actualizar la tabla: " +
+          refreshError.message);
+      }
     } catch (err) {
       setError("No se pudo solicitar la búsqueda de " + row.asset_name + ": " + err.message);
     } finally {
@@ -182,7 +187,12 @@ export default function CpeOverview() {
         " omitidas y " + result.summary.failed + " con error.");
       pollStartedAt.current = Date.now();
       setPollingPaused(false);
-      await refreshOverview();
+      try {
+        await refreshOverview();
+      } catch (refreshError) {
+        setBulkError("Los trabajos ya fueron registrados, pero falló la actualización " +
+          "de la tabla: " + refreshError.message);
+      }
     } catch (err) {
       setBulkError(err.message);
     } finally {
@@ -433,8 +443,10 @@ export default function CpeOverview() {
           </div>
           <p className="cpe-bulk-hint">
             La API registró los trabajos, pero el worker NVD deberá procesarlos.
-            Consulta sus estados desde esta misma tabla.
+            Para ello debe estar ejecutándose <code>python manage.py run_cpe_worker</code>
+            en otra terminal. Consulta sus estados desde esta misma tabla.
           </p>
+          {bulkError && <p className="error-message" role="alert">{bulkError}</p>
           <div className="cpe-bulk-dialog-actions">
             <button className="button-primary" type="button" ref={dialogFocus}
               onClick={() => setDialogOpen(false)}>Volver a Identificación CPE</button>

@@ -1,5 +1,4 @@
 """Bulk CPE discovery. Submits durable work only; NVD remains worker-owned."""
-from django.db import DatabaseError
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
