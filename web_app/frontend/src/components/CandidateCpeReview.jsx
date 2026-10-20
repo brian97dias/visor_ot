@@ -5,28 +5,24 @@ import {
 
 const ACTIONS = [
   {
-    status: "CONFIRMED",
-    label: "Seleccionar CPE",
-    title: "Confirmar asociación CPE",
-    submit: "Confirmar asociación",
-    tone: "confirm",
-    explanation: "Se asociará este CPE oficial con el hardware inventariado.",
+    status: "CONFIRMED", label: "Seleccionar CPE",
+    title: "Confirmar asociación CPE", submit: "Confirmar asociación",
+    tone: "confirm", explanation: "Se asociará este CPE oficial con el hardware inventariado.",
   },
   {
-    status: "REJECTED",
-    label: "Rechazar candidato",
-    title: "Confirmar rechazo",
-    submit: "Confirmar rechazo",
-    tone: "reject",
-    explanation: "El candidato quedará descartado para este activo, con una decisión auditable.",
+    status: "REJECTED", label: "Rechazar candidato",
+    title: "Confirmar rechazo", submit: "Confirmar rechazo",
+    tone: "reject", explanation: "El CPE quedará rechazado para este activo. La decisión se conserva.",
   },
   {
-    status: "PENDING",
-    label: "Dejar pendiente",
-    title: "Guardar para revisión",
-    submit: "Guardar pendiente",
-    tone: "pending",
-    explanation: "El candidato quedará asociado como pendiente, sin considerarse confirmado.",
+    status: "PENDING", label: "Dejar pendiente",
+    title: "Guardar para revisión", submit: "Guardar pendiente",
+    tone: "pending", explanation: "Se registrará como pendiente, sin confirmar su aplicabilidad.",
+  },
+  {
+    status: "REOPENED", label: "Reabrir revisión",
+    title: "Retirar decisión actual", submit: "Reabrir revisión",
+    tone: "reopen", explanation: "La decisión se retirará y el CPE volverá a candidatos. El historial no se borra.",
   },
 ];
 
@@ -39,9 +35,17 @@ export default function CandidateCpeReview({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const canDecide = allowed && Boolean(candidate) &&
+
+  const reviewed = Boolean(association && association.validation_status !== "REOPENED");
+  const canEvaluate = allowed && Boolean(candidate) &&
     run?.status === "COMPLETED" && run.identity_is_current;
-  const action = ACTIONS.find(item => item.status === selection);
+  // Re-opening withdraws an existing judgement and does not need a new NVD run.
+  const canReopen = allowed && reviewed;
+  const available = ACTIONS.filter(item =>
+    item.status === "REOPENED" ? canReopen
+      : canEvaluate && (!reviewed || association.validation_status !== item.status)
+  );
+  const action = available.find(item => item.status === selection);
 
   function choose(status) {
     setSelection(status);
@@ -57,17 +61,17 @@ export default function CandidateCpeReview({
   }
 
   async function saveDecision() {
-    if (!action || busy || !canDecide) return;
+    if (!action || busy) return;
     setBusy(true);
     setError("");
     setMessage("");
     try {
-      const payload = {
-        run_id: run.id,
-        cpe_name_id: candidate.cpe_name_id,
-        status: action.status,
-        justification: justification.trim(), // Optional for all three decisions.
-      };
+      const payload = action.status === "REOPENED"
+        ? { status: "REOPENED", justification: justification.trim() }
+        : {
+            run_id: run.id, cpe_name_id: candidate.cpe_name_id,
+            status: action.status, justification: justification.trim(),
+          };
       if (association) {
         await updateAssetCpeAssociation(assetId, association.id, payload);
       } else {
@@ -77,9 +81,7 @@ export default function CandidateCpeReview({
       setSelection(null);
       setJustification("");
       setEditing(false);
-      if (association) setMessage("Decisión actualizada y guardada en el historial.");
-      // A newly reviewed candidate moves into "Asociaciones revisadas" and
-      // this component is unmounted; its textarea never remains on screen.
+      setMessage("Decisión guardada en el historial.");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -87,62 +89,55 @@ export default function CandidateCpeReview({
     }
   }
 
-  return (
-    <div className="cpe-review-form">
-      {!canDecide ? (
-        <p className="cpe-hint">
-          {!allowed ? "Solo un analista o administrador puede registrar decisiones." :
-            !run?.identity_is_current ? "La identidad cambió; busca nuevamente antes de validar." :
-            !candidate ? "Este CPE no está entre los candidatos de la búsqueda actual." :
-            "La búsqueda debe finalizar antes de validar los candidatos."}
-        </p>
-      ) : <>
-        {association && !editing && !selection && (
-          <button className="cpe-decision-button cpe-decision-edit" type="button"
-            onClick={() => { setEditing(true); setMessage(""); }}>
-            Cambiar decisión
-          </button>
-        )}
-        {(!association || editing) && !action && (
-          <div className="cpe-review-actions" role="group"
-            aria-label={association ? "Nueva decisión para CPE revisado" : "Revisar candidato CPE"}>
-            {ACTIONS.map(item => (
-              <button key={item.status} type="button"
-                className={"cpe-decision-button cpe-decision-" + item.tone}
-                disabled={busy} onClick={() => choose(item.status)}>
-                {item.label}
-              </button>
-            ))}
-            {association && <button type="button"
-              className="cpe-decision-button cpe-decision-cancel"
-              onClick={() => setEditing(false)}>Cancelar edición</button>}
-          </div>
-        )}
-        {action && (
-          <div className="cpe-review-confirmation" data-tone={action.tone}>
-            <h4>{action.title}</h4>
-            <p>{action.explanation}</p>
-            <label htmlFor={"cpe-reason-" + candidate.cpe_name_id}>
-              Justificación <span className="cpe-optional">(opcional)</span>
-            </label>
-            <textarea id={"cpe-reason-" + candidate.cpe_name_id}
-              maxLength={1000} value={justification} disabled={busy}
-              placeholder="Puedes registrar la evidencia o el motivo de tu decisión."
-              onChange={event => { setJustification(event.target.value); setError(""); }}/>
-            <div className="cpe-review-actions">
-              <button type="button"
-                className={"cpe-decision-button cpe-decision-" + action.tone}
-                disabled={busy} onClick={saveDecision}>
-                {busy ? "Guardando..." : action.submit}
-              </button>
-              <button type="button" className="cpe-decision-button cpe-decision-cancel"
-                disabled={busy} onClick={cancel}>Cancelar</button>
-            </div>
-          </div>
-        )}
-      </>}
-      {error && <p className="cpe-review-form-error" role="alert">{error}</p>}
-      {message && <p className="cpe-hint" role="status">{message}</p>}
-    </div>
-  );
+  return <div className="cpe-review-form">
+    {reviewed && !editing && !selection && canReopen && (
+      <button className="cpe-decision-button cpe-decision-edit" type="button"
+        onClick={() => { setEditing(true); setMessage(""); }}>
+        Cambiar decisión
+      </button>
+    )}
+    {(!reviewed || editing) && !action && (
+      <div className="cpe-review-actions" role="group" aria-label="Acciones CPE disponibles">
+        {available.map(item => <button key={item.status} type="button"
+          className={"cpe-decision-button cpe-decision-" + item.tone}
+          disabled={busy} onClick={() => choose(item.status)}>{item.label}</button>)}
+        {reviewed && editing && <button type="button"
+          className="cpe-decision-button cpe-decision-cancel"
+          onClick={() => setEditing(false)}>Cancelar edición</button>}
+      </div>
+    )}
+    {action && <div className="cpe-review-confirmation" data-tone={action.tone}>
+      <h4>{action.title}</h4>
+      <p>{action.explanation}</p>
+      <label htmlFor={"cpe-reason-" + (candidate?.cpe_name_id || association?.cpe_name_id)}>
+        Justificación <span className="cpe-optional">(opcional)</span>
+      </label>
+      <textarea
+        id={"cpe-reason-" + (candidate?.cpe_name_id || association?.cpe_name_id)}
+        maxLength={1000} value={justification} disabled={busy}
+        placeholder="Puedes registrar la evidencia o el motivo de tu decisión."
+        onChange={event => { setJustification(event.target.value); setError(""); }}
+      />
+      <div className="cpe-review-actions">
+        <button type="button"
+          className={"cpe-decision-button cpe-decision-" + action.tone}
+          disabled={busy} onClick={saveDecision}>
+          {busy ? "Guardando..." : action.submit}
+        </button>
+        <button type="button" className="cpe-decision-button cpe-decision-cancel"
+          disabled={busy} onClick={cancel}>Cancelar</button>
+      </div>
+    </div>}
+    {!allowed && <p className="cpe-hint">Solo un analista o administrador puede guardar decisiones.</p>}
+    {allowed && !canEvaluate && !reviewed && <p className="cpe-hint">
+      La búsqueda debe estar finalizada y corresponder a la identidad técnica actual
+      antes de confirmar, rechazar o dejar pendiente.
+    </p>}
+    {allowed && reviewed && !canEvaluate && <p className="cpe-hint">
+      Para cambiar la aplicabilidad se necesita una búsqueda vigente.
+      Puedes reabrir esta revisión sin consultar NVD.
+    </p>}
+    {error && <p className="cpe-review-form-error" role="alert">{error}</p>}
+    {message && <p className="cpe-hint" role="status">{message}</p>}
+  </div>;
 }
