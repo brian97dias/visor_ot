@@ -145,3 +145,20 @@ Solo `ADMIN` y `ANALYST` pueden solicitar búsquedas; `OPERATOR` puede verlas. S
 Se habilitó `/vulnerabilities/cpe` y el grupo **VULNERABILIDADES** con iconos en el menú lateral. La vista global consulta mediante `GET /api/vulnerabilities/cpe-overview/` un resumen de activos inventariados y su última búsqueda: sin búsqueda, en cola, consultando, candidatos por revisar, sin resultados, error o identidad modificada. Para Software indica explícitamente que las búsquedas estarán disponibles en la fase 4. No muestra asociaciones confirmadas antes de la fase 2. La vista incluye filtro, búsqueda, actualización manual y navegación hacia la pantalla CPE ya existente en el detalle de cada hardware. `Análisis CVE (futuro)` es un elemento informativo deshabilitado, no una ruta funcional.
 
 Este endpoint global es **solo lectura**, autorizado para los tres roles del inventario y no invoca NVD. No requiere nuevas migraciones ni modifica los mecanismos del worker.
+
+
+### Diagnóstico de búsquedas que permanecen en cola
+
+La pantalla de identificación CPE consulta periódicamente el estado almacenado en PostgreSQL. Los `GET 200` del navegador **no equivalen a peticiones NVD**, y el trabajo sigue guardado incluso si se cambia de pantalla o se cierra React.
+
+Durante `QUEUED` y `RUNNING`, el backend incluye `worker_active`: `true` indica que se detecta el bloqueo exclusivo del trabajador en `pg_locks`, `false` que no se detecta, y `null` que no puede determinarse fuera de PostgreSQL. No garantiza que NVD responda correctamente. Pasados cinco minutos, la pantalla pausa la consulta automática y permite refrescar el estado manualmente.
+
+Si una ejecución permanece pendiente, comprueba el comando `python manage.py run_cpe_worker` en una segunda terminal. Para revisar un trabajo concreto sin hacer nuevas peticiones externas:
+
+```bash
+python manage.py shell -c "from vulnerabilities.models import CpeSearchRun; print(list(CpeSearchRun.objects.filter(pk=2).values('id','status','created_at','started_at','finished_at','error_message','queries')))"
+```
+
+Al reiniciar el trabajador, los trabajos abandonados en `RUNNING` pasan a `FAILED`; los `QUEUED` se conservan y se procesan. Un fallo temporal de autenticación JWT normalmente genera un `401` seguido de renovación de token y de otro `GET 200`, sin afectar el trabajador.
+
+El menú usa geometrías SVG oficiales de Lucide y la vista global tiene filtros explícitos Hardware/Software; la búsqueda de software sigue reservada para la fase 4.
