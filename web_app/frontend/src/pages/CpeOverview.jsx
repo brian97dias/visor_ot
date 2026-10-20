@@ -446,7 +446,7 @@ export default function CpeOverview() {
             Para ello debe estar ejecutándose <code>python manage.py run_cpe_worker</code>
             en otra terminal. Consulta sus estados desde esta misma tabla.
           </p>
-          {bulkError && <p className="error-message" role="alert">{bulkError}</p>
+          {bulkError && <p className="error-message" role="alert">{bulkError}</p>}
           <div className="cpe-bulk-dialog-actions">
             <button className="button-primary" type="button" ref={dialogFocus}
               onClick={() => setDialogOpen(false)}>Volver a Identificación CPE</button>
