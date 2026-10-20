@@ -41,11 +41,15 @@ export default function CandidateCpeReview({
     run?.status === "COMPLETED" && run.identity_is_current;
   // Re-opening withdraws an existing judgement and does not need a new NVD run.
   const canReopen = allowed && reviewed;
+  const hasNewEvidence = reviewed && canEvaluate &&
+    (association.source_run_id !== run.id || association.needs_review);
   const available = ACTIONS.filter(item =>
     item.status === "REOPENED" ? canReopen
-      : canEvaluate && (!reviewed || association.validation_status !== item.status)
+      : canEvaluate && (!reviewed || association.validation_status !== item.status || hasNewEvidence)
   );
   const action = available.find(item => item.status === selection);
+  const revalidating = Boolean(action && reviewed &&
+    association.validation_status === action.status);
 
   function choose(status) {
     setSelection(status);
@@ -100,15 +104,22 @@ export default function CandidateCpeReview({
       <div className="cpe-review-actions" role="group" aria-label="Acciones CPE disponibles">
         {available.map(item => <button key={item.status} type="button"
           className={"cpe-decision-button cpe-decision-" + item.tone}
-          disabled={busy} onClick={() => choose(item.status)}>{item.label}</button>)}
+          disabled={busy} onClick={() => choose(item.status)}>
+          {hasNewEvidence && item.status === association?.validation_status
+            ? "Revalidar " + (item.status === "CONFIRMED" ? "confirmación"
+              : item.status === "REJECTED" ? "rechazo" : "pendiente")
+            : item.label}
+        </button>)}
         {reviewed && editing && <button type="button"
           className="cpe-decision-button cpe-decision-cancel"
           onClick={() => setEditing(false)}>Cancelar edición</button>}
       </div>
     )}
     {action && <div className="cpe-review-confirmation" data-tone={action.tone}>
-      <h4>{action.title}</h4>
-      <p>{action.explanation}</p>
+      <h4>{revalidating ? "Revalidar CPE con nueva evidencia" : action.title}</h4>
+      <p>{revalidating
+        ? "Una búsqueda nueva contiene este CPE. Confirma de nuevo su aplicabilidad; el historial anterior permanecerá."
+        : action.explanation}</p>
       <label htmlFor={"cpe-reason-" + (candidate?.cpe_name_id || association?.cpe_name_id)}>
         Justificación <span className="cpe-optional">(opcional)</span>
       </label>
