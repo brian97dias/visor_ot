@@ -153,3 +153,14 @@ class CpeBulkSearchTests(TestCase):
         run = CpeSearchRun.objects.get(pk=response.data["results"][0]["run_id"])
         self.assertEqual(run.scope, "SPECIFIC")
         self.assertEqual(run.identity_snapshot["cpu_model"], "")
+
+
+    def test_individual_and_bulk_share_the_same_pending_search(self):
+        endpoint = f"/api/vulnerabilities/assets/{self.plc.pk}/cpe-searches/"
+        single = self.client.post(endpoint, {"scope": "SPECIFIC"}, format="json")
+        self.assertEqual(single.status_code, 202, single.data)
+        batch = self.bulk([self.plc.pk])
+        self.assertEqual(batch.status_code, 202, batch.data)
+        self.assertEqual(batch.data["summary"]["reused"], 1)
+        self.assertEqual(batch.data["results"][0]["run_id"], single.data["run_id"])
+        self.assertEqual(CpeSearchRun.objects.count(), 1)

@@ -75,7 +75,10 @@ class CpeBulkSearchView(APIView):
                             run_id=run.pk, status=run.status,
                         )
                         summary["reused" if reused else "queued"] += 1
-                    except (ValueError, serializers.ValidationError) as exc:
+                    except Asset.DoesNotExist:
+                        result.update(outcome="NOT_FOUND", message="El activo dejó de existir.")
+                        summary["failed"] += 1
+                    except (ValueError, AttributeError, serializers.ValidationError) as exc:
                         # One bad identity must not roll back valid sibling jobs.
                         reason = (getattr(exc, "detail", None) or str(exc))
                         result.update(outcome="INVALID_IDENTITY", message=str(reason))
