@@ -2,7 +2,9 @@
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import SimpleTestCase, TestCase
+from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient
 
 from assets.models import Asset
@@ -10,7 +12,7 @@ from assets.services import register_hardware_asset
 from .models import CpeSearchRun
 from .services.identity import build_queries, fingerprint, hardware_identity
 from .services.candidate_matching import merge_candidates
-from .services.cpe_search import execute_run, serialize_run
+from .services.cpe_search import create_run, execute_run, serialize_run
 from .services.nvd_client import PublicNvdPacer, NvdError
 
 
@@ -98,6 +100,22 @@ class CpeSearchAPITests(TestCase):
             user=self.operator,
         )
         self.base = f"/api/vulnerabilities/assets/{self.asset.pk}/cpe-searches/"
+
+    def test_search_locks_only_asset_without_joining_optional_hardware(self):
+        """Prevent PostgreSQL's FOR UPDATE on nullable outer-joined hardware."""
+        with CaptureQueriesContext(connection) as captured:
+            run = create_run(self.asset.pk, self.analyst, "SPECIFIC")
+
+        self.assertEqual(run.status, CpeSearchRun.Status.QUEUED)
+        asset_queries = [
+            entry["sql"] for entry in captured
+            if 'FROM "assets_asset"' in entry["sql"]
+            and entry["sql"].lstrip().upper().startswith("SELECT")
+        ]
+        self.assertEqual(len(asset_queries), 1, asset_queries)
+        self.assertNotIn("JOIN", asset_queries[0].upper())
+        if connection.vendor == "postgresql":
+            self.assertIn("FOR UPDATE", asset_queries[0].upper())
 
     def test_request_is_queued_and_reuses_open_run(self):
         first = self.client.post(self.base, {"scope": "SPECIFIC"}, format="json")
