@@ -5,14 +5,17 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 from django.utils import timezone
 
-from vulnerabilities.models import CpeSearchRun
+from vulnerabilities.models import CpeSearchRun, CpeQuerySnapshot
 from vulnerabilities.services.cpe_search import execute_run
+from vulnerabilities.services.cpe_catalogue import (
+    execute_catalogue_snapshot, recover_interrupted_catalogue_snapshots,
+)
 from vulnerabilities.services.nvd_client import PublicNvdPacer
 from vulnerabilities.services.worker_lock import ADVISORY_LOCK_ID
 
 
 class Command(BaseCommand):
-    help = "Procesa búsquedas CPE pendientes (solo una instancia global en PostgreSQL)."
+    help = "Procesa búsquedas de activos y recuperaciones de catálogo NVD con un lock global."
 
     def add_arguments(self, parser):
         parser.add_argument("--once", action="store_true", help="Procesa como máximo un trabajo y termina.")
@@ -37,6 +40,7 @@ class Command(BaseCommand):
 
         pacer = PublicNvdPacer(guard=require_lock)
         try:
+            recover_interrupted_catalogue_snapshots()
             # After crashes never present abandoned RUNNING results as live.
             CpeSearchRun.objects.filter(status=CpeSearchRun.Status.RUNNING).update(
                 status=CpeSearchRun.Status.FAILED,
@@ -51,15 +55,36 @@ class Command(BaseCommand):
                 run = CpeSearchRun.objects.filter(
                     status=CpeSearchRun.Status.QUEUED
                 ).order_by("created_at", "pk").first()
-                if run is not None:
+                snapshot = CpeQuerySnapshot.objects.filter(
+                    status__in=(
+                        CpeQuerySnapshot.Status.QUEUED,
+                        CpeQuerySnapshot.Status.INCOMPLETE,
+                    )
+                ).select_related("cache").order_by("created_at", "pk").first()
+                # Fair scheduling by original enqueue time. Legacy asset jobs
+                # and shared catalogue jobs never launch simultaneous NVD calls.
+                choose_legacy = run is not None and (
+                    snapshot is None or run.created_at <= snapshot.created_at
+                )
+                if choose_legacy:
                     self.stdout.write(f"Buscando CPE: trabajo #{run.pk}, activo #{run.asset_id}")
                     execute_run(run, pacer)
                     self.stdout.write(f"Trabajo #{run.pk}: {run.status}, {len(run.candidates)} candidatos")
-                elif options["once"]:
+                elif snapshot is not None:
+                    self.stdout.write(
+                        f"Recuperando catálogo: snapshot #{snapshot.pk}, "
+                        f"{snapshot.cache.strategy}={snapshot.cache.parameter} "
+                        f"desde startIndex={snapshot.next_start_index}"
+                    )
+                    result = execute_catalogue_snapshot(snapshot, pacer)
+                    self.stdout.write(
+                        f"Snapshot #{snapshot.pk}: {result.status}, "
+                        f"{result.unique_products_count} productos, "
+                        f"checkpoint={result.next_start_index}"
+                    )
+                if options["once"]:
                     break
-                if options["once"] and run is not None:
-                    break
-                if run is None:
+                if run is None and snapshot is None:
                     time.sleep(options["poll_seconds"])
         except KeyboardInterrupt:
             self.stdout.write("Trabajador detenido. Trabajos pendientes conservados.")
