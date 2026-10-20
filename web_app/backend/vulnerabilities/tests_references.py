@@ -56,6 +56,7 @@ class NvdReferenceValidationTests(SimpleTestCase):
             {"ref": "javascript:alert(1)", "type": "Product"},
             {"ref": "http://siemens.com/something", "type": "Advisory"},
             {"ref": "https://127.0.0.1/admin", "type": "Product"},
+            {"ref": "https://127.1/admin", "type": "Product"},
             {"ref": "https://localhost/page", "type": "Product"},
             {"ref": "https://private.internal/config", "type": "Product"},
             {"ref": "https://user:pass@siemens.com", "type": "Product"},
@@ -66,8 +67,9 @@ class NvdReferenceValidationTests(SimpleTestCase):
         self.assertEqual(safe_references(raw), [
             {"url": ADVISORY_URL, "type": "Advisory", "source": "NVD"},
         ])
-        for item in raw[:-3]:
-            self.assertIsNone(safe_reference_url(item["ref"]))
+        for item in raw:
+            if item["ref"] != ADVISORY_URL:
+                self.assertIsNone(safe_reference_url(item["ref"]))
 
     def test_malformed_and_legacy_entries_are_safe(self):
         self.assertEqual(safe_references(None), [])

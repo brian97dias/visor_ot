@@ -4,6 +4,7 @@ NVD supplies links, not an independent guarantee that the destinations are
 authoritative. No HTTP requests are performed here.
 """
 import ipaddress
+import re
 from urllib.parse import urlsplit
 
 MAX_NVD_REFERENCES = 20
@@ -29,13 +30,14 @@ def safe_reference_url(value):
         except ValueError:
             pass
         host = host.lower().rstrip(".")
+        labels = host.split(".")
         if (host == "localhost" or host.endswith((".localhost", ".local", ".internal",
                                                    ".test", ".invalid", ".example"))
-                or "." not in host or len(host) > 253
-                or any(not label or len(label) > 63 or label[0] == "-" or
-                       label[-1] == "-" or not all(ch.isalnum() or ch == "-"
-                                                 for ch in label)
-                       for label in host.split("."))):
+                or len(labels) < 2 or len(host) > 253
+                or all(label.isdigit() for label in labels)
+                or any(len(label) > 63 or re.fullmatch(
+                    r"[a-z0-9]+(?:-[a-z0-9]+)*", label, flags=re.ASCII
+                ) is None for label in labels)):
             return None
     except (ValueError, TypeError):
         return None
