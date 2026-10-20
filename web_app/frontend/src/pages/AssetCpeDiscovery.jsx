@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useOutletContext, useParams } from "react-router-dom";
 import { getAsset } from "../api/assets";
-import { latestCpeSearch, readCpeSearch, startCpeSearch } from "../api/vulnerabilities";
+import {
+  latestCpeSearch, readCpeSearch, startCpeSearch, getAssetCpeAssociations,
+} from "../api/vulnerabilities";
+import CandidateCpeReview from "../components/CandidateCpeReview";
 
 const statusText = {
   QUEUED: "Pendiente de ejecución", RUNNING: "Consultando NVD",
@@ -27,6 +30,8 @@ export default function AssetCpeDiscovery() {
   const [refreshing, setRefreshing] = useState(false);
   const [pollingPaused, setPollingPaused] = useState(false);
   const [error, setError] = useState("");
+  const [associations, setAssociations] = useState([]);
+  const [associationError, setAssociationError] = useState("");
   const allowed = ["ADMIN", "ANALYST"].includes(user?.role);
   const pending = ["QUEUED", "RUNNING"].includes(run?.status);
 
@@ -37,8 +42,11 @@ export default function AssetCpeDiscovery() {
     setPollingPaused(false);
     setAsset(null);
     setError("");
-    Promise.all([getAsset(assetId), latestCpeSearch(assetId)])
-      .then(([a, r]) => { if (active) { setAsset(a); setRun(r); } })
+    setAssociationError("");
+    Promise.all([getAsset(assetId), latestCpeSearch(assetId), getAssetCpeAssociations(assetId)])
+      .then(([a, r, matches]) => {
+        if (active) { setAsset(a); setRun(r); setAssociations(matches); }
+      })
       .catch(err => { if (active) setError(err.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -60,6 +68,16 @@ export default function AssetCpeDiscovery() {
     }, 5000);
     return () => { active = false; window.clearInterval(timer); };
   }, [assetId, run?.id, run?.status, pending, pollingPaused]);
+
+  async function refreshAssociations() {
+    try {
+      const updated = await getAssetCpeAssociations(assetId);
+      setAssociations(updated);
+      setAssociationError("");
+    } catch (err) {
+      setAssociationError(err.message);
+    }
+  }
 
   async function refresh() {
     if (!run || refreshing) return;
@@ -172,6 +190,43 @@ export default function AssetCpeDiscovery() {
               {query.pages} página(s) · {query.retrieved} registro(s) NVD sin filtrar</li>)}</ul>
         </div>
       </section>
+      <section className="panel cpe-review-summary">
+        <div className="panel-header"><h2>Asociaciones revisadas</h2>
+          <span className="record-count">{associations.length} decisiones registradas</span>
+        </div>
+        <div className="cpe-copy">
+          {associationError && <p className="cpe-warning" role="alert">{associationError}</p>}
+          {associations.length === 0
+            ? <p>Aún no hay asociaciones CPE registradas por un analista.</p>
+            : <div className="cpe-association-list">
+                {associations.map(item => (
+                  <div className="cpe-association" key={item.id}>
+                    <div className="cpe-review-row">
+                      <strong>{item.title}</strong>
+                      <span className="cpe-review-status" data-validation={item.validation_status}>
+                        {item.validation_status === "CONFIRMED" ? "Confirmado" :
+                         item.validation_status === "REJECTED" ? "Rechazado" : "Pendiente"}
+                      </span>
+                    </div>
+                    <code>{item.cpe_name}</code>
+                    <p>{item.justification || "Sin justificación registrada"}</p>
+                    {item.needs_review && <p className="cpe-warning">
+                      La identidad técnica del activo cambió: esta asociación necesita nueva revisión.
+                    </p>}
+                    <details className="cpe-audit">
+                      <summary>Historial de decisiones ({item.history.length})</summary>
+                      <ul>{item.history.map(history => <li key={history.id}>
+                        {new Date(history.created_at).toLocaleString("es-CO")} —
+                        {" "}{history.actor || "Usuario retirado"}: {history.new_status}
+                        {history.previous_status ? " (antes " + history.previous_status + ")" : ""}
+                        {history.justification ? " — " + history.justification : ""}
+                      </li>)}</ul>
+                    </details>
+                  </div>
+                ))}
+              </div>}
+        </div>
+      </section>
       {run.candidates?.map(c => <article className="cpe-card" key={c.cpe_name_id}>
         <h3>{c.title}</h3><code>{c.cpe_name}</code>
         <div className="cpe-tags">
@@ -181,10 +236,16 @@ export default function AssetCpeDiscovery() {
           <span>Método: {c.methods.join(" y ")}</span>
         </div>
         <p>{c.match_reason}</p>
+        <CandidateCpeReview
+          candidate={c} assetId={assetId} run={run}
+          association={associations.find(item => item.cpe_name_id.toLowerCase() === c.cpe_name_id.toLowerCase())}
+          allowed={allowed && asset.inventory_status === "ACTIVE"}
+          onReviewed={refreshAssociations}
+        />
       </article>)}
       {run.candidate_count > 0 && <p className="cpe-copy">
-        Estos resultados son candidatos, no asociaciones confirmadas.
-        La validación del analista se implementará en la fase 2.</p>}
+        Los resultados NVD no se confirman automáticamente. Una asociación solo
+        existe cuando el analista guarda una decisión de revisión.</p>}
     </>}
   </section>;
 }

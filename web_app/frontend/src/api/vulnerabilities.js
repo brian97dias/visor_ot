@@ -33,3 +33,24 @@ export async function getCpeOverview() {
   const data = await request("/api/vulnerabilities/cpe-overview/");
   return data.results;
 }
+
+
+/** Analyst-created CPE decisions; no automatic confirmation. */
+export async function getAssetCpeAssociations(id) {
+  const data = await request("/api/vulnerabilities/assets/" + id + "/cpes/");
+  return data.associations;
+}
+
+export async function createAssetCpeAssociation(id, payload) {
+  return request("/api/vulnerabilities/assets/" + id + "/cpes/", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAssetCpeAssociation(id, associationId, payload) {
+  return request("/api/vulnerabilities/assets/" + id + "/cpes/" + associationId + "/", {
+    method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}

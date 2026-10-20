@@ -2326,3 +2326,27 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 
 /* CPE overview count: hardware and software inside one summary tile. */
 .cpe-overview-stat small { display: block; margin-top: 7px; color: #7dd3fc; font-size: .78rem; }
+
+/* Phase 2: analyst CPE decisions and audit history */
+.cpe-review-summary { margin: 16px 0; }
+.cpe-association-list { display: grid; gap: 12px; }
+.cpe-association { border: 1px solid #334155; border-radius: 7px; padding: 12px; }
+.cpe-association code { display: block; overflow-wrap: anywhere; color: #93c5fd; margin-top: 5px; }
+.cpe-review-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+.cpe-review-status { border: 1px solid #475569; padding: 4px 9px; font-size: .8rem; border-radius: 5px; color: #94a3b8; }
+.cpe-review-status[data-validation="CONFIRMED"] { color: #86efac; border-color: #166534; }
+.cpe-review-status[data-validation="REJECTED"] { color: #fca5a5; border-color: #991b1b; }
+.cpe-review-status[data-validation="PENDING"] { color: #fcd34d; border-color: #854d0e; }
+.cpe-audit summary { cursor: pointer; color: #7dd3fc; margin-top: 12px; font-size: .85rem; }
+.cpe-audit li { color: #94a3b8; font-size: .8rem; line-height: 1.6; }
+.cpe-review-form { border-top: 1px solid #334155; padding-top: 14px; margin-top: 16px; }
+.cpe-review-form label { display: block; color: #cbd5e1; font-size: .85rem; margin-bottom: 6px; }
+.cpe-review-form textarea { display: block; width: 100%; min-height: 62px; background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px; padding: 9px; font: inherit; resize: vertical; }
+.cpe-review-form textarea:focus { outline: 2px solid #38bdf8; outline-offset: 1px; }
+.cpe-review-actions { display: flex; flex-wrap: wrap; gap: 9px; margin: 11px 0; }
+.cpe-review-actions button { border-radius: 6px; border: 1px solid #475569; padding: 8px 12px; background: #111827; color: #e2e8f0; cursor: pointer; }
+.cpe-review-actions button:hover:not(:disabled) { border-color: #38bdf8; }
+.cpe-review-actions button:disabled { opacity: .45; cursor: not-allowed; }
+.cpe-review-form-error { color: #fecaca !important; font-size: .83rem !important; }
+.cpe-overview-status[data-status="CONFIRMED"] { color: #86efac; }
+.cpe-overview-status[data-status="PENDING_VALIDATION"] { color: #fcd34d; }

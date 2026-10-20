@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { latestCpeSearch } from "../api/vulnerabilities";
+import { latestCpeSearch, getAssetCpeAssociations } from "../api/vulnerabilities";
 
 export default function AssetCpeSection({ asset }) {
   const [run, setRun] = useState(null);
+  const [associations, setAssociations] = useState([]);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;
     setReady(false);
-    latestCpeSearch(asset.id)
-      .then(value => { if (active) setRun(value); })
+    Promise.all([latestCpeSearch(asset.id), getAssetCpeAssociations(asset.id)])
+      .then(([value, matches]) => {
+        if (active) { setRun(value); setAssociations(matches); }
+      })
       .catch(err => { if (active) setError(err.message); })
       .finally(() => { if (active) setReady(true); });
     return () => { active = false; };
@@ -27,6 +30,12 @@ export default function AssetCpeSection({ asset }) {
     </p>
     {run && !run.identity_is_current &&
       <div className="cpe-warning">Cambió la identidad del equipo desde esta búsqueda.</div>}
+    {ready && <p className="cpe-copy">
+      CPE confirmados: {associations.filter(item =>
+        item.validation_status === "CONFIRMED" && !item.needs_review).length}.
+      {" "}Asociaciones por revisar: {associations.filter(item =>
+        item.validation_status === "PENDING" || item.needs_review).length}.
+    </p>}
     <div className="cpe-action">
       <Link className="button-secondary" to={"/assets/" + asset.id + "/cpe"}>
         {run ? "Ver candidatos CPE" : "Descubrir candidatos CPE"}

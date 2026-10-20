@@ -12,6 +12,8 @@ const STATUS = {
   FAILED: "Error de consulta",
   STALE: "Identidad modificada",
   NOT_SUPPORTED: "Software: disponible en fase 4",
+  CONFIRMED: "CPE confirmado",
+  PENDING_VALIDATION: "Validación pendiente",
 };
 
 export default function CpeOverview() {
@@ -58,6 +60,7 @@ export default function CpeOverview() {
   const hardwareCount = rows.filter(row => row.asset_type === "HARDWARE").length;
   const softwareCount = rows.filter(row => row.asset_type === "SOFTWARE").length;
   const processing = count("QUEUED") + count("RUNNING");
+  const confirmed = count("CONFIRMED");
 
   return <section className="page">
     <header className="page-header">
@@ -73,6 +76,7 @@ export default function CpeOverview() {
         <small>{hardwareCount} hardware · {softwareCount} software</small>
       </div>
       <div className="cpe-overview-stat"><strong>{count("CANDIDATES")}</strong><span>Con candidatos para revisar</span></div>
+      <div className="cpe-overview-stat"><strong>{confirmed}</strong><span>Con CPE confirmado</span></div>
       <div className="cpe-overview-stat"><strong>{processing}</strong><span>En cola o consultando</span></div>
     </div>
 
@@ -128,7 +132,12 @@ export default function CpeOverview() {
                   </div>}
                 </td>
                 <td>{row.asset_type === "HARDWARE" && row.run_id
-                  ? row.candidate_count : "—"}</td>
+                  ? row.candidate_count : "—"}
+                  {row.confirmed_count > 0 && <div className="cpe-overview-subtitle">
+                    {row.confirmed_count} confirmado(s)</div>}
+                  {row.pending_validation_count > 0 && <div className="cpe-overview-subtitle">
+                    {row.pending_validation_count} validación(es) pendiente(s)</div>}
+                </td>
                 <td>{row.asset_type === "HARDWARE"
                   ? <Link className="button-secondary"
                       to={"/assets/" + row.asset_id + "/cpe"}
@@ -153,8 +162,8 @@ export default function CpeOverview() {
       <p className="cpe-overview-note">
         Actualmente solo se buscan CPE de hardware. Los activos de software se
         muestran para dar visibilidad al inventario, pero su búsqueda llegará en la fase 4.
-        La validación y confirmación de CPE llegará en la fase 2.
-        La ficha de cada hardware mantiene su acceso directo al descubrimiento.
+        La confirmación o el rechazo de candidatos se realiza expresamente
+        desde la revisión de cada hardware y queda registrada con su historial.
       </p>
     </section>
   </section>;
