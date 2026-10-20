@@ -168,16 +168,28 @@ def decide(asset_id, user, data, association_id=None):
     return association
 
 
-def serialize_association(association, current_fingerprint):
+def serialize_association(association, current_fingerprint, fallback=None):
     catalogue = association.cpe
+    references = safe_references(catalogue.nvd_references)
+    reference_run_id = catalogue.references_source_run_id
+    # Existing decisions may predate NVD reference capture. A *later completed*
+    # discovery already stores the original NVD evidence in CpeSearchRun JSON.
+    # Read its Product links without forcing a new analyst decision or writing
+    # to catalogue/audit tables during GET requests.
+    if not any(ref["type"].strip().lower() == "product" for ref in references):
+        if fallback is not None:
+            incoming = safe_references(fallback["references"])
+            if any(ref["type"].strip().lower() == "product" for ref in incoming):
+                references = incoming
+                reference_run_id = fallback["run_id"]
     return {
         "id": association.pk,
         "cpe_name_id": str(catalogue.cpe_name_id),
         "cpe_name": catalogue.cpe_name,
         "title": catalogue.title,
         "deprecated": catalogue.deprecated,
-        "nvd_references": safe_references(catalogue.nvd_references),
-        "references_source_run_id": catalogue.references_source_run_id,
+        "nvd_references": references,
+        "references_source_run_id": reference_run_id,
         "validation_status": association.validation_status,
         "justification": association.justification,
         "validated_at": association.validated_at,
@@ -201,7 +213,42 @@ def list_associations(asset):
         current = fingerprint(hardware_identity(asset))
     except (ValueError, AttributeError):
         current = ""
-    associations = AssetCpe.objects.filter(asset=asset).select_related(
+    associations = list(AssetCpe.objects.filter(asset=asset).select_related(
         "cpe", "validated_by", "source_run"
-    ).prefetch_related("decision_history__actor")
-    return [serialize_association(item, current) for item in associations]
+    ).prefetch_related("decision_history__actor"))
+    if not associations:
+        return []
+
+    # Only seek supplemental evidence for catalogue entries without Product
+    # links. A single bounded query serves every association on the asset.
+    missing_ids = {
+        str(item.cpe.cpe_name_id).lower()
+        for item in associations
+        if not any(ref["type"].strip().lower() == "product"
+                   for ref in safe_references(item.cpe.nvd_references))
+    }
+    recent_products = {}
+    if missing_ids:
+        completed = (
+            CpeSearchRun.objects.filter(asset=asset, status=CpeSearchRun.Status.COMPLETED)
+            .order_by("-created_at", "-pk")
+            .values("id", "candidates")[:10]
+        )
+        for search in completed:
+            for candidate in hardware_candidates(search["candidates"]):
+                identifier = str(candidate.get("cpe_name_id", "")).lower()
+                if identifier not in missing_ids or identifier in recent_products:
+                    continue
+                references = safe_references(candidate.get("nvd_references"))
+                if any(ref["type"].strip().lower() == "product" for ref in references):
+                    recent_products[identifier] = {
+                        "references": references, "run_id": search["id"],
+                    }
+            if len(recent_products) == len(missing_ids):
+                break
+
+    return [
+        serialize_association(item, current,
+                              recent_products.get(str(item.cpe.cpe_name_id).lower()))
+        for item in associations
+    ]

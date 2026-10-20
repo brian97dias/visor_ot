@@ -230,6 +230,52 @@ class NvdReferencesDecisionTests(TestCase):
         self.assertIsNone(created.data["association"]["references_source_run_id"])
         self.assertEqual(Cpe.objects.get().nvd_references, [])
 
+
+    def test_reviewed_legacy_cpe_uses_new_search_product_without_new_decision(self):
+        historical = self.run_with_candidate([])
+        created = self.decide(historical)
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertEqual(Cpe.objects.get().nvd_references, [])
+        later = self.run_with_candidate([
+            {"ref": PRODUCT_URL, "type": "Product"},
+            {"ref": ADVISORY_URL, "type": "Advisory"},
+        ])
+        response = self.client.get(self.api)
+        self.assertEqual(response.status_code, 200, response.data)
+        item = response.data["associations"][0]
+        self.assertEqual(item["references_source_run_id"], later.pk)
+        self.assertEqual(len(item["nvd_references"]), 2)
+        self.assertEqual(item["nvd_references"][0]["url"], PRODUCT_URL)
+        # A read-only API must not rewrite catalogue entries or decisions.
+        self.assertEqual(Cpe.objects.get().nvd_references, [])
+        self.assertEqual(AssetCpeDecision.objects.count(), 1)
+
+    def test_recent_cpe_without_product_does_not_replace_catalogue_product(self):
+        original = self.run_with_candidate([{"ref": PRODUCT_URL, "type": "Product"}])
+        created = self.decide(original)
+        self.assertEqual(created.status_code, 201)
+        later = self.run_with_candidate([{"ref": ADVISORY_URL, "type": "Advisory"}])
+        response = self.client.get(self.api)
+        item = response.data["associations"][0]
+        self.assertEqual(item["references_source_run_id"], original.pk)
+        self.assertEqual(item["nvd_references"][0]["url"], PRODUCT_URL)
+        self.assertEqual(AssetCpeDecision.objects.count(), 1)
+
+    def test_recent_search_other_uuid_never_supplies_incorrect_product(self):
+        old = self.run_with_candidate([])
+        created = self.decide(old)
+        self.assertEqual(created.status_code, 201)
+        run = self.run_with_candidate([])
+        row = run.candidates[0]
+        row["cpe_name_id"] = "72c1d71f-72a7-4520-8773-0d1cfc32e0b9"
+        row["nvd_references"] = [{"url": PRODUCT_URL, "type": "Product", "source": "NVD"}]
+        run.candidates = [row]
+        run.save(update_fields=["candidates"])
+        response = self.client.get(self.api)
+        item = response.data["associations"][0]
+        self.assertEqual(item["nvd_references"], [])
+        self.assertIsNone(item["references_source_run_id"])
+
     def test_reopened_decision_does_not_change_nvd_reference_source(self):
         run = self.run_with_candidate()
         created = self.decide(run)
