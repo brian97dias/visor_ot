@@ -12,6 +12,7 @@ from users.models import User
 from vulnerabilities.models import CpeSearchRun
 from .services.cpe_search import create_run, serialize_run
 from .services.candidate_matching import hardware_candidates
+from .models import AssetCpe
 from .services.identity import fingerprint, hardware_identity
 
 
@@ -20,7 +21,7 @@ class CpeSearchPermission(BasePermission):
         role = getattr(request.user, "role", None)
         if request.method in SAFE_METHODS:
             return role in (User.Role.ADMIN, User.Role.ANALYST, User.Role.OPERATOR)
-        return request.method == "POST" and role in (User.Role.ADMIN, User.Role.ANALYST)
+        return request.method in ("POST", "PATCH") and role in (User.Role.ADMIN, User.Role.ANALYST)
 
 
 def hardware_or_404(asset_id):
@@ -84,11 +85,41 @@ class CpeOverviewView(APIView):
         ).order_by("name", "pk"))
         ids = {asset.last_cpe_run_id for asset in assets if asset.last_cpe_run_id}
         runs = CpeSearchRun.objects.in_bulk(ids)
+        associations_by_asset = {}
+        for association in AssetCpe.objects.filter(
+            asset_id__in=[asset.pk for asset in assets]
+        ).only("asset_id", "validation_status", "validated_identity_fingerprint"):
+            associations_by_asset.setdefault(association.asset_id, []).append(association)
         results = []
         for asset in assets:
             run = runs.get(asset.last_cpe_run_id)
+            current_fingerprint = (
+                fingerprint(hardware_identity(asset))
+                if asset.asset_type == Asset.AssetType.HARDWARE else ""
+            )
+            decisions = associations_by_asset.get(asset.pk, [])
+            confirmed = sum(
+                item.validation_status == AssetCpe.Validation.CONFIRMED
+                and item.validated_identity_fingerprint == current_fingerprint
+                for item in decisions
+            )
+            pending = sum(
+                item.validation_status == AssetCpe.Validation.PENDING
+                and item.validated_identity_fingerprint == current_fingerprint
+                for item in decisions
+            )
+            needs_review = any(
+                item.validated_identity_fingerprint != current_fingerprint
+                for item in decisions
+            )
             if asset.asset_type == Asset.AssetType.SOFTWARE:
                 state = "NOT_SUPPORTED"
+            elif needs_review:
+                state = "STALE"
+            elif confirmed:
+                state = "CONFIRMED"
+            elif pending:
+                state = "PENDING_VALIDATION"
             elif run is None:
                 state = "NOT_SEARCHED"
             elif run.identity_fingerprint != fingerprint(hardware_identity(asset)):
@@ -116,6 +147,9 @@ class CpeOverviewView(APIView):
                 "identification_status": state,
                 "run_id": run.pk if run else None,
                 "candidate_count": len(hardware_candidates(run.candidates)) if run else 0,
+                "confirmed_count": confirmed,
+                "pending_validation_count": pending,
+                "reviewed_count": len(decisions),
                 "last_search_at": run.created_at if run else None,
             })
         return Response({"results": results})

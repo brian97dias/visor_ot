@@ -54,7 +54,7 @@ def select_evidence(asset, run_id, cpe_name_id):
     ), None)
     if candidate is None:
         raise ValidationError({"cpe_name_id": "Este CPE no aparece en la búsqueda del activo."})
-    if candidate.get("deprecated") and not candidate.get("cpe_name"):
+    if not candidate.get("cpe_name"):
         raise ValidationError({"cpe_name_id": "El candidato no tiene un nombre CPE válido."})
     try:
         UUID(str(candidate["cpe_name_id"]))
