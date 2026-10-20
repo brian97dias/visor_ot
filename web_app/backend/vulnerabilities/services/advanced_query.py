@@ -38,6 +38,8 @@ def validate_advanced_query(identity, request):
     if not isinstance(parameter, str):
         raise ValueError("El parámetro de búsqueda debe ser texto.")
     parameter = parameter.strip()
+    if any(ord(char) < 32 or ord(char) == 127 for char in parameter):
+        raise ValueError("El parámetro no puede incluir saltos de línea ni caracteres de control.")
     if not isinstance(start_index, int) or isinstance(start_index, bool) or not (
         0 <= start_index <= MAX_ADVANCED_START_INDEX and start_index % 100 == 0
     ):

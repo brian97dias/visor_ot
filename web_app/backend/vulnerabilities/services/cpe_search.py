@@ -39,7 +39,8 @@ def create_run(asset_id, user, scope, *, return_reused=False):
         digest = fingerprint(identity)
         existing = CpeSearchRun.objects.filter(
             asset=asset, identity_fingerprint=digest,
-            scope=scope, status__in=(CpeSearchRun.Status.QUEUED, CpeSearchRun.Status.RUNNING)
+            scope=scope, trigger="MANUAL",
+            status__in=(CpeSearchRun.Status.QUEUED, CpeSearchRun.Status.RUNNING)
         ).first()
         if existing is not None:
             return (existing, True) if return_reused else existing
@@ -98,8 +99,9 @@ def execute_advanced_run(run, pacer, fetcher=fetch_page):
     raw_plan = run.queries[0] if run.queries else {}
     try:
         plan = validate_advanced_query(run.identity_snapshot, {
-            key: raw_plan.get(key) for key in
+            key: raw_plan[key] for key in
             ("strategy", "parameter", "start_index", "max_pages")
+            if key in raw_plan
         })
     except ValueError as exc:
         _persist(run, {"status": CpeSearchRun.Status.FAILED,

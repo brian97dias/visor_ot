@@ -217,6 +217,13 @@ class AdvancedApiTests(TestCase):
         self.assertNotEqual(automatic.pk, advanced.pk)
         self.assertEqual(CpeSearchRun.objects.count(), 2)
 
+    def test_auto_request_after_advanced_job_does_not_reuse_manual_plan(self):
+        advanced, _ = create_advanced_run(self.asset.pk, self.analyst, self.body)
+        automatic = create_run(self.asset.pk, self.analyst, "SPECIFIC")
+        self.assertNotEqual(advanced.pk, automatic.pk)
+        self.assertEqual(automatic.trigger, "MANUAL")
+        self.assertEqual(CpeSearchRun.objects.count(), 2)
+
     def test_role_and_validation_protections(self):
         self.client.force_authenticate(self.operator)
         self.assertEqual(self.client.post(self.url, self.body, format="json").status_code, 403)
