@@ -86,18 +86,19 @@ def get_or_update_catalogue(candidate):
 
 @transaction.atomic
 def decide(asset_id, user, data, association_id=None):
-    # Lock only the Asset row: joining its optional Hardware side here
-    # would cause PostgreSQL "FOR UPDATE ... nullable side" failures.
+    # Lock the asset only, never its nullable reverse OneToOne hardware JOIN.
+    # Serializes concurrent CPE decisions and prevents duplicate audit entries.
     try:
         asset = Asset.objects.select_for_update().get(pk=asset_id)
     except Asset.DoesNotExist as error:
         raise NotFound("Activo inexistente.") from error
+
     status = data["status"]
     reason = data.get("justification", "").strip()
     association = None
     if association_id is not None:
         try:
-            association = AssetCpe.objects.select_related("cpe").get(
+            association = AssetCpe.objects.select_related("cpe", "source_run").get(
                 pk=association_id, asset=asset
             )
         except AssetCpe.DoesNotExist as error:
@@ -105,11 +106,28 @@ def decide(asset_id, user, data, association_id=None):
         requested_id = data.get("cpe_name_id")
         if requested_id is not None and str(requested_id) != str(association.cpe.cpe_name_id):
             raise ValidationError({"cpe_name_id": "No se puede reemplazar el CPE de una asociación."})
-        requested_id = association.cpe.cpe_name_id
-    else:
-        requested_id = data["cpe_name_id"]
+    elif status == AssetCpe.Validation.REOPENED:
+        raise ValidationError({"status": "La reapertura requiere una asociación existente."})
 
-    run, identity, candidate = select_evidence(asset, data["run_id"], requested_id)
+    if status == AssetCpe.Validation.REOPENED:
+        # Re-opening withdraws a prior judgement; it does NOT certify a new
+        # technical match, so a completed/current NVD run is not required.
+        identity = current_identity(asset)
+        if association.validation_status == status:
+            raise ReviewConflict("Esta asociación ya tiene la revisión reabierta.")
+        run = association.source_run  # Preserve original evidence provenance.
+        candidate = None
+    else:
+        requested_id = association.cpe.cpe_name_id if association else data["cpe_name_id"]
+        run, identity, candidate = select_evidence(asset, data["run_id"], requested_id)
+        if association is not None and association.validation_status == status:
+            # Revalidation with a genuinely newer run or changed identity is
+            # meaningful. Otherwise a repeated button click must not pollute
+            # the append-only decision history.
+            if (association.source_run_id == run.pk
+                    and association.validated_identity_fingerprint == identity):
+                raise ReviewConflict("La asociación ya tiene ese estado y no hay evidencia nueva.")
+
     if association is None:
         catalogue = get_or_update_catalogue(candidate)
         if AssetCpe.objects.filter(asset=asset, cpe=catalogue).exists():
@@ -153,7 +171,7 @@ def serialize_association(association, current_fingerprint):
         "justification": association.justification,
         "validated_at": association.validated_at,
         "validated_by": association.validated_by.username if association.validated_by else None,
-        "needs_review": association.validated_identity_fingerprint != current_fingerprint,
+        "needs_review": association.validation_status != AssetCpe.Validation.REOPENED and association.validated_identity_fingerprint != current_fingerprint,
         "source_run_id": association.source_run_id,
         "history": [{
             "id": entry.pk,

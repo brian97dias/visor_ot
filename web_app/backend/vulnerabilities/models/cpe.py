@@ -26,6 +26,7 @@ class AssetCpe(models.Model):
         PENDING = "PENDING", "Pendiente"
         CONFIRMED = "CONFIRMED", "Confirmado"
         REJECTED = "REJECTED", "Rechazado"
+        REOPENED = "REOPENED", "Revisión reabierta"
 
     asset = models.ForeignKey(
         "assets.Asset", on_delete=models.PROTECT, related_name="cpe_associations"

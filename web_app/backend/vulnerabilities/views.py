@@ -109,9 +109,14 @@ class CpeOverviewView(APIView):
                 for item in decisions
             )
             needs_review = any(
-                item.validated_identity_fingerprint != current_fingerprint
+                item.validation_status != AssetCpe.Validation.REOPENED
+                and item.validated_identity_fingerprint != current_fingerprint
                 for item in decisions
             )
+            reopened = [
+                item for item in decisions
+                if item.validation_status == AssetCpe.Validation.REOPENED
+            ]
             if asset.asset_type == Asset.AssetType.SOFTWARE:
                 state = "NOT_SUPPORTED"
             elif needs_review:
@@ -120,6 +125,8 @@ class CpeOverviewView(APIView):
                 state = "CONFIRMED"
             elif pending:
                 state = "PENDING_VALIDATION"
+            elif reopened:
+                state = "REOPENED"
             elif run is None:
                 state = "NOT_SEARCHED"
             elif run.identity_fingerprint != fingerprint(hardware_identity(asset)):
@@ -149,7 +156,8 @@ class CpeOverviewView(APIView):
                 "candidate_count": len(hardware_candidates(run.candidates)) if run else 0,
                 "confirmed_count": confirmed,
                 "pending_validation_count": pending,
-                "reviewed_count": len(decisions),
+                "reviewed_count": len(decisions) - len(reopened),
+                "reopened_count": len(reopened),
                 "last_search_at": run.created_at if run else None,
             })
         return Response({"results": results})
