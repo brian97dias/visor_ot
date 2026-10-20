@@ -136,13 +136,40 @@ class CpeDecisionTests(TestCase):
         self.assertEqual(rejected.status_code, 200, rejected.data)
         self.assertEqual(rejected.data["association"]["validation_status"], "REJECTED")
 
-    def test_reason_required_for_confirmed_and_rejected(self):
-        for status in ("CONFIRMED", "REJECTED"):
+    def test_reason_optional_for_all_decisions_and_audited(self):
+        for status in ("CONFIRMED", "REJECTED", "PENDING"):
             with self.subTest(status=status):
-                response = self.create(status=status, justification=" ")
-                self.assertEqual(response.status_code, 400, response.data)
-        self.assertFalse(AssetCpe.objects.exists())
-        self.assertFalse(Cpe.objects.exists())
+                # Each subtest operates on a distinct review of the same CPE.
+                association = AssetCpe.objects.first()
+                if association:
+                    response = self.client.patch(
+                        self.api + f"{association.pk}/",
+                        self.decision(status=status, justification=" "),
+                        format="json",
+                    )
+                    self.assertEqual(response.status_code, 200, response.data)
+                else:
+                    response = self.create(status=status, justification=" ")
+                    self.assertEqual(response.status_code, 201, response.data)
+                self.assertEqual(response.data["association"]["justification"], "")
+                self.assertEqual(AssetCpeDecision.objects.latest("pk").justification, "")
+        self.assertEqual(AssetCpe.objects.count(), 1)
+        self.assertEqual(AssetCpeDecision.objects.count(), 3)
+
+    def test_justification_may_be_omitted_and_is_limited_in_length(self):
+        payload = self.decision()
+        payload.pop("justification")
+        response = self.client.post(self.api, payload, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["association"]["justification"], "")
+        item_id = response.data["association"]["id"]
+        too_long = self.client.patch(
+            self.api + f"{item_id}/",
+            self.decision(status="REJECTED", justification="x" * 1001), format="json",
+        )
+        self.assertEqual(too_long.status_code, 400, too_long.data)
+        self.assertEqual(AssetCpeDecision.objects.count(), 1)
+        self.assertEqual(AssetCpe.objects.get(pk=item_id).validation_status, "CONFIRMED")
 
     def test_foreign_run_unfinished_run_and_forged_candidate_are_blocked(self):
         other = self.hardware("PLC ajeno")

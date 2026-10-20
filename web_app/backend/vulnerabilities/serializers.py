@@ -16,10 +16,6 @@ class CpeDecisionSerializer(serializers.Serializer):
             raise serializers.ValidationError({
                 "cpe_name_id": "Selecciona un candidato obtenido de NVD."
             })
-        reason = attrs.get("justification", "")
-        if attrs["status"] in (AssetCpe.Validation.CONFIRMED, AssetCpe.Validation.REJECTED):
-            if not reason:
-                raise serializers.ValidationError({
-                    "justification": "Explica por qué confirmas o rechazas el candidato."
-                })
+        # Justification is optional for every decision. When supplied it is
+        # stored in AssetCpe and the immutable AssetCpeDecision audit trail.
         return attrs
