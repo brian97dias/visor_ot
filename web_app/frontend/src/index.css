@@ -2642,3 +2642,10 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cpe-references a:hover { color: #e2edf9; }
 .cpe-references a:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 3px; }
 .cpe-references p { color: #96a9c2; font-size: .74rem; line-height: 1.5; margin: 9px 0 0; }
+
+/* Product evidence: clearly actionable, but visually distinct from decisions. */
+.cpe-references a { font-weight: 700; color: #8bd8ff; text-decoration: underline;
+  text-underline-offset: 3px; }
+.cpe-references a:visited { color: #8bd8ff; }
+.cpe-references .cpe-reference-group { border: 1px solid #28657c;
+  border-radius: 4px; padding: 3px 7px; }

@@ -294,7 +294,7 @@ export default function AssetCpeDiscovery() {
             <article className="cpe-card" key={c.cpe_name_id}>
               <h3>{c.title}</h3>
               <CpeEvidence cpeName={c.cpe_name} cpeNameId={c.cpe_name_id}/>
-              <CpeReferences references={c.nvd_references} sourceRunId={run.id} />
+              <CpeReferences references={c.nvd_references} sourceRunId={run.id} showMissing />
               <CpeCandidateExplanation candidate={c}/>
               <div className="cpe-tags">
                 <span>Tipo: hardware ({c.cpe_type})</span>

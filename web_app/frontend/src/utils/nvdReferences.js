@@ -28,13 +28,11 @@ export function displayNvdReferences(value) {
     if (!item || typeof item !== "object") continue;
     const url = nvdReferenceUrl(item.url);
     if (!url || seen.has(url)) continue;
-    const rawType = typeof item.type === "string" && item.type.length <= 60
-      ? item.type.trim() : "";
-    const type = rawType || "Referencia";
-    const group = /advisory|alert|security|patch|vulnerab/i.test(type)
-      ? "Aviso de seguridad"
-      : /product/i.test(type) ? "Producto" : "Otra referencia";
-    references.push({url, type, group});
+    // Product is the only reference relevant to hardware identification here.
+    // Security advisories are retained by the backend for future CVE analysis.
+    const type = typeof item.type === "string" ? item.type.trim() : "";
+    if (type.toLowerCase() !== "product") continue;
+    references.push({url, type: "Producto", group: "Producto"});
     seen.add(url);
     if (references.length >= 20) break;
   }
