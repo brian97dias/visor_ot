@@ -142,7 +142,7 @@ Solo `ADMIN` y `ANALYST` pueden solicitar búsquedas; `OPERATOR` puede verlas. S
 
 ## Navegación global de identificación CPE (entre fases 1 y 2)
 
-Se habilitó `/vulnerabilities/cpe` y el grupo **VULNERABILIDADES** con iconos en el menú lateral. La vista global consulta mediante `GET /api/vulnerabilities/cpe-overview/` un resumen de activos inventariados y su última búsqueda: sin búsqueda, en cola, consultando, candidatos por revisar, sin resultados, error o identidad modificada. Para Software indica explícitamente que las búsquedas estarán disponibles en la fase 4. No muestra asociaciones confirmadas antes de la fase 2. La vista incluye filtro, búsqueda, actualización manual y navegación hacia la pantalla CPE ya existente en el detalle de cada hardware. `Análisis CVE (futuro)` es un elemento informativo deshabilitado, no una ruta funcional.
+Se habilitó `/vulnerabilities/cpe` y el grupo **VULNERABILIDADES** con iconos en el menú lateral. La vista global consulta mediante `GET /api/vulnerabilities/cpe-overview/` un resumen de activos inventariados y su última búsqueda: sin búsqueda, en cola, consultando, candidatos por revisar, sin resultados, error o identidad modificada. Para Software indica explícitamente que las búsquedas estarán disponibles en la fase 4. No muestra asociaciones confirmadas antes de la fase 2. La vista incluye búsqueda, filtros y paginación de quince activos siguiendo el patrón de URL del Inventario. El resumen muestra hardware y software dentro de una sola tarjeta. Al revisar un activo y volver mediante la miga de pan `Vulnerabilidades / Identificación CPE / Activo`, los filtros y la página se conservan. La vista global se recarga al navegar a ella; se eliminó el botón redundante de actualización manual. `Análisis CVE (futuro)` es un elemento informativo deshabilitado, no una ruta funcional.
 
 Este endpoint global es **solo lectura**, autorizado para los tres roles del inventario y no invoca NVD. No requiere nuevas migraciones ni modifica los mecanismos del worker.
 
@@ -162,3 +162,10 @@ python manage.py shell -c "from vulnerabilities.models import CpeSearchRun; prin
 Al reiniciar el trabajador, los trabajos abandonados en `RUNNING` pasan a `FAILED`; los `QUEUED` se conservan y se procesan. Un fallo temporal de autenticación JWT normalmente genera un `401` seguido de renovación de token y de otro `GET 200`, sin afectar el trabajador.
 
 El menú usa geometrías SVG oficiales de Lucide y la vista global tiene filtros explícitos Hardware/Software; la búsqueda de software sigue reservada para la fase 4.
+
+
+### Filtrado de candidatos de hardware (refinamiento de fase 1)
+
+La respuesta `keywordSearch` de NVD puede incluir CPE de hardware (`h`), sistemas operativos/firmware (`o`) y aplicaciones (`a`). Este módulo solo propone candidatos con la tercera parte de `cpeName` igual a `h`, tanto para búsquedas nuevas como al consultar ejecuciones históricas. Para auditoría, se mantienen los datos históricos en `CpeSearchRun.candidates`; el filtrado de historiales anteriores se hace en la lectura de la API. El conteo global y el conteo por búsqueda reflejan **candidatos de hardware**, mientras `queries[*].retrieved` sigue siendo el total bruto recuperado de NVD, antes del filtro. No confundir ambos contadores.
+
+En los resultados de hardware no se muestra una etiqueta de versión; el valor original permanece en el `cpeName` oficial y en el registro JSON normalizado. Una revisión o versión de hardware puede existir según la nomenclatura de NVD, pero no se debe interpretar como firmware. La identificación de firmware y software sigue planificada para la fase 4. **Filtrar por tipo h no confirma que un candidato corresponda al dispositivo:** el analista decidirá en la fase 2.
