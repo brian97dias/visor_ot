@@ -8,9 +8,7 @@ from django.utils import timezone
 from vulnerabilities.models import CpeSearchRun
 from vulnerabilities.services.cpe_search import execute_run
 from vulnerabilities.services.nvd_client import PublicNvdPacer
-
-# Arbitrary constant reserved for VISOR OT's NVD outbound worker.
-ADVISORY_LOCK_ID = 7221001215
+from vulnerabilities.services.worker_lock import ADVISORY_LOCK_ID
 
 
 class Command(BaseCommand):

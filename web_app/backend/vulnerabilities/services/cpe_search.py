@@ -9,6 +9,7 @@ from vulnerabilities.models import CpeSearchRun
 from .identity import hardware_identity, fingerprint, build_queries
 from .candidate_matching import normalize_candidate, merge_candidates
 from .nvd_client import fetch_page, PAGE_SIZE, MAX_PAGES_PER_STRATEGY, MAX_TOTAL_CANDIDATES
+from .worker_lock import worker_lock_held
 
 
 def create_run(asset_id, user, scope):
@@ -129,6 +130,10 @@ def serialize_run(run):
         "id": run.pk,
         "asset_id": run.asset_id,
         "status": run.status,
+        # Reports the worker advisory lock, not a guarantee of successful NVD access.
+        "worker_active": worker_lock_held() if run.status in (
+            CpeSearchRun.Status.QUEUED, CpeSearchRun.Status.RUNNING
+        ) else None,
         "scope": run.scope,
         "trigger": run.trigger,
         "identity_snapshot": run.identity_snapshot,

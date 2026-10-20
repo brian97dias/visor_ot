@@ -15,6 +15,7 @@ from .services.identity import build_queries, fingerprint, hardware_identity
 from .services.candidate_matching import merge_candidates
 from .services.cpe_search import create_run, execute_run, serialize_run
 from .services.nvd_client import PublicNvdPacer, NvdError
+from .services.worker_lock import worker_lock_held, ADVISORY_LOCK_ID
 
 
 def nvd_record(suffix="1215c", uuid="cpe-id-1215c"):
@@ -179,6 +180,16 @@ class CpeSearchAPITests(TestCase):
         self.client.force_authenticate(user=None)
         self.assertEqual(self.client.get("/api/vulnerabilities/cpe-overview/").status_code, 401)
 
+    def test_worker_visibility_is_returned_with_queued_run(self):
+        created = self.client.post(self.base, {}, format="json")
+        run = CpeSearchRun.objects.get(pk=created.data["run_id"])
+        with patch("vulnerabilities.services.cpe_search.worker_lock_held", return_value=False):
+            snapshot = serialize_run(run)
+        self.assertFalse(snapshot["worker_active"])
+        run.status = CpeSearchRun.Status.COMPLETED
+        run.save(update_fields=["status"])
+        self.assertIsNone(serialize_run(run)["worker_active"])
+
     def test_request_is_queued_and_reuses_open_run(self):
         first = self.client.post(self.base, {"scope": "SPECIFIC"}, format="json")
         self.assertEqual(first.status_code, 202, first.data)
@@ -306,3 +317,14 @@ class NvdHttpClientTests(SimpleTestCase):
             with self.assertRaises(ValueError):
                 fetch_page("apiKey", "anything", 0, Mock())
         urlopen.assert_not_called()
+
+
+class WorkerLockStatusTests(SimpleTestCase):
+    def test_lock_identifier_is_shared_with_worker_command(self):
+        from .management.commands.run_cpe_worker import ADVISORY_LOCK_ID as command_lock
+        self.assertEqual(command_lock, ADVISORY_LOCK_ID)
+
+    def test_non_postgres_returns_unknown(self):
+        from django.db import connection
+        if connection.vendor != "postgresql":
+            self.assertIsNone(worker_lock_held())
