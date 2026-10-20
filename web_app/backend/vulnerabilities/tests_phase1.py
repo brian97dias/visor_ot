@@ -262,6 +262,22 @@ class CpeSearchAPITests(TestCase):
         run.refresh_from_db()
         self.assertEqual(run.candidates, [legacy_os])
 
+    def test_similar_siemens_products_keep_distinct_official_uuids(self):
+        """Similar product names are not proof that NVD records are identical."""
+        official = nvd_record("1215c", "09f448d2-f606-44ab-8891-c27a3ff64002")
+        alternate = nvd_record("12_1215c", "72c1d71f-72a7-4520-8773-0d1cfc32e0b9")
+        identity = hardware_identity(self.asset)
+        normalized = [
+            normalize_candidate(official, identity, "keywordSearch"),
+            normalize_candidate(alternate, identity, "keywordSearch"),
+        ]
+        merged = merge_candidates(normalized)
+        self.assertEqual(len(merged), 2)
+        self.assertEqual({item["cpe_name_id"] for item in merged}, {
+            "09f448d2-f606-44ab-8891-c27a3ff64002",
+            "72c1d71f-72a7-4520-8773-0d1cfc32e0b9",
+        })
+
     def test_worker_deduplicates_and_preserves_provenance(self):
         created = self.client.post(self.base, {}, format="json")
         run = CpeSearchRun.objects.get(pk=created.data["run_id"])
