@@ -1,6 +1,6 @@
 """Merge official NVD CPE records with explainable inventory correspondence."""
 import re
-from .identity import normalized, cpu_spelling
+from .identity import normalized, cpu_spelling, family_term
 
 
 def _cpe_part(cpe_name, position):
@@ -20,6 +20,14 @@ def classify(candidate, identity):
     if vendor and wanted_vendor and vendor != wanted_vendor:
         return "POSSIBLE_INCOMPATIBILITY", "El fabricante del CPE no coincide con el inventario."
     if wanted_model and wanted_model not in product:
+        term = family_term(identity.get("model"))
+        # A series prefix can help discovery but never proves equivalence.
+        # Requiring a boundary avoids treating ADAM as related to ADAMANT.
+        raw_product = _cpe_part(cpe_name, 4).lower()
+        prefix = re.escape(term.lower())
+        if (normalized(term) != wanted_model and
+                re.match(r"^" + prefix + r"(?:[_-]|[0-9]|$)", raw_product)):
+            return "RELATED", "Comparte prefijo de una serie declarada; el modelo exacto difiere."
         return "POSSIBLE_INCOMPATIBILITY", "El producto CPE no corresponde claramente a la familia."
     if wanted_cpu:
         product_raw = _cpe_part(cpe_name, 4).lower()
@@ -40,8 +48,29 @@ def classify(candidate, identity):
     return "FAMILY", "Coinciden fabricante y familia; se desconoce el modelo de CPU."
 
 
+def is_pertinent(candidate, identity):
+    """Strong, explainable evidence for STOPPING further discovery.
+
+    Candidate != confirmed AssetCpe. A related family-only result with
+    unknown CPU never becomes a definitive match automatically.
+    """
+    cpe_name = candidate.get("cpe_name", "")
+    if (_cpe_part(cpe_name, 2) != "h" or candidate.get("deprecated")
+            or normalized(_cpe_part(cpe_name, 3)) != normalized(identity.get("manufacturer"))):
+        return False
+    model = normalized(identity.get("model"))
+    product = normalized(_cpe_part(cpe_name, 4))
+    if not model or model not in product:
+        return False
+    if cpu_spelling(identity.get("cpu_model")):
+        return candidate.get("match_level") == "SPECIFIC"
+    # With unknown CPU, require the product field to match the full model.
+    return product == model and _cpe_part(cpe_name, 5) in ("", "-", "*")
+
+
 PRIORITY = {
-    "SPECIFIC": 0, "FAMILY": 1, "NEEDS_INFO": 2, "POSSIBLE_INCOMPATIBILITY": 3,
+    "SPECIFIC": 0, "FAMILY": 1, "RELATED": 2,
+    "NEEDS_INFO": 3, "POSSIBLE_INCOMPATIBILITY": 4,
 }
 
 

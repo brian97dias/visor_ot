@@ -59,6 +59,33 @@ def fingerprint(identity):
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
+def family_term(model):
+    """Conservative family fallback only when inventory explicitly says 'Series'.
+
+    No numeric designation is dropped without that explicit cue. Keep the
+    original model untouched for human validation and identity fingerprints.
+    """
+    value = compact(model)
+    series = re.search(r"[\s_-]+(?:series|serie|family|familia)$", value, re.I)
+    if not series:
+        return value
+    core = value[:series.start()].strip()
+    # ADAM-5000 Series -> ADAM. Different model numbers remain distinct CPEs;
+    # this is a DISCOVERY term, not evidence of product equivalence.
+    single_prefix = re.fullmatch(r"([a-z][a-z0-9]*)[-_ ]+\d+[a-z0-9_-]*", core, re.I)
+    return single_prefix.group(1) if single_prefix else (core or value)
+
+
+def build_level_queries(identity, level):
+    """One level's plan. The worker skips duplicate requests across levels."""
+    if level == "SPECIFIC":
+        return build_queries(identity, "SPECIFIC")
+    if level == "FAMILY":
+        return build_queries({**identity, "model": family_term(identity.get("model")),
+                              "cpu_model": ""}, "BROAD")
+    raise ValueError("Nivel de descubrimiento CPE no permitido en esta fase.")
+
+
 def build_queries(identity, scope="SPECIFIC"):
     manufacturer = compact(identity.get("manufacturer"))
     family = compact(identity.get("model"))

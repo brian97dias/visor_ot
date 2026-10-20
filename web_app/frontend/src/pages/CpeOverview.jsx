@@ -14,6 +14,7 @@ const STATUS = {
   TO_REVIEW: "Por revisar",
   IN_REVIEW: "En revisión",
   EVALUATED: "Evaluado",
+  PARTIAL_RESULTS: "Resultados parciales",
   NO_RESULTS: "Sin resultados",
   FAILED: "Error de consulta",
   STALE: "Revisión necesaria",

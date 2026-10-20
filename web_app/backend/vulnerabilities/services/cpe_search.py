@@ -6,10 +6,13 @@ from rest_framework.exceptions import ValidationError
 from assets.models import Asset
 from vulnerabilities.models import CpeSearchRun
 
-from .identity import hardware_identity, fingerprint, build_queries
-from .candidate_matching import normalize_candidate, merge_candidates, hardware_candidates
+from .identity import hardware_identity, fingerprint, build_queries, build_level_queries
+from .candidate_matching import normalize_candidate, merge_candidates, hardware_candidates, is_pertinent
 from .nvd_client import fetch_page, PAGE_SIZE, MAX_PAGES_PER_STRATEGY, MAX_TOTAL_CANDIDATES
 from .worker_lock import worker_lock_held
+
+# Shared across all discovery levels: never reset budgets on fallback.
+MAX_TOTAL_PAGE_FETCHES = 8
 
 
 def create_run(asset_id, user, scope, *, return_reused=False):
@@ -45,71 +48,145 @@ def _persist(run, fields):
 
 
 def execute_run(run, pacer, fetcher=fetch_page):
-    """Executed only by the separately locked worker (or mocked tests)."""
+    """Progressive hardware discovery. Only the locked worker calls NVD.
+
+    SPECIFIC starts with the original precise plan and falls back to FAMILY.
+    BROAD starts with FAMILY. This phase never searches manufacturer-wide.
+    Failed or partial queries do not establish absence of a relevant CPE.
+    """
     if run.status != CpeSearchRun.Status.QUEUED:
         return run
     _persist(run, {
         "status": CpeSearchRun.Status.RUNNING,
-        "started_at": timezone.now(),
-        "error_message": "",
-        "queries": [],
-        "candidates": [],
-        "result_truncated": False,
+        "started_at": timezone.now(), "error_message": "",
+        "queries": [], "candidates": [], "result_truncated": False,
     })
     queries = []
     dedup = {}
+    fetched_pages = 0
     truncated = False
+    seen_queries = set()
+    levels = ("SPECIFIC", "FAMILY") if run.scope == "SPECIFIC" else ("FAMILY",)
+
     try:
-        plan = build_queries(run.identity_snapshot, run.scope)
-        for query in plan:
-            details = {
-                **query, "pages": 0, "total_results": None, "retrieved": 0, "status": "RUNNING",
-            }
-            queries.append(details)
-            _persist(run, {"queries": queries})
-            for page in range(MAX_PAGES_PER_STRATEGY):
-                data = fetcher(query["strategy"], query["parameter"], page * PAGE_SIZE, pacer)
-                details["pages"] += 1
-                total = int(data.get("totalResults", 0))
-                details["total_results"] = total
-                products = data["products"]
-                details["retrieved"] += len(products)
-                for row in products:
-                    item = normalize_candidate(row, run.identity_snapshot, query["strategy"])
-                    if item is None:
-                        continue
-                    if item["cpe_name_id"] in dedup:
-                        old = dedup[item["cpe_name_id"]]
-                        old["methods"] = sorted(set(old["methods"] + item["methods"]))
-                    elif len(dedup) < MAX_TOTAL_CANDIDATES:
-                        dedup[item["cpe_name_id"]] = item
-                    else:
-                        truncated = True
-                _persist(run, {"queries": queries, "candidates": merge_candidates(list(dedup.values()))})
-                start = page * PAGE_SIZE
-                if start + len(products) >= total or not products:
+        for level in levels:
+            level_queries = []
+            level_seen = set()
+            for query in build_level_queries(run.identity_snapshot, level):
+                key = (query["strategy"], query["parameter"])
+                if key not in seen_queries:
+                    level_queries.append(query)
+                    seen_queries.add(key)
+            if not level_queries:
+                # No new queries can broaden this identity; do not repeat HTTP.
+                if queries:
+                    queries[-1]["next_level_reason"] = "NO_NEW_PARAMETERS"
+                break
+
+            level_uuids = set()
+            level_partial = False
+            for query in level_queries:
+                details = {
+                    **query, "level": level, "pages": 0, "total_results": None,
+                    "retrieved": 0, "hardware_results": 0, "pertinent_results": 0,
+                    "related_results": 0, "status": "RUNNING",
+                }
+                queries.append(details)
+                _persist(run, {"queries": queries})
+                if (fetched_pages >= MAX_TOTAL_PAGE_FETCHES or
+                        len(dedup) >= MAX_TOTAL_CANDIDATES):
+                    details["status"] = "SKIPPED"
+                    details["stop_reason"] = "GLOBAL_BUDGET_EXHAUSTED"
+                    truncated = level_partial = True
+                    _persist(run, {"queries": queries})
                     break
-                if len(dedup) >= MAX_TOTAL_CANDIDATES:
-                    truncated = True
+
+                for page in range(MAX_PAGES_PER_STRATEGY):
+                    if fetched_pages >= MAX_TOTAL_PAGE_FETCHES:
+                        details["stop_reason"] = "GLOBAL_PAGE_LIMIT"
+                        truncated = level_partial = True
+                        break
+                    # Count a page fetch even if the HTTP call fails; the pacer
+                    # itself protects retries, and the FAILED status is retained.
+                    fetched_pages += 1
+                    data = fetcher(query["strategy"], query["parameter"], page * PAGE_SIZE, pacer)
+                    products = data["products"]
+                    total = int(data.get("totalResults", 0))
+                    details["pages"] += 1
+                    details["total_results"] = total
+                    details["retrieved"] += len(products)
+                    for row in products:
+                        item = normalize_candidate(row, run.identity_snapshot, query["strategy"])
+                        if item is None:
+                            continue
+                        details["hardware_results"] += 1
+                        if is_pertinent(item, run.identity_snapshot):
+                            details["pertinent_results"] += 1
+                        elif item["match_level"] == "RELATED":
+                            details["related_results"] += 1
+                        level_uuids.add(item["cpe_name_id"])
+                        if item["cpe_name_id"] in dedup:
+                            old = dedup[item["cpe_name_id"]]
+                            old["methods"] = sorted(set(old["methods"] + item["methods"]))
+                            old["discovery_levels"] = sorted(set(
+                                old.get("discovery_levels", []) + [level]
+                            ))
+                        elif len(dedup) < MAX_TOTAL_CANDIDATES:
+                            item["discovery_levels"] = [level]
+                            dedup[item["cpe_name_id"]] = item
+                        else:
+                            truncated = level_partial = True
+                            details["stop_reason"] = "CANDIDATE_LIMIT"
+                    _persist(run, {
+                        "queries": queries,
+                        "candidates": merge_candidates(list(dedup.values())),
+                        "result_truncated": truncated,
+                    })
+                    if truncated:
+                        break
+                    if page * PAGE_SIZE + len(products) >= total or not products:
+                        break
+                    if len(dedup) >= MAX_TOTAL_CANDIDATES:
+                        truncated = level_partial = True
+                        details["stop_reason"] = "CANDIDATE_LIMIT"
+                        break
+                else:
+                    if details["retrieved"] < (details["total_results"] or 0):
+                        truncated = level_partial = True
+                        details["stop_reason"] = "PER_STRATEGY_PAGE_LIMIT"
+                details["status"] = "PARTIAL" if level_partial else "COMPLETED"
+                _persist(run, {"queries": queries, "result_truncated": truncated})
+                if level_partial:
                     break
-            else:
-                if details["retrieved"] < (details["total_results"] or 0):
-                    truncated = True
-            details["status"] = "COMPLETED"
+
+            strong = sum(is_pertinent(dedup[uuid], run.identity_snapshot)
+                         for uuid in level_uuids if uuid in dedup)
+            # A progress reason travels with each query; historical queries
+            # without this metadata remain valid and readable.
+            reason = ("PARTIAL_RESULTS" if level_partial else
+                      "SUFFICIENT_PERTINENT_CANDIDATES" if strong else
+                      "NO_PERTINENT_CANDIDATES")
+            for details in queries:
+                if details.get("level") == level:
+                    details["level_result"] = reason
+                    details["level_unique_hardware_candidates"] = len(level_uuids)
+                    details["level_pertinent_candidates"] = strong
+                    if not strong and not level_partial and level == "SPECIFIC":
+                        details["next_level_reason"] = "NO_PERTINENT_CANDIDATES"
             _persist(run, {"queries": queries})
-            # Continue to the next strategy even after the candidate cap:
-            # an official CPE already kept may also be found by both methods.
-            # The page cap above prevents unbounded additional requests.
+            if level_partial or strong:
+                break
+
         _persist(run, {
             "status": CpeSearchRun.Status.COMPLETED,
             "finished_at": timezone.now(),
             "candidates": merge_candidates(list(dedup.values())),
-            "result_truncated": truncated,
-            "queries": queries,
+            "result_truncated": truncated, "queries": queries,
         })
     except Exception as error:
         if queries:
             queries[-1]["status"] = "FAILED"
+            queries[-1]["stop_reason"] = "REQUEST_FAILED"
         _persist(run, {
             "status": CpeSearchRun.Status.FAILED,
             "error_message": str(error)[:1000],

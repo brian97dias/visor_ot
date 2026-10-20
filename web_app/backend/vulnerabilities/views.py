@@ -138,6 +138,8 @@ class CpeOverviewView(APIView):
                 state = "STALE"
             elif not counts["available"]:
                 state = "STALE"
+            elif completed_run.result_truncated:
+                state = "PARTIAL_RESULTS"
             elif counts["total"] == 0:
                 state = "NO_RESULTS"
             elif counts["unreviewed"] == 0:
