@@ -117,6 +117,48 @@ class CpeSearchAPITests(TestCase):
         if connection.vendor == "postgresql":
             self.assertIn("FOR UPDATE", asset_queries[0].upper())
 
+    def test_global_overview_includes_unsearched_and_completed_hardware(self):
+        other = register_hardware_asset(
+            data={
+                "name": "Router no consultado", "asset_type": "HARDWARE",
+                "hardware": {
+                    "role": "ROUTER", "manufacturer": "Westermo",
+                    "model": "Lynx",
+                },
+            },
+            user=self.operator,
+        )
+        response = self.client.get("/api/vulnerabilities/cpe-overview/")
+        self.assertEqual(response.status_code, 200)
+        states = {row["asset_id"]: row for row in response.data["results"]}
+        self.assertEqual(states[self.asset.pk]["identification_status"], "NOT_SEARCHED")
+        self.assertEqual(states[other.pk]["identification_status"], "NOT_SEARCHED")
+
+        created = self.client.post(self.base, {}, format="json")
+        run = CpeSearchRun.objects.get(pk=created.data["run_id"])
+        run.status = "COMPLETED"
+        run.candidates = [{
+            "cpe_name_id": "example-1215c", "title": "Siemens 1215C",
+        }]
+        run.save(update_fields=["status", "candidates"])
+        response = self.client.get("/api/vulnerabilities/cpe-overview/")
+        row = next(row for row in response.data["results"]
+                   if row["asset_id"] == self.asset.pk)
+        self.assertEqual(row["identification_status"], "CANDIDATES")
+        self.assertEqual(row["candidate_count"], 1)
+
+        self.asset.hardware.cpu_model = "1214C"
+        self.asset.hardware.save(update_fields=["cpu_model"])
+        latest = self.client.get("/api/vulnerabilities/cpe-overview/")
+        self.assertEqual(next(row for row in latest.data["results"]
+                         if row["asset_id"] == self.asset.pk)["identification_status"], "STALE")
+
+    def test_global_overview_is_readable_by_operator(self):
+        self.client.force_authenticate(self.operator)
+        self.assertEqual(self.client.get("/api/vulnerabilities/cpe-overview/").status_code, 200)
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.get("/api/vulnerabilities/cpe-overview/").status_code, 401)
+
     def test_request_is_queued_and_reuses_open_run(self):
         first = self.client.post(self.base, {"scope": "SPECIFIC"}, format="json")
         self.assertEqual(first.status_code, 202, first.data)
