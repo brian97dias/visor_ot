@@ -59,6 +59,8 @@ def normalize_candidate(record, identity, strategy):
         "deprecated": bool(cpe.get("deprecated", False)),
         "cpe_type": _cpe_part(name, 2),
         "version": _cpe_part(name, 5),
+        "nvd_created_at": cpe.get("created"),
+        "nvd_modified_at": cpe.get("lastModified"),
         "methods": [strategy],
     }
     item["match_level"], item["match_reason"] = classify(item, identity)

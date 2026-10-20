@@ -140,7 +140,9 @@ class CpeSearchAPITests(TestCase):
         run = CpeSearchRun.objects.get(pk=created.data["run_id"])
         run.status = "COMPLETED"
         run.candidates = [{
-            "cpe_name_id": "example-1215c", "title": "Siemens 1215C",
+            "cpe_name_id": "09f448d2-f606-44ab-8891-c27a3ff64002",
+            "cpe_name": "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*",
+            "title": "Siemens 1215C",
         }]
         run.save(update_fields=["status", "candidates"])
         response = self.client.get("/api/vulnerabilities/cpe-overview/")
