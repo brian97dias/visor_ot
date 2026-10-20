@@ -2316,3 +2316,10 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cpe-overview-status[data-status="RUNNING"] { color: #7dd3fc; }
 .cpe-overview-subtitle { color: #94a3b8; font-size: .78rem; margin-top: 5px; }
 .cpe-overview-note { color: #94a3b8; padding: 15px 20px; font-size: .84rem; }
+
+/* Phase 1 diagnostics: status polling is not NVD execution. */
+.cpe-tools .button-secondary { margin-top: 0; }
+.cpe-overview-stat { flex: 1 1 145px; }
+@media (max-width: 620px) {
+  .cpe-overview-toolbar select, .cpe-overview-toolbar input { width: 100%; }
+}

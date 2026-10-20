@@ -18,6 +18,7 @@ export default function CpeOverview() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("ALL");
+  const [assetType, setAssetType] = useState("ALL");
   const [search, setSearch] = useState("");
   const [revision, setRevision] = useState(0);
 
@@ -33,14 +34,17 @@ export default function CpeOverview() {
   }, [revision]);
 
   const visible = useMemo(() => rows.filter(row => {
+    if (assetType !== "ALL" && row.asset_type !== assetType) return false;
     if (filter !== "ALL" && filter !== row.identification_status) return false;
     const query = search.trim().toLowerCase();
     return !query || [
       row.asset_name, row.manufacturer, row.product, row.cpu_model, row.role,
     ].some(value => String(value || "").toLowerCase().includes(query));
-  }), [rows, filter, search]);
+  }), [rows, filter, assetType, search]);
 
   const count = state => rows.filter(row => row.identification_status === state).length;
+  const hardwareCount = rows.filter(row => row.asset_type === "HARDWARE").length;
+  const softwareCount = rows.filter(row => row.asset_type === "SOFTWARE").length;
   const processing = count("QUEUED") + count("RUNNING");
 
   return <section className="page">
@@ -53,7 +57,8 @@ export default function CpeOverview() {
     </header>
     <div className="cpe-overview-stats" aria-label="Resumen de búsquedas CPE">
       <div className="cpe-overview-stat"><strong>{rows.length}</strong><span>Activos vigentes</span></div>
-      <div className="cpe-overview-stat"><strong>{count("NOT_SEARCHED")}</strong><span>Hardware sin búsqueda</span></div>
+      <div className="cpe-overview-stat"><strong>{hardwareCount}</strong><span>Hardware</span></div>
+      <div className="cpe-overview-stat"><strong>{softwareCount}</strong><span>Software (fase 4)</span></div>
       <div className="cpe-overview-stat"><strong>{count("CANDIDATES")}</strong><span>Con candidatos para revisar</span></div>
       <div className="cpe-overview-stat"><strong>{processing}</strong><span>En cola o consultando</span></div>
     </div>
@@ -68,6 +73,12 @@ export default function CpeOverview() {
         <input type="search" aria-label="Buscar activos para identificar CPE"
           placeholder="Buscar por activo, fabricante, modelo o CPU..."
           value={search} onChange={event => setSearch(event.target.value)}/>
+        <select aria-label="Filtrar tipo de activo CPE"
+          value={assetType} onChange={event => setAssetType(event.target.value)}>
+          <option value="ALL">Hardware y Software</option>
+          <option value="HARDWARE">Solo Hardware</option>
+          <option value="SOFTWARE">Solo Software</option>
+        </select>
         <select aria-label="Filtrar estado de identificación CPE"
           value={filter} onChange={event => setFilter(event.target.value)}>
           <option value="ALL">Todos los estados</option>
@@ -119,7 +130,8 @@ export default function CpeOverview() {
             </table>
           </div>}
       <p className="cpe-overview-note">
-        Los resultados de software y firmware se integrarán en la fase 4.
+        Actualmente solo se buscan CPE de hardware. Los activos de software se
+        muestran para dar visibilidad al inventario, pero su búsqueda llegará en la fase 4.
         La validación y confirmación de CPE llegará en la fase 2.
         La ficha de cada hardware mantiene su acceso directo al descubrimiento.
       </p>

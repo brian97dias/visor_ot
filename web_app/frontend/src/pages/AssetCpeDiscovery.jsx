@@ -22,6 +22,8 @@ export default function AssetCpeDiscovery() {
   const [run, setRun] = useState(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [pollingPaused, setPollingPaused] = useState(false);
   const [error, setError] = useState("");
   const allowed = ["ADMIN", "ANALYST"].includes(user?.role);
   const pending = ["QUEUED", "RUNNING"].includes(run?.status);
@@ -30,6 +32,7 @@ export default function AssetCpeDiscovery() {
     let active = true;
     setLoading(true);
     setRun(null);
+    setPollingPaused(false);
     setAsset(null);
     setError("");
     Promise.all([getAsset(assetId), latestCpeSearch(assetId)])
@@ -40,19 +43,40 @@ export default function AssetCpeDiscovery() {
   }, [assetId]);
 
   useEffect(() => {
-    if (!pending || !run) return;
+    if (!pending || !run || pollingPaused) return;
     let active = true;
+    // Requests update only the state in PostgreSQL; they never start NVD calls.
+    // Stop continuous polling after five minutes and offer a manual refresh.
     const timer = window.setInterval(() => {
+      if (Date.now() - Date.parse(run.created_at) >= 5 * 60 * 1000) {
+        setPollingPaused(true);
+        return;
+      }
       readCpeSearch(assetId, run.id)
         .then(r => { if (active) { setRun(r); setError(""); } })
         .catch(err => { if (active) setError(err.message); });
-    }, 4000);
+    }, 5000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [assetId, run?.id, run?.status, pending]);
+  }, [assetId, run?.id, run?.status, pending, pollingPaused]);
+
+  async function refresh() {
+    if (!run || refreshing) return;
+    setRefreshing(true);
+    try {
+      const latest = await readCpeSearch(assetId, run.id);
+      setRun(latest);
+      setError("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   async function search(scope) {
     if (working || pending) return;
     setWorking(true);
+    setPollingPaused(false);
     setError("");
     try {
       const response = await startCpeSearch(assetId, scope);
@@ -91,6 +115,10 @@ export default function AssetCpeDiscovery() {
           onClick={() => search("BROAD")}>Ampliar búsqueda por familia</button>
       </div>}
     {!allowed && <p className="cpe-copy">Tu usuario puede consultar, pero no iniciar búsquedas CPE.</p>}
+    {run && <div className="cpe-tools">
+      <button className="button-secondary" type="button" disabled={refreshing}
+        onClick={refresh}>{refreshing ? "Consultando estado..." : "Actualizar estado"}</button>
+    </div>}
     {!run ? <section className="panel cpe-copy">Sin búsquedas previas para este hardware.
       Se requieren fabricante y modelo/familia para comenzar.</section> : <>
       <section className="panel">
@@ -100,8 +128,29 @@ export default function AssetCpeDiscovery() {
         <div className="cpe-copy">
           <p>Alcance: {run.scope === "BROAD" ? "Familia" : "Específico"} · Candidatos: {run.candidate_count}.</p>
           <p>Fecha: {new Date(run.created_at).toLocaleString("es-CO")}</p>
-          {pending && <p>El procesamiento puede tardar debido al límite público de NVD.
-            Si permanece pendiente, verifica que se haya iniciado el comando <code>run_cpe_worker</code>.</p>}
+          {pending && <>
+            <p>La búsqueda permanece guardada en PostgreSQL aunque abandones esta página.</p>
+            {run.worker_active === false && <p className="cpe-warning" role="status">
+              No se detecta el trabajador NVD en PostgreSQL. Abre otra terminal
+              del backend y ejecuta <code>python manage.py run_cpe_worker</code>.
+              Las solicitudes HTTP 200 solamente consultan el estado: no ejecutan la búsqueda.
+            </p>}
+            {run.worker_active === true && run.status === "QUEUED" &&
+              <p className="cpe-hint">Trabajador detectado. Este trabajo está esperando su turno;
+                puede haber otras búsquedas anteriores en ejecución.</p>}
+            {run.worker_active === true && run.status === "RUNNING" &&
+              <p className="cpe-hint">Trabajador detectado y búsqueda iniciada.
+                NVD puede demorar por los límites de frecuencia y los reintentos.</p>}
+            {run.worker_active == null && <p className="cpe-hint">
+              No fue posible consultar la disponibilidad del trabajador.</p>}
+            {pollingPaused && <p className="cpe-warning" role="status">
+              La consulta automática se pausó tras cinco minutos para evitar
+              solicitudes indefinidas. Puedes pulsar «Actualizar estado».
+              Si el trabajador está detenido, reinícialo en otra terminal.
+            </p>}
+            {!pollingPaused && <p className="cpe-hint">
+              Actualizando el estado aproximadamente cada cinco segundos.</p>}
+          </>}
           {run.status === "FAILED" && <p role="alert">{run.error_message}</p>}
           {run.status === "COMPLETED" && run.candidate_count === 0 &&
             <p>Sin coincidencias en las consultas realizadas. Esto no descarta que exista un CPE.</p>}
