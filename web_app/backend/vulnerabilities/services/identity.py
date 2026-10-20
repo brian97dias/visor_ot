@@ -83,7 +83,14 @@ def build_level_queries(identity, level):
     if level == "FAMILY":
         return build_queries({**identity, "model": family_term(identity.get("model")),
                               "cpu_model": ""}, "BROAD")
-    raise ValueError("Nivel de descubrimiento CPE no permitido en esta fase.")
+    if level == "MANUFACTURER":
+        vendor = vendor_spelling(identity.get("manufacturer"))
+        if not vendor:
+            raise ValueError("Registra un fabricante válido para ampliar a fabricante.")
+        # NVD Products API supports CPE prefixes that omit the product field.
+        # Keep part 'h' to avoid fetching OS, firmware and applications.
+        return [{"strategy": "cpeMatchString", "parameter": f"cpe:2.3:h:{vendor}"}]
+    raise ValueError("Nivel de descubrimiento CPE no permitido.")
 
 
 def build_queries(identity, scope="SPECIFIC"):

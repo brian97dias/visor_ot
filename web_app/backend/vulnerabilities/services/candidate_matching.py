@@ -48,6 +48,20 @@ def classify(candidate, identity):
     return "FAMILY", "Coinciden fabricante y familia; se desconoce el modelo de CPU."
 
 
+def is_manufacturer_related(candidate, identity):
+    """Keep only manufacturer-level hardware with explainable product relevance.
+
+    A manufacturer-wide query can return hundreds of unrelated products. Those
+    products are not evidence for the inventoried model and must not consume
+    candidate storage. Classifications remain suggestions, not validations.
+    """
+    if _cpe_part(candidate.get("cpe_name", ""), 2) != "h":
+        return False
+    if normalized(_cpe_part(candidate["cpe_name"], 3)) != normalized(identity.get("manufacturer")):
+        return False
+    return candidate.get("match_level") in ("SPECIFIC", "FAMILY", "RELATED", "NEEDS_INFO")
+
+
 def is_pertinent(candidate, identity):
     """Strong, explainable evidence for STOPPING further discovery.
 

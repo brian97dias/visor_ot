@@ -7,12 +7,18 @@ from assets.models import Asset
 from vulnerabilities.models import CpeSearchRun
 
 from .identity import hardware_identity, fingerprint, build_queries, build_level_queries
-from .candidate_matching import normalize_candidate, merge_candidates, hardware_candidates, is_pertinent
+from .candidate_matching import (
+    normalize_candidate, merge_candidates, hardware_candidates,
+    is_pertinent, is_manufacturer_related,
+)
 from .nvd_client import fetch_page, PAGE_SIZE, MAX_PAGES_PER_STRATEGY, MAX_TOTAL_CANDIDATES
 from .worker_lock import worker_lock_held
 
 # Shared across all discovery levels: never reset budgets on fallback.
 MAX_TOTAL_PAGE_FETCHES = 8
+# A manufacturer may have thousands of records; avoid scanning the full catalog.
+# This per-level limit never overrides the smaller remaining global budget.
+MAX_MANUFACTURER_PAGES = 2
 
 
 def create_run(asset_id, user, scope, *, return_reused=False):
@@ -50,9 +56,10 @@ def _persist(run, fields):
 def execute_run(run, pacer, fetcher=fetch_page):
     """Progressive hardware discovery. Only the locked worker calls NVD.
 
-    SPECIFIC starts with the original precise plan and falls back to FAMILY.
-    BROAD starts with FAMILY. This phase never searches manufacturer-wide.
-    Failed or partial queries do not establish absence of a relevant CPE.
+    SPECIFIC progresses through precise, family, and manufacturer levels.
+    BROAD starts with family then may use manufacturer.
+    The manufacturer query is restricted to hardware and locally filtered for
+    product/family relevance. Failed or partial queries never prove absence.
     """
     if run.status != CpeSearchRun.Status.QUEUED:
         return run
@@ -66,7 +73,10 @@ def execute_run(run, pacer, fetcher=fetch_page):
     fetched_pages = 0
     truncated = False
     seen_queries = set()
-    levels = ("SPECIFIC", "FAMILY") if run.scope == "SPECIFIC" else ("FAMILY",)
+    levels = (
+        ("SPECIFIC", "FAMILY", "MANUFACTURER")
+        if run.scope == "SPECIFIC" else ("FAMILY", "MANUFACTURER")
+    )
 
     try:
         for level in levels:
@@ -78,10 +88,12 @@ def execute_run(run, pacer, fetcher=fetch_page):
                     level_queries.append(query)
                     seen_queries.add(key)
             if not level_queries:
-                # No new queries can broaden this identity; do not repeat HTTP.
+                # The family spelling may equal the specific spelling. Do not
+                # repeat either request, but still try manufacturer discovery.
                 if queries:
                     queries[-1]["next_level_reason"] = "NO_NEW_PARAMETERS"
-                break
+                    _persist(run, {"queries": queries})
+                continue
 
             level_uuids = set()
             level_partial = False
@@ -89,7 +101,8 @@ def execute_run(run, pacer, fetcher=fetch_page):
                 details = {
                     **query, "level": level, "pages": 0, "total_results": None,
                     "retrieved": 0, "hardware_results": 0, "pertinent_results": 0,
-                    "related_results": 0, "status": "RUNNING",
+                    "related_results": 0, "filtered_hardware_results": 0,
+                    "status": "RUNNING",
                 }
                 queries.append(details)
                 _persist(run, {"queries": queries})
@@ -101,7 +114,11 @@ def execute_run(run, pacer, fetcher=fetch_page):
                     _persist(run, {"queries": queries})
                     break
 
-                for page in range(MAX_PAGES_PER_STRATEGY):
+                max_pages = (
+                    min(MAX_MANUFACTURER_PAGES, MAX_PAGES_PER_STRATEGY)
+                    if level == "MANUFACTURER" else MAX_PAGES_PER_STRATEGY
+                )
+                for page in range(max_pages):
                     if fetched_pages >= MAX_TOTAL_PAGE_FETCHES:
                         details["stop_reason"] = "GLOBAL_PAGE_LIMIT"
                         truncated = level_partial = True
@@ -120,6 +137,13 @@ def execute_run(run, pacer, fetcher=fetch_page):
                         if item is None:
                             continue
                         details["hardware_results"] += 1
+                        if level == "MANUFACTURER" and not is_manufacturer_related(
+                            item, run.identity_snapshot
+                        ):
+                            # Count rejected records for audit, without storing
+                            # unrelated products as asset CPE candidates.
+                            details["filtered_hardware_results"] += 1
+                            continue
                         if is_pertinent(item, run.identity_snapshot):
                             details["pertinent_results"] += 1
                         elif item["match_level"] == "RELATED":
@@ -153,7 +177,10 @@ def execute_run(run, pacer, fetcher=fetch_page):
                 else:
                     if details["retrieved"] < (details["total_results"] or 0):
                         truncated = level_partial = True
-                        details["stop_reason"] = "PER_STRATEGY_PAGE_LIMIT"
+                        details["stop_reason"] = (
+                            "MANUFACTURER_PAGE_LIMIT" if level == "MANUFACTURER"
+                            else "PER_STRATEGY_PAGE_LIMIT"
+                        )
                 details["status"] = "PARTIAL" if level_partial else "COMPLETED"
                 _persist(run, {"queries": queries, "result_truncated": truncated})
                 if level_partial:
@@ -171,7 +198,7 @@ def execute_run(run, pacer, fetcher=fetch_page):
                     details["level_result"] = reason
                     details["level_unique_hardware_candidates"] = len(level_uuids)
                     details["level_pertinent_candidates"] = strong
-                    if not strong and not level_partial and level == "SPECIFIC":
+                    if not strong and not level_partial and level != "MANUFACTURER":
                         details["next_level_reason"] = "NO_PERTINENT_CANDIDATES"
             _persist(run, {"queries": queries})
             if level_partial or strong:

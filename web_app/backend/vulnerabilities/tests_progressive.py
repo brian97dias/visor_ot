@@ -67,7 +67,8 @@ class ProgressiveDiscoveryTests(SimpleTestCase):
             return response([related, irrelevant]) if "advantech:adam*" in parameter or parameter == "Advantech ADAM" else response([])
         execute_run(run, object(), fetcher=fetch)
         self.assertEqual(run.status, "COMPLETED")
-        self.assertEqual(len(seen), 4)
+        self.assertEqual(len(seen), 5)
+        self.assertIn(("cpeMatchString", "cpe:2.3:h:advantech"), seen)
         self.assertIn(("keywordSearch", "Advantech ADAM"), seen)
         self.assertIn(("cpeMatchString", "cpe:2.3:h:advantech:adam*"), seen)
         self.assertEqual(len(run.candidates), 1)
@@ -80,9 +81,10 @@ class ProgressiveDiscoveryTests(SimpleTestCase):
     def test_broad_starts_at_family_without_specific(self):
         run = queued(ADAM, scope="BROAD")
         execute_run(run, object(), fetcher=lambda *args: response([]))
-        self.assertEqual(len(run.queries), 2)
-        self.assertEqual({q["level"] for q in run.queries}, {"FAMILY"})
+        self.assertEqual(len(run.queries), 3)
+        self.assertEqual([q["level"] for q in run.queries], ["FAMILY", "FAMILY", "MANUFACTURER"])
         self.assertIn("advantech:adam*", run.queries[1]["parameter"])
+        self.assertEqual(run.queries[2]["parameter"], "cpe:2.3:h:advantech")
 
     def test_missing_cpu_and_no_broader_family_does_not_repeat_queries(self):
         run = queued({**SIEMENS, "cpu_model": ""})
@@ -91,9 +93,10 @@ class ProgressiveDiscoveryTests(SimpleTestCase):
             seen.append((strategy, parameter))
             return response([])
         execute_run(run, object(), fetcher=fetch)
-        self.assertEqual(len(seen), 2)
+        self.assertEqual(len(seen), 3)
         self.assertFalse(run.result_truncated)
-        self.assertEqual(run.queries[-1]["next_level_reason"], "NO_NEW_PARAMETERS")
+        self.assertEqual(run.queries[1]["next_level_reason"], "NO_NEW_PARAMETERS")
+        self.assertEqual(run.queries[-1]["level"], "MANUFACTURER")
 
     def test_model_numbers_are_never_silently_equal(self):
         self.assertEqual(family_term("ADAM-5000 Series"), "ADAM")
@@ -159,3 +162,144 @@ class ProgressiveDiscoveryTests(SimpleTestCase):
         execute_run(run, object(), fetcher=lambda *args: response([exact]))
         self.assertEqual(run.queries[0]["level_result"], "SUFFICIENT_PERTINENT_CANDIDATES")
         self.assertEqual(len(run.queries), 2)
+
+class ManufacturerDiscoveryTests(SimpleTestCase):
+    """Phase 2: bounded manufacturer-level hardware discovery, fully offline."""
+
+    def test_manufacturer_query_is_hardware_only_and_product_agnostic(self):
+        self.assertEqual(
+            build_level_queries(ADAM, "MANUFACTURER"),
+            [{"strategy": "cpeMatchString", "parameter": "cpe:2.3:h:advantech"}],
+        )
+        self.assertEqual(
+            build_level_queries({**SIEMENS, "manufacturer": "Rockwell Automation"}, "MANUFACTURER"),
+            [{"strategy": "cpeMatchString", "parameter": "cpe:2.3:h:rockwell_automation"}],
+        )
+
+    def test_specific_and_family_insufficient_discover_related_adam_5550_by_manufacturer(self):
+        run = queued(ADAM)
+        calls = []
+        related = product("uuid-5550", "advantech", "adam-5550")
+        unrelated = product("uuid-different-model", "advantech", "pcm_700")
+        wrong_vendor = product("uuid-wrong-vendor", "someone_else", "adam-5550")
+        firmware = product("uuid-firmware", "advantech", "adam-5550_firmware", kind="o")
+
+        def fetch(strategy, parameter, index, pacer):
+            calls.append((strategy, parameter, index))
+            if parameter == "cpe:2.3:h:advantech":
+                return response([related, unrelated, wrong_vendor, firmware])
+            return response([])
+
+        execute_run(run, object(), fetcher=fetch)
+        self.assertEqual(run.status, "COMPLETED")
+        self.assertFalse(run.result_truncated)
+        self.assertEqual(len(calls), 5)
+        self.assertEqual([r["cpe_name_id"] for r in run.candidates], ["uuid-5550"])
+        self.assertEqual(run.candidates[0]["match_level"], "RELATED")
+        self.assertEqual(run.candidates[0]["discovery_levels"], ["MANUFACTURER"])
+        details = run.queries[-1]
+        self.assertEqual(details["status"], "COMPLETED")
+        self.assertEqual(details["level_result"], "NO_PERTINENT_CANDIDATES")
+        self.assertEqual(details["hardware_results"], 3)
+        self.assertEqual(details["filtered_hardware_results"], 2)
+        self.assertEqual(details["related_results"], 1)
+
+    def test_broad_begins_with_family_and_falls_back_to_manufacturer(self):
+        run = queued(ADAM, scope="BROAD")
+        seen = []
+        def fetch(strategy, parameter, index, pacer):
+            seen.append(parameter)
+            return response([product("uuid-related", "advantech", "adam-5550")]) \
+                if parameter == "cpe:2.3:h:advantech" else response([])
+        execute_run(run, object(), fetcher=fetch)
+        self.assertEqual(run.status, "COMPLETED")
+        self.assertEqual(
+            [q["level"] for q in run.queries], ["FAMILY", "FAMILY", "MANUFACTURER"]
+        )
+        self.assertNotIn("Advantech ADAM-5000 Series", seen)
+        self.assertEqual(run.candidates[0]["discovery_levels"], ["MANUFACTURER"])
+
+    def test_strong_family_candidate_prevents_costly_manufacturer_search(self):
+        run = queued(ADAM, scope="BROAD")
+        exact = product("uuid-full-family", "advantech", "adam5000series")
+        seen = []
+        def fetch(strategy, parameter, index, pacer):
+            seen.append(parameter)
+            return response([exact])
+        execute_run(run, object(), fetcher=fetch)
+        self.assertEqual(run.status, "COMPLETED")
+        self.assertTrue(run.queries[0]["level_result"] == "SUFFICIENT_PERTINENT_CANDIDATES"
+                        or run.queries[-1]["level_result"] == "SUFFICIENT_PERTINENT_CANDIDATES")
+        self.assertEqual(len(seen), 2)
+        self.assertNotIn("cpe:2.3:h:advantech", seen)
+
+    def test_manufacturer_pagination_is_partial_not_no_results(self):
+        run = queued(ADAM)
+        pages = []
+        # 300 manufacturer CPEs: only the first 2 pages may be read.
+        unrelated = [
+            product(f"unrelated-{i}", "advantech", f"pcm_model_{i}")
+            for i in range(100)
+        ]
+        def fetch(strategy, parameter, index, pacer):
+            pages.append((parameter, index))
+            if parameter == "cpe:2.3:h:advantech":
+                return response(unrelated, total=300)
+            return response([])
+        execute_run(run, object(), fetcher=fetch)
+        self.assertEqual(run.status, "COMPLETED")
+        self.assertTrue(run.result_truncated)
+        self.assertEqual([p[1] for p in pages if p[0] == "cpe:2.3:h:advantech"], [0, 100])
+        self.assertEqual(len(run.candidates), 0)
+        last = run.queries[-1]
+        self.assertEqual(last["status"], "PARTIAL")
+        self.assertEqual(last["stop_reason"], "MANUFACTURER_PAGE_LIMIT")
+        self.assertEqual(last["level_result"], "PARTIAL_RESULTS")
+        self.assertEqual(last["filtered_hardware_results"], 200)
+
+    def test_manufacturer_http_failure_does_not_claim_no_results(self):
+        run = queued(ADAM)
+        def fetch(strategy, parameter, index, pacer):
+            if parameter == "cpe:2.3:h:advantech":
+                raise TimeoutError("NVD manufacturer lookup timeout")
+            return response([])
+        execute_run(run, object(), fetcher=fetch)
+        self.assertEqual(run.status, "FAILED")
+        self.assertIn("timeout", run.error_message)
+        self.assertEqual(run.queries[-1]["status"], "FAILED")
+        self.assertEqual(run.queries[-1]["stop_reason"], "REQUEST_FAILED")
+
+    def test_shared_page_budget_includes_manufacturer_level(self):
+        from unittest.mock import patch
+        from .services import cpe_search
+
+        run = queued(ADAM)
+        pages = []
+        related = product("uuid-r", "advantech", "adam-5550")
+        def fetch(strategy, parameter, index, pacer):
+            pages.append((parameter, index))
+            if parameter == "cpe:2.3:h:advantech":
+                return response([related] * 100, total=500)
+            return response([])
+        with patch.object(cpe_search, "MAX_TOTAL_PAGE_FETCHES", 5):
+            execute_run(run, object(), fetcher=fetch)
+        self.assertEqual(len(pages), 5)
+        self.assertTrue(run.result_truncated)
+        self.assertEqual(run.status, "COMPLETED")
+        self.assertEqual(run.candidates[0]["cpe_name_id"], "uuid-r")
+        self.assertEqual(run.queries[-1]["stop_reason"], "GLOBAL_PAGE_LIMIT")
+        self.assertEqual(run.queries[-1]["level_result"], "PARTIAL_RESULTS")
+
+    def test_same_uuid_from_three_levels_keeps_one_candidate_with_full_provenance(self):
+        run = queued(ADAM)
+        related = product("uuid-same", "advantech", "adam-5550")
+        def fetch(strategy, parameter, index, pacer):
+            return response([related])
+        execute_run(run, object(), fetcher=fetch)
+        self.assertEqual(run.status, "COMPLETED")
+        self.assertEqual(len(run.candidates), 1)
+        self.assertEqual(
+            run.candidates[0]["discovery_levels"], ["FAMILY", "MANUFACTURER", "SPECIFIC"]
+        )
+        self.assertEqual(run.candidates[0]["methods"], ["cpeMatchString", "keywordSearch"])
+        self.assertEqual(len(run.queries), 5)
