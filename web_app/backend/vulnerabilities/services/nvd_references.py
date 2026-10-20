@@ -14,7 +14,7 @@ MAX_URL_LENGTH = 2048
 def safe_reference_url(value):
     if not isinstance(value, str) or not 1 <= len(value) <= MAX_URL_LENGTH:
         return None
-    if value != value.strip() or any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+    if value != value.strip() or any(ord(ch) <= 32 or ord(ch) == 127 for ch in value):
         return None
     try:
         parsed = urlsplit(value)
@@ -36,7 +36,7 @@ def safe_reference_url(value):
                 or len(labels) < 2 or len(host) > 253
                 or all(label.isdigit() for label in labels)
                 or any(len(label) > 63 or re.fullmatch(
-                    r"[a-z0-9]+(?:-[a-z0-9]+)*", label, flags=re.ASCII
+                    r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", label, flags=re.ASCII
                 ) is None for label in labels)):
             return None
     except (ValueError, TypeError):

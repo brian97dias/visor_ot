@@ -57,6 +57,7 @@ class NvdReferenceValidationTests(SimpleTestCase):
             {"ref": "http://siemens.com/something", "type": "Advisory"},
             {"ref": "https://127.0.0.1/admin", "type": "Product"},
             {"ref": "https://127.1/admin", "type": "Product"},
+            {"ref": "https://siemens.com/bad path", "type": "Product"},
             {"ref": "https://localhost/page", "type": "Product"},
             {"ref": "https://private.internal/config", "type": "Product"},
             {"ref": "https://user:pass@siemens.com", "type": "Product"},
