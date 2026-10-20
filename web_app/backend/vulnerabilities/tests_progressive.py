@@ -3,8 +3,10 @@ from types import SimpleNamespace
 
 from django.test import SimpleTestCase
 
-from .services.identity import build_level_queries, family_term
-from .services.candidate_matching import normalize_candidate, is_pertinent
+from .services.identity import (
+    build_level_queries, family_term, vendor_variants, catalog_code_prefix, fingerprint,
+)
+from .services.candidate_matching import normalize_candidate, is_pertinent, is_manufacturer_related
 from .services.cpe_search import execute_run, MAX_TOTAL_PAGE_FETCHES
 
 
@@ -171,9 +173,13 @@ class ManufacturerDiscoveryTests(SimpleTestCase):
             build_level_queries(ADAM, "MANUFACTURER"),
             [{"strategy": "cpeMatchString", "parameter": "cpe:2.3:h:advantech"}],
         )
-        self.assertEqual(
-            build_level_queries({**SIEMENS, "manufacturer": "Rockwell Automation"}, "MANUFACTURER"),
-            [{"strategy": "cpeMatchString", "parameter": "cpe:2.3:h:rockwell_automation"}],
+        rockwell = build_level_queries(
+            {**SIEMENS, "manufacturer": "Rockwell Automation"}, "MANUFACTURER"
+        )
+        self.assertEqual(rockwell[0]["parameter"], "cpe:2.3:h:rockwellautomation")
+        self.assertIn(
+            {"strategy": "cpeMatchString", "parameter": "cpe:2.3:h:rockwell_automation"},
+            rockwell,
         )
 
     def test_specific_and_family_insufficient_discover_related_adam_5550_by_manufacturer(self):
@@ -303,3 +309,130 @@ class ManufacturerDiscoveryTests(SimpleTestCase):
         )
         self.assertEqual(run.candidates[0]["methods"], ["cpeMatchString", "keywordSearch"])
         self.assertEqual(len(run.queries), 5)
+
+
+class ManufacturerAliasRefinementTests(SimpleTestCase):
+    """Hardware vendor aliases, numeric catalog codes and global NVD budgets."""
+
+    ROCKWELL = {
+        "asset_type": "HARDWARE", "manufacturer": "Rockwell Automation",
+        "model": "1783-EMS08T/B", "cpu_model": "", "role": "SWITCH",
+    }
+    AXIS = {
+        "asset_type": "HARDWARE", "manufacturer": "Axis Communications",
+        "model": "AXIS 206", "cpu_model": "", "role": "CAMERA",
+    }
+
+    def test_vendor_variants_are_bounded_and_do_not_change_identity(self):
+        self.assertEqual(vendor_variants("Rockwell Automation"), [
+            "rockwellautomation", "rockwell_automation", "rockwell-automation",
+        ])
+        self.assertEqual(vendor_variants("Axis Communications"), [
+            "axis", "axis_communications", "axiscommunications", "axis-communications",
+        ])
+        self.assertEqual(vendor_variants("Siemens"), ["siemens"])
+        old = fingerprint(self.ROCKWELL)
+        build_level_queries(self.ROCKWELL, "MANUFACTURER")
+        self.assertEqual(fingerprint(self.ROCKWELL), old)
+
+    def test_numeric_catalog_prefix_does_not_infer_numeric_proximity(self):
+        self.assertEqual(catalog_code_prefix("1783-EMS08T/B"), "1783")
+        self.assertEqual(catalog_code_prefix("AXIS 206"), "")
+        self.assertEqual(catalog_code_prefix("SIMATIC S7-1200"), "")
+        self.assertEqual(catalog_code_prefix("206"), "")
+
+    def test_rockwell_queries_prefer_specific_catalog_variants(self):
+        params = [q["parameter"] for q in build_level_queries(self.ROCKWELL, "MANUFACTURER")]
+        self.assertEqual(params[:3], [
+            "cpe:2.3:h:rockwellautomation:1783*",
+            "cpe:2.3:h:rockwell_automation:1783*",
+            "cpe:2.3:h:rockwell-automation:1783*",
+        ])
+        self.assertEqual(params[3], "cpe:2.3:h:rockwellautomation")
+        self.assertEqual(len(set(params)), len(params))
+
+    def test_1783_natr_only_related_and_other_catalog_rejected(self):
+        related = normalize_candidate(
+            product("natr", "rockwellautomation", "1783-natr"),
+            self.ROCKWELL, "cpeMatchString",
+        )
+        self.assertEqual(related["match_level"], "RELATED")
+        self.assertFalse(is_pertinent(related, self.ROCKWELL))
+        self.assertTrue(is_manufacturer_related(related, self.ROCKWELL))
+        other = normalize_candidate(
+            product("other", "rockwellautomation", "1784-natr"),
+            self.ROCKWELL, "cpeMatchString",
+        )
+        self.assertEqual(other["match_level"], "POSSIBLE_INCOMPATIBILITY")
+        self.assertFalse(is_manufacturer_related(other, self.ROCKWELL))
+
+    def test_realistic_rockwell_alias_retrieves_related_device_and_marks_partial(self):
+        run = queued(self.ROCKWELL)
+        calls = []
+        related = product("natr", "rockwellautomation", "1783-natr")
+        def fetch(strategy, parameter, index, pacer):
+            calls.append((strategy, parameter, index))
+            return response([related]) if parameter == "cpe:2.3:h:rockwellautomation:1783*" else response([])
+        execute_run(run, object(), fetcher=fetch)
+        self.assertEqual(run.status, "COMPLETED")
+        self.assertEqual(len(run.candidates), 1)
+        self.assertEqual(run.candidates[0]["match_level"], "RELATED")
+        self.assertEqual(run.candidates[0]["discovery_levels"], ["MANUFACTURER"])
+        self.assertTrue(run.result_truncated)
+        self.assertEqual(run.queries[-1]["stop_reason"], "MANUFACTURER_LEVEL_LIMIT")
+        self.assertLessEqual(len(calls), MAX_TOTAL_PAGE_FETCHES)
+
+    def test_axis_207_is_never_an_axis_206_candidate(self):
+        run = queued(self.AXIS)
+        wrong = product("axis-207", "axis", "207_network_camera")
+        seen = []
+        def fetch(strategy, parameter, index, pacer):
+            seen.append(parameter)
+            return response([wrong]) if parameter == "cpe:2.3:h:axis" else response([])
+        execute_run(run, object(), fetcher=fetch)
+        self.assertEqual(run.status, "COMPLETED")
+        self.assertEqual(run.candidates, [])
+        self.assertIn("cpe:2.3:h:axis", seen)
+        self.assertEqual(
+            normalize_candidate(wrong, self.AXIS, "cpeMatchString")["match_level"],
+            "POSSIBLE_INCOMPATIBILITY",
+        )
+
+    def test_siemens_cpu_1215c_remains_specific_no_manufacturer_queries(self):
+        run = queued(SIEMENS)
+        found = product("siemens", "siemens", "simatic_s7-1200_cpu_1215c")
+        calls = []
+        def fetch(strategy, parameter, index, pacer):
+            calls.append(parameter)
+            return response([found])
+        execute_run(run, object(), fetcher=fetch)
+        self.assertEqual(run.status, "COMPLETED")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual({q["level"] for q in run.queries}, {"SPECIFIC"})
+
+    def test_alias_timeout_preserves_failed_not_absence(self):
+        run = queued(self.ROCKWELL)
+        def fetch(strategy, parameter, index, pacer):
+            if parameter == "cpe:2.3:h:rockwellautomation:1783*":
+                raise TimeoutError("Rockwell NVD timeout")
+            return response([])
+        execute_run(run, object(), fetcher=fetch)
+        self.assertEqual(run.status, "FAILED")
+        self.assertIn("timeout", run.error_message)
+        self.assertEqual(run.queries[-1]["stop_reason"], "REQUEST_FAILED")
+
+    def test_manufacturer_pages_are_shared_by_all_variants(self):
+        from unittest.mock import patch
+        from .services import cpe_search
+        run = queued(self.ROCKWELL, scope="BROAD")
+        calls = []
+        def fetch(strategy, parameter, index, pacer):
+            calls.append((parameter, index))
+            return response([])
+        with patch.object(cpe_search, "MAX_MANUFACTURER_LEVEL_PAGES", 2):
+            execute_run(run, object(), fetcher=fetch)
+        manufacturer = [q for q in run.queries if q["level"] == "MANUFACTURER"]
+        self.assertEqual(sum(q["pages"] for q in manufacturer), 2)
+        self.assertTrue(run.result_truncated)
+        self.assertEqual(manufacturer[-1]["stop_reason"], "MANUFACTURER_LEVEL_LIMIT")
+        self.assertLessEqual(len(calls), MAX_TOTAL_PAGE_FETCHES)
