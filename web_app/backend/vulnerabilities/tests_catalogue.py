@@ -1,5 +1,8 @@
 """Phase 1 of shared NVD catalogue: page recovery without live NVD access."""
 from datetime import timedelta
+import io
+import json
+from unittest.mock import Mock, patch
 from io import StringIO
 from uuid import uuid5, NAMESPACE_DNS
 
@@ -72,6 +75,22 @@ class CatalogueQueryValidationTests(SimpleTestCase):
             with self.subTest(parameter=parameter), self.assertRaises(ValueError):
                 canonical_query(strategy, parameter)
 
+
+
+class NvdClientCataloguePagingTests(SimpleTestCase):
+    def test_fetch_page_accepts_larger_page_size_without_changing_legacy_default(self):
+        from vulnerabilities.services.nvd_client import fetch_page
+        data = {"products": [], "totalResults": 0, "startIndex": 500}
+        with patch("vulnerabilities.services.nvd_client.urlopen",
+                   return_value=io.BytesIO(json.dumps(data).encode("utf-8"))) as opener:
+            response = fetch_page(
+                "keywordSearch", "Phoenix Contact", 500, Mock(),
+                results_per_page=500,
+            )
+        self.assertEqual(response["products"], [])
+        url = opener.call_args.args[0].full_url
+        self.assertIn("resultsPerPage=500", url)
+        self.assertIn("startIndex=500", url)
 
 
 class CatalogueCacheTests(TestCase):
@@ -231,6 +250,17 @@ class CatalogueRecoveryTests(TestCase):
         self.assertEqual(failed.retrieved_count, 1000)
         self.assertEqual(failed.unique_products_count, 500)
         self.assertEqual(Cpe.objects.count(), 500)
+
+    def test_valid_empty_result_can_complete_without_products(self):
+        snapshot = self.make()
+        done = execute_catalogue_snapshot(
+            snapshot, object(), fetcher=feed([]),
+        )
+        self.assertEqual(done.status, "COMPLETED")
+        self.assertEqual(done.expected_total, 0)
+        self.assertEqual(done.unique_products_count, 0)
+        self.assertEqual(done.pages_fetched, 1)
+        self.assertFalse(CpeQueryProduct.objects.exists())
 
     def test_empty_page_before_total_does_not_mark_complete(self):
         snapshot = self.make()
