@@ -1,10 +1,9 @@
 """Phase 1 of shared NVD catalogue: page recovery without live NVD access."""
 from datetime import timedelta
 from io import StringIO
-from uuid import uuid5, NAMESPACE_DNS, uuid4
+from uuid import uuid5, NAMESPACE_DNS
 
 from django.core.management import call_command
-from django.db import connection
 from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
@@ -73,16 +72,14 @@ class CatalogueQueryValidationTests(SimpleTestCase):
             with self.subTest(parameter=parameter), self.assertRaises(ValueError):
                 canonical_query(strategy, parameter)
 
-    def test_page_size_bounds_are_explicit(self):
-        for size in (0, -1, 1001, "500", True):
-            with self.subTest(size=size):
-                with self.assertRaises(ValueError):
-                    # A database is not necessary: page_size is rejected before writing.
-                    from vulnerabilities.services.cpe_catalogue import MAX_CATALOGUE_PAGE_SIZE
-                    self.assertEqual(MAX_CATALOGUE_PAGE_SIZE, 1000)
 
 
 class CatalogueCacheTests(TestCase):
+    def test_page_size_bounds_are_explicit(self):
+        for size in (0, -1, 1001, "500", True):
+            with self.subTest(size=size), self.assertRaises(ValueError):
+                enqueue_catalogue_query("keywordSearch", "Siemens", page_size=size)
+        self.assertFalse(CpeQuerySnapshot.objects.exists())
     def test_reuses_completed_cache_and_force_produces_new_snapshot(self):
         now = timezone.now()
         first, reused = enqueue_catalogue_query(
