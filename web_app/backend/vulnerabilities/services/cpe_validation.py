@@ -94,6 +94,8 @@ def decide(asset_id, user, data, association_id=None):
         raise NotFound("Activo inexistente.") from error
 
     status = data["status"]
+    if status == AssetCpe.Validation.PENDING:
+        raise ValidationError({"status": "Ya no se permiten nuevas decisiones pendientes."})
     reason = data.get("justification", "").strip()
     association = None
     if association_id is not None:

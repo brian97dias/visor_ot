@@ -2460,3 +2460,26 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cpe-review-status[data-validation="REOPENED"] {
   color: #7dd3fc; border-color: #0e7490;
 }
+/* CPE official links: one link per record, consistent with VISOR OT's muted palette. */
+.cpe-evidence .cpe-evidence-label { display: block; margin-bottom: 4px; }
+.cpe-evidence a.cpe-evidence-link {
+  display: inline-flex; align-items: flex-start; max-width: 100%; gap: 6px;
+  color: #a9bbd3; text-decoration-color: #7289a8;
+  text-underline-offset: 3px; font-size: .82rem;
+}
+.cpe-evidence a.cpe-evidence-link code {
+  min-width: 0; color: inherit; overflow-wrap: anywhere;
+  white-space: normal; line-height: 1.6;
+}
+.cpe-evidence .cpe-evidence-external { flex: none; line-height: 1.5; }
+.cpe-evidence a.cpe-evidence-link:visited,
+.cpe-query-list a.cpe-query-param-link:visited,
+.cpe-query-list a.cpe-query-param-link:link { color: #a9bbd3; }
+.cpe-evidence a.cpe-evidence-link:hover,
+.cpe-query-list a.cpe-query-param-link:hover { color: #e2edf9; text-decoration-color: #a9c5e6; }
+.cpe-evidence a.cpe-evidence-link:focus-visible,
+.cpe-query-list a.cpe-query-param-link:focus-visible {
+  outline: 2px solid #7dd3fc; outline-offset: 3px;
+}
+.cpe-query-list a.cpe-query-param-link { color: #a9bbd3; text-decoration-color: #7289a8; }
+.cpe-query-list a.cpe-query-param-link code { color: inherit; overflow-wrap: anywhere; }

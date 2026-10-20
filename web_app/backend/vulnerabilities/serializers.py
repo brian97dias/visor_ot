@@ -16,6 +16,11 @@ class CpeDecisionSerializer(serializers.Serializer):
             raise serializers.ValidationError({
                 "cpe_name_id": "Selecciona un candidato obtenido de NVD."
             })
+        if attrs["status"] == AssetCpe.Validation.PENDING:
+            # Historical decisions remain readable; no new PENDING decisions.
+            raise serializers.ValidationError({
+                "status": "Pendiente es un estado histórico. Confirma, rechaza o deshaz la decisión."
+            })
         if attrs["status"] == AssetCpe.Validation.REOPENED:
             if self.context.get("creating"):
                 raise serializers.ValidationError({

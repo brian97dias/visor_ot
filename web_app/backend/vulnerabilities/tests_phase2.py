@@ -125,26 +125,47 @@ class CpeDecisionTests(TestCase):
         self.assertEqual(AssetCpe.objects.count(), 2)
         self.assertEqual(AssetCpeDecision.objects.count(), 2)
 
-    def test_pending_and_reject_are_explicit_actions(self):
-        pending = self.create(status="PENDING", justification="")
-        self.assertEqual(pending.status_code, 201, pending.data)
-        self.assertEqual(pending.data["association"]["validation_status"], "PENDING")
+    def test_pending_is_rejected_for_new_decisions_and_remains_readable_as_legacy(self):
+        denied = self.create(status="PENDING", justification="")
+        self.assertEqual(denied.status_code, 400, denied.data)
+        self.assertEqual(AssetCpe.objects.count(), 0)
+        created = self.create(status="CONFIRMED")
+        self.assertEqual(created.status_code, 201, created.data)
         association = AssetCpe.objects.get()
-        rejected = self.client.patch(self.api + f"{association.pk}/",
-            self.decision(status="REJECTED", justification="CPU no coincide"),
-            format="json")
-        self.assertEqual(rejected.status_code, 200, rejected.data)
-        self.assertEqual(rejected.data["association"]["validation_status"], "REJECTED")
+        association.validation_status = "PENDING"  # Legacy state from older release
+        association.save(update_fields=["validation_status"])
+        listing = self.client.get(self.api).data["associations"]
+        self.assertEqual(listing[0]["validation_status"], "PENDING")
+        denied_patch = self.client.patch(
+            self.api + f"{association.pk}/", self.decision(status="PENDING"),
+            format="json"
+        )
+        self.assertEqual(denied_patch.status_code, 400, denied_patch.data)
+        updated = self.client.patch(
+            self.api + f"{association.pk}/",
+            self.decision(status="REJECTED", justification="No aplica"), format="json"
+        )
+        self.assertEqual(updated.status_code, 200, updated.data)
+        self.assertEqual(updated.data["association"]["validation_status"], "REJECTED")
+        self.assertEqual(AssetCpeDecision.objects.count(), 2)
 
     def test_reason_optional_for_all_decisions_and_audited(self):
-        for status in ("CONFIRMED", "REJECTED", "PENDING"):
+        for status in ("CONFIRMED", "REJECTED", "CONFIRMED"):
             with self.subTest(status=status):
                 # Each subtest operates on a distinct review of the same CPE.
                 association = AssetCpe.objects.first()
                 if association:
+                    if association.validation_status == status:
+                        # A new valid search permits meaningful revalidation.
+                        fresh = self.completed_search(self.asset)
+                        payload = self.decision(
+                            run_id=fresh.pk, status=status, justification=" ",
+                        )
+                    else:
+                        payload = self.decision(status=status, justification=" ")
                     response = self.client.patch(
                         self.api + f"{association.pk}/",
-                        self.decision(status=status, justification=" "),
+                        payload,
                         format="json",
                     )
                     self.assertEqual(response.status_code, 200, response.data)

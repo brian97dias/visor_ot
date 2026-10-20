@@ -15,14 +15,9 @@ const ACTIONS = [
     tone: "reject", explanation: "El CPE quedará rechazado para este activo. La decisión se conserva.",
   },
   {
-    status: "PENDING", label: "Dejar pendiente",
-    title: "Guardar para revisión", submit: "Guardar pendiente",
-    tone: "pending", explanation: "Se registrará como pendiente, sin confirmar su aplicabilidad.",
-  },
-  {
-    status: "REOPENED", label: "Reabrir revisión",
-    title: "Retirar decisión actual", submit: "Reabrir revisión",
-    tone: "reopen", explanation: "La decisión se retirará y el CPE volverá a candidatos. El historial no se borra.",
+    status: "REOPENED", label: "Deshacer decisión",
+    title: "Deshacer decisión actual", submit: "Confirmar y deshacer",
+    tone: "reopen", explanation: "El CPE volverá a candidatos. El historial de decisiones se conservará.",
   },
 ];
 
@@ -107,7 +102,7 @@ export default function CandidateCpeReview({
           disabled={busy} onClick={() => choose(item.status)}>
           {hasNewEvidence && item.status === association?.validation_status
             ? "Revalidar " + (item.status === "CONFIRMED" ? "confirmación"
-              : item.status === "REJECTED" ? "rechazo" : "pendiente")
+              : "rechazo")
             : item.label}
         </button>)}
         {reviewed && editing && <button type="button"
@@ -142,11 +137,11 @@ export default function CandidateCpeReview({
     {!allowed && <p className="cpe-hint">Solo un analista o administrador puede guardar decisiones.</p>}
     {allowed && !canEvaluate && !reviewed && <p className="cpe-hint">
       La búsqueda debe estar finalizada y corresponder a la identidad técnica actual
-      antes de confirmar, rechazar o dejar pendiente.
+      antes de confirmar o rechazar.
     </p>}
     {allowed && reviewed && !canEvaluate && <p className="cpe-hint">
-      Para cambiar la aplicabilidad se necesita una búsqueda vigente.
-      Puedes reabrir esta revisión sin consultar NVD.
+      Para confirmar o rechazar necesitas una búsqueda vigente.
+      Puedes deshacer esta decisión sin consultar NVD.
     </p>}
     {error && <p className="cpe-review-form-error" role="alert">{error}</p>}
     {message && <p className="cpe-hint" role="status">{message}</p>}

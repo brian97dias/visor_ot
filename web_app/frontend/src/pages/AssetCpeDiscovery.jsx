@@ -236,7 +236,7 @@ export default function AssetCpeDiscovery() {
                       <strong>{item.title}</strong>
                       <span className="cpe-review-status" data-validation={item.validation_status}>
                         {item.validation_status === "CONFIRMED" ? "Confirmado" :
-                         item.validation_status === "REJECTED" ? "Rechazado" : "Pendiente"}
+                         item.validation_status === "REJECTED" ? "Rechazado" : "Pendiente anterior"}
                       </span>
                     </div>
                     <CpeEvidence cpeName={item.cpe_name} cpeNameId={item.cpe_name_id} />
