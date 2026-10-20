@@ -13,7 +13,11 @@ from .nvd_client import fetch_page, PAGE_SIZE, MAX_PAGES_PER_STRATEGY, MAX_TOTAL
 
 def create_run(asset_id, user, scope):
     with transaction.atomic():
-        asset = Asset.objects.select_for_update().select_related("hardware").get(pk=asset_id)
+        # Lock only Asset: the reverse OneToOne "hardware" is nullable for
+        # software assets, and PostgreSQL rejects FOR UPDATE on its OUTER JOIN.
+        # Access to asset.hardware below performs a separate query inside
+        # this transaction, after the Asset row has been locked.
+        asset = Asset.objects.select_for_update().get(pk=asset_id)
         identity = hardware_identity(asset)
         try:
             build_queries(identity, scope)
