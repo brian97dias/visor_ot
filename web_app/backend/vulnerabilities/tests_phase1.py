@@ -9,6 +9,7 @@ from rest_framework.test import APIClient
 
 from assets.models import Asset
 from assets.services import register_hardware_asset
+from assets.software_services import register_installed_software_asset
 from .models import CpeSearchRun
 from .services.identity import build_queries, fingerprint, hardware_identity
 from .services.candidate_matching import merge_candidates
@@ -152,6 +153,25 @@ class CpeSearchAPITests(TestCase):
         latest = self.client.get("/api/vulnerabilities/cpe-overview/")
         self.assertEqual(next(row for row in latest.data["results"]
                          if row["asset_id"] == self.asset.pk)["identification_status"], "STALE")
+
+    def test_global_overview_marks_software_as_future_scope(self):
+        firmware = register_installed_software_asset(
+            data={
+                "name": "Firmware Siemens", "asset_type": "SOFTWARE",
+                "software": {
+                    "software_type": "FIRMWARE", "manufacturer": "Siemens",
+                    "product": "SIMATIC S7 1200 Firmware", "version": "",
+                },
+            },
+            user=self.operator,
+        )
+        response = self.client.get("/api/vulnerabilities/cpe-overview/")
+        self.assertEqual(response.status_code, 200)
+        row = next(item for item in response.data["results"]
+                   if item["asset_id"] == firmware.pk)
+        self.assertEqual(row["identification_status"], "NOT_SUPPORTED")
+        self.assertIsNone(row["run_id"])
+        self.assertEqual(row["candidate_count"], 0)
 
     def test_global_overview_is_readable_by_operator(self):
         self.client.force_authenticate(self.operator)

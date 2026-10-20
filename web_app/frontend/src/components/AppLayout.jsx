@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { getCurrentUser } from "../api/auth";
 import SidebarIcon from "./SidebarIcon";
 
 function AppLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const viewingAssetCpe = /^\/assets\/\d+\/cpe\/?$/.test(location.pathname);
 
   const [user, setUser] = useState(null);
   const [error, setError] = useState("");
@@ -107,7 +109,7 @@ function AppLayout() {
           <div className="nav-section">
             <span className="nav-section-title">VULNERABILIDADES</span>
             <NavLink to="/vulnerabilities/cpe" className={({ isActive }) =>
-              isActive ? "nav-item nav-subitem active" : "nav-item nav-subitem"
+              isActive || viewingAssetCpe ? "nav-item nav-subitem active" : "nav-item nav-subitem"
             }>
               <SidebarIcon name="fingerprint" />
               <span>Identificación CPE</span>
