@@ -2483,3 +2483,14 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 }
 .cpe-query-list a.cpe-query-param-link { color: #a9bbd3; text-decoration-color: #7289a8; }
 .cpe-query-list a.cpe-query-param-link code { color: inherit; overflow-wrap: anywhere; }
+
+/* CPE table: compact breakdown within one column, preserving technical identity. */
+.cpe-overview-counts { min-width: 188px; }
+.cpe-overview-counts strong { font-size: .85rem; }
+.cpe-breakdown { line-height: 1.65; }
+.cpe-count-confirmed { color: #86efac; }
+.cpe-count-rejected { color: #fca5a5; }
+.cpe-count-unreviewed { color: #cbd5e1; }
+.cpe-overview-status[data-status="EVALUATED"] { color: #86efac; }
+.cpe-overview-status[data-status="IN_REVIEW"] { color: #fcd34d; }
+.cpe-overview-status[data-status="TO_REVIEW"] { color: #cbd5e1; }

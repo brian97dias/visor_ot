@@ -2,19 +2,19 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CPE_OVERVIEW_PAGE_SIZE, readCpePage, updateCpeOverviewParams } from "../utils/cpeOverviewUrlState";
 import { getCpeOverview } from "../api/vulnerabilities";
+import { cpeCountDetails } from "../utils/cpeOverviewPresentation";
 
 const STATUS = {
   NOT_SEARCHED: "Sin búsqueda",
   QUEUED: "En cola",
   RUNNING: "Consultando NVD",
-  CANDIDATES: "Candidatos por revisar",
+  TO_REVIEW: "Por revisar",
+  IN_REVIEW: "En revisión",
+  EVALUATED: "Evaluado",
   NO_RESULTS: "Sin resultados",
   FAILED: "Error de consulta",
   STALE: "Identidad modificada",
   NOT_SUPPORTED: "Software: disponible en fase 4",
-  CONFIRMED: "CPE confirmado",
-  PENDING_VALIDATION: "Validación pendiente",
-  REOPENED: "Revisión reabierta",
 };
 
 export default function CpeOverview() {
@@ -61,7 +61,8 @@ export default function CpeOverview() {
   const hardwareCount = rows.filter(row => row.asset_type === "HARDWARE").length;
   const softwareCount = rows.filter(row => row.asset_type === "SOFTWARE").length;
   const processing = count("QUEUED") + count("RUNNING");
-  const confirmed = count("CONFIRMED");
+  const confirmed = rows.filter(row => row.confirmed_count > 0).length;
+  const toReview = count("TO_REVIEW") + count("IN_REVIEW");
 
   return <section className="page">
     <header className="page-header">
@@ -76,8 +77,8 @@ export default function CpeOverview() {
         <strong>{rows.length}</strong><span>Activos vigentes</span>
         <small>{hardwareCount} hardware · {softwareCount} software</small>
       </div>
-      <div className="cpe-overview-stat"><strong>{count("CANDIDATES")}</strong><span>Con candidatos para revisar</span></div>
-      <div className="cpe-overview-stat"><strong>{confirmed}</strong><span>Con CPE confirmado</span></div>
+      <div className="cpe-overview-stat"><strong>{toReview}</strong><span>Con CPE por revisar</span></div>
+      <div className="cpe-overview-stat"><strong>{confirmed}</strong><span>Con algún CPE confirmado</span></div>
       <div className="cpe-overview-stat"><strong>{processing}</strong><span>En cola o consultando</span></div>
     </div>
 
@@ -111,7 +112,7 @@ export default function CpeOverview() {
           : !error && <div className="table-container">
             <table className="data-table">
               <thead><tr><th>Activo</th><th>Identidad técnica</th>
-                <th>Estado</th><th>Candidatos</th><th>Acciones</th></tr></thead>
+                <th>Estado</th><th>CPE</th><th>Acciones</th></tr></thead>
               <tbody>{currentRows.map(row => <tr key={row.asset_id}>
                 <td><strong>{row.asset_name}</strong>
                   <div className="cpe-overview-subtitle">
@@ -133,13 +134,23 @@ export default function CpeOverview() {
                   </div>}
                 </td>
                 <td>{row.asset_type === "HARDWARE" && row.run_id
-                  ? row.candidate_count : "—"}
-                  {row.confirmed_count > 0 && <div className="cpe-overview-subtitle">
-                    {row.confirmed_count} confirmado(s)</div>}
-                  {row.pending_validation_count > 0 && <div className="cpe-overview-subtitle">
-                    {row.pending_validation_count} validación(es) pendiente(s)</div>}
-                  {row.reopened_count > 0 && <div className="cpe-overview-subtitle">
-                    {row.reopened_count} revisión(es) reabierta(s)</div>}
+                  ? <div className="cpe-overview-counts">
+                      <strong>{row.candidate_count} encontrados</strong>
+                      <div className="cpe-overview-subtitle cpe-breakdown">
+                        {cpeCountDetails(row).map((part, index) => (
+                          <span key={part.key} className={"cpe-count-" + part.key}>
+                            {index > 0 ? " · " : ""}{part.count} {part.label}
+                          </span>
+                        ))}
+                      </div>
+                      {row.legacy_pending_count > 0 && <div className="cpe-overview-subtitle">
+                        {row.legacy_pending_count} pendiente(s) histórico(s) incluido(s) en por revisar
+                      </div>}
+                      {row.out_of_scope_count > 0 && <div className="cpe-overview-subtitle">
+                        {row.out_of_scope_count} decisión(es) fuera de la búsqueda actual
+                      </div>}
+                    </div>
+                  : "—"}
                 </td>
                 <td>{row.asset_type === "HARDWARE"
                   ? <Link className="button-secondary"
