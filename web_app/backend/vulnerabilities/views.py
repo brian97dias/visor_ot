@@ -12,7 +12,7 @@ from users.models import User
 from vulnerabilities.models import CpeSearchRun
 from .services.cpe_search import create_run, create_advanced_run, serialize_run
 from .models import AssetCpe
-from .services.identity import fingerprint, hardware_identity
+from .services.identity import fingerprint, hardware_identity, software_identity
 from .services.cpe_overview import count_current_cpes, is_outdated_association
 
 
@@ -31,13 +31,20 @@ def hardware_or_404(asset_id):
     )
 
 
+def identifiable_asset_or_404(asset_id):
+    return get_object_or_404(
+        Asset.objects.select_related("hardware", "software"),
+        pk=asset_id, asset_type__in=(Asset.AssetType.HARDWARE, Asset.AssetType.SOFTWARE),
+    )
+
+
 class CpeSearchStartView(APIView):
     permission_classes = [IsAuthenticated, CpeSearchPermission]
 
     def post(self, request, asset_id):
-        asset = hardware_or_404(asset_id)
+        asset = identifiable_asset_or_404(asset_id)
         if asset.inventory_status != Asset.InventoryStatus.ACTIVE:
-            raise ValidationError({"asset": "Solo se buscan CPE de hardware activo."})
+            raise ValidationError({"asset": "Solo se buscan CPE de activos vigentes."})
         if set(request.data) - {"scope"}:
             raise ValidationError({"scope": "Solo se admite el campo scope."})
         scope = request.data.get("scope", "SPECIFIC")
@@ -69,7 +76,7 @@ class CpeSearchLatestView(APIView):
     permission_classes = [IsAuthenticated, CpeSearchPermission]
 
     def get(self, request, asset_id):
-        hardware_or_404(asset_id)
+        identifiable_asset_or_404(asset_id)
         run = CpeSearchRun.objects.filter(asset_id=asset_id).first()
         if run is None:
             return Response({"run": None})
@@ -80,9 +87,9 @@ class CpeSearchDetailView(APIView):
     permission_classes = [IsAuthenticated, CpeSearchPermission]
 
     def get(self, request, asset_id, run_id):
-        hardware_or_404(asset_id)
+        identifiable_asset_or_404(asset_id)
         run = get_object_or_404(
-            CpeSearchRun.objects.select_related("asset__hardware"),
+            CpeSearchRun.objects.select_related("asset__hardware", "asset__software"),
             pk=run_id, asset_id=asset_id
         )
         return Response({"run": serialize_run(run)})
@@ -126,10 +133,13 @@ class CpeOverviewView(APIView):
             latest_run = runs.get(asset.last_cpe_run_id)
             completed_run = runs.get(asset.last_completed_cpe_run_id)
             associations = associations_by_asset.get(asset.pk, [])
-            identity = (
-                fingerprint(hardware_identity(asset))
-                if asset.asset_type == Asset.AssetType.HARDWARE else ""
-            )
+            try:
+                identity = fingerprint(
+                    software_identity(asset) if asset.asset_type == Asset.AssetType.SOFTWARE
+                    else hardware_identity(asset)
+                )
+            except (ValueError, AttributeError):
+                identity = ""
             counts = count_current_cpes(completed_run, associations, identity)
             outdated = any(is_outdated_association(a, identity) for a in associations)
             # A current decision absent from the latest completed valid search
@@ -143,9 +153,7 @@ class CpeOverviewView(APIView):
                 and str(a.cpe.cpe_name_id).lower() not in counts["candidate_ids"]
                 for a in associations
             ) if counts["available"] else 0
-            if asset.asset_type == Asset.AssetType.SOFTWARE:
-                state = "NOT_SUPPORTED"
-            elif latest_run is None:
+            if latest_run is None:
                 state = "NOT_SEARCHED"
             elif latest_run.status in (
                 CpeSearchRun.Status.QUEUED, CpeSearchRun.Status.RUNNING,
