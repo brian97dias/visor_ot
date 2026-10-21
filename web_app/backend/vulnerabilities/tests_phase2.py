@@ -281,6 +281,18 @@ class CpeDecisionTests(TestCase):
         self.assertEqual(item["identification_status"], "STALE")
         self.assertEqual(item["out_of_scope_count"], 1)
 
+    def test_exploratory_candidates_do_not_inflate_pending_review(self):
+        exploratory = {**candidate(), "match_level": "EXPLORATORY",
+                       "match_reason": "Fabricante coincidente, referencia próxima."}
+        self.run.candidates = [exploratory]
+        self.run.save(update_fields=["candidates"])
+        response = self.client.get("/api/vulnerabilities/cpe-overview/")
+        row = next(r for r in response.data["results"] if r["asset_id"] == self.asset.pk)
+        self.assertEqual(row["candidate_count"], 1)
+        self.assertEqual(row["exploratory_count"], 1)
+        self.assertEqual(row["unreviewed_count"], 0)
+        self.assertEqual(row["identification_status"], "NO_RESULTS")
+
     def test_reject_cpe_from_other_asset_and_other_association(self):
         other = self.hardware("PLC alterno")
         run = self.completed_search(other)

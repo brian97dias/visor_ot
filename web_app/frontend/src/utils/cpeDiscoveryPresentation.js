@@ -23,6 +23,7 @@ const CLASSIFICATION = {
  SPECIFIC:["Coincidencia técnica específica","specific"],
  FAMILY:["Coincidencia de familia","family"],
  RELATED:["Producto relacionado","related"],
+ EXPLORATORY:["Correspondencia débil · exploratoria","related"],
  NEEDS_INFO:["Requiere información adicional","needs-info"],
  POSSIBLE_INCOMPATIBILITY:["Posible incompatibilidad","incompatible"],
 };

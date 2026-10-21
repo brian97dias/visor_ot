@@ -52,3 +52,11 @@ test("catalogue evidence provenance is not incorrectly labelled historical", () 
   const selected = describeCandidate({match_level:"FAMILY",discovery_levels:["CATALOGUE"]});
   assert.deepEqual(selected.levels,[levelName("CATALOGUE")]);
 });
+
+test("exploratory candidate shares existing card and retains its reason",()=>{
+ const info=describeCandidate({match_level:"EXPLORATORY",
+  match_reason:"Numeración próxima pero modelo distinto"});
+ assert.match(info.label,/Correspondencia débil/);
+ assert.match(info.reason,/modelo distinto/);
+ assert.equal(info.tone,"related");
+});

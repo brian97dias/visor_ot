@@ -38,6 +38,8 @@ export default function AssetCpeDiscovery() {
   const allowed = ["ADMIN", "ANALYST"].includes(user?.role);
   const pending = ["QUEUED", "RUNNING"].includes(run?.status);
   const candidatesToReview = unreviewedCpeCandidates(run?.candidates, associations);
+  const exploratoryCount = candidatesToReview.filter(c => c.match_level === "EXPLORATORY").length;
+  const pendingReviewCount = candidatesToReview.length - exploratoryCount;
   const reviewed = reviewedCpeAssociations(associations);
   const reopenedMissing = reopenedWithoutCurrentCandidate(run?.candidates, associations);
   const findAssociation = id => associations.find(
@@ -284,9 +286,11 @@ export default function AssetCpeDiscovery() {
         <div className="cpe-candidate-heading">
           <div>
             <h2 id="cpe-candidate-title">CPE candidatos</h2>
-            <p>Resultados de NVD aún sin decisión y decisiones deshechas.</p>
+            <p>Resultados de NVD aún sin decisión y decisiones deshechas.
+              Las correspondencias débiles son opcionales, no identificaciones técnicas.</p>
           </div>
-          <span className="record-count">{candidatesToReview.length + reopenedMissing.length} disponibles</span>
+          <span className="record-count">{pendingReviewCount + reopenedMissing.length} por revisar
+            {exploratoryCount > 0 ? " · " + exploratoryCount + " exploratorios" : ""}</span>
         </div>
         {candidatesToReview.length === 0 && reopenedMissing.length === 0 ? (
           <div className="panel cpe-copy">

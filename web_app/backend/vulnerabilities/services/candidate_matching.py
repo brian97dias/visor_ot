@@ -24,6 +24,41 @@ def shares_catalog_code(product, identity):
     return bool(code and re.match(r"^" + re.escape(code) + r"(?=[_-]|$)", product.lower()))
 
 
+def _exploratory_proximity(candidate, identity):
+    """Conservative nearby designation, never technical identification."""
+    model = str(identity.get("model") or "").strip().lower()
+    product = _cpe_part(candidate.get("cpe_name", ""), 4).lower()
+    # AXIS 206 -> 207 or 207w; NOT 2060 or an unrelated model.
+    if re.fullmatch(r"[0-9]{3,6}", model):
+        other = re.fullmatch(r"([0-9]{3,6})(?:[a-z]|[_-][a-z0-9_-]+)?", product)
+        if other:
+            number = other.group(1)
+            if (len(model) == len(number) and model[:-1] == number[:-1]
+                    and 0 < abs(int(model) - int(number)) <= 2):
+                return abs(int(model) - int(number)), (
+                    f"Mismo fabricante y numeración próxima ({model} / {number}); "
+                    "son modelos distintos, no una identificación."
+                )
+        return None
+    # Beckhoff CX1010 -> CX1020: common family and leading digits.
+    wanted = re.fullmatch(r"([a-z]{2,8})[-_ ]?([0-9]{3,6})", model)
+    other = re.fullmatch(
+        r"([a-z]{2,8})[-_]?([0-9]{3,6})(?:[_-][a-z0-9_-]+)?",
+        product,
+    )
+    if wanted and other and wanted.group(1) == other.group(1):
+        digits, nearby = wanted.group(2), other.group(2)
+        if (len(digits) == len(nearby)
+                and digits[:2] == nearby[:2]
+                and 0 < abs(int(digits) - int(nearby)) <= 30):
+            return abs(int(digits) - int(nearby)), (
+                f"Mismo fabricante y familia {wanted.group(1).upper()}; "
+                f"{model.upper()} y {other.group(1).upper() + nearby} "
+                "son referencias distintas."
+            )
+    return None
+
+
 def classify(candidate, identity):
     cpe_name = candidate["cpe_name"]
     if _cpe_part(cpe_name, 2) != "h":
@@ -56,6 +91,9 @@ def classify(candidate, identity):
         if shares_catalog_code(raw_product, identity):
             return ("RELATED", "Solo comparte un prefijo de catálogo, no el modelo "
                     "exacto; exige revisión del analista.")
+        proximity = _exploratory_proximity(candidate, identity)
+        if proximity:
+            return "EXPLORATORY", proximity[1]
         return "POSSIBLE_INCOMPATIBILITY", "El producto CPE no corresponde claramente a la familia."
     if wanted_cpu:
         product_raw = _cpe_part(cpe_name, 4).lower()
@@ -87,7 +125,9 @@ def is_manufacturer_related(candidate, identity):
         return False
     if not matches_vendor(_cpe_part(candidate["cpe_name"], 3), identity):
         return False
-    return candidate.get("match_level") in ("SPECIFIC", "FAMILY", "RELATED", "NEEDS_INFO")
+    return candidate.get("match_level") in (
+        "SPECIFIC", "FAMILY", "RELATED", "NEEDS_INFO", "EXPLORATORY"
+    )
 
 
 def is_pertinent(candidate, identity):
@@ -112,7 +152,7 @@ def is_pertinent(candidate, identity):
 
 PRIORITY = {
     "SPECIFIC": 0, "FAMILY": 1, "RELATED": 2,
-    "NEEDS_INFO": 3, "POSSIBLE_INCOMPATIBILITY": 4,
+    "NEEDS_INFO": 3, "EXPLORATORY": 4, "POSSIBLE_INCOMPATIBILITY": 5,
 }
 
 
@@ -147,6 +187,8 @@ def normalize_candidate(record, identity, strategy):
         "methods": [strategy],
     }
     item["match_level"], item["match_reason"] = classify(item, identity)
+    if item["match_level"] == "EXPLORATORY":
+        item["exploratory_distance"] = _exploratory_proximity(item, identity)[0]
     return item
 
 
@@ -164,6 +206,7 @@ def merge_candidates(results):
     return sorted(
         merged.values(),
         key=lambda v: (bool(v.get("deprecated", False)), PRIORITY.get(v["match_level"], 99),
+                       v.get("exploratory_distance", 0),
                        str(v.get("title") or "").casefold(), str(v.get("cpe_name") or "")),
     )
 

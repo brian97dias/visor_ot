@@ -56,3 +56,31 @@ class CandidateMatchingIncrement3Tests(SimpleTestCase):
         ranked = merge_candidates([deprecated, current])
         self.assertFalse(ranked[0]["deprecated"])
         self.assertTrue(ranked[1]["deprecated"])
+
+    def test_axis_207_is_exploratory_not_specific_for_axis_206(self):
+        device = identity("Axis Communications", "206")
+        item = normalize_candidate(candidate("axis", "207w"), device, "cpeMatchString")
+        self.assertEqual(item["match_level"], "EXPLORATORY")
+        self.assertEqual(item["exploratory_distance"], 1)
+        self.assertIn("modelos distintos", item["match_reason"])
+
+    def test_axis_2060_and_unrelated_manufacturer_are_not_exploratory(self):
+        device = identity("Axis Communications", "206")
+        longer = normalize_candidate(candidate("axis", "2060"), device, "cpeMatchString")
+        other_brand = normalize_candidate(candidate("other", "207"), device, "cpeMatchString")
+        self.assertEqual(longer["match_level"], "POSSIBLE_INCOMPATIBILITY")
+        self.assertEqual(other_brand["match_level"], "POSSIBLE_INCOMPATIBILITY")
+
+    def test_beckhoff_cx_neighbour_but_not_arbitrary_model(self):
+        device = identity("Beckhoff", "CX1010")
+        near = normalize_candidate(candidate("beckhoff", "cx1020"), device, "cpeMatchString")
+        far = normalize_candidate(candidate("beckhoff", "cx2010"), device, "cpeMatchString")
+        self.assertEqual(near["match_level"], "EXPLORATORY")
+        self.assertEqual(far["match_level"], "POSSIBLE_INCOMPATIBILITY")
+
+    def test_exploratory_ranking_after_existing_categories(self):
+        device = identity("Axis Communications", "206")
+        exact = normalize_candidate(candidate("axis", "206"), device, "cpeMatchString")
+        near = normalize_candidate(candidate("axis", "207"), device, "cpeMatchString")
+        ranked = merge_candidates([near, exact])
+        self.assertEqual([c["match_level"] for c in ranked], ["FAMILY", "EXPLORATORY"])

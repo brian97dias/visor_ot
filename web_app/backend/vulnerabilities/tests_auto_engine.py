@@ -212,6 +212,42 @@ class StructuredAutomaticDiscoveryTests(TestCase):
         self.assertEqual(done.queries[-1]["stop_reason"], "REQUEST_FAILED")
         self.assertFalse(CpeQuerySnapshot.objects.exists())
 
+    def test_axis_weak_suggestions_from_existing_catalogue_are_bounded(self):
+        run = self.make_run(self.hardware("Axis", "206"))
+        waiting = execute_run(run, object(), fetcher=lambda *args: reply([]))
+        self.assertEqual(waiting.status, "QUEUED")
+        snapshot = CpeQuerySnapshot.objects.get()
+        rows = [
+            product("axis", value)
+            for value in ("207", "207w", "205", "205w", "204", "208", "209", "other")
+        ]
+        snapshot = execute_catalogue_snapshot(
+            snapshot, object(), fetcher=lambda s, p, i, pacer, *, results_per_page:
+            reply(rows, start=i)
+        )
+        self.assertEqual(snapshot.status, "COMPLETED")
+        finished = execute_run(waiting, object(), fetcher=lambda *args:
+                               self.fail("No debe repetir la consulta a NVD"))
+        self.assertEqual(finished.status, "COMPLETED")
+        self.assertEqual(len(finished.candidates), 5)
+        self.assertTrue(all(c["match_level"] == "EXPLORATORY"
+                            for c in finished.candidates))
+        self.assertFalse(finished.result_truncated)
+        self.assertFalse(AssetCpe.objects.exists())
+
+    def test_unrelated_manufacturer_catalogue_keeps_zero_candidates(self):
+        run = self.make_run(self.hardware("Axis", "206"))
+        waiting = execute_run(run, object(), fetcher=lambda *args: reply([]))
+        snapshot = CpeQuerySnapshot.objects.get()
+        snapshot = execute_catalogue_snapshot(
+            snapshot, object(), fetcher=lambda s, p, i, pacer, *, results_per_page:
+            reply([product("axis", "large_unrelated_device")], start=i)
+        )
+        finished = execute_run(waiting, object(), fetcher=lambda *args:
+                               self.fail("No debe repetir la consulta a NVD"))
+        self.assertEqual(finished.status, "COMPLETED")
+        self.assertEqual(finished.candidates, [])
+
     def test_worker_prioritizes_catalogue_needed_by_waiting_asset(self):
         now = timezone.now()
         run = SimpleNamespace(

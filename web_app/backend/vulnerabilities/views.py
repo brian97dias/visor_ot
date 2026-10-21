@@ -159,7 +159,11 @@ class CpeOverviewView(APIView):
                 state = "STALE"
             elif completed_run.result_truncated:
                 state = "PARTIAL_RESULTS"
-            elif counts["total"] == 0:
+            elif counts["total"] == 0 or (
+                counts["total"] == counts["exploratory_count"]
+                and counts["confirmed"] == 0
+            ):
+                # Weak suggestions alone do not constitute a technical match.
                 state = "NO_RESULTS"
             elif counts["unreviewed"] == 0:
                 state = "EVALUATED"
@@ -186,6 +190,7 @@ class CpeOverviewView(APIView):
                 "identification_status": state,
                 "run_id": latest_run.pk if latest_run else None,
                 "candidate_count": counts["total"],
+                "exploratory_count": counts["exploratory_count"],
                 "confirmed_count": counts["confirmed"],
                 "rejected_count": counts["rejected"],
                 "unreviewed_count": counts["unreviewed"],

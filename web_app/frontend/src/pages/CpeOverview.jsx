@@ -312,7 +312,8 @@ export default function CpeOverview() {
                   </div>
                 </td>
                 <td><span className="cpe-overview-status" data-status={row.identification_status}>
-                    {STATUS[row.identification_status] || row.identification_status}
+                    {row.identification_status === "NO_RESULTS" && row.exploratory_count > 0
+                      ? "Solo exploratorios" : (STATUS[row.identification_status] || row.identification_status)}
                   </span>
                   {row.last_search_at && <div className="cpe-overview-subtitle">
                     {new Date(row.last_search_at).toLocaleString("es-CO")}
@@ -321,6 +322,9 @@ export default function CpeOverview() {
                 <td>{row.asset_type === "HARDWARE" && row.run_id
                   ? <div className="cpe-overview-counts">
                       <strong>{row.candidate_count} encontrados</strong>
+                      {row.exploratory_count > 0 && <div className="cpe-overview-subtitle">
+                        {row.exploratory_count} correspondencia(s) débil(es), no pendientes obligatorios
+                      </div>}
                       <div className="cpe-overview-subtitle cpe-breakdown">
                         {cpeCountDetails(row).map((part, index) => (
                           <span key={part.key} className={"cpe-count-" + part.key}>

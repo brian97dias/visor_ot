@@ -404,6 +404,13 @@ def execute_legacy_run(run, pacer, fetcher=fetch_page):
 # executor above remains available for verifying historical regressions.
 AUTO_MAX_PAGES_PER_QUERY = 3
 AUTO_TOTAL_PREVIEW_PAGES = 40
+MAX_EXPLORATORY_CANDIDATES = 5
+
+
+def _exploratory_rank(item):
+    return (bool(item.get("deprecated")), item.get("exploratory_distance", 100000),
+            str(item.get("cpe_name") or ""))
+
 
 
 def _record_candidate(row, run, level, dedup, details):
@@ -419,6 +426,8 @@ def _record_candidate(row, run, level, dedup, details):
         details["pertinent_results"] += 1
     elif item["match_level"] == "RELATED":
         details["related_results"] += 1
+    elif item["match_level"] == "EXPLORATORY":
+        details["exploratory_results"] = details.get("exploratory_results", 0) + 1
     key = item["cpe_name_id"]
     if key in dedup:
         old = dedup[key]
@@ -429,7 +438,20 @@ def _record_candidate(row, run, level, dedup, details):
         old["discovery_levels"] = sorted(set(
             old.get("discovery_levels", []) + [level]
         ))
-    elif len(dedup) < MAX_TOTAL_CANDIDATES:
+    elif item["match_level"] == "EXPLORATORY":
+        # Keep only five optional suggestions. Never consume technical-match
+        # slots or mark a complete retrieval as partial due to this cap.
+        weak = [v for v in dedup.values() if v.get("match_level") == "EXPLORATORY"]
+        if len(weak) < MAX_EXPLORATORY_CANDIDATES:
+            item["discovery_levels"] = [level]
+            dedup[key] = item
+        else:
+            worst = max(weak, key=_exploratory_rank)
+            if _exploratory_rank(item) < _exploratory_rank(worst):
+                del dedup[worst["cpe_name_id"]]
+                item["discovery_levels"] = [level]
+                dedup[key] = item
+    elif sum(v.get("match_level") != "EXPLORATORY" for v in dedup.values()) < MAX_TOTAL_CANDIDATES:
         item["discovery_levels"] = [level]
         dedup[key] = item
     else:

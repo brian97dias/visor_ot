@@ -23,7 +23,13 @@ def count_current_cpes(run, associations, identity_fingerprint):
         and run.identity_fingerprint == identity_fingerprint
     )
     uuids = set()
+    exploratory_ids = set()
     if available:
+        exploratory_ids = {
+            str(item.get("cpe_name_id", "")).lower()
+            for item in hardware_candidates(run.candidates)
+            if item.get("cpe_name_id") and item.get("match_level") == "EXPLORATORY"
+        }
         uuids = {
             str(item.get("cpe_name_id", "")).lower()
             for item in hardware_candidates(run.candidates)
@@ -52,8 +58,16 @@ def count_current_cpes(run, associations, identity_fingerprint):
         "available": available,
         "candidate_ids": uuids,
         "total": len(uuids),
+        "exploratory_count": len(exploratory_ids),
         "confirmed": confirmed,
         "rejected": rejected,
         "legacy_pending": legacy_pending,
-        "unreviewed": len(uuids) - confirmed - rejected,
+        "unreviewed": sum(
+            uid not in exploratory_ids and (
+                uid not in by_uuid
+                or by_uuid[uid].validation_status not in (
+                    AssetCpe.Validation.CONFIRMED, AssetCpe.Validation.REJECTED
+                )
+            ) for uid in uuids
+        ),
     }
