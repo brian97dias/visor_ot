@@ -254,3 +254,57 @@ def get_pcap_analysis_observations(pcap_id, *, kind, page, search, min_packets):
     if not isinstance(data, dict) or "results" not in data or "count" not in data:
         raise PassiveAnalyzerUnavailable("El análisis paginado tiene un formato inválido.")
     return data
+
+
+def get_pcap_import_manifest(pcap_id):
+    """Obtain stable analysis identity without downloading observations."""
+    base_url = settings.PASSIVE_ANALYZER_URL.rstrip("/")
+    url = f"{base_url}/api/v1/pcaps/{quote(pcap_id, safe='')}/analysis/import-manifest"
+    try:
+        response = requests.get(url, timeout=(5, 30))
+        if response.status_code == 404:
+            raise PassiveAnalyzerAnalysisNotFound("El análisis solicitado no existe.")
+        response.raise_for_status()
+        data = response.json()
+    except PassiveAnalyzerAnalysisNotFound:
+        raise
+    except (requests.RequestException, ValueError) as error:
+        raise PassiveAnalyzerUnavailable(
+            "No fue posible consultar el manifiesto del análisis."
+        ) from error
+    if not isinstance(data, dict) or not isinstance(data.get("capture"), dict):
+        raise PassiveAnalyzerUnavailable("Manifiesto de análisis inválido.")
+    return data
+
+
+from contextlib import contextmanager
+
+
+@contextmanager
+def stream_pcap_analysis(pcap_id):
+    """Stream NDJSON over one HTTP connection; close it on errors."""
+    base_url = settings.PASSIVE_ANALYZER_URL.rstrip("/")
+    url = f"{base_url}/api/v1/pcaps/{quote(pcap_id, safe='')}/analysis/stream"
+    try:
+        response = requests.get(url, stream=True, timeout=(5, 900))
+    except requests.RequestException as error:
+        raise PassiveAnalyzerUnavailable(
+            "No fue posible iniciar la transferencia del análisis."
+        ) from error
+    try:
+        if response.status_code == 404:
+            raise PassiveAnalyzerAnalysisNotFound("El análisis solicitado no existe.")
+        try:
+            response.raise_for_status()
+        except requests.RequestException as error:
+            raise PassiveAnalyzerUnavailable(
+                "El analizador no pudo transmitir las observaciones. "
+                "Verifica que tenga instalado ijson y que se haya reiniciado."
+            ) from error
+        yield response.iter_lines(chunk_size=65536)
+    except requests.RequestException as error:
+        raise PassiveAnalyzerUnavailable(
+            "Se interrumpió la transferencia del análisis."
+        ) from error
+    finally:
+        response.close()
