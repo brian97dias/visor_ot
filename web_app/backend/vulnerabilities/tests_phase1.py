@@ -157,7 +157,7 @@ class CpeSearchAPITests(TestCase):
         self.assertEqual(next(row for row in latest.data["results"]
                          if row["asset_id"] == self.asset.pk)["identification_status"], "STALE")
 
-    def test_global_overview_marks_software_as_future_scope(self):
+    def test_global_overview_allows_software_without_search(self):
         firmware = register_installed_software_asset(
             data={
                 "name": "Firmware Siemens", "asset_type": "SOFTWARE",
@@ -172,7 +172,7 @@ class CpeSearchAPITests(TestCase):
         self.assertEqual(response.status_code, 200)
         row = next(item for item in response.data["results"]
                    if item["asset_id"] == firmware.pk)
-        self.assertEqual(row["identification_status"], "NOT_SUPPORTED")
+        self.assertEqual(row["identification_status"], "NOT_SEARCHED")
         self.assertIsNone(row["run_id"])
         self.assertEqual(row["candidate_count"], 0)
 
