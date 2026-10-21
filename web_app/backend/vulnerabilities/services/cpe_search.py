@@ -37,8 +37,9 @@ def create_run(asset_id, user, scope, *, return_reused=False):
         # Access to asset.hardware below performs a separate query inside
         # this transaction, after the Asset row has been locked.
         asset = Asset.objects.select_for_update().get(pk=asset_id)
-        if asset.inventory_status != Asset.InventoryStatus.ACTIVE:
-            raise ValidationError({"asset": "Solo se buscan CPE de activos vigentes."})
+        if (asset.asset_type == Asset.AssetType.SOFTWARE
+                and asset.inventory_status != Asset.InventoryStatus.ACTIVE):
+            raise ValidationError({"asset": "Solo se buscan CPE de software vigente."})
         identity = (software_identity(asset) if asset.asset_type == Asset.AssetType.SOFTWARE
                     else hardware_identity(asset))
         try:
