@@ -3,8 +3,8 @@ import re
 from .nvd_references import safe_references, combine_references
 from .identity import (
     normalized, cpu_spelling, family_term, vendor_variants, catalog_code_prefix,
-    _software_product_spellings, software_series_stem, software_version_in_branch,
-    SOFTWARE_CPE_PARTS, ascii_text,
+    _software_product_spellings, software_series_stem, software_numeric_model,
+    software_version_in_branch, SOFTWARE_CPE_PARTS, ascii_text,
 )
 
 
@@ -294,6 +294,31 @@ def _software_product_match(cpe_product, identity):
     return "NONE"
 
 
+def _software_numeric_proximity(candidate, identity):
+    """Reuse hardware's numeric proximity, after checking firmware on both sides.
+
+    The hardware function already rejects 2060 as a neighbour of 206 and
+    validates a shared numeric decade. The projection affects ranking only;
+    software vendor identity, product identity and CPE part remain unchanged.
+    """
+    model = software_numeric_model(
+        identity.get("product") or "", identity.get("manufacturer") or ""
+    )
+    if not model:
+        return None
+    candidate_product = _product_without_vendor_prefix(
+        _cpe_part(candidate.get("cpe_name", ""), 4).lower(), identity
+    )
+    if not re.fullmatch(
+        r"[0-9]{3,6}[a-z]?[_-]firmware(?:[_-][a-z0-9_.-]+)?",
+        candidate_product,
+    ):
+        return None
+    return _exploratory_proximity(
+        candidate, {"manufacturer": identity.get("manufacturer"), "model": model}
+    )
+
+
 def classify_software(candidate, identity):
     """Explain a possible CPE software association; NEVER validate a version."""
     name = candidate["cpe_name"]
@@ -304,6 +329,13 @@ def classify_software(candidate, identity):
         return "POSSIBLE_INCOMPATIBILITY", "El fabricante del CPE difiere del inventario."
     product = _software_product_match(_cpe_part(name, 4), identity)
     if product == "NONE":
+        nearby = _software_numeric_proximity(candidate, identity)
+        if nearby:
+            return (
+                "EXPLORATORY",
+                nearby[1] + " Los productos representan firmware de modelos "
+                "distintos; esta sugerencia no identifica la versión instalada."
+            )
         return "POSSIBLE_INCOMPATIBILITY", "El producto CPE no corresponde al software inventariado."
     if product == "RELATED":
         return ("EXPLORATORY", "El producto comparte una denominación con el inventario, "
@@ -475,10 +507,11 @@ def normalize_candidate(record, identity, strategy):
     }
     item["match_level"], item["match_reason"] = classify(item, identity)
     if item["match_level"] == "EXPLORATORY":
-        item["exploratory_distance"] = (
-            0 if identity.get("asset_type") == "SOFTWARE"
-            else _exploratory_proximity(item, identity)[0]
-        )
+        if identity.get("asset_type") == "SOFTWARE":
+            numeric = _software_numeric_proximity(item, identity)
+            item["exploratory_distance"] = numeric[0] if numeric else 0
+        else:
+            item["exploratory_distance"] = _exploratory_proximity(item, identity)[0]
     return item
 
 
