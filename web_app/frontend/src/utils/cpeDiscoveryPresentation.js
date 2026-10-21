@@ -1,6 +1,7 @@
 /** Read-only presentation of NVD CPE discovery. No inferred validations. */
 const LEVEL = {SPECIFIC:"Nivel 1 · Específico",FAMILY:"Nivel 2 · Familia",MANUFACTURER:"Nivel 3 · Fabricante",ALTERNATIVE:"Nivel 4 · Investigación alternativa",ADVANCED:"Búsqueda avanzada",CATALOGUE:"Selección desde catálogo NVD",LEGACY:"Consulta histórica"};
 const OUTCOME = {
+ EXPLORATORY_BRAND_MATCHES:"Se encontraron posibles diferencias de marca/proveedor; requieren comprobación del analista",
  SUFFICIENT_PERTINENT_CANDIDATES:"Coincidencia técnica suficiente para detener la ampliación",
  NO_PERTINENT_CANDIDATES:"Sin coincidencia técnica suficiente; se puede ampliar",
  PARTIAL_RESULTS:"Exploración incompleta; no descarta CPE",
