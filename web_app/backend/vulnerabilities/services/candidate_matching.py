@@ -49,39 +49,57 @@ def _product_without_vendor_prefix(product, identity):
 
 
 def _exploratory_proximity(candidate, identity):
-    """Conservative nearby designation, never technical identification."""
-    model = _technical_model_designation(identity).lower()
+    """Infer weak correspondence from shared model series, never from vendor alone.
+
+    All comparisons run against an already fetched NVD record. No prefix
+    variations trigger extra NVD requests or certify a hardware identity.
+    """
+    model = _technical_model_designation(identity).strip().lower()
     product = _product_without_vendor_prefix(
         _cpe_part(candidate.get("cpe_name", ""), 4).lower(), identity
     )
-    # AXIS 206 -> 207 or 207w; NOT 2060 or an unrelated model.
+
+    # Numeric designation: compare nearby products within the SAME decade.
+    # AXIS 206 -> 207w and 200; AXIS 206 -> 2060 is not a nearby model.
     if re.fullmatch(r"[0-9]{3,6}", model):
-        other = re.fullmatch(r"([0-9]{3,6})(?:[a-z]|[_-][a-z0-9_-]+)?", product)
+        other = re.fullmatch(
+            r"([0-9]{3,6})(?:[a-z](?:[_-][a-z0-9_-]+)?|[_-][a-z0-9_-]+)?",
+            product,
+        )
         if other:
             number = other.group(1)
+            distance = abs(int(model) - int(number))
             if (len(model) == len(number) and model[:-1] == number[:-1]
-                    and 0 < abs(int(model) - int(number)) <= 2):
-                return abs(int(model) - int(number)), (
-                    f"Mismo fabricante y numeración próxima ({model} / {number}); "
-                    "son modelos distintos, no una identificación."
+                    and 0 < distance <= 9):
+                return distance, (
+                    f"Mismo fabricante y prefijo numérico {model[:-1]}; "
+                    f"designaciones {model} y {number} diferentes. "
+                    "Solo correspondencia exploratoria."
                 )
         return None
-    # Beckhoff CX1010 -> CX1020: common family and leading digits.
-    wanted = re.fullmatch(r"([a-z]{2,8})[-_ ]?([0-9]{3,6})", model)
+
+    # Lettered model series: CX 1010-0012 -> CX1010, CX1020, CX9020.
+    # EAGLE 20 -> eagle_30. The shared lettered series is evidence of
+    # proximity, not technical equivalence; numeric differences can be large.
+    wanted = re.fullmatch(
+        r"([a-z]{2,12})[ _-]*([0-9]{2,6})(?:[ _/-]+[a-z0-9_.-]+)?",
+        model,
+    )
     other = re.fullmatch(
-        r"([a-z]{2,8})[-_]?([0-9]{3,6})(?:[_-][a-z0-9_-]+)?",
+        r"([a-z]{2,12})[_-]*([0-9]{2,6})"
+        r"(?:[a-z](?:[_-][a-z0-9_.-]+)?|[_-][a-z0-9_.-]+)?",
         product,
     )
     if wanted and other and wanted.group(1) == other.group(1):
-        digits, nearby = wanted.group(2), other.group(2)
-        if (len(digits) == len(nearby)
-                and digits[:2] == nearby[:2]
-                and 0 < abs(int(digits) - int(nearby)) <= 30):
-            return abs(int(digits) - int(nearby)), (
-                f"Mismo fabricante y familia {wanted.group(1).upper()}; "
-                f"{model.upper()} y {other.group(1).upper() + nearby} "
-                "son referencias distintas."
-            )
+        distance = abs(int(wanted.group(2)) - int(other.group(2)))
+        # The inventory may have a further model revision not identified by
+        # NVD. Such a row remains an optional weak suggestion even if the
+        # main number matches but the full product identifier does not.
+        return distance, (
+            f"Mismo fabricante y serie {wanted.group(1).upper()}; "
+            f"códigos {wanted.group(2)} y {other.group(2)}. "
+            "La serie compartida no demuestra compatibilidad entre modelos."
+        )
     return None
 
 
