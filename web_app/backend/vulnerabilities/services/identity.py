@@ -424,6 +424,26 @@ def _software_product_spellings(product, manufacturer):
     return forms
 
 
+def software_series_stem(product, manufacturer):
+    """Bounded software-series fallback from a delimited model code.
+
+    ADAM-5510 -> adam; a generic IOS product does not produce an unsafe
+    short prefix. A shared series helps discovery, not CPE identification.
+    """
+    core = _planned_model_core(product)
+    match = re.fullmatch(r"([a-z]{4,12})[ _-]+[0-9]{3,6}[a-z]?", core)
+    if not match:
+        return ""
+    series = match.group(1)
+    if normalized(series) in {
+        normalized(word) for word in re.split(r"[ _-]+", manufacturer)
+    } or normalized(series) in {
+        normalized(alias) for alias in vendor_variants(manufacturer)
+    }:
+        return ""
+    return series
+
+
 def _software_cpe_version(version):
     """Escape CPE 2.3 special characters, preserving Cisco version suffixes.
 
@@ -519,6 +539,15 @@ def build_software_cpe_match_plan(identity):
     # local versions such as Cisco's escaped 12.1\(22\)ea14 conservatively.
     for vendor, prod in pairs:
         add("FAMILY", vendor, prod, "*", "PRODUCT_CATALOGUE", local_filter=True)
+
+    # A model-like software product may have other members in the same series.
+    # ADAM-5510 -> adam*, strictly after exact-product and version searches.
+    # This is not an equivalence claim: all rows must be checked locally.
+    series = software_series_stem(product, manufacturer)
+    if series:
+        for vendor in vendors:
+            add("FAMILY", vendor, series + "*", None, "RELATED_SERIES",
+                local_filter=True)
 
     for vendor in vendors:
         add("MANUFACTURER", vendor, "*", None, "MANUFACTURER_CATALOGUE",
