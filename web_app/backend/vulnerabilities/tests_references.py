@@ -13,7 +13,7 @@ from vulnerabilities.models import AssetCpe, AssetCpeDecision, Cpe, CpeSearchRun
 from vulnerabilities.services.candidate_matching import (
     merge_candidates, normalize_candidate,
 )
-from vulnerabilities.services.cpe_search import execute_run, serialize_run
+from vulnerabilities.services.cpe_search import execute_legacy_run as execute_run, serialize_run
 from vulnerabilities.services.identity import fingerprint, hardware_identity
 from vulnerabilities.services.nvd_references import (
     combine_references, safe_reference_url, safe_references,

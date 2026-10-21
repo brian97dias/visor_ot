@@ -1,4 +1,4 @@
-"""Phase 1 regression tests. All NVD responses are simulated, never HTTP."""
+"""Legacy progressive-engine regressions, retained for historical compatibility."""
 from types import SimpleNamespace
 
 from django.test import SimpleTestCase
@@ -7,7 +7,7 @@ from .services.identity import (
     build_level_queries, family_term, vendor_variants, catalog_code_prefix, fingerprint,
 )
 from .services.candidate_matching import normalize_candidate, is_pertinent, is_manufacturer_related
-from .services.cpe_search import execute_run, MAX_TOTAL_PAGE_FETCHES
+from .services.cpe_search import execute_legacy_run as execute_run, MAX_TOTAL_PAGE_FETCHES
 
 
 SIEMENS = {

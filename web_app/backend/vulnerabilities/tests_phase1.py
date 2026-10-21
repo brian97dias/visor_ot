@@ -13,7 +13,7 @@ from assets.software_services import register_installed_software_asset
 from .models import CpeSearchRun
 from .services.identity import build_queries, fingerprint, hardware_identity
 from .services.candidate_matching import merge_candidates, normalize_candidate
-from .services.cpe_search import create_run, execute_run, serialize_run
+from .services.cpe_search import create_run, execute_legacy_run as execute_run, serialize_run
 from .services.nvd_client import PublicNvdPacer, NvdError
 from .services.worker_lock import worker_lock_held, ADVISORY_LOCK_ID
 
