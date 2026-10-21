@@ -197,6 +197,55 @@ class SoftwareWorkerTests(TestCase):
         self.assertLessEqual(len(finished.candidates), 5)
         self.assertFalse(finished.result_truncated)
 
+    def test_adam_5510_firmware_finds_five_other_adam_models_as_weak_only(self):
+        software = self.asset.software
+        software.manufacturer = "Advantech"
+        software.product = "ADAM-5510"
+        software.software_type = Software.SoftwareType.FIRMWARE
+        software.version = ""
+        software.save()
+        run = self.new_run()
+        expected = "cpe:2.3:o:advantech:adam*"
+        processed = []
+        for _ in range(8):
+            run = execute_run(
+                run, object(),
+                fetcher=lambda *args: self.fail("Software product searches must use snapshots"),
+            )
+            if run.status == "COMPLETED":
+                break
+            self.assertEqual(run.status, "QUEUED")
+            snapshot = CpeQuerySnapshot.objects.filter(
+                status=CpeQuerySnapshot.Status.QUEUED,
+            ).select_related("cache").order_by("-pk").first()
+            self.assertIsNotNone(snapshot)
+            parameter = snapshot.cache.parameter
+            processed.append(parameter)
+            rows = []
+            if parameter == expected:
+                rows = [
+                    nvd(product=f"adam-{i}_firmware", vendor="advantech", version="-")
+                    for i in (3600, 5550, 5630, 5500, 5560, 5670)
+                ]
+                rows.extend((
+                    nvd(product="adam_manager", vendor="advantech", version="-"),
+                    nvd(product="adam-3600_firmware", vendor="other", version="-"),
+                ))
+            execute_catalogue_snapshot(
+                snapshot, object(),
+                fetcher=lambda strategy, parameter, start, pacer, *,
+                results_per_page, rows=rows: page(rows, start=start),
+            )
+        self.assertEqual(run.status, "COMPLETED")
+        self.assertIn(expected, processed)
+        self.assertNotIn("cpe:2.3:o:advantech:*", processed)
+        self.assertEqual(len(run.candidates), 5)
+        self.assertEqual({c["match_level"] for c in run.candidates}, {"EXPLORATORY"})
+        self.assertTrue(all("otro modelo" in c["match_reason"] for c in run.candidates))
+        self.assertTrue(all(c["cpe_type"] == "o" for c in run.candidates))
+        self.assertFalse(AssetCpe.objects.exists())
+        self.assertFalse(AssetCpeDecision.objects.exists())
+
     def test_review_creates_only_explicit_audited_software_decision(self):
         run = self.new_run()
         row = nvd(version="12.1")
