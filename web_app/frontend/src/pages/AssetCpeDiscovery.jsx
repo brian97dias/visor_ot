@@ -188,7 +188,8 @@ export default function AssetCpeDiscovery() {
           <span className="cpe-status" data-status={run.status}>{statusText[run.status] || run.status}</span>
         </div>
         <div className="cpe-copy">
-          <p>Alcance: {run.trigger === "ADVANCED" ? "Avanzada · consulta controlada" :
+          <p>Alcance: {run.trigger === "CATALOGUE" ? "Selección desde catálogo NVD" :
+            run.trigger === "ADVANCED" ? "Avanzada · consulta controlada" :
             run.scope === "BROAD" ? "Familia" : "Específico"} ·
             {" "}{run.candidate_count} candidatos de hardware encontrados.</p>
           <p>Fecha: {new Date(run.created_at).toLocaleString("es-CO")}</p>
