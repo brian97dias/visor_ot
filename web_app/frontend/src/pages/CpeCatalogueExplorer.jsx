@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useOutletContext, useParams } from "react-router-dom";
 import { getAsset } from "../api/assets";
 import {
@@ -36,6 +36,7 @@ export default function CpeCatalogueExplorer() {
   const [browsing, setBrowsing] = useState(false);
   const [browseError, setBrowseError] = useState("");
   const [selectionBusy, setSelectionBusy] = useState(false);
+  const selectionRef = useRef(null);
   const [selectionError, setSelectionError] = useState("");
   const [selectedRun, setSelectedRun] = useState(null);
   const [associations, setAssociations] = useState([]);
@@ -44,6 +45,9 @@ export default function CpeCatalogueExplorer() {
   const activeHardware = asset?.asset_type === "HARDWARE" &&
     asset?.inventory_status === "ACTIVE";
   const selectedItem = selectedRun?.candidates?.[0];
+  useEffect(() => {
+    if (selectedRun) selectionRef.current?.scrollIntoView({behavior:"smooth", block:"start"});
+  }, [selectedRun]);
   const selectedAssociation = associations.find(association =>
     association.cpe_name_id?.toLowerCase() === selectedItem?.cpe_name_id?.toLowerCase()
   );
@@ -288,7 +292,7 @@ export default function CpeCatalogueExplorer() {
         </section>}
       {selectionError && <p className="error-message" role="alert">{selectionError}</p>}
       {associationError && <p className="error-message" role="alert">{associationError}</p>}
-      {selectedRun && selectedItem && <section className="panel cpe-catalogue-selection"
+      {selectedRun && selectedItem && <section ref={selectionRef} className="panel cpe-catalogue-selection"
         aria-label="Revisión de evidencia seleccionada">
         <div className="panel-header">
           <h2>Revisión del CPE seleccionado</h2>

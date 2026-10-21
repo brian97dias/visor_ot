@@ -87,8 +87,8 @@ class CatalogueExplorerAPITests(TestCase):
             if current["next_after"] is None:
                 break
             cursor = current["next_after"]
-        self.assertEqual(len(all_rows), 2)
-        self.assertEqual(len({row["evidence_id"] for row in all_rows}), 2)
+        self.assertEqual(len(all_rows), 3)
+        self.assertEqual(len({row["evidence_id"] for row in all_rows}), 3)
         self.assertTrue(all(row["cpe_type"] == "h" for row in all_rows))
         response = self.client.get(self.browse_url, {"q": "BK-PAC", "cpe_type": "h"})
         self.assertEqual(len(response.data["page"]["items"]), 2)
