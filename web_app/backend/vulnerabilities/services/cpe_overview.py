@@ -1,6 +1,6 @@
 """Read-only, UUID-based counts for the latest valid completed NVD search."""
 from vulnerabilities.models import AssetCpe, CpeSearchRun
-from .candidate_matching import hardware_candidates
+from .candidate_matching import candidates_for_identity
 
 
 def is_outdated_association(association, identity_fingerprint):
@@ -24,15 +24,18 @@ def count_current_cpes(run, associations, identity_fingerprint):
     )
     uuids = set()
     exploratory_ids = set()
+    # The search run already stores the asset type and CPE part in its
+    # immutable identity snapshot. Preserve hardware legacy behavior.
+    candidates = candidates_for_identity(run.candidates, run.identity_snapshot) if available else []
     if available:
         exploratory_ids = {
             str(item.get("cpe_name_id", "")).lower()
-            for item in hardware_candidates(run.candidates)
+            for item in candidates
             if item.get("cpe_name_id") and item.get("match_level") == "EXPLORATORY"
         }
         uuids = {
             str(item.get("cpe_name_id", "")).lower()
-            for item in hardware_candidates(run.candidates)
+            for item in candidates
             if item.get("cpe_name_id")
         }
 
