@@ -75,3 +75,21 @@ test("cross-vendor discovery is level four and never a technical confirmation",(
  assert.deepEqual(c.methods,["keywordSearch"]);
  assert.match(c.reason,/belden/);
 });
+
+test("software version match labels distinguish exact, branch, product and exploration",()=>{
+ const exact=describeCandidate({match_level:"SOFTWARE_EXACT",
+   match_reason:"Producto y versión coinciden"});
+ const branch=describeCandidate({match_level:"SOFTWARE_BRANCH",
+   match_reason:"12.1(22)EA14 pertenece a la rama 12.1"});
+ const product=describeCandidate({match_level:"SOFTWARE_PRODUCT",
+   match_reason:"Versión NVD 12.10 diferente"});
+ assert.match(exact.label,/versión coincidentes/);
+ assert.equal(exact.tone,"specific");
+ assert.match(branch.label,/rama de versión/);
+ assert.equal(branch.tone,"family");
+ assert.match(product.label,/versión no comprobada/);
+ assert.equal(product.tone,"related");
+ assert.match(queryDescription({strategy:"cpeMatchString",
+   parameter:"cpe:2.3:o:cisco:ios:12.1*"}),/versión\/prefijo 12.1/);
+ assert.match(describeCandidate({match_level:"EXPLORATORY"}).label,/exploratoria/);
+});
