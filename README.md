@@ -47,5 +47,16 @@ free -h
 journalctl -k -b --no-pager | grep -Ei 'out of memory|oom-kill|killed process'
 ```
 
-La importación continúa siendo una operación síncrona: en capturas muy grandes,
-mantén el navegador y los servicios abiertos hasta que el proceso termine.
+La importación continúa siendo síncrona. Para capturas enormes, evita
+depender de una solicitud larga del navegador y usa el comando de Django
+(con FastAPI ya iniciado y con `ijson` instalado en su entorno):
+
+```bash
+cd web_app/backend
+python manage.py import_pcap_stream <PCAP_ID> --username <USUARIO_ANALYST_O_ADMIN>
+```
+
+Reemplaza los marcadores por el ID de la captura y un usuario real. El comando
+utiliza la misma importación atómica, guarda toda la evidencia y reporta los
+conteos al finalizar. Después actualiza «Observaciones importadas» en el
+navegador. No abras el JSON gigante en Visual Studio Code.
