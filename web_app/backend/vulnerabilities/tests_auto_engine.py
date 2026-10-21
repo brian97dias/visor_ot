@@ -235,6 +235,42 @@ class StructuredAutomaticDiscoveryTests(TestCase):
         self.assertFalse(finished.result_truncated)
         self.assertFalse(AssetCpe.objects.exists())
 
+    def test_real_axis_206_finds_weak_207w_from_reused_full_catalogue(self):
+        run = self.make_run(self.hardware("Axis Communications", "AXIS 206"))
+        fetch = lambda *args: reply([])
+        run = execute_run(run, object(), fetcher=fetch)
+        self.assertEqual(run.status, "QUEUED")
+        first = CpeQuerySnapshot.objects.get()
+        self.assertEqual(first.cache.parameter, "cpe:2.3:h:axis:*")
+        rows = [product("axis", model) for model in
+                ("207w", "207", "205w", "205", "204", "m1125")]
+        completed = execute_catalogue_snapshot(
+            first, object(),
+            fetcher=lambda s, p, i, pacer, *, results_per_page: reply(rows, start=i),
+        )
+        self.assertEqual(completed.status, "COMPLETED")
+        # Continue through other known NVD vendor aliases without refetching
+        # the first snapshot; no network request is repeated for any prefix.
+        for _ in range(5):
+            run = execute_run(run, object(), fetcher=fetch)
+            if run.status == "COMPLETED":
+                break
+            waiting = CpeQuerySnapshot.objects.filter(
+                status=CpeQuerySnapshot.Status.QUEUED).order_by("pk").first()
+            self.assertIsNotNone(waiting)
+            self.assertNotEqual(waiting.pk, first.pk)
+            execute_catalogue_snapshot(
+                waiting, object(),
+                fetcher=lambda s, p, i, pacer, *, results_per_page: reply([], start=i),
+            )
+        self.assertEqual(run.status, "COMPLETED")
+        self.assertEqual(len(run.candidates), 5)
+        self.assertTrue(all(c["match_level"] == "EXPLORATORY"
+                            for c in run.candidates))
+        self.assertIn("207w", [c["cpe_name"].split(":")[4] for c in run.candidates])
+        self.assertFalse(AssetCpe.objects.exists())
+        self.assertFalse(run.result_truncated)
+
     def test_unrelated_manufacturer_catalogue_keeps_zero_candidates(self):
         run = self.make_run(self.hardware("Axis", "206"))
         waiting = execute_run(run, object(), fetcher=lambda *args: reply([]))
