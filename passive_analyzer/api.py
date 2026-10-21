@@ -141,6 +141,16 @@ def get_pcap_analysis(
         )
 
 
+    # Legacy full-analysis responses are unsafe for massive captures.
+    # The UI and Django importer already use bounded paging/streaming.
+    result_file = OUTPUT_DIRECTORY / f"{pcap_id}.json"
+    if result_file.is_file() and result_file.stat().st_size > 64 * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail="Análisis demasiado grande para descarga completa; "
+                   "utiliza /analysis/observations o /analysis/stream.",
+        )
+
     try:
 
         analysis = load_output(
