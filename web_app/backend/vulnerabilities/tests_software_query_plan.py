@@ -105,6 +105,36 @@ class SoftwareCpePlanPhase1Tests(SimpleTestCase):
                 with self.assertRaises(ValueError):
                     build_software_cpe_match_plan(identity)
 
+    def test_advantech_adam_model_gets_fallback_to_product_series(self):
+        identity = {
+            "asset_type": "SOFTWARE", "software_type": "FIRMWARE",
+            "manufacturer": "Advantech", "product": "ADAM-5510", "version": "",
+        }
+        plan = build_software_cpe_match_plan(identity)
+        params = [q["parameter"] for q in plan]
+        self.assertIn("cpe:2.3:o:advantech:adam-5510:*", params)
+        self.assertIn("cpe:2.3:o:advantech:adam*", params)
+        self.assertLess(params.index("cpe:2.3:o:advantech:adam-5510:*"),
+                        params.index("cpe:2.3:o:advantech:adam*"))
+        self.assertLess(params.index("cpe:2.3:o:advantech:adam*"),
+                        params.index("cpe:2.3:o:advantech:*"))
+        series_query = next(q for q in plan
+                            if q["parameter"] == "cpe:2.3:o:advantech:adam*")
+        self.assertEqual(series_query["level"], "FAMILY")
+        self.assertEqual(series_query["version_scope"], "RELATED_SERIES")
+        self.assertTrue(series_query["requires_local_version_filter"])
+        self.assertEqual(plan, build_software_cpe_match_plan(identity))
+
+    def test_software_series_fallback_is_not_generated_for_generic_products(self):
+        self.assertNotIn("RELATED_SERIES", [
+            step["version_scope"] for step in build_software_cpe_match_plan(ios())
+        ])
+        self.assertNotIn("RELATED_SERIES", [
+            step["version_scope"] for step in build_software_cpe_match_plan(
+                {**ios(), "product": "IOS-XE"}
+            )
+        ])
+
     def test_hardware_plans_and_fingerprints_remain_stable(self):
         for device in (SIEMENS, ADAM, ROCKWELL):
             self.assertEqual(build_cpe_match_plan(device),
