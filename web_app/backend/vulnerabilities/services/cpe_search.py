@@ -424,13 +424,20 @@ def _exploratory_rank(item):
 
 
 
-def _record_candidate(row, run, level, dedup, details, *, alternative=False):
+def _record_candidate(row, run, level, dedup, details, *, alternative=False,
+                      version_scope=None):
     """Record one NVD product as an explainable suggestion, never validation."""
     item = normalize_candidate(
         row, run.identity_snapshot,
         "keywordSearch" if alternative else "cpeMatchString",
     )
     if item is None:
+        return
+    # NVD wildcard version prefixes are not exact branch filters:
+    # 12.1* may also return 12.10. Recheck each row locally.
+    if version_scope == "BRANCH_PREFIX" and item["match_level"] not in (
+        "SOFTWARE_EXACT", "SOFTWARE_BRANCH",
+    ):
         return
     if run.identity_snapshot.get("asset_type") == "SOFTWARE":
         details["software_results"] = details.get("software_results", 0) + 1
@@ -610,6 +617,7 @@ def execute_run(run, pacer, fetcher=fetch_page):
                     _record_candidate(
                         row, run, step["level"], dedup, details,
                         alternative=step["level"] == "ALTERNATIVE",
+                        version_scope=step.get("version_scope"),
                     )
                 details["status"] = "COMPLETED"
                 details["catalogue_complete"] = True
@@ -659,7 +667,10 @@ def execute_run(run, pacer, fetcher=fetch_page):
                 details["retrieved"] += len(products)
                 total = count
                 for row in products:
-                    _record_candidate(row, run, step["level"], dedup, details)
+                    _record_candidate(
+                        row, run, step["level"], dedup, details,
+                        version_scope=step.get("version_scope"),
+                    )
                 _persist(run, {"queries": queries,
                                "candidates": merge_candidates(list(dedup.values())),
                                "result_truncated": run.result_truncated})
