@@ -200,7 +200,15 @@ class SoftwareWorkerTests(TestCase):
     def test_review_creates_only_explicit_audited_software_decision(self):
         run = self.new_run()
         row = nvd(version="12.1")
-        completed = execute_run(run, object(), fetcher=lambda *args: page([row]))
+        queued = execute_run(run, object(), fetcher=lambda *args: page([row]))
+        snapshot = CpeQuerySnapshot.objects.get()
+        execute_catalogue_snapshot(
+            snapshot, object(), fetcher=lambda s, p, i, pacer, *, results_per_page:
+            page([row], start=i),
+        )
+        completed = execute_run(queued, object(), fetcher=lambda *args:
+                                self.fail("No repetir consultas completadas"))
+        self.assertEqual(completed.status, "COMPLETED")
         data = {
             "run_id": completed.pk, "cpe_name_id": row["cpe"]["cpeNameId"],
             "status": "CONFIRMED",
