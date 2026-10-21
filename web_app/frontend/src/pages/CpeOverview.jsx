@@ -78,7 +78,7 @@ export default function CpeOverview() {
     if (filter !== "ALL" && filter !== row.identification_status) return false;
     const query = search.trim().toLowerCase();
     return !query || [
-      row.asset_name, row.manufacturer, row.product, row.cpu_model, row.role,
+      row.asset_name, row.manufacturer, row.product, row.version, row.cpu_model, row.role,
     ].some(value => String(value || "").toLowerCase().includes(query));
   }), [rows, filter, assetType, search]);
 
@@ -224,7 +224,7 @@ export default function CpeOverview() {
       </div>
       <div className="cpe-overview-toolbar">
         <input type="search" aria-label="Buscar activos para identificar CPE"
-          placeholder="Buscar por activo, fabricante, modelo o CPU..."
+          placeholder="Buscar activo, fabricante, producto, versión o CPU..."
           value={search} onChange={event => changeFilter("q", event.target.value)}/>
         <select aria-label="Filtrar tipo de activo CPE"
           value={assetType} onChange={event => changeFilter("type", event.target.value)}>
