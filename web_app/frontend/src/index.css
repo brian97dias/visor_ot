@@ -2315,6 +2315,22 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cpe-overview-status[data-status="FAILED"], .cpe-overview-status[data-status="STALE"] { color: #fca5a5; }
 .cpe-overview-status[data-status="RUNNING"] { color: #7dd3fc; }
 .cpe-overview-subtitle { color: #94a3b8; font-size: .78rem; margin-top: 5px; }
+.cpe-overview-asset-link {
+  color: #e2e8f0;
+  font-weight: 700;
+  text-decoration: none;
+  text-underline-offset: 3px;
+}
+.cpe-overview-asset-link:hover {
+  color: #38bdf8;
+  text-decoration: underline;
+}
+.cpe-overview-asset-link:focus-visible {
+  color: #38bdf8;
+  outline: 2px solid #38bdf8;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
 .cpe-overview-note { color: #94a3b8; padding: 15px 20px; font-size: .84rem; }
 
 /* Phase 1 diagnostics: status polling is not NVD execution. */
