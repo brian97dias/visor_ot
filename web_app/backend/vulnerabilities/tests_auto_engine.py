@@ -298,16 +298,99 @@ class StructuredAutomaticDiscoveryTests(TestCase):
 
     def test_unrelated_manufacturer_catalogue_keeps_zero_candidates(self):
         run = self.make_run(self.hardware("Axis", "206"))
-        waiting = execute_run(run, object(), fetcher=lambda *args: reply([]))
-        snapshot = CpeQuerySnapshot.objects.get()
-        snapshot = execute_catalogue_snapshot(
-            snapshot, object(), fetcher=lambda s, p, i, pacer, *, results_per_page:
-            reply([product("axis", "large_unrelated_device")], start=i)
+        empty = lambda *args: reply([])
+        waiting = execute_run(run, object(), fetcher=empty)
+        manufacturer = CpeQuerySnapshot.objects.get()
+        execute_catalogue_snapshot(
+            manufacturer, object(), fetcher=lambda s, p, i, pacer, *, results_per_page:
+            reply([product("axis", "large_unrelated_device")], start=i),
         )
+        # No technical match: two cached keyword fallbacks must also finish
+        # before the run can truthfully say it has no candidate.
+        for expected in ("Axis 206", "Axis"):
+            waiting = execute_run(waiting, object(), fetcher=empty)
+            self.assertEqual(waiting.status, "QUEUED")
+            snapshot = CpeQuerySnapshot.objects.get(
+                cache__strategy="keywordSearch", cache__parameter=expected
+            )
+            execute_catalogue_snapshot(
+                snapshot, object(), fetcher=lambda s, p, i, pacer, *, results_per_page:
+                reply([], start=i),
+            )
         finished = execute_run(waiting, object(), fetcher=lambda *args:
-                               self.fail("No debe repetir la consulta a NVD"))
+                               self.fail("No debe repetir ninguna consulta estructurada"))
         self.assertEqual(finished.status, "COMPLETED")
         self.assertEqual(finished.candidates, [])
+        self.assertFalse(finished.result_truncated)
+
+    def test_hirschmann_eagle20_discovers_belden_through_keyword_fallback(self):
+        run = self.make_run(self.hardware("Hirschmann", "EAGLE20"))
+        no_structured = lambda *args: reply([])
+        waiting = execute_run(run, object(), fetcher=no_structured)
+        self.assertEqual(waiting.status, "QUEUED")
+        manufacturer = CpeQuerySnapshot.objects.get()
+        self.assertEqual(manufacturer.cache.parameter, "cpe:2.3:h:hirschmann:*")
+        execute_catalogue_snapshot(
+            manufacturer, object(), fetcher=lambda s, p, i, pacer, *, results_per_page:
+            reply([], start=i),
+        )
+        waiting = execute_run(waiting, object(), fetcher=no_structured)
+        self.assertEqual(waiting.status, "QUEUED")
+        snapshot = CpeQuerySnapshot.objects.get(cache__strategy="keywordSearch")
+        self.assertEqual(snapshot.cache.parameter, "Hirschmann EAGLE20")
+        official = product("belden", "hirschmann_eagle20")
+        execute_catalogue_snapshot(
+            snapshot, object(), fetcher=lambda s, p, i, pacer, *, results_per_page:
+            reply([official], start=i),
+        )
+        completed = execute_run(waiting, object(), fetcher=lambda *args:
+                                self.fail("El snapshot completo evita nuevas consultas"))
+        self.assertEqual(completed.status, "COMPLETED")
+        self.assertEqual(len(completed.candidates), 1)
+        match = completed.candidates[0]
+        self.assertEqual(match["match_level"], "EXPLORATORY")
+        self.assertEqual(match["methods"], ["keywordSearch"])
+        self.assertEqual(match["discovery_levels"], ["ALTERNATIVE"])
+        self.assertIn("belden", match["match_reason"])
+        self.assertIn("Hirschmann", match["match_reason"])
+        self.assertEqual(completed.queries[-1]["status"], "COMPLETED")
+        self.assertTrue(completed.queries[-1]["catalogue_complete"])
+        self.assertFalse(AssetCpe.objects.exists())
+        self.assertFalse(AssetCpeDecision.objects.exists())
+
+    def test_hirschmann_keyword_broadening_uses_reusable_snapshot(self):
+        run = self.make_run(self.hardware("Hirschmann", "EAGLE20"))
+        empty = lambda *args: reply([])
+        run = execute_run(run, object(), fetcher=empty)
+        manufacturer = CpeQuerySnapshot.objects.get()
+        execute_catalogue_snapshot(
+            manufacturer, object(), fetcher=lambda s, p, i, pacer, *, results_per_page:
+            reply([], start=i),
+        )
+        run = execute_run(run, object(), fetcher=empty)
+        narrow = CpeQuerySnapshot.objects.get(cache__strategy="keywordSearch")
+        execute_catalogue_snapshot(
+            narrow, object(), fetcher=lambda s, p, i, pacer, *, results_per_page:
+            reply([], start=i),
+        )
+        run = execute_run(run, object(), fetcher=empty)
+        self.assertEqual(run.status, "QUEUED")
+        broad = CpeQuerySnapshot.objects.get(
+            cache__strategy="keywordSearch", cache__parameter="Hirschmann"
+        )
+        execute_catalogue_snapshot(
+            broad, object(), fetcher=lambda s, p, i, pacer, *, results_per_page:
+            reply([product("belden", "hirschmann_eagle20"),
+                   product("belden", "hirschmann_eagle200"),
+                   product("belden", "hirschmann_dragon")], start=i),
+        )
+        run = execute_run(run, object(), fetcher=lambda *args:
+                          self.fail("No se deben repetir consultas anteriores"))
+        self.assertEqual(run.status, "COMPLETED")
+        self.assertEqual(len(run.candidates), 1)
+        self.assertEqual(run.candidates[0]["match_level"], "EXPLORATORY")
+        self.assertEqual(run.queries[-1]["cache_reused"], False)
+        self.assertFalse(run.result_truncated)
 
     def test_worker_prioritizes_catalogue_needed_by_waiting_asset(self):
         now = timezone.now()
