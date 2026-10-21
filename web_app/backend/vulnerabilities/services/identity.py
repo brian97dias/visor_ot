@@ -283,3 +283,32 @@ def build_cpe_match_plan(identity):
     if len(plan) > MAX_CPE_PLAN_QUERIES:
         raise ValueError("La identidad genera demasiadas variantes CPE.")
     return plan
+
+# Final optional discovery level: NVD may attribute a product to a different
+# manufacturer even though the inventoried brand occurs in the CPE title/model.
+# Both expressions are cacheable keywordSearch queries, not new vendor aliases.
+MAX_ALTERNATIVE_QUERIES = 2
+
+
+def build_alternative_keyword_plan(identity):
+    """Bounded terms to investigate brand/provider discrepancies.
+
+    No automatic inventory correction or cross-vendor trust is implied.
+    """
+    if identity.get("asset_type") != "HARDWARE":
+        raise ValueError("La investigación alternativa requiere hardware.")
+    manufacturer = compact(identity.get("manufacturer"))
+    model = compact(identity.get("model"))
+    if not manufacturer or not model:
+        raise ValueError("Faltan fabricante o modelo para la búsqueda alternativa.")
+    # Keyword API grammar also forbids arbitrary URL/query injection.
+    if any(not re.fullmatch(r"[\\w ./-]+", ascii_text(part))
+           for part in (manufacturer, model)):
+        raise ValueError("La identidad no admite búsqueda textual alternativa.")
+    specific = compact(ascii_text(manufacturer) + " " + ascii_text(model))
+    general = ascii_text(manufacturer)
+    if len(general) < 4 or len(specific) > 120 or len(general) > 120:
+        return []
+    terms = list(dict.fromkeys([specific, general]))[:MAX_ALTERNATIVE_QUERIES]
+    return [{"level": "ALTERNATIVE", "strategy": "keywordSearch",
+             "parameter": term} for term in terms]
