@@ -34,6 +34,16 @@ def classify(candidate, identity):
     wanted_cpu = cpu_spelling(identity.get("cpu_model"))
     if not matches_vendor(_cpe_part(cpe_name, 3), identity):
         return "POSSIBLE_INCOMPATIBILITY", "El fabricante del CPE no coincide con el inventario."
+    # Numeric model designations must not match longer neighbouring models:
+    # AXIS 206 does not identify AXIS 2060 or AXIS 2067.
+    raw_model = str(identity.get("model") or "").strip().lower()
+    raw_product = _cpe_part(cpe_name, 4).lower()
+    numeric_model = re.fullmatch(r"[0-9]+", raw_model)
+    if numeric_model and re.search(
+        r"(?<![a-z0-9])" + re.escape(raw_model) + r"[a-z0-9]", raw_product
+    ):
+        return ("POSSIBLE_INCOMPATIBILITY",
+                "El número de modelo es prefijo de otro modelo diferente.")
     if wanted_model and wanted_model not in product:
         term = family_term(identity.get("model"))
         # A series prefix can help discovery but never proves equivalence.
@@ -153,7 +163,8 @@ def merge_candidates(results):
             )
     return sorted(
         merged.values(),
-        key=lambda v: (PRIORITY.get(v["match_level"], 99), v["deprecated"], v["title"].lower(), v["cpe_name"]),
+        key=lambda v: (bool(v.get("deprecated", False)), PRIORITY.get(v["match_level"], 99),
+                       str(v.get("title") or "").casefold(), str(v.get("cpe_name") or "")),
     )
 
 
