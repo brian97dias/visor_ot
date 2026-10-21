@@ -36,6 +36,10 @@ export default function AssetCpeDiscovery() {
   const [associations, setAssociations] = useState([]);
   const [associationError, setAssociationError] = useState("");
   const allowed = ["ADMIN", "ANALYST"].includes(user?.role);
+  const isSoftware = asset?.asset_type === "SOFTWARE";
+  const assetTypeLabel = isSoftware ? "software" : "hardware";
+  const cpeTypeLabel = type => type === "h" ? "hardware" :
+    type === "o" ? "sistema operativo" : type === "a" ? "aplicación" : "desconocido";
   const pending = ["QUEUED", "RUNNING"].includes(run?.status);
   const candidatesToReview = unreviewedCpeCandidates(run?.candidates, associations);
   const exploratoryCount = candidatesToReview.filter(c => c.match_level === "EXPLORATORY").length;
@@ -152,24 +156,30 @@ export default function AssetCpeDiscovery() {
     </Link>
     <header className="page-header"><span className="page-eyebrow">IDENTIFICACIÓN CPE</span>
       <h1>Descubrimiento de candidatos</h1>
-      <p>{asset.hardware?.manufacturer} · {asset.hardware?.model}
-        {asset.hardware?.cpu_model ? " · CPU " + asset.hardware.cpu_model : ""}</p>
+      <p>{isSoftware
+        ? [asset.software?.manufacturer, asset.software?.product,
+           asset.software?.version ? "Versión " + asset.software.version : "Versión no registrada"]
+            .filter(Boolean).join(" · ")
+        : <>{asset.hardware?.manufacturer} · {asset.hardware?.model}
+            {asset.hardware?.cpu_model ? " · CPU " + asset.hardware.cpu_model : ""}</>}</p>
     </header>
 
-    <Link className="button-secondary assets-back-link"
+    {!isSoftware && <Link className="button-secondary assets-back-link"
       to={"/assets/" + assetId + "/cpe/catalogue"} state={{ cpeOverviewSearch: query }}>
       Explorar catálogo NVD almacenado →
-    </Link>
+    </Link>}
     {error && <div className="error-message" role="alert">{error}</div>}
     {!run?.identity_is_current && run && <p className="cpe-warning">
       La identidad técnica cambió. Los resultados anteriores pueden no corresponder al equipo actual.
     </p>}
-    {allowed && asset.asset_type === "HARDWARE" && asset.inventory_status === "ACTIVE" &&
+    {allowed && asset.inventory_status === "ACTIVE" &&
       <div className="cpe-tools">
         <button className="button-primary" type="button" disabled={working || pending}
           onClick={() => search("SPECIFIC")}>{working ? "Solicitando..." : "Buscar candidatos"}</button>
-        <button className="button-secondary" type="button" disabled={working || pending}
-          onClick={() => search("BROAD")}>Ampliar búsqueda por familia</button>
+        {!isSoftware && <button className="button-secondary" type="button"
+          disabled={working || pending} onClick={() => search("BROAD")}>
+          Ampliar búsqueda por familia
+        </button>}
       </div>}
     {allowed && asset.asset_type === "HARDWARE" && asset.inventory_status === "ACTIVE" &&
       <CpeAdvancedSearch key={assetId} asset={asset} busy={working || pending}
@@ -183,8 +193,10 @@ export default function AssetCpeDiscovery() {
         </button>
       </div>
     )}
-    {!run ? <section className="panel cpe-copy">Sin búsquedas previas para este hardware.
-      Se requieren fabricante y modelo/familia para comenzar.</section> : <>
+    {!run ? <section className="panel cpe-copy">Sin búsquedas previas para este {assetTypeLabel}.
+      Se requiere fabricante y {isSoftware ? "producto" : "modelo/familia"} para comenzar.
+      {isSoftware && " La versión registrada determina el nivel de precisión de las sugerencias."}
+    </section> : <>
       <section className="panel">
         <div className="panel-header"><h2>Última búsqueda</h2>
           <span className="cpe-status" data-status={run.status}>{statusText[run.status] || run.status}</span>
@@ -193,7 +205,7 @@ export default function AssetCpeDiscovery() {
           <p>Alcance: {run.trigger === "CATALOGUE" ? "Selección desde catálogo NVD" :
             run.trigger === "ADVANCED" ? "Avanzada · consulta controlada" :
             run.scope === "BROAD" ? "Familia" : "Específico"} ·
-            {" "}{run.candidate_count} candidatos de hardware encontrados.</p>
+            {" "}{run.candidate_count} candidatos de {assetTypeLabel} encontrados.</p>
           <p>Fecha: {new Date(run.created_at).toLocaleString("es-CO")}</p>
           {pending && <>
             <p>La búsqueda permanece guardada en PostgreSQL aunque abandones esta página.</p>
@@ -221,7 +233,7 @@ export default function AssetCpeDiscovery() {
           </>}
           {run.status === "FAILED" && <p role="alert">{run.error_message}</p>}
           {run.status === "COMPLETED" && run.candidate_count === 0 &&
-            <p>Sin candidatos de hardware (tipo h) en las consultas realizadas.
+            <p>Sin candidatos de {assetTypeLabel} en las consultas realizadas.
               Esto no descarta que exista un CPE en NVD.</p>}
           {run.result_truncated && <p className="cpe-warning">Resultados limitados; la lista no es exhaustiva.</p>}
           <CpeDiscoveryTrace queries={run.queries} truncated={run.result_truncated} />
@@ -306,7 +318,7 @@ export default function AssetCpeDiscovery() {
               <CpeReferences references={c.nvd_references} sourceRunId={run.id} showMissing />
               <CpeCandidateExplanation candidate={c}/>
               <div className="cpe-tags">
-                <span>Tipo: hardware ({c.cpe_type})</span>
+                <span>Tipo: {cpeTypeLabel(c.cpe_type)} ({c.cpe_type})</span>
                 <span>{c.deprecated ? "Deprecado en NVD" : "No deprecado en NVD"}</span>
                 <span>Encontrado por: {(c.methods || []).join(" y ")}</span>
               </div>
