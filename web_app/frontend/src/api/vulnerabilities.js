@@ -69,3 +69,27 @@ export function startBulkCpeSearch(assetIds) {
     body: JSON.stringify({ asset_ids: assetIds, scope: "SPECIFIC" }),
   });
 }
+
+
+/** Shared NVD catalogue browsing. Only the prepare endpoint writes evidence. */
+export function getCpeCatalogueSnapshots(assetId) {
+  return request("/api/vulnerabilities/assets/" + assetId + "/cpe-catalogue/snapshots/");
+}
+export function browseCpeCatalogue(assetId, snapshotId, filters = {}) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== null && value !== "") {
+      search.set(key, String(value));
+    }
+  }
+  return request("/api/vulnerabilities/assets/" + assetId +
+    "/cpe-catalogue/snapshots/" + snapshotId + "/?" + search.toString());
+}
+export function selectCpeCatalogueEvidence(assetId, snapshotId, evidenceId) {
+  return request("/api/vulnerabilities/assets/" + assetId +
+    "/cpe-catalogue/snapshots/" + snapshotId + "/select/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ evidence_id: evidenceId }),
+  });
+}
