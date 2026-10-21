@@ -22,6 +22,9 @@ const REASON = {
 const STATUSES = {COMPLETED:"Completada",RUNNING:"En ejecución",PARTIAL:"Parcial",SKIPPED:"No ejecutada",FAILED:"Fallida",PLANNED:"En cola"};
 const CLASSIFICATION = {
  SPECIFIC:["Coincidencia técnica específica","specific"],
+ SOFTWARE_EXACT:["Producto y versión coincidentes","specific"],
+ SOFTWARE_BRANCH:["Misma rama de versión · verificar variante","family"],
+ SOFTWARE_PRODUCT:["Producto coincidente · versión no comprobada","related"],
  FAMILY:["Coincidencia de familia","family"],
  RELATED:["Producto relacionado","related"],
  EXPLORATORY:["Correspondencia débil · exploratoria","related"],
@@ -38,8 +41,11 @@ export function queryDescription(q) {
  if (q?.strategy !== "cpeMatchString") return "Consulta";
  const parts=String(q.parameter || "").split(":");
  if (parts.length<4) return "Identificador CPE";
- return parts[4] ? "Fabricante " + parts[3] + " · prefijo " + parts[4]
-                 : "Fabricante " + parts[3] + " · catálogo general";
+ const category=parts[2]==="o" ? "Sistema operativo" :
+   parts[2]==="a" ? "Aplicación" : "Hardware";
+ const product=parts[4] && parts[4]!=="*" ? " · producto " + parts[4] : " · catálogo general";
+ const version=parts[5] && parts[5]!=="*" ? " · versión/prefijo " + parts[5] : "";
+ return category + " · fabricante " + parts[3] + product + version;
 }
 const num=v=>v===null||v===undefined||!Number.isFinite(Number(v))||Number(v)<0 ? null : Number(v);
 export function groupCpeQueries(queries=[]) {
