@@ -62,7 +62,7 @@ class CandidateMatchingIncrement3Tests(SimpleTestCase):
         item = normalize_candidate(candidate("axis", "207w"), device, "cpeMatchString")
         self.assertEqual(item["match_level"], "EXPLORATORY")
         self.assertEqual(item["exploratory_distance"], 1)
-        self.assertIn("modelos distintos", item["match_reason"])
+        self.assertIn("Solo correspondencia exploratoria", item["match_reason"])
 
     def test_axis_2060_and_unrelated_manufacturer_are_not_exploratory(self):
         device = identity("Axis Communications", "206")
@@ -76,7 +76,7 @@ class CandidateMatchingIncrement3Tests(SimpleTestCase):
         near = normalize_candidate(candidate("beckhoff", "cx1020"), device, "cpeMatchString")
         far = normalize_candidate(candidate("beckhoff", "cx2010"), device, "cpeMatchString")
         self.assertEqual(near["match_level"], "EXPLORATORY")
-        self.assertEqual(far["match_level"], "POSSIBLE_INCOMPATIBILITY")
+        self.assertEqual(far["match_level"], "EXPLORATORY")
 
     def test_exploratory_ranking_after_existing_categories(self):
         device = identity("Axis Communications", "206")
@@ -102,7 +102,7 @@ class CandidateMatchingIncrement3Tests(SimpleTestCase):
 
     def test_inventory_axis_206_rejects_2060_and_no_numeric_guessing(self):
         device = identity("Axis Communications", "AXIS 206")
-        for name in ("2060", "axis_2067_network_camera", "m1125", "209"):
+        for name in ("2060", "axis_2067_network_camera", "m1125", "216"):
             with self.subTest(name=name):
                 item = normalize_candidate(candidate("axis", name), device, "cpeMatchString")
                 self.assertEqual(item["match_level"], "POSSIBLE_INCOMPATIBILITY")
@@ -117,3 +117,29 @@ class CandidateMatchingIncrement3Tests(SimpleTestCase):
         self.assertTrue(is_pertinent(exact, device))
         self.assertFalse(is_pertinent(neighbor, device))
         self.assertNotEqual(neighbor["match_level"], "SPECIFIC")
+
+    def test_beckhoff_inventory_suffix_matches_named_cx_series_weakly(self):
+        device = identity("Beckhoff", "CX 1010-0012")
+        near = normalize_candidate(candidate("beckhoff", "cx1020"), device, "cpeMatchString")
+        published = normalize_candidate(candidate("beckhoff", "cx9020"), device, "cpeMatchString")
+        unrelated = normalize_candidate(candidate("beckhoff", "ek9020"), device, "cpeMatchString")
+        for row in (near, published):
+            self.assertEqual(row["match_level"], "EXPLORATORY")
+            self.assertIn("serie CX", row["match_reason"])
+        self.assertEqual(unrelated["match_level"], "POSSIBLE_INCOMPATIBILITY")
+
+    def test_axis_200_is_weak_while_axis_2060_is_not(self):
+        device = identity("Axis Communications", "AXIS 206")
+        same_decade = normalize_candidate(candidate("axis", "200"), device, "cpeMatchString")
+        longer = normalize_candidate(candidate("axis", "2060"), device, "cpeMatchString")
+        self.assertEqual(same_decade["match_level"], "EXPLORATORY")
+        self.assertEqual(longer["match_level"], "POSSIBLE_INCOMPATIBILITY")
+
+    def test_named_family_is_reusable_not_hardcoded_to_beckhoff(self):
+        device = identity("Example Industrial", "EAGLE 20")
+        neighbour = normalize_candidate(candidate("example_industrial", "eagle_30"), device,
+                                        "cpeMatchString")
+        unrelated = normalize_candidate(candidate("example_industrial", "switch_30"), device,
+                                        "cpeMatchString")
+        self.assertEqual(neighbour["match_level"], "EXPLORATORY")
+        self.assertEqual(unrelated["match_level"], "POSSIBLE_INCOMPATIBILITY")
