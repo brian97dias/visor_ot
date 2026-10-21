@@ -450,7 +450,12 @@ def _record_candidate(row, run, level, dedup, details, *, alternative=False,
     if brand_discrepancy:
         item["match_level"] = "EXPLORATORY"
         item["match_reason"] = brand_discrepancy
-        item["exploratory_distance"] = 0
+        # Keep evidence with an exact alternate-vendor model above weak
+        # manufacturer-prefix-only firmware hints in the shared top-five.
+        item["exploratory_distance"] = (
+            2000000 if run.identity_snapshot.get("asset_type") == "SOFTWARE"
+            else 0
+        )
     elif not is_manufacturer_related(item, run.identity_snapshot):
         details["filtered_hardware_results"] += 1
         return
@@ -528,7 +533,9 @@ def execute_run(run, pacer, fetcher=fetch_page):
             planned = build_software_cpe_match_plan(run.identity_snapshot)
         else:
             planned = build_cpe_match_plan(run.identity_snapshot)
-            planned += build_alternative_keyword_plan(run.identity_snapshot)
+        # The same last-resort keyword investigation now handles software.
+        # Existing structured matches always take precedence.
+        planned += build_alternative_keyword_plan(run.identity_snapshot)
         if run.scope == CpeSearchRun.Scope.BROAD:
             planned = [q for q in planned if q["level"] != "SPECIFIC"]
     except ValueError as exc:
