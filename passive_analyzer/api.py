@@ -208,14 +208,24 @@ def stream_analysis_import(pcap_id: str):
         ) from error
 
     def rows():
+        counts = {"interface": 0, "communication": 0}
         for kind, prefix in (("interface", "interfaces.item"),
                              ("communication", "communications.item")):
             with path.open("rb") as handle:
                 for item in ijson.items(handle, prefix):
+                    counts[kind] += 1
                     yield json.dumps(
                         {"type": kind, "data": item},
                         ensure_ascii=False, separators=(",", ":"),
                     ) + "\n"
+        # A missing trailer means an interrupted stream: Django must roll
+        # back the transaction rather than accept a partially imported file.
+        yield json.dumps({
+            "type": "complete",
+            "analysis_hash": get_analysis_hash(pcap_id),
+            "interfaces": counts["interface"],
+            "communications": counts["communication"],
+        }, separators=(",", ":")) + "\n"
 
     return StreamingResponse(rows(), media_type="application/x-ndjson")
 
