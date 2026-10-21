@@ -222,6 +222,7 @@ def import_analysis(pcap_id, user):
         interface_count = 0
         communication_count = 0
         seen_communications = False
+        stream_completed = False
         try:
             with stream_pcap_analysis(pcap_id) as lines:
                 for line in lines:
@@ -232,9 +233,23 @@ def import_analysis(pcap_id, user):
                             "Una observación excede el tamaño permitido."
                         )
                     item = json.loads(line)
-                    if not isinstance(item, dict) or not isinstance(item.get("data"), dict):
+                    if not isinstance(item, dict):
                         raise ImportValidationError("Registro del análisis inválido.")
-                    kind, data = item.get("type"), item["data"]
+                    kind = item.get("type")
+                    if stream_completed:
+                        raise ImportValidationError("Registros posteriores al fin del análisis.")
+                    if kind == "complete":
+                        if (item.get("analysis_hash") != analysis_hash
+                                or item.get("interfaces") != interface_count
+                                or item.get("communications") != communication_count):
+                            raise ImportValidationError(
+                                "La transferencia no coincide con el análisis original."
+                            )
+                        stream_completed = True
+                        continue
+                    data = item.get("data")
+                    if not isinstance(data, dict):
+                        raise ImportValidationError("Observación del análisis inválida.")
                     if kind == "interface":
                         if seen_communications:
                             raise ImportValidationError(
@@ -263,6 +278,10 @@ def import_analysis(pcap_id, user):
                 "se ha revertido."
             ) from error
 
+        if not stream_completed:
+            raise ImportValidationError(
+                "La transferencia terminó sin confirmación; datos descartados."
+            )
         _persist_interface_batch(interfaces)
         if not seen_communications:
             consolidate_interface_observations(
