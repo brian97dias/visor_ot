@@ -248,6 +248,39 @@ class CpeDecisionTests(TestCase):
         self.assertEqual(item["confirmed_count"], 1)
         self.assertEqual(item["reviewed_count"], 1)
 
+    def test_rejected_candidate_absent_from_latest_search_does_not_make_siemens_stale(self):
+        # Two original candidates, both explicitly reviewed by the analyst.
+        missing_id = "144590a4-1c2f-41b6-a05b-cc9a98d58104"
+        missing_name = "cpe:2.3:h:siemens:unrelated_plc:-:*:*:*:*:*:*:*"
+        self.run.candidates.append(candidate(missing_id, missing_name))
+        self.run.save(update_fields=["candidates"])
+        self.assertEqual(self.create(status="CONFIRMED").status_code, 201)
+        rejected = self.client.post(self.api, {
+            "run_id": self.run.pk, "cpe_name_id": missing_id,
+            "status": "REJECTED", "justification": "Modelo distinto",
+        }, format="json")
+        self.assertEqual(rejected.status_code, 201, rejected.data)
+
+        # The latest complete search only found the confirmed Siemens CPU.
+        self.completed_search(self.asset)
+        response = self.client.get("/api/vulnerabilities/cpe-overview/")
+        item = next(x for x in response.data["results"] if x["asset_id"] == self.asset.pk)
+        self.assertEqual(item["identification_status"], "EVALUATED")
+        self.assertEqual(item["confirmed_count"], 1)
+        self.assertEqual(item["unreviewed_count"], 0)
+        self.assertEqual(item["out_of_scope_count"], 0)
+
+    def test_confirmed_candidate_absent_from_latest_search_remains_stale(self):
+        self.assertEqual(self.create(status="CONFIRMED").status_code, 201)
+        other_name = "cpe:2.3:h:siemens:another_model:-:*:*:*:*:*:*:*"
+        self.completed_search(self.asset, candidate(
+            "b91ca843-f7ca-4531-828d-7279a2d2d3cb", other_name
+        ))
+        response = self.client.get("/api/vulnerabilities/cpe-overview/")
+        item = next(x for x in response.data["results"] if x["asset_id"] == self.asset.pk)
+        self.assertEqual(item["identification_status"], "STALE")
+        self.assertEqual(item["out_of_scope_count"], 1)
+
     def test_reject_cpe_from_other_asset_and_other_association(self):
         other = self.hardware("PLC alterno")
         run = self.completed_search(other)

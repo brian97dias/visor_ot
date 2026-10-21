@@ -134,10 +134,11 @@ class CpeOverviewView(APIView):
             outdated = any(is_outdated_association(a, identity) for a in associations)
             # A current decision absent from the latest completed valid search
             # cannot be silently treated as validated by that search.
+            # A rejected historical suggestion missing from a fresh search
+            # needs no further review. A confirmed CPE missing from a valid
+            # search DOES: its applicability requires renewed investigation.
             unmatched_decisions = sum(
-                a.validation_status in (
-                    AssetCpe.Validation.CONFIRMED, AssetCpe.Validation.REJECTED
-                )
+                a.validation_status == AssetCpe.Validation.CONFIRMED
                 and a.validated_identity_fingerprint == identity
                 and str(a.cpe.cpe_name_id).lower() not in counts["candidate_ids"]
                 for a in associations
