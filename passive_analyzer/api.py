@@ -247,6 +247,7 @@ def get_analysis_observations(
     end = start + 25
     prefix = "interfaces.item" if type == "interfaces" else "communications.item"
     count = 0
+    total_observations = 0
     results = []
     from collections import deque
     last_page_rows = deque(maxlen=25)
@@ -255,6 +256,7 @@ def get_analysis_observations(
     # and a 25-row fallback if the user requests a page beyond the end.
     with path.open("rb") as handle:
         for item in ijson.items(handle, prefix):
+            total_observations += 1
             if type == "interfaces":
                 matched = (
                     not needle
@@ -298,11 +300,8 @@ def get_analysis_observations(
             "relative_path": get_relative_path(pcap_path),
         },
         "schema_version": "0.2",
-        "interfaces_detected": count if type == "interfaces" and not needle
-                               else other_count if type == "communications" else 0,
-        "communications_detected": count if type == "communications" and not needle
-                                  and min_packets == 1
-                                  else other_count if type == "interfaces" else 0,
+        "interfaces_detected": total_observations if type == "interfaces" else other_count,
+        "communications_detected": total_observations if type == "communications" else other_count,
         "count": count,
         "page": current_page,
         "page_size": page_size,
