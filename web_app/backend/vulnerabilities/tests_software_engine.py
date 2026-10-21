@@ -143,14 +143,29 @@ class SoftwareWorkerTests(TestCase):
         self.assertEqual(CpeQuerySnapshot.objects.count(), 1)
         self.assertEqual(finished.candidates[0]["cpe_name_id"], candidate["cpe_name_id"])
 
-    def test_version_exact_stops_before_product_catalogue(self):
+    def test_version_exact_also_offers_branch_variants_without_product_catalogue(self):
         run = self.new_run()
         complete = nvd(version="12.1")
-        result = execute_run(run, object(), fetcher=lambda *args: page([complete]))
-        self.assertEqual(result.status, "COMPLETED")
-        self.assertEqual(result.candidates[0]["match_level"], "SOFTWARE_EXACT")
-        self.assertEqual(len(result.queries), 1)
-        self.assertFalse(CpeQuerySnapshot.objects.exists())
+        variant = nvd(version=r"12.1\(22\)ea14")
+        queued = execute_run(run, object(), fetcher=lambda *args: page([complete]))
+        self.assertEqual(queued.status, "QUEUED")
+        self.assertEqual(queued.candidates[0]["match_level"], "SOFTWARE_EXACT")
+        snapshot = CpeQuerySnapshot.objects.get()
+        self.assertEqual(snapshot.cache.parameter, "cpe:2.3:o:cisco:ios:12.1*")
+        execute_catalogue_snapshot(
+            snapshot, object(),
+            fetcher=lambda strategy, parameter, start, pacer, *, results_per_page:
+            page([complete, variant, nvd(version="12.10")], start=start),
+        )
+        finished = execute_run(
+            queued, object(),
+            fetcher=lambda *args: self.fail("La búsqueda específica no debe repetirse"),
+        )
+        self.assertEqual(finished.status, "COMPLETED")
+        self.assertEqual({c["match_level"] for c in finished.candidates},
+                         {"SOFTWARE_EXACT", "SOFTWARE_BRANCH"})
+        self.assertEqual(len(finished.queries), 2)
+        self.assertEqual(CpeQuerySnapshot.objects.count(), 1)
         self.assertFalse(AssetCpe.objects.exists())
 
     def test_product_catalogue_filters_large_other_version_list(self):
