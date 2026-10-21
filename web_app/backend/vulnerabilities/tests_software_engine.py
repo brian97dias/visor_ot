@@ -128,6 +128,40 @@ class SoftwareMatchingTests(SimpleTestCase):
         )
         self.assertIsNone(classify_alternative_vendor(not_matching, identity))
 
+    def test_axis_firmware_reuses_hardware_numeric_proximity_as_weak_only(self):
+        identity = {
+            "asset_type": "SOFTWARE", "software_type": "OS",
+            "manufacturer": "Axis Communications",
+            "product": "AXIS 206 Firmware", "version": "",
+        }
+        expected = (
+            ("206_firmware", "SOFTWARE_PRODUCT", None),
+            ("207w_firmware", "EXPLORATORY", 1),
+            ("200_firmware", "EXPLORATORY", 6),
+            ("2060_firmware", "POSSIBLE_INCOMPATIBILITY", None),
+            ("207w_camera", "POSSIBLE_INCOMPATIBILITY", None),
+            ("307w_firmware", "POSSIBLE_INCOMPATIBILITY", None),
+            ("207w_firmware", "POSSIBLE_INCOMPATIBILITY", None),
+        )
+        for i, (product, level, distance) in enumerate(expected):
+            vendor = "other" if i == len(expected) - 1 else "axis"
+            row = normalize_candidate(
+                nvd(product=product, vendor=vendor, version="-"),
+                identity, "cpeMatchString"
+            )
+            with self.subTest(product=product, vendor=vendor):
+                self.assertEqual(row["match_level"], level)
+                self.assertEqual(
+                    row.get("exploratory_distance"), distance
+                )
+                self.assertFalse(is_pertinent(row, identity))
+                self.assertEqual(
+                    is_manufacturer_related(row, identity),
+                    level in ("SOFTWARE_PRODUCT", "EXPLORATORY"),
+                )
+                if level == "EXPLORATORY":
+                    self.assertIn("modelos distintos", row["match_reason"])
+
     def test_version_change_invalidates_identity_fingerprint(self):
         self.assertNotEqual(
             fingerprint(self.identity),
@@ -355,6 +389,63 @@ class SoftwareWorkerTests(TestCase):
         self.assertEqual(finished.status, "COMPLETED")
         self.assertEqual(len(finished.candidates), 1)
         self.assertEqual(CpeQuerySnapshot.objects.count(), len(fetched))
+
+    def test_axis_large_manufacturer_catalogue_can_find_207w_without_prefix_hit(self):
+        # Regression for the real 206 firmware inventory: previous software
+        # classifier discarded all 683 AXIS catalogue entries as irrelevant.
+        sw = self.asset.software
+        sw.manufacturer = "Axis Communications"
+        sw.product = "AXIS 206 Firmware"
+        sw.software_type = Software.SoftwareType.OS
+        sw.version = ""
+        sw.save()
+        run = self.new_run()
+        parameters = []
+        for _ in range(35):
+            run = execute_run(
+                run, object(),
+                fetcher=lambda *args: self.fail(
+                    "Software product and numeric family scans use snapshots"
+                ),
+            )
+            if run.status == "COMPLETED":
+                break
+            self.assertEqual(run.status, "QUEUED")
+            snapshot = CpeQuerySnapshot.objects.filter(
+                status=CpeQuerySnapshot.Status.QUEUED,
+            ).select_related("cache").order_by("-pk").first()
+            self.assertIsNotNone(snapshot)
+            parameter = snapshot.cache.parameter
+            parameters.append(parameter)
+            rows = []
+            if parameter == "cpe:2.3:o:axis:*":
+                rows = [
+                    nvd(product=f"unrelated_{i}", vendor="axis", version="-")
+                    for i in range(681)
+                ]
+                rows += [
+                    nvd(product="2060_firmware", vendor="axis", version="-"),
+                    nvd(product="207w_firmware", vendor="axis", version="-"),
+                ]
+            execute_catalogue_snapshot(
+                snapshot, object(),
+                fetcher=lambda strategy, parameter, start, pacer, *,
+                results_per_page, rows=rows: page(rows, start=start),
+            )
+        self.assertEqual(run.status, "COMPLETED")
+        self.assertIn("cpe:2.3:o:axis:206*", parameters)
+        self.assertIn("cpe:2.3:o:axis:20*", parameters)
+        self.assertIn("cpe:2.3:o:axis:*", parameters)
+        self.assertEqual(len(run.candidates), 1)
+        found = run.candidates[0]
+        self.assertEqual(found["match_level"], "EXPLORATORY")
+        self.assertIn("207w_firmware", found["cpe_name"])
+        self.assertIn("distintos", found["match_reason"])
+        self.assertEqual(found["exploratory_distance"], 1)
+        self.assertEqual(found["discovery_levels"], ["MANUFACTURER"])
+        self.assertEqual(run.result_truncated, False)
+        self.assertFalse(AssetCpe.objects.exists())
+        self.assertFalse(AssetCpeDecision.objects.exists())
 
     def test_review_creates_only_explicit_audited_software_decision(self):
         run = self.new_run()
