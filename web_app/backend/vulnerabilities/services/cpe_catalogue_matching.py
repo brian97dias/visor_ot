@@ -166,7 +166,8 @@ def summarize_catalogue(snapshot, identity):
 
 
 def browse_catalogue(snapshot, identity, *, view=RESULT_ALL, after_id=0,
-                     limit=DEFAULT_PREVIEW_LIMIT):
+                     limit=DEFAULT_PREVIEW_LIMIT, search="", cpe_type="ALL",
+                     deprecated="ALL"):
     """Cursor-based, memory-bounded read of ALL/CANDIDATES/EXCLUDED.
 
     'next_after' is the LAST returned evidence ID, not the first omitted row:
@@ -182,6 +183,13 @@ def browse_catalogue(snapshot, identity, *, view=RESULT_ALL, after_id=0,
         raise ValueError("El límite debe ser un entero entre 1 y 100.")
     if type(after_id) is not int or after_id < 0:
         raise ValueError("El cursor debe ser un entero no negativo.")
+    if not isinstance(search, str) or len(search) > 120:
+        raise ValueError("El filtro de texto no puede superar 120 caracteres.")
+    if cpe_type not in ("ALL", "h", "o", "a"):
+        raise ValueError("Tipo CPE inválido.")
+    if deprecated not in ("ALL", "YES", "NO"):
+        raise ValueError("Filtro de obsolescencia inválido.")
+    query = search.strip().casefold()
     items = []
     has_more = False
     for evidence in _rows(snapshot, after_id=after_id):
@@ -189,6 +197,15 @@ def browse_catalogue(snapshot, identity, *, view=RESULT_ALL, after_id=0,
         if view == RESULT_CANDIDATES and not item["is_candidate"]:
             continue
         if view == RESULT_EXCLUDED and item["is_candidate"]:
+            continue
+        if cpe_type != "ALL" and item["cpe_type"] != cpe_type:
+            continue
+        if deprecated == "YES" and not item["deprecated"]:
+            continue
+        if deprecated == "NO" and item["deprecated"]:
+            continue
+        if query and not any(query in str(item.get(key) or "").casefold()
+                             for key in ("title", "cpe_name", "cpe_name_id")):
             continue
         if len(items) == limit:
             has_more = True
@@ -198,6 +215,7 @@ def browse_catalogue(snapshot, identity, *, view=RESULT_ALL, after_id=0,
         **_state(snapshot),
         "view": view,
         "limit": limit,
+        "filters": {"search": search.strip(), "cpe_type": cpe_type, "deprecated": deprecated},
         "items": items,
         "next_after": items[-1]["evidence_id"] if items and has_more else None,
     }

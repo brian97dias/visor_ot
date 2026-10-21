@@ -36,6 +36,7 @@ def vendor_spelling(value):
 KNOWN_CPE_VENDOR_ALIASES = {
     "rockwell_automation": ("rockwellautomation",),
     "axis_communications": ("axis",),
+    "phoenix_contact": ("phoenixcontact",),
 }
 
 
