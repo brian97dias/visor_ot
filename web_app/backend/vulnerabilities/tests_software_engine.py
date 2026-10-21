@@ -11,6 +11,7 @@ from assets.models import Asset, Software
 from vulnerabilities.models import AssetCpe, AssetCpeDecision, CpeQuerySnapshot
 from vulnerabilities.services.candidate_matching import (
     normalize_candidate, is_manufacturer_related, is_pertinent,
+    classify_alternative_vendor,
 )
 from vulnerabilities.services.cpe_catalogue import (
     canonical_query, execute_catalogue_snapshot,
@@ -77,6 +78,38 @@ class SoftwareMatchingTests(SimpleTestCase):
                         is_manufacturer_related(row, self.identity),
                         expected not in ("POSSIBLE_INCOMPATIBILITY",),
                     )
+
+    def test_short_vendor_lexical_hint_is_never_equivalent_software(self):
+        identity = {
+            "asset_type": "SOFTWARE", "software_type": "FIRMWARE",
+            "manufacturer": "ATC", "product": "ATC-1200 Firmware", "version": "",
+        }
+        found = normalize_candidate(
+            nvd(product="a10w_firmware", vendor="atcom", version="2.6.1a2421"),
+            identity, "keywordSearch"
+        )
+        self.assertEqual(found["match_level"], "POSSIBLE_INCOMPATIBILITY")
+        reason = classify_alternative_vendor(found, identity)
+        self.assertIn("prefijo textual", reason)
+        self.assertIn("no verifica", reason)
+        self.assertFalse(is_manufacturer_related(found, identity))
+        self.assertFalse(is_pertinent(found, identity))
+
+        for record in (
+            nvd(product="a10w_firmware", vendor="atom", version="-"),
+            nvd(product="a10w_application", vendor="atcom", version="-"),
+            nvd(product="a10w_firmware", vendor="atcom", part="a"),
+        ):
+            row = normalize_candidate(record, identity, "keywordSearch")
+            if row:
+                self.assertIsNone(classify_alternative_vendor(row, identity))
+
+        other_identity = {**identity, "software_type": "APPLICATION"}
+        app = normalize_candidate(
+            nvd(product="a10w_firmware", vendor="atcom", part="a"),
+            other_identity, "keywordSearch"
+        )
+        self.assertIsNone(classify_alternative_vendor(app, other_identity))
 
     def test_version_change_invalidates_identity_fingerprint(self):
         self.assertNotEqual(
@@ -245,6 +278,66 @@ class SoftwareWorkerTests(TestCase):
         self.assertTrue(all(c["cpe_type"] == "o" for c in run.candidates))
         self.assertFalse(AssetCpe.objects.exists())
         self.assertFalse(AssetCpeDecision.objects.exists())
+
+    def test_atc_fallback_reuses_keyword_snapshots_and_only_offers_weak_atcom(self):
+        software = self.asset.software
+        software.manufacturer = "ATC"
+        software.product = "ATC-1200 Firmware"
+        software.software_type = Software.SoftwareType.FIRMWARE
+        software.version = ""
+        software.save()
+        run = self.new_run()
+        fetched = []
+        for _ in range(10):
+            run = execute_run(
+                run, object(),
+                fetcher=lambda *args: self.fail(
+                    "Software structured catalogues must be fetched by snapshots"
+                ),
+            )
+            if run.status == "COMPLETED":
+                break
+            self.assertEqual(run.status, "QUEUED")
+            snapshot = CpeQuerySnapshot.objects.filter(
+                status=CpeQuerySnapshot.Status.QUEUED,
+            ).select_related("cache").order_by("-pk").first()
+            self.assertIsNotNone(snapshot)
+            strategy, parameter = snapshot.cache.strategy, snapshot.cache.parameter
+            fetched.append((strategy, parameter))
+            rows = []
+            if (strategy, parameter) == ("keywordSearch", "ATC"):
+                rows = [
+                    nvd(product="a10w_firmware", vendor="atcom", version="2.6.1a2421"),
+                    nvd(product="a10w_firmware", vendor="atom", version="-"),
+                    nvd(product="a10w_application", vendor="atcom", version="-"),
+                    nvd(product="a10w_firmware", vendor="atcom", part="a"),
+                ]
+            execute_catalogue_snapshot(
+                snapshot, object(),
+                fetcher=lambda strategy, parameter, start, pacer, *,
+                results_per_page, rows=rows: page(rows, start=start)
+            )
+        self.assertEqual(run.status, "COMPLETED")
+        self.assertIn(("keywordSearch", "ATC ATC-1200 Firmware"), fetched)
+        self.assertIn(("keywordSearch", "ATC"), fetched)
+        self.assertEqual(len(run.candidates), 1)
+        found = run.candidates[0]
+        self.assertEqual(found["match_level"], "EXPLORATORY")
+        self.assertEqual(found["cpe_name"].split(":")[3:5],
+                         ["atcom", "a10w_firmware"])
+        self.assertIn("no verifica", found["match_reason"])
+        self.assertEqual(found["methods"], ["keywordSearch"])
+        self.assertFalse(run.result_truncated)
+        self.assertFalse(AssetCpe.objects.exists())
+        self.assertFalse(AssetCpeDecision.objects.exists())
+
+        # Reuse the completed keyword snapshots across subsequent runs.
+        newer = self.new_run()
+        finished = execute_run(newer, object(),
+            fetcher=lambda *args: self.fail("No repeated specific NVD HTTP request"))
+        self.assertEqual(finished.status, "COMPLETED")
+        self.assertEqual(len(finished.candidates), 1)
+        self.assertEqual(CpeQuerySnapshot.objects.count(), len(fetched))
 
     def test_review_creates_only_explicit_audited_software_decision(self):
         run = self.new_run()
