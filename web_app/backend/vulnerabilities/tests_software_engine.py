@@ -201,4 +201,7 @@ class SoftwareWorkerTests(TestCase):
         software.save()
         self.assertNotEqual(current_identity(self.asset),
                             association.validated_identity_fingerprint)
+        # Simulate a new HTTP read instead of relying on the related-object
+        # cache of the run instance that queued the original discovery.
+        completed.refresh_from_db()
         self.assertFalse(serialize_run(completed)["identity_is_current"])
