@@ -7,7 +7,7 @@ import SidebarIcon from "./SidebarIcon";
 function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const viewingAssetCpe = /^\/assets\/\d+\/cpe\/?$/.test(location.pathname);
+  const viewingAssetCpe = /^\/assets\/\d+\/cpe(?:\/catalogue)?\/?$/.test(location.pathname);
 
   const [user, setUser] = useState(null);
   const [error, setError] = useState("");

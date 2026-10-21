@@ -154,6 +154,10 @@ export default function AssetCpeDiscovery() {
         {asset.hardware?.cpu_model ? " · CPU " + asset.hardware.cpu_model : ""}</p>
     </header>
 
+    <Link className="button-secondary assets-back-link"
+      to={"/assets/" + assetId + "/cpe/catalogue"} state={{ cpeOverviewSearch: query }}>
+      Explorar catálogo NVD almacenado →
+    </Link>
     {error && <div className="error-message" role="alert">{error}</div>}
     {!run?.identity_is_current && run && <p className="cpe-warning">
       La identidad técnica cambió. Los resultados anteriores pueden no corresponder al equipo actual.
