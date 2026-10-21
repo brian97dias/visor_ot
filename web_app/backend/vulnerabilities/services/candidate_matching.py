@@ -3,8 +3,8 @@ import re
 from .nvd_references import safe_references, combine_references
 from .identity import (
     normalized, cpu_spelling, family_term, vendor_variants, catalog_code_prefix,
-    _software_product_spellings, software_version_in_branch, SOFTWARE_CPE_PARTS,
-    ascii_text,
+    _software_product_spellings, software_series_stem, software_version_in_branch,
+    SOFTWARE_CPE_PARTS, ascii_text,
 )
 
 
@@ -223,6 +223,14 @@ def _software_product_match(cpe_product, identity):
         return "EXACT"
     if any(product.startswith(v + sep) for v in spellings for sep in ("_", "-")):
         return "RELATED"
+    series = software_series_stem(
+        identity.get("product") or "", identity.get("manufacturer") or ""
+    )
+    if series and re.fullmatch(
+        re.escape(series) + r"[_-][0-9]{3,6}(?:[_-][a-z0-9_.-]+)?",
+        product,
+    ):
+        return "SERIES"
     return "NONE"
 
 
@@ -240,6 +248,11 @@ def classify_software(candidate, identity):
     if product == "RELATED":
         return ("EXPLORATORY", "El producto comparte una denominación con el inventario, "
                 "pero es otro producto o variante; requiere investigación.")
+    if product == "SERIES":
+        return ("EXPLORATORY",
+                "Coinciden fabricante y serie del producto, pero la referencia NVD "
+                "pertenece a otro modelo. No se puede asumir que el firmware "
+                "ni su versión correspondan al activo inventariado.")
 
     recorded = ascii_text(identity.get("version")).strip().casefold()
     cpe_version = re.sub(r"\\(.)", r"\1", _cpe_part(name, 5)).casefold()
