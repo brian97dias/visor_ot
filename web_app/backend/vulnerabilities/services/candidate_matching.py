@@ -103,6 +103,52 @@ def _exploratory_proximity(candidate, identity):
     return None
 
 
+def classify_alternative_vendor(candidate, identity):
+    """Recognize a brand/model under another NVD vendor, as evidence ONLY.
+
+    The product designation must contain the complete inventoried model,
+    bounded by alphanumeric word boundaries; matching a brand alone is
+    insufficient. No vendor association or AssetCpe is created here.
+    """
+    name = candidate.get("cpe_name", "")
+    if _cpe_part(name, 2) != "h":
+        return None
+    nvd_vendor = _cpe_part(name, 3)
+    if not nvd_vendor or matches_vendor(nvd_vendor, identity):
+        return None
+
+    def phrase_pattern(value):
+        from .identity import ascii_text
+        parts = re.findall(r"[a-z]+|[0-9]+", ascii_text(value).lower())
+        if not parts:
+            return None
+        # Allow CPE underscores, hyphens and spaces within a compound model
+        # (EAGLE20 vs eagle_20), but never EAGLE20 vs EAGLE200.
+        return re.compile(
+            r"(?<![a-z0-9])" + r"[^a-z0-9]*".join(map(re.escape, parts))
+            + r"(?![a-z0-9])"
+        )
+
+    manufacturer = str(identity.get("manufacturer") or "").strip()
+    model = str(identity.get("model") or "").strip()
+    if len(normalized(manufacturer)) < 4 or len(normalized(model)) < 5:
+        return None
+    brand_match = phrase_pattern(manufacturer)
+    model_match = phrase_pattern(model)
+    cpe_product = _cpe_part(name, 4).lower()
+    title = str(candidate.get("title") or "").lower()
+    if (not brand_match or not model_match
+            or not (brand_match.search(cpe_product) or brand_match.search(title))
+            or not model_match.search(cpe_product)):
+        return None
+    return (
+        f"Posible diferencia de marca/proveedor: inventario «{manufacturer}», "
+        f"fabricante NVD «{nvd_vendor}». La denominación del modelo «{model}» "
+        "figura en el CPE. Verifica la placa y documentación; "
+        "no constituye una identificación técnica confirmada."
+    )
+
+
 def classify(candidate, identity):
     cpe_name = candidate["cpe_name"]
     if _cpe_part(cpe_name, 2) != "h":
