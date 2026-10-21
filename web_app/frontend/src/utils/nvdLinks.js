@@ -7,13 +7,20 @@ export function nvdQueryUrl(query, page = 0) {
       || typeof query.parameter !== "string" || !Number.isInteger(page) || page < 0) {
     return null;
   }
-  const url = new URL(ENDPOINT);
-  url.searchParams.set(query.strategy, query.parameter);
   const initial = Number.isInteger(query.start_index) && query.start_index >= 0
     ? query.start_index : 0;
-  url.searchParams.set("startIndex", String(initial + page * NVD_PAGE_SIZE));
-  url.searchParams.set("resultsPerPage", String(NVD_PAGE_SIZE));
-  return url.toString();
+  // URL-encode untrusted parameter contents, but preserve the visible CPE
+  // colon/wildcard syntax the analyst entered in the original query.
+  const parameter = encodeURIComponent(query.parameter)
+    .replace(/%3A/gi, ":").replace(/%2A/gi, "*");
+  const base = ENDPOINT + "?" + query.strategy + "=" + parameter;
+  // The first CPE link reproduces the exact query shown in the trace.
+  // Only explicit later pages/offsets need pagination controls.
+  if (query.strategy === "cpeMatchString" && page === 0 && initial === 0) {
+    return base;
+  }
+  return base + "&startIndex=" + (initial + page * NVD_PAGE_SIZE)
+    + "&resultsPerPage=" + NVD_PAGE_SIZE;
 }
 
 export function nvdCpeUrl(nameId) {
