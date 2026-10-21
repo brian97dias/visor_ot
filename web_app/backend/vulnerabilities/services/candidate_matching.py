@@ -116,9 +116,14 @@ def normalize_candidate(record, identity, strategy):
     # Phase 1 inventories hardware only; keep other CPE types out of results.
     if _cpe_part(name, 2) != "h":
         return None
-    titles = cpe.get("titles") or []
-    title = next((t.get("title") for t in titles if t.get("lang") == "en" and t.get("title")), None)
-    title = title or next((t.get("title") for t in titles if t.get("title")), name)
+    titles = cpe.get("titles")
+    titles = titles if isinstance(titles, list) else []
+    title = next((t.get("title") for t in titles
+                  if isinstance(t, dict) and t.get("lang") == "en"
+                  and isinstance(t.get("title"), str) and t.get("title")), None)
+    title = title or next((t.get("title") for t in titles
+                           if isinstance(t, dict) and isinstance(t.get("title"), str)
+                           and t.get("title")), name)
     item = {
         "cpe_name_id": name_id,
         "cpe_name": name,

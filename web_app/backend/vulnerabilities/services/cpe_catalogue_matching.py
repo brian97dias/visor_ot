@@ -88,7 +88,7 @@ def classify_catalogue_record(evidence, identity):
         "cpe_name_id": str(cpe.get("cpeNameId", "")),
         "cpe_name": cpe_name,
         "cpe_type": kind,
-        "title": title,
+        "title": title[:400],
         "deprecated": bool(cpe.get("deprecated", False)),
         "nvd_references": safe_references(cpe.get("refs")),
         "classification": classification,

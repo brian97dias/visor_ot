@@ -248,13 +248,24 @@ class CatalogueSnapshotEvidenceTests(TestCase):
 
     def test_axis_207_does_not_appear_as_axis_206_candidate(self):
         snapshot = catalogue_snapshot([
-            record("207_network_camera", vendor="axis"),
-            record("206_network_camera", vendor="axis"),
+            record("axis_207_network_camera", vendor="axis"),
+            record("axis_206_network_camera", vendor="axis"),
         ], keyword="AXIS")
-        data = browse_catalogue(snapshot, AXIS, view="ALL")
-        self.assertEqual(data["coverage_complete"], True)
-        self.assertTrue(all(
-            row["classification"] == EXCLUDED_OTHER_PRODUCT for row in data["items"]
-        ))
-        self.assertEqual(browse_catalogue(snapshot, AXIS, view="CANDIDATES")["items"], [])
+        all_rows = browse_catalogue(snapshot, AXIS, view="ALL")["items"]
+        self.assertEqual(len(all_rows), 2)
+        unmatched = next(row for row in all_rows if "207" in row["cpe_name"])
+        self.assertEqual(unmatched["classification"], EXCLUDED_OTHER_PRODUCT)
+        candidates = browse_catalogue(snapshot, AXIS, view="CANDIDATES")["items"]
+        self.assertEqual(len(candidates), 1)
+        self.assertIn("206", candidates[0]["cpe_name"])
         self.assertEqual(snapshot.products.count(), 2)
+
+    def test_malformed_nvd_title_list_does_not_destroy_catalogue_evidence(self):
+        malformed = record("1783-natr")
+        malformed["cpe"]["titles"] = ["unrecognized", None, {"lang": "en", "title": "Rockwell NATR"}]
+        snapshot = catalogue_snapshot([malformed], keyword="Rockwell")
+        candidate = browse_catalogue(snapshot, ROCKWELL, view="CANDIDATES")["items"][0]
+        self.assertEqual(candidate["title"], "Rockwell NATR")
+        self.assertEqual(candidate["classification"], CANDIDATE)
+        evidence = snapshot.products.first()
+        self.assertEqual(evidence.nvd_record["cpe"]["titles"][0], "unrecognized")
