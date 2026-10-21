@@ -252,3 +252,56 @@ class CandidateMatchingIncrement3Tests(SimpleTestCase):
             device, "cpeMatchString",
         )
         self.assertNotEqual(row["match_level"], "EXPLORATORY")
+
+    def test_siemens_rx1100_finds_internal_rx1400_and_rx1500_weakly(self):
+        from vulnerabilities.services.candidate_matching import is_pertinent
+        device = identity("Siemens", "RX1100-F-RM-24P-HIP")
+        rx1400 = normalize_candidate(
+            candidate("siemens", "ruggedcom_rox_rx1400"), device, "cpeMatchString"
+        )
+        rx1500 = normalize_candidate(
+            candidate("siemens", "ruggedcom_rox_rx1500"), device, "cpeMatchString"
+        )
+        self.assertEqual(rx1400["match_level"], "EXPLORATORY")
+        self.assertEqual(rx1500["match_level"], "EXPLORATORY")
+        self.assertIn("componente interno de serie RX", rx1400["match_reason"])
+        self.assertIn("1100 y 1400", rx1400["match_reason"])
+        self.assertFalse(is_pertinent(rx1400, device))
+        self.assertEqual(
+            [c["cpe_name"].split(":")[4] for c in merge_candidates([rx1500, rx1400])],
+            ["ruggedcom_rox_rx1400", "ruggedcom_rox_rx1500"],
+        )
+
+    def test_siemens_rx1100_full_inner_code_still_needs_human_review(self):
+        from vulnerabilities.services.candidate_matching import is_pertinent
+        device = identity("Siemens", "RX1100-F-RM-24P-HIP")
+        record = normalize_candidate(
+            candidate("siemens", "ruggedcom_rox_rx1100"), device, "cpeMatchString"
+        )
+        self.assertEqual(record["match_level"], "EXPLORATORY")
+        self.assertFalse(is_pertinent(record, device))
+        self.assertIn("configuración", record["match_reason"])
+
+    def test_internal_rx_token_uses_word_boundaries_and_matching_vendor(self):
+        device = identity("Siemens", "RX1100-F-RM-24P-HIP")
+        for model in ("ruggedcom_rox_mx1400", "ruggedcom_proxy_rx14000",
+                      "ruggedcom_rx14000", "ruggedcom_rox_qrx1400",
+                      "ruggedcom_roxrx1400", "ruggedcom_rox_1400"):
+            with self.subTest(model=model):
+                row = normalize_candidate(
+                    candidate("siemens", model), device, "cpeMatchString"
+                )
+                self.assertEqual(row["match_level"], "POSSIBLE_INCOMPATIBILITY")
+        other_brand = normalize_candidate(
+            candidate("example", "ruggedcom_rox_rx1400"), device, "cpeMatchString"
+        )
+        self.assertEqual(other_brand["match_level"], "POSSIBLE_INCOMPATIBILITY")
+
+    def test_internal_rx_detection_is_generic_not_a_siemens_exception(self):
+        device = identity("Example Industrial", "AB1200-F-RM-24P-HIP")
+        row = normalize_candidate(
+            candidate("example_industrial", "industrial_gateway_ab1300"),
+            device, "cpeMatchString",
+        )
+        self.assertEqual(row["match_level"], "EXPLORATORY")
+        self.assertIn("serie AB", row["match_reason"])
