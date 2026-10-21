@@ -59,7 +59,10 @@ export default function CpeDiscoveryTrace({ queries, truncated }) {
               </div>}
               <div className="cpe-trace-metrics">
                 {q.retrieved != null && <span>{q.retrieved} registros recibidos</span>}
-                {q.hardware_results != null && <span>{q.hardware_results} hardware procesados</span>}
+                {q.hardware_results != null && q.hardware_results > 0 &&
+                  <span>{q.hardware_results} hardware procesados</span>}
+                {q.software_results != null &&
+                  <span>{q.software_results} software procesados</span>}
                 {q.filtered_hardware_results > 0 &&
                   <span>{q.filtered_hardware_results} descartados por pertinencia</span>}
                 {q.related_results > 0 && <span>{q.related_results} relacionados</span>}
