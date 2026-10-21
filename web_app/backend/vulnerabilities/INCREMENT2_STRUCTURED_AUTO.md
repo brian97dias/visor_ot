@@ -46,7 +46,7 @@ usando execute_advanced_run con sus políticas originales.
 
 ### Pruebas automatizadas
 
-tests_auto_engine.py incluye siete pruebas simuladas (sin red):
+tests_auto_engine.py incluye ocho pruebas simuladas (sin red):
 
 - Siemens CPU 1215C: SPECIFIC y parada anticipada sin keywordSearch.
 - Advantech ADAM-5000 Series: RELATED y espera/reanudación de snapshot.
@@ -55,8 +55,9 @@ tests_auto_engine.py incluye siete pruebas simuladas (sin red):
 - Rockwell: alias y prefijo 1783 sin identificación falsa.
 - Snapshot FAILED: evidencia preservada y error visible.
 - Timeout: no continuar la exploración sobre una página fallida.
+- Worker: una búsqueda QUEUED que espera snapshot no bloquea al recuperador.
 
-Las 166 pruebas previas siguen presentes; el total esperado es **173 tests**.
+Las 166 pruebas previas siguen presentes; el total esperado es **174 tests**.
 
 Desde web_app/backend:
 
