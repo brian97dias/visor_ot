@@ -74,23 +74,28 @@ class CpeBulkSearchTests(TestCase):
         self.assertEqual(second.data["results"][0]["run_id"], first.data["results"][0]["run_id"])
         self.assertEqual(CpeSearchRun.objects.count(), 1)
 
-    def test_software_is_selected_but_not_enqueued_and_hardware_continues(self):
-        response = self.bulk([self.software.pk, self.plc.pk])
+    def test_software_and_hardware_share_the_bulk_queue_without_nvd_io(self):
+        with patch("vulnerabilities.services.nvd_client.fetch_page") as fetcher:
+            response = self.bulk([self.software.pk, self.plc.pk])
         self.assertEqual(response.status_code, 202, response.data)
         self.assertEqual(
             [r["outcome"] for r in response.data["results"]],
-            ["UNSUPPORTED", "QUEUED"],
+            ["QUEUED", "QUEUED"],
         )
-        self.assertEqual(response.data["summary"]["skipped"], 1)
-        self.assertEqual(response.data["summary"]["queued"], 1)
-        self.assertFalse(CpeSearchRun.objects.filter(asset=self.software).exists())
+        self.assertEqual(response.data["summary"]["skipped"], 0)
+        self.assertEqual(response.data["summary"]["queued"], 2)
+        self.assertEqual(CpeSearchRun.objects.get(asset=self.software).identity_snapshot["asset_type"], "SOFTWARE")
+        fetcher.assert_not_called()
 
-    def test_software_only_returns_200_without_impossible_queue_jobs(self):
+    def test_software_only_enqueues_and_reuses_pending_job(self):
         response = self.bulk([self.software.pk])
-        self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(response.data["summary"]["queued"], 0)
-        self.assertEqual(response.data["summary"]["skipped"], 1)
-        self.assertEqual(CpeSearchRun.objects.count(), 0)
+        self.assertEqual(response.status_code, 202, response.data)
+        self.assertEqual(response.data["summary"]["queued"], 1)
+        self.assertEqual(response.data["summary"]["skipped"], 0)
+        self.assertEqual(CpeSearchRun.objects.count(), 1)
+        repeat = self.bulk([self.software.pk])
+        self.assertEqual(repeat.data["summary"]["reused"], 1)
+        self.assertEqual(CpeSearchRun.objects.count(), 1)
 
     def test_missing_invalid_identity_and_archived_do_not_block_valid_neighbors(self):
         invalid = self.hardware("Sin fabricante")
