@@ -453,7 +453,8 @@ def _record_candidate(row, run, level, dedup, details, *, alternative=False,
         # Keep evidence with an exact alternate-vendor model above weak
         # manufacturer-prefix-only firmware hints in the shared top-five.
         item["exploratory_distance"] = (
-            2000000 if run.identity_snapshot.get("asset_type") == "SOFTWARE"
+            2000000 if (run.identity_snapshot.get("asset_type") == "SOFTWARE"
+                        and "prefijo textual" in brand_discrepancy)
             else 0
         )
     elif not is_manufacturer_related(item, run.identity_snapshot):
