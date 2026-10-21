@@ -360,19 +360,30 @@ def build_alternative_keyword_plan(identity):
 
     No automatic inventory correction or cross-vendor trust is implied.
     """
-    if identity.get("asset_type") != "HARDWARE":
-        raise ValueError("La investigación alternativa requiere hardware.")
+    asset_type = identity.get("asset_type")
+    if asset_type not in ("HARDWARE", "SOFTWARE"):
+        raise ValueError("La investigación alternativa requiere hardware o software.")
     manufacturer = compact(identity.get("manufacturer"))
-    model = compact(identity.get("model"))
+    model = compact(identity.get(
+        "model" if asset_type == "HARDWARE" else "product"
+    ))
     if not manufacturer or not model:
-        raise ValueError("Faltan fabricante o modelo para la búsqueda alternativa.")
+        raise ValueError("Faltan fabricante o modelo/producto para la búsqueda alternativa.")
+    if asset_type == "SOFTWARE" and (
+        compact(identity.get("software_type")).upper() not in SOFTWARE_CPE_PARTS
+    ):
+        raise ValueError("Tipo de software desconocido.")
     # Keyword API grammar also forbids arbitrary URL/query injection.
     if any(not re.fullmatch(r"[A-Za-z0-9 _./-]+", ascii_text(part))
            for part in (manufacturer, model)):
         return []  # No alterar la búsqueda estructurada por caracteres no admitidos.
     specific = compact(ascii_text(manufacturer) + " " + ascii_text(model))
     general = ascii_text(manufacturer)
-    if len(general) < 4 or len(specific) > 120 or len(general) > 120:
+    # Short vendor identifiers such as ATC are meaningful for software
+    # exploration, but cannot by themselves establish a CPE identification.
+    minimum_vendor_length = 3 if asset_type == "SOFTWARE" else 4
+    if (len(normalized(general)) < minimum_vendor_length
+            or len(specific) > 120 or len(general) > 120):
         return []
     terms = list(dict.fromkeys([specific, general]))[:MAX_ALTERNATIVE_QUERIES]
     return [{"level": "ALTERNATIVE", "strategy": "keywordSearch",
