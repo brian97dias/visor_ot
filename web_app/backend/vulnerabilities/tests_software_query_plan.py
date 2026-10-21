@@ -7,7 +7,8 @@ from assets.models import Asset
 
 from vulnerabilities.services.identity import (
     software_identity, hardware_identity, build_cpe_match_plan,
-    build_software_cpe_match_plan, fingerprint, software_version_in_branch,
+    build_software_cpe_match_plan, build_alternative_keyword_plan,
+    fingerprint, software_version_in_branch,
 )
 from vulnerabilities.tests_query_plan import SIEMENS, ADAM, ROCKWELL
 
@@ -134,6 +135,37 @@ class SoftwareCpePlanPhase1Tests(SimpleTestCase):
                 {**ios(), "product": "IOS-XE"}
             )
         ])
+
+    def test_software_short_vendor_has_keyword_fallback_after_structured_plan(self):
+        identity = {
+            "asset_type": "SOFTWARE", "software_type": "FIRMWARE",
+            "manufacturer": "ATC", "product": "ATC-1200 Firmware", "version": "",
+        }
+        self.assertEqual(
+            build_alternative_keyword_plan(identity),
+            [
+                {"level": "ALTERNATIVE", "strategy": "keywordSearch",
+                 "parameter": "ATC ATC-1200 Firmware"},
+                {"level": "ALTERNATIVE", "strategy": "keywordSearch",
+                 "parameter": "ATC"},
+            ],
+        )
+        structured = build_software_cpe_match_plan(identity)
+        self.assertTrue(all(
+            step["strategy"] == "cpeMatchString" for step in structured
+        ))
+        self.assertEqual(structured[-1]["parameter"], "cpe:2.3:o:atc:*")
+
+    def test_software_alternative_query_does_not_change_hardware_or_cisco(self):
+        hardware = {"asset_type": "HARDWARE",
+                    "manufacturer": "ATC", "model": "ATC-1200"}
+        self.assertEqual(build_alternative_keyword_plan(hardware), [])
+        self.assertEqual(
+            [step["parameter"] for step in build_alternative_keyword_plan(ios())],
+            ["Cisco IOS", "Cisco"],
+        )
+        invalid = {**ios(), "manufacturer": "ATC", "product": "Firmware&token"}
+        self.assertEqual(build_alternative_keyword_plan(invalid), [])
 
     def test_hardware_plans_and_fingerprints_remain_stable(self):
         for device in (SIEMENS, ADAM, ROCKWELL):
