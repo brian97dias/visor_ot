@@ -6,7 +6,8 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from assets.models import Asset, Software
-from vulnerabilities.models import CpeSearchRun, AssetCpe, AssetCpeDecision
+from vulnerabilities.models import CpeSearchRun, AssetCpe, AssetCpeDecision, CpeQuerySnapshot
+from vulnerabilities.services.cpe_catalogue import execute_catalogue_snapshot
 from vulnerabilities.services.cpe_search import execute_run
 from vulnerabilities.services.identity import fingerprint, software_identity
 
@@ -42,10 +43,20 @@ class SoftwareCpeHttpTests(TestCase):
         start = self.client.post(self.root + "cpe-searches/", {"scope": "SPECIFIC"}, format="json")
         self.assertEqual(start.status_code, 202, start.data)
         run = CpeSearchRun.objects.get(pk=start.data["run_id"])
-        execute_run(run, object(), fetcher=lambda *args: {
+        pending = execute_run(run, object(), fetcher=lambda *args: {
             "products": [self._nvd_exact()], "totalResults": 1, "startIndex": 0,
         })
+        self.assertEqual(pending.status, CpeSearchRun.Status.QUEUED)
+        snapshot = CpeQuerySnapshot.objects.get()
+        execute_catalogue_snapshot(
+            snapshot, object(),
+            fetcher=lambda strategy, parameter, start, pacer, *, results_per_page:
+            {"products": [self._nvd_exact()], "totalResults": 1, "startIndex": start},
+        )
+        execute_run(pending, object(), fetcher=lambda *args:
+                    self.fail("No debe repetirse la consulta específica"))
         run.refresh_from_db()
+        self.assertEqual(run.status, CpeSearchRun.Status.COMPLETED)
         return run
 
     def test_search_latest_detail_and_overview_include_software(self):
