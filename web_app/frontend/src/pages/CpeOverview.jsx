@@ -312,8 +312,9 @@ export default function CpeOverview() {
                   </div>
                 </td>
                 <td><span className="cpe-overview-status" data-status={row.identification_status}>
-                    {row.identification_status === "NO_RESULTS" && row.exploratory_count > 0
-                      ? "Solo exploratorios" : (STATUS[row.identification_status] || row.identification_status)}
+                    {row.identification_status === "TO_REVIEW"
+                      && row.exploratory_count > 0 && row.unreviewed_count === 0
+                      ? "Revisión exploratoria" : (STATUS[row.identification_status] || row.identification_status)}
                   </span>
                   {row.last_search_at && <div className="cpe-overview-subtitle">
                     {new Date(row.last_search_at).toLocaleString("es-CO")}
