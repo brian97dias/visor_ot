@@ -291,7 +291,7 @@ class CpeDecisionTests(TestCase):
         self.assertEqual(row["candidate_count"], 1)
         self.assertEqual(row["exploratory_count"], 1)
         self.assertEqual(row["unreviewed_count"], 0)
-        self.assertEqual(row["identification_status"], "NO_RESULTS")
+        self.assertEqual(row["identification_status"], "TO_REVIEW")
 
     def test_reject_cpe_from_other_asset_and_other_association(self):
         other = self.hardware("PLC alterno")
