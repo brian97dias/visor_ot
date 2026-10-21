@@ -77,9 +77,20 @@ def hardware_identity(asset):
 
 def fingerprint(identity):
     # Changing MAC, location, cost or name does NOT invalidate a CPE search.
-    canonical = {key: normalized(identity.get(key)) for key in (
-        "asset_type", "manufacturer", "model", "cpu_model", "role"
-    )}
+    if identity.get("asset_type") == "SOFTWARE":
+        # Preserve punctuation in versions: 12.1 and 121 are not equivalent.
+        canonical = {
+            "asset_type": "software",
+            "software_type": normalized(identity.get("software_type")),
+            "manufacturer": normalized(identity.get("manufacturer")),
+            "product": normalized(identity.get("product")),
+            "version": ascii_text(identity.get("version")).casefold(),
+        }
+    else:
+        # Keep the established hardware fingerprint byte-for-byte identical.
+        canonical = {key: normalized(identity.get(key)) for key in (
+            "asset_type", "manufacturer", "model", "cpu_model", "role"
+        )}
     data = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
@@ -366,3 +377,153 @@ def build_alternative_keyword_plan(identity):
     terms = list(dict.fromkeys([specific, general]))[:MAX_ALTERNATIVE_QUERIES]
     return [{"level": "ALTERNATIVE", "strategy": "keywordSearch",
              "parameter": term} for term in terms]
+
+
+# Software-only phase 1: pure identities and ordered query plans.
+# Not connected to the CPE worker or catalogue executor yet.
+SOFTWARE_CPE_PARTS = {"OS": "o", "FIRMWARE": "o", "APPLICATION": "a"}
+_SOFTWARE_VERSION_FORMAT = re.compile(r"[a-z0-9][a-z0-9._()+-]{0,99}\Z")
+_SOFTWARE_BRANCH_FORMAT = re.compile(r"[0-9]+\.[0-9]+\Z")
+
+
+def software_identity(asset):
+    """Extract software fields only, never infer an installed version from hardware."""
+    if asset.asset_type != Asset.AssetType.SOFTWARE:
+        raise ValueError("La identidad CPE solicitada no corresponde a software.")
+    software = asset.software
+    subtype = compact(software.software_type).upper()
+    if subtype not in SOFTWARE_CPE_PARTS:
+        raise ValueError("Tipo de software no admitido para planificar CPE.")
+    return {
+        "asset_type": "SOFTWARE",
+        "software_type": subtype,
+        "manufacturer": compact(software.manufacturer),
+        "product": compact(software.product),
+        "version": compact(software.version),
+    }
+
+
+def _software_product_spellings(product, manufacturer):
+    """Remove a redundant, delimited vendor word (Cisco IOS -> ios).
+
+    The value in the inventory is not changed. Do not drop unrelated tokens
+    such as Catalyst or guess a software product from the asset name.
+    """
+    core = _planned_model_core(product)
+    for alias in sorted(vendor_variants(manufacturer), key=len, reverse=True):
+        for separator in (" ", "_", "-"):
+            if core.startswith(alias + separator):
+                core = core[len(alias) + 1:]
+                break
+        else:
+            continue
+        break
+    forms = _planned_product_spellings(core)
+    if not forms or any(not _CPE_PRODUCT_PATTERN.fullmatch(x) for x in forms):
+        raise ValueError("El producto no se puede representar en CPE.")
+    return forms
+
+
+def _software_cpe_version(version):
+    """Escape CPE 2.3 special characters, preserving Cisco version suffixes.
+
+    Do not collapse 12.1(22)EA14 into 12.1 or remove punctuation. Unknown
+    syntax fails before generating any manufacturer-wide fallback.
+    """
+    text = ascii_text(version).lower()
+    if not _SOFTWARE_VERSION_FORMAT.fullmatch(text):
+        raise ValueError("La versión no tiene un formato CPE admitido.")
+    return (text.replace("+", r"\+")
+                .replace("(", r"\(")
+                .replace(")", r"\)"))
+
+
+def software_version_in_branch(recorded, nvd_version):
+    """Pure *future* local filter for version-branch suggestions, not confirmation.
+
+    NVD's broad prefix 12.1* may also retrieve 12.10. The classifier in a
+    later phase must filter locally. 12.1(22)EA14 belongs to 12.1; 12.10
+    does not. Exact version identity still requires human review.
+    """
+    base = ascii_text(recorded).strip().casefold()
+    observed = re.sub(r"\\(.)", r"\1", ascii_text(nvd_version)).casefold()
+    if observed == base:
+        return True
+    if not _SOFTWARE_BRANCH_FORMAT.fullmatch(base) or not observed.startswith(base):
+        return False
+    suffix = observed[len(base):]
+    return bool(suffix) and (suffix[0] in "(.+-_" or suffix[0].isalpha())
+
+
+def build_software_cpe_match_plan(identity):
+    """Pure ordered OS/firmware/application query plan; no NVD or DB access.
+
+    '12.1' is the recorded version, not proof that 12.1(22)EA14 is installed.
+    Prefix results and product catalogues MUST be filtered locally in phase 2.
+    Existing build_cpe_match_plan continues to handle hardware unmodified.
+    """
+    if not isinstance(identity, dict) or identity.get("asset_type") != "SOFTWARE":
+        raise ValueError("Este plan requiere una identidad de software.")
+    subtype = compact(identity.get("software_type")).upper()
+    part = SOFTWARE_CPE_PARTS.get(subtype)
+    if part is None:
+        raise ValueError("Tipo de software no admitido para generar CPE.")
+    manufacturer = identity.get("manufacturer")
+    product = identity.get("product")
+    version = identity.get("version") or ""
+    if not isinstance(manufacturer, str) or not compact(manufacturer):
+        raise ValueError("Registra un fabricante para identificar software.")
+    if not isinstance(product, str) or not compact(product):
+        raise ValueError("Registra un producto para identificar software.")
+    if not isinstance(version, str):
+        raise ValueError("La versión del software debe ser texto.")
+
+    vendors = vendor_variants(manufacturer)
+    if not vendors or any(not _CPE_VENDOR_PATTERN.fullmatch(v) for v in vendors):
+        raise ValueError("El fabricante no admite representación CPE.")
+    products = _software_product_spellings(product, manufacturer)
+    recorded_version = compact(version)
+    version_token = _software_cpe_version(recorded_version) if recorded_version else ""
+
+    plan = []
+    seen = set()
+
+    def add(level, vendor, prod, version_expr, scope, *, local_filter=False):
+        suffix = ":" + version_expr if version_expr is not None else ""
+        parameter = f"cpe:2.3:{part}:{vendor}:{prod}{suffix}"
+        if parameter not in seen:
+            seen.add(parameter)
+            plan.append({
+                "level": level,
+                "strategy": "cpeMatchString",
+                "parameter": parameter,
+                "version_scope": scope,
+                "requires_local_version_filter": local_filter,
+            })
+
+    # One syntactic spelling is preferred; additional vendor/product spellings
+    # are bounded and have exactly the same order of search levels as hardware.
+    pairs = [(vendor, prod)
+             for i, vendor in enumerate(vendors)
+             for prod in products[:3 if i == 0 else 2]]
+    if version_token:
+        for vendor, prod in pairs:
+            add("SPECIFIC", vendor, prod, version_token, "RECORDED_VERSION")
+        if _SOFTWARE_BRANCH_FORMAT.fullmatch(recorded_version):
+            for vendor, prod in pairs:
+                # The wildcard query is NOT an exhaustive or exact branch match.
+                add("FAMILY", vendor, prod, version_token + "*", "BRANCH_PREFIX",
+                    local_filter=True)
+
+    # Always retrieve all versions of this product. Phase 2 must classify
+    # local versions such as Cisco's escaped 12.1\(22\)ea14 conservatively.
+    for vendor, prod in pairs:
+        add("FAMILY", vendor, prod, "*", "PRODUCT_CATALOGUE", local_filter=True)
+
+    for vendor in vendors:
+        add("MANUFACTURER", vendor, "*", None, "MANUFACTURER_CATALOGUE",
+            local_filter=True)
+
+    if len(plan) > MAX_CPE_PLAN_QUERIES:
+        raise ValueError("El software genera demasiadas consultas CPE.")
+    return plan
