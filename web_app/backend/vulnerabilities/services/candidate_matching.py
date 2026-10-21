@@ -193,6 +193,34 @@ def classify_alternative_vendor(candidate, identity):
         observed = normalized(nvd_vendor)
         nvd_product = _cpe_part(name, 4).lower()
         kind = str(identity.get("software_type") or "").upper()
+        # Preserve the stronger hardware-style alternative: the entire
+        # inventoried manufacturer AND product occur in the NVD product/title
+        # even if NVD assigned a different vendor identifier.
+        if len(inventoried) >= 4 and len(normalized(product)) >= 5:
+            def bounded_phrase(text):
+                tokens = re.findall(r"[a-z]+|[0-9]+", ascii_text(text).lower())
+                if not tokens:
+                    return None
+                return re.compile(
+                    r"(?<![a-z0-9])"
+                    + r"[^a-z0-9]*".join(map(re.escape, tokens))
+                    + r"(?![a-z0-9])"
+                )
+
+            brand_match = bounded_phrase(manufacturer)
+            product_match = bounded_phrase(product)
+            title = str(candidate.get("title") or "").lower()
+            if (brand_match and product_match
+                    and product_match.search(nvd_product)
+                    and (brand_match.search(nvd_product) or brand_match.search(title))):
+                return (
+                    f"Posible diferencia de proveedor: el fabricante NVD "
+                    f"«{nvd_vendor}» difiere del inventario «{manufacturer}», "
+                    f"pero el nombre de producto contiene «{product}». "
+                    "Esta evidencia textual requiere verificación del analista; "
+                    "no confirma proveedor ni software instalado."
+                )
+
         # A lexical brand prefix *alone* would admit many irrelevant NVD
         # records. Require firmware on BOTH sides and a token boundary in
         # the CPE product. Do not accept substring hits in arbitrary titles.
