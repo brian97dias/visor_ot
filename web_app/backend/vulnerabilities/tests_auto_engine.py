@@ -392,6 +392,30 @@ class StructuredAutomaticDiscoveryTests(TestCase):
         self.assertEqual(run.queries[-1]["cache_reused"], False)
         self.assertFalse(run.result_truncated)
 
+    def test_failed_alternative_snapshot_does_not_broaden_or_fake_no_results(self):
+        run = self.make_run(self.hardware("Hirschmann", "EAGLE20"))
+        empty = lambda *args: reply([])
+        waiting = execute_run(run, object(), fetcher=empty)
+        manufacturer = CpeQuerySnapshot.objects.get()
+        execute_catalogue_snapshot(
+            manufacturer, object(), fetcher=lambda s, p, i, pacer, *, results_per_page:
+            reply([], start=i),
+        )
+        waiting = execute_run(waiting, object(), fetcher=empty)
+        self.assertEqual(waiting.status, "QUEUED")
+        narrow = CpeQuerySnapshot.objects.get(cache__strategy="keywordSearch")
+        narrow.status = CpeQuerySnapshot.Status.FAILED
+        narrow.error_code = "FETCH_FAILED"
+        narrow.error_message = "NVD indisponible"
+        narrow.save(update_fields=["status", "error_code", "error_message"])
+        failed = execute_run(waiting, object(), fetcher=lambda *args:
+                             self.fail("No debe reintentar el plan completo"))
+        self.assertEqual(failed.status, "FAILED")
+        self.assertTrue(failed.result_truncated)
+        self.assertEqual(CpeQuerySnapshot.objects.filter(
+            cache__strategy="keywordSearch").count(), 1)
+        self.assertFalse(AssetCpe.objects.exists())
+
     def test_worker_prioritizes_catalogue_needed_by_waiting_asset(self):
         now = timezone.now()
         run = SimpleNamespace(
