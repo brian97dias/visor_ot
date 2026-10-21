@@ -415,7 +415,10 @@ def _exploratory_rank(item):
 
 def _record_candidate(row, run, level, dedup, details, *, alternative=False):
     """Record one NVD product as an explainable suggestion, never validation."""
-    item = normalize_candidate(row, run.identity_snapshot, "cpeMatchString")
+    item = normalize_candidate(
+        row, run.identity_snapshot,
+        "keywordSearch" if alternative else "cpeMatchString",
+    )
     if item is None:
         return
     details["hardware_results"] += 1
@@ -474,7 +477,7 @@ def _snapshot_products(snapshot):
 
 
 def execute_run(run, pacer, fetcher=fetch_page):
-    """Automatic structured-only discovery; advanced requests remain unchanged.
+    """Automatic structured discovery plus optional brand/provider investigation.
 
     Each completed query is checkpointed in CpeSearchRun. At the manufacturer
     level, enqueue/reuse a CpeQuerySnapshot and leave this run QUEUED until
