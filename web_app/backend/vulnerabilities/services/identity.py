@@ -150,3 +150,136 @@ def build_queries(identity, scope="SPECIFIC"):
         {"strategy": "keywordSearch", "parameter": keyword},
         {"strategy": "cpeMatchString", "parameter": f"cpe:2.3:h:{vendor}:{product}*"},
     ]
+
+# Standalone automatic cpeMatchString plan. Increment 1: NOT wired to the worker.
+# The user may inspect this pure plan before enabling it in Increment 2.
+MAX_CPE_PLAN_QUERIES = 30
+_CPE_MODEL_PATTERN = re.compile(r"[a-z0-9 _/.-]+\Z")
+_CPE_VENDOR_PATTERN = re.compile(r"[a-z0-9_-]{2,80}\Z")
+_CPE_PRODUCT_PATTERN = re.compile(r"[a-z0-9._-]{1,119}\Z")
+
+
+def _planned_model_core(value):
+    """Preserve model numbers and suffixes; drop only explicit family labels."""
+    if not isinstance(value, str) or not compact(value):
+        raise ValueError("Registra un modelo válido para buscar CPE.")
+    model = ascii_text(value).lower()
+    if not _CPE_MODEL_PATTERN.fullmatch(model):
+        raise ValueError("El modelo contiene caracteres no admitidos para el plan CPE.")
+    return re.sub(r"[ _-]+(?:series|serie|family|familia)$", "", model).strip()
+
+
+def _planned_product_spellings(core):
+    """Up to three *syntactic* variants, not fuzzy model substitutions."""
+    # Slash carries a model suffix (e.g. /B) and becomes a separator, not a deletion.
+    primary = re.sub(r"[ /]+", "_", core).strip("_")
+    underscore = primary.replace("-", "_")
+    joined = primary.replace("-", "").replace("_", "")
+    values = list(dict.fromkeys((primary, underscore, joined)))
+    if any(not _CPE_PRODUCT_PATTERN.fullmatch(value) for value in values):
+        raise ValueError("El modelo excede la longitud o sintaxis admitida por el plan CPE.")
+    return values
+
+
+def _planned_family_prefix(model, core, manufacturer):
+    """Only explicit series, established catalogue code or recognizable family.
+
+    A numeric code such as AXIS 206 must not be reduced to 20/2 or mixed with
+    AXIS 207. Any prefix is a discovery query, never evidence of equivalence.
+    """
+    declared = family_term(model)
+    if normalized(declared) != normalized(model):
+        return _planned_product_spellings(_planned_model_core(declared))[0]
+    code = catalog_code_prefix(model)
+    if code:
+        return code
+    fragments = re.split(r"[ _-]+", core)
+    if (len(fragments) >= 2 and re.fullmatch(r"[a-z]{4,}", fragments[0])
+            and any(char.isdigit() for char in fragments[1])
+            and normalized(fragments[0]) not in {
+                normalized(term) for term in re.split(r"[ _-]+", manufacturer)
+            }
+            and normalized(fragments[0]) not in {
+                normalized(v) for v in vendor_variants(manufacturer)
+            }):
+        return fragments[0]
+    return ""
+
+
+def build_cpe_match_plan(identity):
+    """Plan hardware CPE queries from specific to manufacturer, without NVD I/O.
+
+    Kept separate from build_queries/build_level_queries until Increment 2.
+    Every entry is a search pattern, NOT an official identification. Only a
+    human analyst can validate a CPE-to-asset association.
+    """
+    if not isinstance(identity, dict) or identity.get("asset_type") != "HARDWARE":
+        raise ValueError("Este plan automático requiere un activo de hardware.")
+    manufacturer = identity.get("manufacturer")
+    model = identity.get("model")
+    cpu_value = identity.get("cpu_model", "")
+    if not isinstance(manufacturer, str) or not compact(manufacturer):
+        raise ValueError("Registra un fabricante válido para buscar CPE.")
+    if not isinstance(cpu_value, str):
+        raise ValueError("El modelo de CPU debe ser texto.")
+    if not isinstance(model, str) or not compact(model):
+        raise ValueError("Registra un modelo válido para buscar CPE.")
+
+    vendors = vendor_variants(manufacturer)
+    if not vendors or any(not _CPE_VENDOR_PATTERN.fullmatch(v) for v in vendors):
+        raise ValueError("El fabricante no puede representarse como identificador CPE.")
+    model_core = _planned_model_core(model)
+    cpu = cpu_spelling(cpu_value)
+    if compact(cpu_value) and not cpu:
+        raise ValueError("La CPU no puede representarse como identificador CPE.")
+    # Remove the CPU only when it is explicitly the model's final CPU field.
+    # Never strip arbitrary numeric/alpha suffixes such as Rockwell '/B'.
+    family_core = model_core
+    suffix = None
+    if cpu:
+        suffix = re.search(
+            r"(?:[ _-]+cpu[ _:-]*|[ _-]+)" + re.escape(cpu) + r"$",
+            model_core,
+        )
+        if suffix:
+            family_core = model_core[:suffix.start()].strip(" _-")
+    model_forms = _planned_product_spellings(family_core)
+    has_cpu_in_model = suffix is not None
+    full_forms = _planned_product_spellings(model_core)
+    if cpu and not has_cpu_in_model:
+        full_forms = [form + "_cpu_" + cpu for form in model_forms]
+    if any(not _CPE_PRODUCT_PATTERN.fullmatch(form) for form in full_forms):
+        raise ValueError("El sufijo de CPU excede la longitud del producto CPE.")
+
+    family_prefix = _planned_family_prefix(model, family_core, manufacturer)
+    seen = set()
+    plan = []
+
+    def append(level, vendor, product):
+        parameter = f"cpe:2.3:h:{vendor}:{product}*" if product else f"cpe:2.3:h:{vendor}:*"
+        if parameter not in seen:
+            seen.add(parameter)
+            plan.append({"level": level, "strategy": "cpeMatchString", "parameter": parameter})
+
+    # Keep the concatenated spelling for the highest-priority vendor only.
+    # Other verified vendor variants receive the two separator spellings.
+    for index, vendor in enumerate(vendors):
+        for product in full_forms[:3 if index == 0 else 2]:
+            append("SPECIFIC", vendor, product)
+
+    if cpu:
+        for index, vendor in enumerate(vendors):
+            for product in model_forms[:3 if index == 0 else 2]:
+                append("FAMILY", vendor, product)
+
+    # A broad family prefix is useful for discovery, never an exact match.
+    if family_prefix:
+        for vendor in vendors:
+            append("FAMILY", vendor, family_prefix)
+
+    for vendor in vendors:
+        append("MANUFACTURER", vendor, "")
+
+    if len(plan) > MAX_CPE_PLAN_QUERIES:
+        raise ValueError("La identidad genera demasiadas variantes CPE.")
+    return plan
