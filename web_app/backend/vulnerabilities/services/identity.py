@@ -1,4 +1,4 @@
-"""Read-only construction of hardware search identities and NVD query plans."""
+"""Read-only construction of hardware and software CPE search identities."""
 import hashlib
 import json
 import re
@@ -64,7 +64,7 @@ def cpu_spelling(value):
 
 def hardware_identity(asset):
     if asset.asset_type != Asset.AssetType.HARDWARE:
-        raise ValueError("El descubrimiento CPE de software llegará en la fase 4.")
+        raise ValueError("Esta identidad CPE requiere un activo de hardware.")
     hw = asset.hardware
     return {
         "asset_type": "HARDWARE",
@@ -379,8 +379,8 @@ def build_alternative_keyword_plan(identity):
              "parameter": term} for term in terms]
 
 
-# Software-only phase 1: pure identities and ordered query plans.
-# Not connected to the CPE worker or catalogue executor yet.
+# Software identity and pure query plans; the existing worker executes them.
+# No identity constructor infers software versions from installed hardware.
 SOFTWARE_CPE_PARTS = {"OS": "o", "FIRMWARE": "o", "APPLICATION": "a"}
 _SOFTWARE_VERSION_FORMAT = re.compile(r"[a-z0-9][a-z0-9._()+-]{0,99}\Z")
 _SOFTWARE_BRANCH_FORMAT = re.compile(r"[0-9]+\.[0-9]+\Z")
@@ -459,7 +459,7 @@ def build_software_cpe_match_plan(identity):
     """Pure ordered OS/firmware/application query plan; no NVD or DB access.
 
     '12.1' is the recorded version, not proof that 12.1(22)EA14 is installed.
-    Prefix results and product catalogues MUST be filtered locally in phase 2.
+    Prefix results and product catalogues are filtered locally by the worker.
     Existing build_cpe_match_plan continues to handle hardware unmodified.
     """
     if not isinstance(identity, dict) or identity.get("asset_type") != "SOFTWARE":
