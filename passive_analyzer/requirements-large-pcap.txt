@@ -1,0 +1,2 @@
+# Required by streaming analysis pages and memory-bounded imports.
+ijson>=3.2,<4
