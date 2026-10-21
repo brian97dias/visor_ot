@@ -115,6 +115,27 @@ def _exploratory_proximity(candidate, identity):
             f"y {other.group(2) + other.group(3).upper()} distintas. "
             "La similitud no demuestra compatibilidad técnica."
         )
+    # A model designation may appear as an INNER token of a compound NVD
+    # product: RX1100-F-RM-24P-HIP vs ruggedcom_rox_rx1400. Both code
+    # lengths and series must match, and the token must be delimited.
+    # This never establishes equivalence or triggers extra NVD queries.
+    if wanted:
+        series, own_number = wanted.group(1), wanted.group(2)
+        for token in re.split(r"[_-]+", product)[1:]:
+            embedded = re.fullmatch(r"([a-z]{2,12})([0-9]{2,6})([a-z]?)", token)
+            if (not embedded or embedded.group(1) != series
+                    or len(embedded.group(2)) != len(own_number)):
+                continue
+            other_number = embedded.group(2)
+            distance = abs(int(own_number) - int(other_number))
+            return 200000 + min(distance, 99999), (
+                f"Mismo fabricante y componente interno de serie "
+                f"{series.upper()}: códigos {own_number} y {other_number}. "
+                "El resto del nombre de producto y la configuración "
+                "requieren verificación. Correspondencia débil; "
+                "no demuestra equivalencia ni compatibilidad técnica."
+            )
+
     # Last-resort short series prefix. A model with multiple meaningful
     # segments (FL IL 24 BK PAC) may share only FL with other vendor products.
     # Never infer compatibility; keep boundary checks to avoid matching
