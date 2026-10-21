@@ -1,4 +1,8 @@
 from typing import Literal
+import json
+
+from fastapi.responses import StreamingResponse
+
 
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
@@ -8,7 +12,9 @@ from catalog import (
     get_pcap_by_id,
     list_pcaps,
 )
-from output import save_output, load_output
+from output import save_output, load_output, get_analysis_hash
+from config import OUTPUT_DIRECTORY
+from pcap_identity import get_relative_path
 from pcap_identity import get_pcap_id
 
 
@@ -163,6 +169,56 @@ def get_pcap_analysis(
 
 
     return analysis
+
+
+@app.get("/api/v1/pcaps/{pcap_id}/analysis/import-manifest")
+def get_analysis_import_manifest(pcap_id: str):
+    """Lightweight identity and hash for streaming imports."""
+    pcap_path = get_pcap_by_id(pcap_id)
+    if pcap_path is None:
+        raise HTTPException(status_code=404, detail="El PCAP solicitado no existe.")
+    output_file = OUTPUT_DIRECTORY / f"{pcap_id}.json"
+    if not output_file.is_file():
+        raise HTTPException(status_code=404, detail="El análisis no existe.")
+    return {
+        "schema_version": "0.2",
+        "capture": {
+            "pcap_id": pcap_id,
+            "filename": pcap_path.name,
+            "relative_path": get_relative_path(pcap_path),
+        },
+        "analysis_hash": get_analysis_hash(pcap_id),
+    }
+
+
+@app.get("/api/v1/pcaps/{pcap_id}/analysis/stream")
+def stream_analysis_import(pcap_id: str):
+    """Stream per-observation NDJSON instead of a giant JSON object."""
+    if get_pcap_by_id(pcap_id) is None:
+        raise HTTPException(status_code=404, detail="El PCAP solicitado no existe.")
+    path = OUTPUT_DIRECTORY / f"{pcap_id}.json"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="El análisis no existe.")
+    try:
+        import ijson
+    except ImportError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Falta ijson en el entorno del analizador: pip install ijson.",
+        ) from error
+
+    def rows():
+        for kind, prefix in (("interface", "interfaces.item"),
+                             ("communication", "communications.item")):
+            with path.open("rb") as handle:
+                for item in ijson.items(handle, prefix):
+                    yield json.dumps(
+                        {"type": kind, "data": item},
+                        ensure_ascii=False, separators=(",", ":"),
+                    ) + "\n"
+
+    return StreamingResponse(rows(), media_type="application/x-ndjson")
+
 
 @app.get("/api/v1/pcaps/{pcap_id}/analysis/observations")
 def get_analysis_observations(
