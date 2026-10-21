@@ -24,10 +24,36 @@ def shares_catalog_code(product, identity):
     return bool(code and re.match(r"^" + re.escape(code) + r"(?=[_-]|$)", product.lower()))
 
 
+def _technical_model_designation(identity):
+    """Remove a redundant verified vendor prefix from a numeric model only.
+
+    AXIS 206 -> 206, but retain the inventoried name, identity fingerprint
+    and non-numeric model names such as SIMATIC S7-1200 unchanged.
+    """
+    raw = str(identity.get("model") or "").strip()
+    prefixed = re.fullmatch(r"([a-z][a-z0-9_-]*)[ _-]+([0-9]{3,6})", raw, re.I)
+    if (prefixed and normalized(prefixed.group(1)) in {
+            normalized(alias) for alias in vendor_variants(identity.get("manufacturer"))}):
+        return prefixed.group(2)
+    return raw
+
+
+def _product_without_vendor_prefix(product, identity):
+    """Compare CPE 207w and axis_207_network_camera consistently."""
+    aliases = sorted(vendor_variants(identity.get("manufacturer")), key=len, reverse=True)
+    for alias in aliases:
+        for sep in ("_", "-"):
+            if product.startswith(alias + sep):
+                return product[len(alias) + 1:]
+    return product
+
+
 def _exploratory_proximity(candidate, identity):
     """Conservative nearby designation, never technical identification."""
-    model = str(identity.get("model") or "").strip().lower()
-    product = _cpe_part(candidate.get("cpe_name", ""), 4).lower()
+    model = _technical_model_designation(identity).lower()
+    product = _product_without_vendor_prefix(
+        _cpe_part(candidate.get("cpe_name", ""), 4).lower(), identity
+    )
     # AXIS 206 -> 207 or 207w; NOT 2060 or an unrelated model.
     if re.fullmatch(r"[0-9]{3,6}", model):
         other = re.fullmatch(r"([0-9]{3,6})(?:[a-z]|[_-][a-z0-9_-]+)?", product)
@@ -65,13 +91,13 @@ def classify(candidate, identity):
         return "POSSIBLE_INCOMPATIBILITY", "Este CPE no identifica hardware (tipo h)."
     vendor = normalized(_cpe_part(cpe_name, 3))
     product = normalized(_cpe_part(cpe_name, 4))
-    wanted_model = normalized(identity.get("model"))
+    wanted_model = normalized(_technical_model_designation(identity))
     wanted_cpu = cpu_spelling(identity.get("cpu_model"))
     if not matches_vendor(_cpe_part(cpe_name, 3), identity):
         return "POSSIBLE_INCOMPATIBILITY", "El fabricante del CPE no coincide con el inventario."
     # Numeric model designations must not match longer neighbouring models:
     # AXIS 206 does not identify AXIS 2060 or AXIS 2067.
-    raw_model = str(identity.get("model") or "").strip().lower()
+    raw_model = _technical_model_designation(identity).lower()
     raw_product = _cpe_part(cpe_name, 4).lower()
     numeric_model = re.fullmatch(r"[0-9]+", raw_model)
     if numeric_model and re.search(
@@ -140,7 +166,7 @@ def is_pertinent(candidate, identity):
     if (_cpe_part(cpe_name, 2) != "h" or candidate.get("deprecated")
             or not matches_vendor(_cpe_part(cpe_name, 3), identity)):
         return False
-    model = normalized(identity.get("model"))
+    model = normalized(_technical_model_designation(identity))
     product = normalized(_cpe_part(cpe_name, 4))
     if not model or model not in product:
         return False

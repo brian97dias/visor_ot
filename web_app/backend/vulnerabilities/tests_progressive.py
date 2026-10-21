@@ -382,21 +382,20 @@ class ManufacturerAliasRefinementTests(SimpleTestCase):
         self.assertEqual(run.queries[-1]["stop_reason"], "MANUFACTURER_LEVEL_LIMIT")
         self.assertLessEqual(len(calls), MAX_TOTAL_PAGE_FETCHES)
 
-    def test_axis_207_is_never_an_axis_206_candidate(self):
+    def test_axis_207_is_only_exploratory_not_an_axis_206_identification(self):
         run = queued(self.AXIS)
-        wrong = product("axis-207", "axis", "207_network_camera")
+        nearby = product("axis-207", "axis", "207_network_camera")
         seen = []
         def fetch(strategy, parameter, index, pacer):
             seen.append(parameter)
-            return response([wrong]) if parameter == "cpe:2.3:h:axis" else response([])
+            return response([nearby]) if parameter == "cpe:2.3:h:axis" else response([])
         execute_run(run, object(), fetcher=fetch)
         self.assertEqual(run.status, "COMPLETED")
-        self.assertEqual(run.candidates, [])
+        self.assertEqual(len(run.candidates), 1)
+        self.assertEqual(run.candidates[0]["match_level"], "EXPLORATORY")
         self.assertIn("cpe:2.3:h:axis", seen)
-        self.assertEqual(
-            normalize_candidate(wrong, self.AXIS, "cpeMatchString")["match_level"],
-            "POSSIBLE_INCOMPATIBILITY",
-        )
+        from vulnerabilities.services.candidate_matching import is_pertinent
+        self.assertFalse(is_pertinent(run.candidates[0], self.AXIS))
 
     def test_siemens_cpu_1215c_remains_specific_no_manufacturer_queries(self):
         run = queued(SIEMENS)

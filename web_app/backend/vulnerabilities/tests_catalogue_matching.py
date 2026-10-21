@@ -246,18 +246,19 @@ class CatalogueSnapshotEvidenceTests(TestCase):
         self.assertEqual(Cpe.objects.count(), 1)
         self.assertEqual(CpeQueryProduct.objects.count(), 2)
 
-    def test_axis_207_does_not_appear_as_axis_206_candidate(self):
+    def test_axis_207_is_exploratory_not_a_technical_axis_206_match(self):
         snapshot = catalogue_snapshot([
             record("axis_207_network_camera", vendor="axis"),
             record("axis_206_network_camera", vendor="axis"),
         ], keyword="AXIS")
         all_rows = browse_catalogue(snapshot, AXIS, view="ALL")["items"]
         self.assertEqual(len(all_rows), 2)
-        unmatched = next(row for row in all_rows if "207" in row["cpe_name"])
-        self.assertEqual(unmatched["classification"], EXCLUDED_OTHER_PRODUCT)
+        neighbour = next(row for row in all_rows if "207" in row["cpe_name"])
+        self.assertEqual(neighbour["classification"], CANDIDATE)
+        self.assertEqual(neighbour["match_level"], "EXPLORATORY")
+        self.assertFalse(neighbour["is_pertinent"])
         candidates = browse_catalogue(snapshot, AXIS, view="CANDIDATES")["items"]
-        self.assertEqual(len(candidates), 1)
-        self.assertIn("206", candidates[0]["cpe_name"])
+        self.assertEqual(len(candidates), 2)
         self.assertEqual(snapshot.products.count(), 2)
 
     def test_malformed_nvd_title_list_does_not_destroy_catalogue_evidence(self):

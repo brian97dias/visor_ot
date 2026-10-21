@@ -84,3 +84,36 @@ class CandidateMatchingIncrement3Tests(SimpleTestCase):
         near = normalize_candidate(candidate("axis", "207"), device, "cpeMatchString")
         ranked = merge_candidates([near, exact])
         self.assertEqual([c["match_level"] for c in ranked], ["FAMILY", "EXPLORATORY"])
+
+    def test_inventory_axis_206_and_real_nvd_207w_are_exploratory(self):
+        device = identity("Axis Communications", "AXIS 206")
+        official = candidate("axis", "207w")
+        official["cpe"]["cpeNameId"] = "479A554E-F206-4566-8901-935F8E29DB58"
+        item = normalize_candidate(official, device, "cpeMatchString")
+        self.assertEqual(item["match_level"], "EXPLORATORY")
+        self.assertEqual(item["exploratory_distance"], 1)
+        self.assertEqual(item["cpe_name_id"], official["cpe"]["cpeNameId"])
+
+    def test_inventory_axis_206_and_vendor_prefixed_nvd_product_are_exploratory(self):
+        device = identity("Axis Communications", "AXIS 206")
+        item = normalize_candidate(candidate("axis", "axis_207_network_camera"),
+                                   device, "cpeMatchString")
+        self.assertEqual(item["match_level"], "EXPLORATORY")
+
+    def test_inventory_axis_206_rejects_2060_and_no_numeric_guessing(self):
+        device = identity("Axis Communications", "AXIS 206")
+        for name in ("2060", "axis_2067_network_camera", "m1125", "209"):
+            with self.subTest(name=name):
+                item = normalize_candidate(candidate("axis", name), device, "cpeMatchString")
+                self.assertEqual(item["match_level"], "POSSIBLE_INCOMPATIBILITY")
+        wrong_vendor = normalize_candidate(candidate("other", "207w"), device, "cpeMatchString")
+        self.assertEqual(wrong_vendor["match_level"], "POSSIBLE_INCOMPATIBILITY")
+
+    def test_exact_cpe_axis_206_can_stop_but_neighbour_cannot(self):
+        from vulnerabilities.services.candidate_matching import is_pertinent
+        device = identity("Axis Communications", "AXIS 206")
+        exact = normalize_candidate(candidate("axis", "206"), device, "cpeMatchString")
+        neighbor = normalize_candidate(candidate("axis", "207w"), device, "cpeMatchString")
+        self.assertTrue(is_pertinent(exact, device))
+        self.assertFalse(is_pertinent(neighbor, device))
+        self.assertNotEqual(neighbor["match_level"], "SPECIFIC")
