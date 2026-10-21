@@ -637,7 +637,7 @@ def execute_run(run, pacer, fetcher=fetch_page):
                 if (details["pertinent_results"] or details.get("candidate_limit_reached")
                         or (step["level"] == "ALTERNATIVE" and dedup)
                         or (software and step.get("version_scope") == "BRANCH_PREFIX"
-                            and any(v.get("match_level") == "SOFTWARE_BRANCH"
+                            and any(v.get("match_level") in ("SOFTWARE_BRANCH", "SOFTWARE_EXACT")
                                     for v in dedup.values()))
                         or (software and step.get("version_scope") == "PRODUCT_CATALOGUE"
                             and any(v.get("match_level") in (
@@ -698,7 +698,10 @@ def execute_run(run, pacer, fetcher=fetch_page):
             if not details["pertinent_results"]:
                 details["next_level_reason"] = "NO_PERTINENT_CANDIDATES"
             _persist(run, {"queries": queries})
-            if details["pertinent_results"]:
+            if details["pertinent_results"] and not (
+                    software and step.get("version_scope") == "RECORDED_VERSION"
+                    and any(q.get("version_scope") == "BRANCH_PREFIX" for q in planned)
+            ):
                 break
 
         _persist(run, {
