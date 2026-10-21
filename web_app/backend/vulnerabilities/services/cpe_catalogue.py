@@ -23,7 +23,11 @@ CACHE_TTL = timedelta(days=7)
 CATALOGUE_PAGE_SIZE = 500
 MAX_CATALOGUE_PAGE_SIZE = 1000
 
-_CPE_PREFIX = re.compile(r"^cpe:2\.3:h:[a-z0-9_.-]{2,100}(?::[a-z0-9_.\-*]{1,120})?$")
+_CPE_PREFIX = re.compile(
+    r"^cpe:2\.3:[hao]:[a-z0-9_.-]{2,100}"
+    r"(?::[a-z0-9_.\-*]{1,120})?"
+    r"(?::[a-z0-9_.\-*\\()+]{1,120})?$"
+)
 _KEYWORD = re.compile(r"^[\w\s./-]{3,120}$", re.UNICODE)
 
 
@@ -48,7 +52,7 @@ def canonical_query(strategy, parameter):
     else:
         parameter = parameter.strip().lower()
         if not _CPE_PREFIX.fullmatch(parameter):
-            raise ValueError("La búsqueda CPE debe comenzar con cpe:2.3:h:<fabricante>.")
+            raise ValueError("La búsqueda CPE requiere una parte (h/o/a) y un fabricante válidos.")
     return strategy, parameter
 
 
