@@ -63,6 +63,9 @@ export default function CpeDiscoveryTrace({ queries, truncated }) {
                 {q.filtered_hardware_results > 0 &&
                   <span>{q.filtered_hardware_results} descartados por pertinencia</span>}
                 {q.related_results > 0 && <span>{q.related_results} relacionados</span>}
+                {q.exploratory_results > 0 && <span>
+                  {q.exploratory_results} correspondencias exploratorias
+                </span>}
                 {q.pertinent_results > 0 && <span>{q.pertinent_results} pertinentes</span>}
               </div>
               {q.stop_reason && <p className="cpe-trace-stop">
