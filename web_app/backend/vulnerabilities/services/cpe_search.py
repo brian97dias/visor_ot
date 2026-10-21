@@ -587,6 +587,7 @@ def execute_run(run, pacer, fetcher=fetch_page):
             if (step["level"] in ("MANUFACTURER", "ALTERNATIVE")
                     or (software and step.get("version_scope") in (
                         "BRANCH_PREFIX", "PRODUCT_CATALOGUE", "RELATED_SERIES",
+                        "NUMERIC_MODEL_PREFIX",
                     ))):
                 if previous:
                     snapshot = CpeQuerySnapshot.objects.select_related("cache").get(
