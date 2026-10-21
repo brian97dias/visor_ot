@@ -5,7 +5,7 @@ from django.test import SimpleTestCase
 
 from .services.identity import (
     MAX_CPE_PLAN_QUERIES, build_cpe_match_plan, build_queries,
-    build_level_queries, fingerprint, normalized,
+    build_level_queries, fingerprint, normalized, build_alternative_keyword_plan,
 )
 from .services.cpe_catalogue import canonical_query
 
@@ -123,3 +123,23 @@ class AutomaticCpeMatchPlanTests(SimpleTestCase):
                          ["keywordSearch", "cpeMatchString"])
         self.assertEqual([q["strategy"] for q in build_level_queries(SIEMENS, "SPECIFIC")],
                          ["keywordSearch", "cpeMatchString"])
+
+class AlternativeBrandKeywordPlanTests(SimpleTestCase):
+    def test_fallback_terms_are_bounded_brand_plus_model_then_brand(self):
+        data = {"asset_type":"HARDWARE", "manufacturer":"Hirschmann",
+                "model":"EAGLE20", "cpu_model":"", "role":"FIREWALL"}
+        before = deepcopy(data)
+        plan = build_alternative_keyword_plan(data)
+        self.assertEqual([(q["level"], q["strategy"], q["parameter"]) for q in plan], [
+            ("ALTERNATIVE", "keywordSearch", "Hirschmann EAGLE20"),
+            ("ALTERNATIVE", "keywordSearch", "Hirschmann"),
+        ])
+        self.assertEqual(data, before)
+        for q in plan:
+            self.assertEqual(canonical_query(q["strategy"], q["parameter"])[1],
+                             q["parameter"])
+
+    def test_unrepresentable_optional_keyword_plan_does_not_break_main_search(self):
+        data = {"asset_type":"HARDWARE", "manufacturer":"Example & Co",
+                "model":"EAGLE20", "cpu_model":"", "role":"OTHER"}
+        self.assertEqual(build_alternative_keyword_plan(data), [])
