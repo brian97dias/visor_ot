@@ -299,7 +299,10 @@ export default function CpeOverview() {
                     onChange={event => setSelectedIds(current =>
                       toggleRowSelection(current, row.asset_id, event.target.checked))}/>
                 </td>
-                <td><strong>{row.asset_name}</strong>
+                <td><Link className="cpe-overview-asset-link" to={"/assets/" + row.asset_id}
+                    title={"Ver detalle de " + row.asset_name}>
+                    {row.asset_name}
+                  </Link>
                   <div className="cpe-overview-subtitle">
                     #{row.asset_id} · {row.asset_type === "HARDWARE" ? "Hardware" : "Software"}
                   </div>
