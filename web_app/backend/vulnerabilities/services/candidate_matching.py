@@ -168,17 +168,49 @@ def _exploratory_proximity(candidate, identity):
 
 
 def classify_alternative_vendor(candidate, identity):
-    """Recognize a brand/model under another NVD vendor, as evidence ONLY.
+    """Cross-vendor keyword evidence for hardware or software, never proof.
 
-    The product designation must contain the complete inventoried model,
-    bounded by alphanumeric word boundaries; matching a brand alone is
-    insufficient. No vendor association or AssetCpe is created here.
+    Hardware preserves the original strict model-and-brand rule. Software may
+    also propose a *very weak* fallback for an extended short manufacturer
+    prefix and an explicit matching firmware category (ATC -> ATCOM), when the
+    product model itself is different. That never creates a vendor alias.
     """
     name = candidate.get("cpe_name", "")
-    if _cpe_part(name, 2) != "h":
+    software = identity.get("asset_type") == "SOFTWARE"
+    required_part = (
+        SOFTWARE_CPE_PARTS.get(identity.get("software_type"))
+        if software else "h"
+    )
+    if _cpe_part(name, 2) != required_part:
         return None
     nvd_vendor = _cpe_part(name, 3)
     if not nvd_vendor or matches_vendor(nvd_vendor, identity):
+        return None
+    if software:
+        manufacturer = str(identity.get("manufacturer") or "").strip()
+        product = str(identity.get("product") or "").strip()
+        inventoried = normalized(manufacturer)
+        observed = normalized(nvd_vendor)
+        nvd_product = _cpe_part(name, 4).lower()
+        kind = str(identity.get("software_type") or "").upper()
+        # A lexical brand prefix *alone* would admit many irrelevant NVD
+        # records. Require firmware on BOTH sides and a token boundary in
+        # the CPE product. Do not accept substring hits in arbitrary titles.
+        if (
+            kind == "FIRMWARE"
+            and 3 <= len(inventoried) <= 6
+            and len(inventoried) < len(observed) <= len(inventoried) + 5
+            and observed.startswith(inventoried)
+            and re.search(r"(?:^|[_-])firmware(?:$|[_-])", nvd_product)
+        ):
+            return (
+                f"Coincidencia exploratoria muy débil: fabricante inventariado "
+                f"«{manufacturer}» y fabricante NVD «{nvd_vendor}» comparten "
+                f"solo un prefijo textual; ambos registros indican firmware. "
+                f"El producto NVD «{nvd_product}» no verifica «{product}». "
+                "No se ha demostrado que los fabricantes o modelos sean "
+                "equivalentes. Comprueba documentación antes de asociar."
+            )
         return None
 
     def phrase_pattern(value):
