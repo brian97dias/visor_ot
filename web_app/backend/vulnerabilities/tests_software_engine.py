@@ -117,7 +117,7 @@ class SoftwareWorkerTests(TestCase):
         self.assertEqual(snapshot.cache.parameter, "cpe:2.3:o:cisco:ios:12.1*")
         self.assertEqual(snapshot.status, "QUEUED")
         products = [nvd(version=r"12.1\(22\)ea14"), nvd(version="12.10"),
-                    nvd(product="ios_xe", version="12.1"), nvd(part="h")]
+                    nvd(part="h")]
         execute_catalogue_snapshot(snapshot, object(),
             fetcher=lambda strategy, parameter, start, pacer, *, results_per_page:
             page(products, start=start)
