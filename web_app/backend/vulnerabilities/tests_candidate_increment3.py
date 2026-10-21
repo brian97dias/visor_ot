@@ -2,7 +2,7 @@
 from django.test import SimpleTestCase
 
 from vulnerabilities.services.candidate_matching import (
-    classify, merge_candidates, normalize_candidate,
+    classify, merge_candidates, normalize_candidate, classify_alternative_vendor,
 )
 
 
@@ -143,3 +143,27 @@ class CandidateMatchingIncrement3Tests(SimpleTestCase):
                                         "cpeMatchString")
         self.assertEqual(neighbour["match_level"], "EXPLORATORY")
         self.assertEqual(unrelated["match_level"], "POSSIBLE_INCOMPATIBILITY")
+
+    def test_cross_vendor_belden_hirschmann_eagle20_has_explainable_evidence(self):
+        device = identity("Hirschmann", "EAGLE20")
+        item = normalize_candidate(candidate("belden", "hirschmann_eagle20"),
+                                   device, "keywordSearch")
+        reason = classify_alternative_vendor(item, device)
+        self.assertIn("belden", reason)
+        self.assertIn("Hirschmann", reason)
+        self.assertEqual(item["match_level"], "POSSIBLE_INCOMPATIBILITY")
+
+    def test_cross_vendor_fallback_rejects_partial_model_and_only_brand(self):
+        device = identity("Hirschmann", "EAGLE20")
+        for model in ("hirschmann_eagle200", "hirschmann_dragon", "other_eagle20"):
+            with self.subTest(model=model):
+                item = normalize_candidate(candidate("belden", model),
+                                           device, "keywordSearch")
+                self.assertIsNone(classify_alternative_vendor(item, device))
+
+    def test_cross_vendor_fallback_requires_complete_model_not_title_only(self):
+        device = identity("Hirschmann", "EAGLE20")
+        record = candidate("belden", "generic_router")
+        record["cpe"]["titles"] = [{"lang": "en", "title": "Hirschmann EAGLE20 guide"}]
+        item = normalize_candidate(record, device, "keywordSearch")
+        self.assertIsNone(classify_alternative_vendor(item, device))
