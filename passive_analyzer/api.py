@@ -228,53 +228,83 @@ def get_analysis_observations(
     search: str = Query(default="", max_length=100),
     min_packets: int = Query(default=1, ge=1),
 ):
-    if get_pcap_by_id(pcap_id) is None:
+    """Paginate a potentially huge file without json.load() or large lists."""
+    pcap_path = get_pcap_by_id(pcap_id)
+    if pcap_path is None:
         raise HTTPException(status_code=404, detail="El PCAP solicitado no existe.")
-    analysis = load_output(pcap_id)
-    if analysis is None:
+    path = OUTPUT_DIRECTORY / f"{pcap_id}.json"
+    if not path.is_file():
         raise HTTPException(status_code=404, detail="El análisis no está disponible.")
+    try:
+        import ijson
+    except ImportError as error:
+        raise HTTPException(
+            status_code=503, detail="Falta ijson en el analizador: pip install ijson."
+        ) from error
 
-    interfaces = analysis.get("interfaces", [])
-    communications = analysis.get("communications", [])
-    entries = interfaces if type == "interfaces" else communications
     needle = search.strip().lower()
+    start = (page - 1) * 25
+    end = start + 25
+    prefix = "interfaces.item" if type == "interfaces" else "communications.item"
+    count = 0
+    results = []
+    from collections import deque
+    last_page_rows = deque(maxlen=25)
 
-    if type == "interfaces" and needle:
-        entries = [
-            item for item in entries
-            if needle in item.get("mac", "").lower()
-            or any(needle in ip.lower() for ip in item.get("ips", []))
-        ]
-    elif type == "communications":
-        if needle:
-            entries = [
-                item for item in entries
-                if (
-                    any(
-                        needle in str(item.get(field) or "").lower()
-                        for field in (
-                            "client_ip", "server_ip", "transport_protocol", "service"
-                        )
-                    )
-                    or (needle.isdecimal() and str(item.get("service_port")) == needle)
+    # Count all records once when browsing, but keep only the selected page
+    # and a 25-row fallback if the user requests a page beyond the end.
+    with path.open("rb") as handle:
+        for item in ijson.items(handle, prefix):
+            if type == "interfaces":
+                matched = (
+                    not needle
+                    or needle in item.get("mac", "").lower()
+                    or any(needle in ip.lower() for ip in item.get("ips", []))
                 )
-            ]
-        if min_packets > 1:
-            entries = [item for item in entries if item.get("packet_count", 0) >= min_packets]
+            else:
+                matched = (
+                    (not needle or
+                     any(needle in str(item.get(key) or "").lower()
+                         for key in ("client_ip", "server_ip",
+                                     "transport_protocol", "service"))
+                     or (needle.isdecimal()
+                         and str(item.get("service_port")) == needle))
+                    and item.get("packet_count", 0) >= min_packets
+                )
+            if not matched:
+                continue
+            if start <= count < end:
+                results.append(item)
+            count += 1
+            last_page_rows.append(item)
 
     page_size = 25
-    count = len(entries)
     total_pages = max(1, (count + page_size - 1) // page_size)
     current_page = min(page, total_pages)
-    start = (current_page - 1) * page_size
+    if current_page != page:
+        tail = count % page_size or (page_size if count else 0)
+        results = list(last_page_rows)[-tail:] if tail else []
 
+    # For the summary, count the other array without loading it in RAM.
+    other = "communications.item" if type == "interfaces" else "interfaces.item"
+    other_count = 0
+    with path.open("rb") as handle:
+        for _ in ijson.items(handle, other):
+            other_count += 1
     return {
-        "capture": analysis.get("capture"),
-        "schema_version": analysis.get("schema_version"),
-        "interfaces_detected": len(interfaces),
-        "communications_detected": len(communications),
+        "capture": {
+            "pcap_id": pcap_id,
+            "filename": pcap_path.name,
+            "relative_path": get_relative_path(pcap_path),
+        },
+        "schema_version": "0.2",
+        "interfaces_detected": count if type == "interfaces" and not needle
+                               else other_count if type == "communications" else 0,
+        "communications_detected": count if type == "communications" and not needle
+                                  and min_packets == 1
+                                  else other_count if type == "interfaces" else 0,
         "count": count,
         "page": current_page,
         "page_size": page_size,
-        "results": entries[start:start + page_size],
+        "results": results,
     }
