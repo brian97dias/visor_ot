@@ -583,7 +583,9 @@ def execute_run(run, pacer, fetcher=fetch_page):
                 details["status"] = "COMPLETED"
                 details["catalogue_complete"] = True
                 details["level_result"] = (
-                    "SUFFICIENT_PERTINENT_CANDIDATES"
+                    "EXPLORATORY_BRAND_MATCHES"
+                    if step["level"] == "ALTERNATIVE" and details.get("exploratory_results")
+                    else "SUFFICIENT_PERTINENT_CANDIDATES"
                     if details["pertinent_results"] else "NO_PERTINENT_CANDIDATES"
                 )
                 if details.get("candidate_limit_reached"):
