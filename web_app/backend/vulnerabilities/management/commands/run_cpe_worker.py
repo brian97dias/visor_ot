@@ -63,8 +63,19 @@ class Command(BaseCommand):
                 ).select_related("cache").order_by("created_at", "pk").first()
                 # Fair scheduling by original enqueue time. Legacy asset jobs
                 # and shared catalogue jobs never launch simultaneous NVD calls.
+                # A run waiting on its own shared catalogue cannot make
+                # progress until that snapshot has been processed. Prioritize
+                # queued/incomplete snapshots to avoid starving them behind
+                # the older requesting run.
+                waiting_for_catalogue = bool(
+                    run and run.queries
+                    and run.queries[-1].get("status") == "WAITING_CATALOGUE"
+                )
                 choose_legacy = run is not None and (
-                    snapshot is None or run.created_at <= snapshot.created_at
+                    snapshot is None or (
+                        not waiting_for_catalogue
+                        and run.created_at <= snapshot.created_at
+                    )
                 )
                 if choose_legacy:
                     self.stdout.write(f"Buscando CPE: trabajo #{run.pk}, activo #{run.asset_id}")
