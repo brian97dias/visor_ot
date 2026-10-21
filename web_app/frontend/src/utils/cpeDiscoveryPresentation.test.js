@@ -60,3 +60,18 @@ test("exploratory candidate shares existing card and retains its reason",()=>{
  assert.match(info.reason,/modelo distinto/);
  assert.equal(info.tone,"related");
 });
+
+test("cross-vendor discovery is level four and never a technical confirmation",()=>{
+ const groups=groupCpeQueries([{level:"ALTERNATIVE",strategy:"keywordSearch",
+   parameter:"Hirschmann EAGLE20",pages:1,retrieved:1,status:"COMPLETED",
+   exploratory_results:1,level_result:"NO_PERTINENT_CANDIDATES"}]);
+ assert.equal(groups[0].level,"ALTERNATIVE");
+ assert.match(levelName("ALTERNATIVE"),/Investigación alternativa/);
+ const c=describeCandidate({match_level:"EXPLORATORY",
+   match_reason:"Fabricante NVD belden; inventario Hirschmann",
+   discovery_levels:["ALTERNATIVE"],methods:["keywordSearch"]});
+ assert.equal(c.tone,"related");
+ assert.equal(c.levels[0],levelName("ALTERNATIVE"));
+ assert.deepEqual(c.methods,["keywordSearch"]);
+ assert.match(c.reason,/belden/);
+});
