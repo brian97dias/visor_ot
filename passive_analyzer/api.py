@@ -1,5 +1,6 @@
 from typing import Literal
 import json
+from functools import lru_cache
 
 from fastapi.responses import StreamingResponse
 
@@ -237,6 +238,17 @@ def stream_analysis_import(pcap_id: str):
     return StreamingResponse(rows(), media_type="application/x-ndjson")
 
 
+@lru_cache(maxsize=256)
+def _count_output_entries(path, size, mtime_ns, prefix):
+    """Cache summary counts until the analysis file actually changes."""
+    import ijson
+    count = 0
+    with open(path, "rb") as handle:
+        for _ in ijson.items(handle, prefix):
+            count += 1
+    return count
+
+
 @app.get("/api/v1/pcaps/{pcap_id}/analysis/observations")
 def get_analysis_observations(
     pcap_id: str,
@@ -306,10 +318,10 @@ def get_analysis_observations(
 
     # For the summary, count the other array without loading it in RAM.
     other = "communications.item" if type == "interfaces" else "interfaces.item"
-    other_count = 0
-    with path.open("rb") as handle:
-        for _ in ijson.items(handle, other):
-            other_count += 1
+    stat = path.stat()
+    other_count = _count_output_entries(
+        str(path), stat.st_size, stat.st_mtime_ns, other
+    )
     return {
         "capture": {
             "pcap_id": pcap_id,
