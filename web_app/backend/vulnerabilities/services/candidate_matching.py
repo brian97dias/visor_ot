@@ -3,6 +3,8 @@ import re
 from .nvd_references import safe_references, combine_references
 from .identity import (
     normalized, cpu_spelling, family_term, vendor_variants, catalog_code_prefix,
+    _software_product_spellings, software_version_in_branch, SOFTWARE_CPE_PARTS,
+    ascii_text,
 )
 
 
@@ -211,7 +213,54 @@ def classify_alternative_vendor(candidate, identity):
     )
 
 
+def _software_product_match(cpe_product, identity):
+    """Compare complete CPE product tokens, never IOS with IOS XE as exact."""
+    spellings = _software_product_spellings(
+        identity.get("product") or "", identity.get("manufacturer") or ""
+    )
+    product = cpe_product.casefold()
+    if product in spellings:
+        return "EXACT"
+    if any(product.startswith(v + sep) for v in spellings for sep in ("_", "-")):
+        return "RELATED"
+    return "NONE"
+
+
+def classify_software(candidate, identity):
+    """Explain a possible CPE software association; NEVER validate a version."""
+    name = candidate["cpe_name"]
+    part = SOFTWARE_CPE_PARTS.get(identity.get("software_type"))
+    if _cpe_part(name, 2) != part:
+        return "POSSIBLE_INCOMPATIBILITY", "La parte CPE no corresponde al tipo de software."
+    if not matches_vendor(_cpe_part(name, 3), identity):
+        return "POSSIBLE_INCOMPATIBILITY", "El fabricante del CPE difiere del inventario."
+    product = _software_product_match(_cpe_part(name, 4), identity)
+    if product == "NONE":
+        return "POSSIBLE_INCOMPATIBILITY", "El producto CPE no corresponde al software inventariado."
+    if product == "RELATED":
+        return ("EXPLORATORY", "El producto comparte una denominación con el inventario, "
+                "pero es otro producto o variante; requiere investigación.")
+
+    recorded = ascii_text(identity.get("version")).strip().casefold()
+    cpe_version = re.sub(r"\\(.)", r"\1", _cpe_part(name, 5)).casefold()
+    if not recorded:
+        return ("SOFTWARE_PRODUCT", "Coinciden fabricante y producto; "
+                "el inventario no registra una versión.")
+    if cpe_version == recorded:
+        return ("SOFTWARE_EXACT", "Fabricante, producto y versión CPE coinciden "
+                "textualmente con el inventario; no es una confirmación automática.")
+    if software_version_in_branch(recorded, cpe_version):
+        return ("SOFTWARE_BRANCH", f"Producto coincidente y versión NVD "
+                f"«{cpe_version}» perteneciente a la rama inventariada «{recorded}». "
+                "No demuestra que esta variante esté instalada.")
+    return ("SOFTWARE_PRODUCT", f"Fabricante y producto coincidentes, pero la "
+            f"versión NVD «{cpe_version}» difiere de la versión "
+            f"inventariada «{recorded}» o no está especificada.")
+
+
 def classify(candidate, identity):
+    if identity.get("asset_type") == "SOFTWARE":
+        return classify_software(candidate, identity)
     cpe_name = candidate["cpe_name"]
     if _cpe_part(cpe_name, 2) != "h":
         return "POSSIBLE_INCOMPATIBILITY", "Este CPE no identifica hardware (tipo h)."
@@ -273,6 +322,12 @@ def is_manufacturer_related(candidate, identity):
     products are not evidence for the inventoried model and must not consume
     candidate storage. Classifications remain suggestions, not validations.
     """
+    if identity.get("asset_type") == "SOFTWARE":
+        return (candidate.get("match_level") in (
+            "SOFTWARE_EXACT", "SOFTWARE_BRANCH", "SOFTWARE_PRODUCT", "EXPLORATORY"
+        ) and matches_vendor(_cpe_part(candidate.get("cpe_name", ""), 3), identity)
+            and _cpe_part(candidate.get("cpe_name", ""), 2)
+            == SOFTWARE_CPE_PARTS.get(identity.get("software_type")))
     if _cpe_part(candidate.get("cpe_name", ""), 2) != "h":
         return False
     if not matches_vendor(_cpe_part(candidate["cpe_name"], 3), identity):
@@ -288,6 +343,10 @@ def is_pertinent(candidate, identity):
     Candidate != confirmed AssetCpe. A related family-only result with
     unknown CPU never becomes a definitive match automatically.
     """
+    if identity.get("asset_type") == "SOFTWARE":
+        return (not candidate.get("deprecated")
+                and candidate.get("match_level") == "SOFTWARE_EXACT"
+                and is_manufacturer_related(candidate, identity))
     cpe_name = candidate.get("cpe_name", "")
     if (_cpe_part(cpe_name, 2) != "h" or candidate.get("deprecated")
             or not matches_vendor(_cpe_part(cpe_name, 3), identity)):
@@ -303,7 +362,9 @@ def is_pertinent(candidate, identity):
 
 
 PRIORITY = {
-    "SPECIFIC": 0, "FAMILY": 1, "RELATED": 2,
+    "SPECIFIC": 0, "SOFTWARE_EXACT": 0,
+    "FAMILY": 1, "SOFTWARE_BRANCH": 1,
+    "RELATED": 2, "SOFTWARE_PRODUCT": 2,
     "NEEDS_INFO": 3, "EXPLORATORY": 4, "POSSIBLE_INCOMPATIBILITY": 5,
 }
 
@@ -314,9 +375,10 @@ def normalize_candidate(record, identity, strategy):
     name = cpe.get("cpeName")
     if not isinstance(name_id, str) or not isinstance(name, str):
         return None
-    # keywordSearch can return hardware, firmware/OS and applications.
-    # Phase 1 inventories hardware only; keep other CPE types out of results.
-    if _cpe_part(name, 2) != "h":
+    # Only the CPE part appropriate to this *inventoried* asset is accepted.
+    expected_part = (SOFTWARE_CPE_PARTS.get(identity.get("software_type"))
+                     if identity.get("asset_type") == "SOFTWARE" else "h")
+    if _cpe_part(name, 2) != expected_part:
         return None
     titles = cpe.get("titles")
     titles = titles if isinstance(titles, list) else []
@@ -340,7 +402,10 @@ def normalize_candidate(record, identity, strategy):
     }
     item["match_level"], item["match_reason"] = classify(item, identity)
     if item["match_level"] == "EXPLORATORY":
-        item["exploratory_distance"] = _exploratory_proximity(item, identity)[0]
+        item["exploratory_distance"] = (
+            0 if identity.get("asset_type") == "SOFTWARE"
+            else _exploratory_proximity(item, identity)[0]
+        )
     return item
 
 
@@ -374,4 +439,14 @@ def hardware_candidates(candidates):
         item for item in (candidates or [])
         if isinstance(item, dict) and isinstance(item.get("cpe_name"), str)
         and _cpe_part(item["cpe_name"], 2) == "h"
+    ]
+
+def candidates_for_identity(candidates, identity):
+    """Filter stored NVD candidates by the actual inventoried CPE part."""
+    part = (SOFTWARE_CPE_PARTS.get(identity.get("software_type"))
+            if identity.get("asset_type") == "SOFTWARE" else "h")
+    return [
+        row for row in (candidates or [])
+        if isinstance(row, dict) and isinstance(row.get("cpe_name"), str)
+        and _cpe_part(row["cpe_name"], 2) == part
     ]
