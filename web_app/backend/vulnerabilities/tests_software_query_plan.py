@@ -8,6 +8,7 @@ from assets.models import Asset
 from vulnerabilities.services.identity import (
     software_identity, hardware_identity, build_cpe_match_plan,
     build_software_cpe_match_plan, build_alternative_keyword_plan,
+    software_numeric_model, software_numeric_prefixes,
     fingerprint, software_version_in_branch,
 )
 from vulnerabilities.tests_query_plan import SIEMENS, ADAM, ROCKWELL
@@ -125,6 +126,51 @@ class SoftwareCpePlanPhase1Tests(SimpleTestCase):
         self.assertEqual(series_query["version_scope"], "RELATED_SERIES")
         self.assertTrue(series_query["requires_local_version_filter"])
         self.assertEqual(plan, build_software_cpe_match_plan(identity))
+
+    def test_axis_206_firmware_has_bounded_numeric_prefixes_in_priority_order(self):
+        identity = {
+            "asset_type": "SOFTWARE", "software_type": "OS",
+            "manufacturer": "Axis Communications",
+            "product": "AXIS 206 Firmware", "version": "",
+        }
+        self.assertEqual(software_numeric_model("AXIS 206 Firmware", "Axis Communications"), "206")
+        self.assertEqual(
+            software_numeric_prefixes("AXIS 206 Firmware", "Axis Communications"),
+            ["206*", "20*"],
+        )
+        plan = build_software_cpe_match_plan(identity)
+        parameters = [query["parameter"] for query in plan]
+        self.assertIn("cpe:2.3:o:axis:206_firmware:*", parameters)
+        self.assertIn("cpe:2.3:o:axis:206*", parameters)
+        self.assertIn("cpe:2.3:o:axis:20*", parameters)
+        self.assertIn("cpe:2.3:o:axis:*", parameters)
+        self.assertLess(
+            parameters.index("cpe:2.3:o:axis:206_firmware:*"),
+            parameters.index("cpe:2.3:o:axis:206*"),
+        )
+        self.assertLess(
+            parameters.index("cpe:2.3:o:axis:206*"),
+            parameters.index("cpe:2.3:o:axis:20*"),
+        )
+        self.assertLess(
+            parameters.index("cpe:2.3:o:axis:20*"),
+            parameters.index("cpe:2.3:o:axis:*"),
+        )
+        numeric = [q for q in plan if q.get("version_scope") == "NUMERIC_MODEL_PREFIX"]
+        self.assertEqual(len(numeric), 8)
+        self.assertTrue(all(q["level"] == "FAMILY" for q in numeric))
+        self.assertTrue(all(q["requires_local_version_filter"] for q in numeric))
+        self.assertEqual(plan, build_software_cpe_match_plan(identity))
+
+    def test_numeric_firmware_plan_never_guesses_numbers_from_unrelated_software(self):
+        self.assertEqual(software_numeric_model("Cisco IOS 12.1", "Cisco"), "")
+        self.assertEqual(software_numeric_model("AXIS 2060 Camera", "Axis Communications"), "")
+        self.assertEqual(software_numeric_model("AXIS 206 Firmware 2.1", "Axis Communications"), "")
+        self.assertEqual(software_numeric_prefixes("AXIS 206 Firmware", "Unrelated Vendor"), [])
+        self.assertNotIn(
+            "NUMERIC_MODEL_PREFIX",
+            [q["version_scope"] for q in build_software_cpe_match_plan(ios())],
+        )
 
     def test_software_series_fallback_is_not_generated_for_generic_products(self):
         self.assertNotIn("RELATED_SERIES", [
