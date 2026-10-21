@@ -302,7 +302,7 @@ def build_alternative_keyword_plan(identity):
     if not manufacturer or not model:
         raise ValueError("Faltan fabricante o modelo para la búsqueda alternativa.")
     # Keyword API grammar also forbids arbitrary URL/query injection.
-    if any(not re.fullmatch(r"[\\w ./-]+", ascii_text(part))
+    if any(not re.fullmatch(r"[A-Za-z0-9 _./-]+", ascii_text(part))
            for part in (manufacturer, model)):
         raise ValueError("La identidad no admite búsqueda textual alternativa.")
     specific = compact(ascii_text(manufacturer) + " " + ascii_text(model))
