@@ -455,6 +455,30 @@ def software_series_stem(product, manufacturer):
     return series
 
 
+def software_numeric_model(product, manufacturer):
+    """Extract a whole numeric firmware model after verified vendor stripping.
+
+    Axis Communications / AXIS 206 Firmware -> 206. The source product must
+    explicitly contain 'firmware'; numbers embedded in generic software names
+    or version fields must never become model identifiers.
+    """
+    forms = _software_product_spellings(product, manufacturer)
+    match = re.fullmatch(r"([0-9]{3,6})_firmware", forms[0])
+    return match.group(1) if match else ""
+
+
+def software_numeric_prefixes(product, manufacturer):
+    """Bounded, less specific CPE product prefixes; discovery evidence only.
+
+    206_firmware -> 206*, 20*. No one-digit prefix, no change to inventory
+    and no implication that 207W firmware is compatible with model 206.
+    """
+    model = software_numeric_model(product, manufacturer)
+    if not model:
+        return []
+    return list(dict.fromkeys((model + "*", model[:-1] + "*")))
+
+
 def _software_cpe_version(version):
     """Escape CPE 2.3 special characters, preserving Cisco version suffixes.
 
@@ -558,6 +582,14 @@ def build_software_cpe_match_plan(identity):
     if series:
         for vendor in vendors:
             add("FAMILY", vendor, series + "*", None, "RELATED_SERIES",
+                local_filter=True)
+
+    # Share hardware's progressive numeric-model discovery technique, but only
+    # for an explicitly inventoried firmware product with a numeric model.
+    # The catalogue classifier (not this query) decides weak proximity.
+    for prefix in software_numeric_prefixes(product, manufacturer):
+        for vendor in vendors:
+            add("FAMILY", vendor, prefix, None, "NUMERIC_MODEL_PREFIX",
                 local_filter=True)
 
     for vendor in vendors:
