@@ -9,8 +9,8 @@ from rest_framework.exceptions import APIException, ValidationError, NotFound
 
 from assets.models import Asset
 from vulnerabilities.models import Cpe, CpeSearchRun, AssetCpe, AssetCpeDecision
-from .candidate_matching import hardware_candidates
-from .identity import fingerprint, hardware_identity
+from .candidate_matching import candidates_for_identity
+from .identity import fingerprint, hardware_identity, software_identity
 from .nvd_references import safe_references
 
 
@@ -32,9 +32,13 @@ def _date(value):
 def current_identity(asset):
     if asset.inventory_status != Asset.InventoryStatus.ACTIVE:
         raise ValidationError({"asset": "No se validan CPE de activos archivados."})
-    if asset.asset_type != Asset.AssetType.HARDWARE:
-        raise ValidationError({"asset": "La validación de software corresponde a la fase 4."})
-    return fingerprint(hardware_identity(asset))
+    try:
+        identity = (software_identity(asset)
+                    if asset.asset_type == Asset.AssetType.SOFTWARE
+                    else hardware_identity(asset))
+    except (ValueError, AttributeError) as error:
+        raise ValidationError({"asset": str(error)}) from error
+    return fingerprint(identity)
 
 
 def select_evidence(asset, run_id, cpe_name_id):
@@ -50,7 +54,7 @@ def select_evidence(asset, run_id, cpe_name_id):
             "run_id": "La identidad técnica cambió; ejecuta otra búsqueda antes de validar."
         })
     candidate = next((
-        row for row in hardware_candidates(run.candidates)
+        row for row in candidates_for_identity(run.candidates, run.identity_snapshot)
         if str(row.get("cpe_name_id", "")).lower() == str(cpe_name_id).lower()
     ), None)
     if candidate is None:
@@ -209,7 +213,10 @@ def serialize_association(association, current_fingerprint, fallback=None):
 
 def list_associations(asset):
     try:
-        current = fingerprint(hardware_identity(asset))
+        identity = (software_identity(asset)
+                    if asset.asset_type == Asset.AssetType.SOFTWARE
+                    else hardware_identity(asset))
+        current = fingerprint(identity)
     except (ValueError, AttributeError):
         current = ""
     associations = list(AssetCpe.objects.filter(asset=asset).select_related(
@@ -234,7 +241,11 @@ def list_associations(asset):
             .values("id", "candidates")[:10]
         )
         for search in completed:
-            for candidate in hardware_candidates(search["candidates"]):
+            for candidate in candidates_for_identity(
+                search["candidates"],
+                (software_identity(asset) if asset.asset_type == Asset.AssetType.SOFTWARE
+                 else hardware_identity(asset))
+            ):
                 identifier = str(candidate.get("cpe_name_id", "")).lower()
                 if identifier not in missing_ids or identifier in recent_products:
                     continue
