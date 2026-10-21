@@ -59,7 +59,7 @@ class StructuredAutomaticDiscoveryTests(TestCase):
             user=self.actor,
         )
 
-    def run(self, asset):
+    def make_run(self, asset):
         identity = hardware_identity(asset)
         return CpeSearchRun.objects.create(
             asset=asset, requested_by=self.actor, scope="SPECIFIC",
@@ -67,7 +67,7 @@ class StructuredAutomaticDiscoveryTests(TestCase):
         )
 
     def test_siemens_specific_match_stops_before_general_and_uses_only_cpe(self):
-        run = self.run(self.hardware("Siemens", "SIMATIC S7-1200", "1215C"))
+        run = self.make_run(self.hardware("Siemens", "SIMATIC S7-1200", "1215C"))
         official = product("siemens", "simatic_s7-1200_cpu_1215c")
         seen = []
         def fetch(strategy, parameter, start, pacer):
@@ -86,7 +86,7 @@ class StructuredAutomaticDiscoveryTests(TestCase):
         self.assertFalse(AssetCpe.objects.exists())
 
     def test_advantech_expands_to_adam_then_queues_complete_catalogue(self):
-        run = self.run(self.hardware("Advantech", "ADAM-5000 Series"))
+        run = self.make_run(self.hardware("Advantech", "ADAM-5000 Series"))
         related = [
             product("advantech", "adam-3600"),
             product("advantech", "adam-5630"),
@@ -124,8 +124,8 @@ class StructuredAutomaticDiscoveryTests(TestCase):
         self.assertFalse(AssetCpeDecision.objects.exists())
 
     def test_reuses_manufacturer_snapshot_between_different_assets(self):
-        first = self.run(self.hardware("Advantech", "ADAM-5000 Series"))
-        second = self.run(self.hardware("Advantech", "ADAM-5000 Series"))
+        first = self.make_run(self.hardware("Advantech", "ADAM-5000 Series"))
+        second = self.make_run(self.hardware("Advantech", "ADAM-5000 Series"))
         fetch = lambda strategy, parameter, start, pacer: reply([])
         first = execute_run(first, object(), fetcher=fetch)
         self.assertEqual(first.status, "QUEUED")
@@ -145,7 +145,7 @@ class StructuredAutomaticDiscoveryTests(TestCase):
         self.assertTrue(second.queries[-1]["cache_reused"])
 
     def test_partial_specific_page_never_proves_absence_or_falls_back(self):
-        run = self.run(self.hardware("Siemens", "SIMATIC S7-1200", "1215C"))
+        run = self.make_run(self.hardware("Siemens", "SIMATIC S7-1200", "1215C"))
         calls = []
         def fetch(strategy, parameter, start, pacer):
             calls.append((strategy, parameter, start))
@@ -161,7 +161,7 @@ class StructuredAutomaticDiscoveryTests(TestCase):
         self.assertFalse(CpeQuerySnapshot.objects.exists())
 
     def test_rockwell_variants_progress_without_keyword_or_false_confirmation(self):
-        run = self.run(self.hardware("Rockwell Automation", "1783-EMS08T/B"))
+        run = self.make_run(self.hardware("Rockwell Automation", "1783-EMS08T/B"))
         related = product("rockwellautomation", "1783-natr")
         seen = []
         def fetch(strategy, parameter, start, pacer):
@@ -178,7 +178,7 @@ class StructuredAutomaticDiscoveryTests(TestCase):
         self.assertFalse(AssetCpe.objects.exists())
 
     def test_failed_catalogue_marks_run_failed_and_preserves_candidate_evidence(self):
-        run = self.run(self.hardware("Advantech", "ADAM-5000 Series"))
+        run = self.make_run(self.hardware("Advantech", "ADAM-5000 Series"))
         related = product("advantech", "adam-5550")
         out = execute_run(run, object(), fetcher=lambda s, p, i, pacer:
                           reply([related] if p.endswith(":adam*") else []))
@@ -197,7 +197,7 @@ class StructuredAutomaticDiscoveryTests(TestCase):
         self.assertEqual(len(out.candidates), 1)
 
     def test_fetch_failure_retains_partial_evidence_without_general_fallback(self):
-        run = self.run(self.hardware("Siemens", "SIMATIC S7-1200", "1215C"))
+        run = self.make_run(self.hardware("Siemens", "SIMATIC S7-1200", "1215C"))
         calls = []
         def failed(strategy, parameter, start, pacer):
             calls.append(start)
