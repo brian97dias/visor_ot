@@ -6,9 +6,13 @@ from rest_framework.exceptions import ValidationError
 from assets.models import Asset
 from vulnerabilities.models import CpeSearchRun, CpeQuerySnapshot, CpeQueryProduct
 
-from .identity import hardware_identity, fingerprint, build_queries, build_level_queries, build_cpe_match_plan, build_alternative_keyword_plan
+from .identity import (
+    hardware_identity, software_identity, fingerprint, build_queries,
+    build_level_queries, build_cpe_match_plan, build_software_cpe_match_plan,
+    build_alternative_keyword_plan,
+)
 from .candidate_matching import (
-    normalize_candidate, merge_candidates, hardware_candidates,
+    normalize_candidate, merge_candidates, hardware_candidates, candidates_for_identity,
     is_pertinent, is_manufacturer_related, classify_alternative_vendor,
 )
 from .nvd_client import fetch_page, PAGE_SIZE, MAX_PAGES_PER_STRATEGY, MAX_TOTAL_CANDIDATES
@@ -33,9 +37,15 @@ def create_run(asset_id, user, scope, *, return_reused=False):
         # Access to asset.hardware below performs a separate query inside
         # this transaction, after the Asset row has been locked.
         asset = Asset.objects.select_for_update().get(pk=asset_id)
-        identity = hardware_identity(asset)
+        if asset.inventory_status != Asset.InventoryStatus.ACTIVE:
+            raise ValidationError({"asset": "Solo se buscan CPE de activos vigentes."})
+        identity = (software_identity(asset) if asset.asset_type == Asset.AssetType.SOFTWARE
+                    else hardware_identity(asset))
         try:
-            build_cpe_match_plan(identity)
+            if identity["asset_type"] == "SOFTWARE":
+                build_software_cpe_match_plan(identity)
+            else:
+                build_cpe_match_plan(identity)
         except ValueError as error:
             raise ValidationError({"identity": str(error)}) from error
         digest = fingerprint(identity)
@@ -421,7 +431,10 @@ def _record_candidate(row, run, level, dedup, details, *, alternative=False):
     )
     if item is None:
         return
-    details["hardware_results"] += 1
+    if run.identity_snapshot.get("asset_type") == "SOFTWARE":
+        details["software_results"] = details.get("software_results", 0) + 1
+    else:
+        details["hardware_results"] += 1
     brand_discrepancy = (
         classify_alternative_vendor(item, run.identity_snapshot)
         if alternative else None
@@ -462,6 +475,14 @@ def _record_candidate(row, run, level, dedup, details, *, alternative=False):
                 del dedup[worst["cpe_name_id"]]
                 item["discovery_levels"] = [level]
                 dedup[key] = item
+    elif run.identity_snapshot.get("asset_type") == "SOFTWARE":
+        # Save representative evidence rather than thousands of IOS versions.
+        # The NVD catalogue itself remains fully checkpointed and reusable.
+        same_level = [v for v in dedup.values()
+                      if v.get("match_level") == item["match_level"]]
+        if len(same_level) < 5:
+            item["discovery_levels"] = [level]
+            dedup[key] = item
     elif sum(v.get("match_level") != "EXPLORATORY" for v in dedup.values()) < MAX_TOTAL_CANDIDATES:
         item["discovery_levels"] = [level]
         dedup[key] = item
@@ -494,10 +515,14 @@ def execute_run(run, pacer, fetcher=fetch_page):
     dedup = {c["cpe_name_id"]: c for c in (run.candidates or [])
              if isinstance(c, dict) and isinstance(c.get("cpe_name_id"), str)}
     try:
-        planned = build_cpe_match_plan(run.identity_snapshot)
+        software = run.identity_snapshot.get("asset_type") == "SOFTWARE"
+        if software:
+            planned = build_software_cpe_match_plan(run.identity_snapshot)
+        else:
+            planned = build_cpe_match_plan(run.identity_snapshot)
+            planned += build_alternative_keyword_plan(run.identity_snapshot)
         if run.scope == CpeSearchRun.Scope.BROAD:
             planned = [q for q in planned if q["level"] != "SPECIFIC"]
-        planned += build_alternative_keyword_plan(run.identity_snapshot)
     except ValueError as exc:
         _persist(run, {
             "status": CpeSearchRun.Status.FAILED, "finished_at": timezone.now(),
@@ -515,13 +540,15 @@ def execute_run(run, pacer, fetcher=fetch_page):
         _persist(run, {"status": CpeSearchRun.Status.RUNNING,
                        "error_message": ""})
     preview_pages = sum(q.get("pages", 0) for q in queries
-                        if q.get("level") != "MANUFACTURER")
+                        if not q.get("snapshot_id"))
     active_details = None
     try:
         for step in planned:
             # Optional keyword investigation is strictly the LAST resort.
             # Neither failures nor partial preceding searches prove absence.
             if step["level"] == "ALTERNATIVE" and (dedup or run.result_truncated):
+                break
+            if software and step.get("version_scope") == "MANUFACTURER_CATALOGUE" and dedup:
                 break
             # Only replay a previously WAITING query; completed queries
             # already have durable evidence and must not be requested again.
@@ -541,7 +568,10 @@ def execute_run(run, pacer, fetcher=fetch_page):
             active_details = details
             if previous is None:
                 queries.append(details)
-            if step["level"] in ("MANUFACTURER", "ALTERNATIVE"):
+            if (step["level"] in ("MANUFACTURER", "ALTERNATIVE")
+                    or (software and step.get("version_scope") in (
+                        "BRANCH_PREFIX", "PRODUCT_CATALOGUE",
+                    ))):
                 if previous:
                     snapshot = CpeQuerySnapshot.objects.select_related("cache").get(
                         pk=details["snapshot_id"]
@@ -596,7 +626,14 @@ def execute_run(run, pacer, fetcher=fetch_page):
                                "candidates": merge_candidates(list(dedup.values())),
                                "result_truncated": run.result_truncated})
                 if (details["pertinent_results"] or details.get("candidate_limit_reached")
-                        or (step["level"] == "ALTERNATIVE" and dedup)):
+                        or (step["level"] == "ALTERNATIVE" and dedup)
+                        or (software and step.get("version_scope") == "BRANCH_PREFIX"
+                            and any(v.get("match_level") == "SOFTWARE_BRANCH"
+                                    for v in dedup.values()))
+                        or (software and step.get("version_scope") == "PRODUCT_CATALOGUE"
+                            and any(v.get("match_level") in (
+                                "SOFTWARE_BRANCH", "SOFTWARE_PRODUCT", "SOFTWARE_EXACT"
+                            ) for v in dedup.values()))):
                     break
                 continue
 
@@ -674,11 +711,14 @@ def execute_run(run, pacer, fetcher=fetch_page):
 
 def serialize_run(run):
     try:
-        current = fingerprint(hardware_identity(run.asset))
-        is_current = run.identity_fingerprint == current
+        identity = (software_identity(run.asset)
+                    if run.asset.asset_type == Asset.AssetType.SOFTWARE
+                    else hardware_identity(run.asset))
+        is_current = run.identity_fingerprint == fingerprint(identity)
     except (ValueError, AttributeError):
+        identity = run.identity_snapshot
         is_current = False
-    candidates = hardware_candidates(run.candidates)
+    candidates = candidates_for_identity(run.candidates, identity)
     return {
         "id": run.pk,
         "asset_id": run.asset_id,
