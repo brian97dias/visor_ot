@@ -6,7 +6,11 @@ from ingestion.models import (
     InterfaceObservation,
 )
 
-from .analyzer_client import get_pcap_analysis
+from .analyzer_client import (
+    get_pcap_analysis,
+    get_pcap_import_manifest,
+    stream_pcap_analysis,
+)
 from network.services.consolidation import (
     consolidate_communication_observations,
 )
@@ -111,252 +115,169 @@ def validate_analysis(
     )
 
 
-def import_analysis(
-    pcap_id,
-    user,
-):
+IMPORT_BATCH_SIZE = 100  # Small enough for SQLite test limits and PostgreSQL.
 
-    # La llamada HTTP al Passive Analyzer
-    # ocurre fuera de la transacción.
-    analysis = get_pcap_analysis(
-        pcap_id
+
+def _make_interface(ingestion, item):
+    return InterfaceObservation(
+        ingestion=ingestion,
+        mac=item["mac"], ips=item.get("ips", []),
+        first_seen=item["first_seen"], last_seen=item["last_seen"],
     )
 
 
-    (
-        capture,
-        interfaces,
-        communications,
-    ) = validate_analysis(
-        analysis,
-        pcap_id,
+def _make_communication(ingestion, item):
+    return CommunicationObservation(
+        ingestion=ingestion,
+        client_ip=item["client_ip"],
+        server_ip=item["server_ip"],
+        client_macs=item.get("client_macs"),
+        server_macs=item.get("server_macs"),
+        transport_protocol=item["transport_protocol"],
+        service_port=item["service_port"],
+        service=item.get("service"),
+        role_source=item.get("role_source"),
+        packet_count=item["packet_count"],
+        first_seen=item["first_seen"],
+        last_seen=item["last_seen"],
+        network_scope=item.get("network_scope"),
     )
 
 
-    analysis_hash = (
-        calculate_analysis_hash(
-            analysis
+def _persist_communication_batch(rows):
+    """Store and consolidate one bounded batch, never 500k ORM instances."""
+    if not rows:
+        return
+    created = CommunicationObservation.objects.bulk_create(
+        rows, batch_size=IMPORT_BATCH_SIZE
+    )
+    if any(row.pk is None for row in created):
+        raise ImportValidationError(
+            "La base de datos no devolvió identificadores de observaciones."
         )
+    consolidate_communication_observations(
+        created, batch_size=IMPORT_BATCH_SIZE
     )
+    rows.clear()
 
+
+def _persist_interface_batch(rows):
+    if not rows:
+        return
+    InterfaceObservation.objects.bulk_create(
+        rows, batch_size=IMPORT_BATCH_SIZE
+    )
+    rows.clear()
+
+
+def import_analysis(pcap_id, user):
+    """Import a validated analyzer stream with bounded RAM and atomic writes.
+
+    Crucially, this never calls get_pcap_analysis (which downloads a huge JSON)
+    or builds a list of all communication ORM objects.
+    """
+    manifest = get_pcap_import_manifest(pcap_id)
+    capture = manifest.get("capture")
+    analysis_hash = manifest.get("analysis_hash")
+    if manifest.get("schema_version") != SUPPORTED_SCHEMA_VERSION:
+        raise ImportValidationError("Schema del análisis no soportado.")
+    if not isinstance(capture, dict) or capture.get("pcap_id") != pcap_id:
+        raise ImportValidationError("La identidad del PCAP no coincide.")
+    if not isinstance(analysis_hash, str) or len(analysis_hash) != 64:
+        raise ImportValidationError("El análisis no tiene hash válido.")
+    if not capture.get("filename") or not capture.get("relative_path"):
+        raise ImportValidationError("Faltan los datos de la captura.")
 
     with transaction.atomic():
-
-        # Bloqueamos las ingestas de este PCAP
-        # mientras decidimos qué hacer.
-        existing_ingestion = (
-            Ingestion.objects
-            .select_for_update()
-            .filter(
-                pcap_id=pcap_id,
-                analysis_hash=analysis_hash,
-            )
-            .first()
+        existing = (
+            Ingestion.objects.select_for_update()
+            .filter(pcap_id=pcap_id, analysis_hash=analysis_hash).first()
         )
-
-
-        # CASO 1 y 2:
-        # ya conocemos exactamente este análisis.
-        if existing_ingestion:
-
-            # Vínculos de interfaces de importaciones antiguas o repetidas.
-            consolidate_interface_observations(
-                existing_ingestion.interface_observations.all()
-            )
-
-            consolidate_communication_observations(
-                existing_ingestion
-                .communication_observations
-                .all()
-            )
-
-
-            if (
-                existing_ingestion.status
-                == Ingestion.Status.ACTIVE
-            ):
-
-                return (
-                    existing_ingestion,
-                    "ALREADY_IMPORTED",
-                )
-
-
-            # El mismo análisis existe,
-            # pero estaba excluido.
+        if existing:
+            if existing.status == Ingestion.Status.ACTIVE:
+                return existing, "ALREADY_IMPORTED"
             Ingestion.objects.filter(
-                pcap_id=pcap_id,
-                status=Ingestion.Status.ACTIVE,
-            ).exclude(
-                pk=existing_ingestion.pk
-            ).update(
-                status=Ingestion.Status.EXCLUDED
-            )
+                pcap_id=pcap_id, status=Ingestion.Status.ACTIVE
+            ).exclude(pk=existing.pk).update(status=Ingestion.Status.EXCLUDED)
+            existing.status = Ingestion.Status.ACTIVE
+            existing.save(update_fields=["status"])
+            # Original observation evidence is preserved; links were saved
+            # during the initial import and do not need to be recomputed.
+            return existing, "REACTIVATED"
 
-
-            existing_ingestion.status = (
-                Ingestion.Status.ACTIVE
-            )
-
-            existing_ingestion.save(
-                update_fields=[
-                    "status",
-                ]
-            )
-
-
-            return (
-                existing_ingestion,
-                "REACTIVATED",
-            )
-
-        # CASO 3:
-        # mismo PCAP, pero análisis distinto.
-        #
-        # Primero excluimos la versión activa
-        # anterior para respetar la restricción
-        # unique_active_ingestion_per_pcap.
         Ingestion.objects.filter(
-            pcap_id=pcap_id,
+            pcap_id=pcap_id, status=Ingestion.Status.ACTIVE
+        ).update(status=Ingestion.Status.EXCLUDED)
+        ingestion = Ingestion.objects.create(
+            pcap_id=pcap_id, analysis_hash=analysis_hash,
+            filename=capture["filename"],
+            relative_path=capture["relative_path"],
+            schema_version=manifest["schema_version"], imported_by=user,
             status=Ingestion.Status.ACTIVE,
-        ).update(
-            status=Ingestion.Status.EXCLUDED
+            interfaces_detected=0, communications_detected=0,
         )
 
+        interfaces = []
+        communications = []
+        interface_count = 0
+        communication_count = 0
+        seen_communications = False
+        try:
+            with stream_pcap_analysis(pcap_id) as lines:
+                for line in lines:
+                    if not line:
+                        continue
+                    if len(line) > 65536:
+                        raise ImportValidationError(
+                            "Una observación excede el tamaño permitido."
+                        )
+                    item = json.loads(line)
+                    if not isinstance(item, dict) or not isinstance(item.get("data"), dict):
+                        raise ImportValidationError("Registro del análisis inválido.")
+                    kind, data = item.get("type"), item["data"]
+                    if kind == "interface":
+                        if seen_communications:
+                            raise ImportValidationError(
+                                "Las interfaces deben preceder a las comunicaciones."
+                            )
+                        interfaces.append(_make_interface(ingestion, data))
+                        interface_count += 1
+                        if len(interfaces) >= IMPORT_BATCH_SIZE:
+                            _persist_interface_batch(interfaces)
+                    elif kind == "communication":
+                        if not seen_communications:
+                            seen_communications = True
+                            _persist_interface_batch(interfaces)
+                            consolidate_interface_observations(
+                                InterfaceObservation.objects.filter(ingestion=ingestion)
+                            )
+                        communications.append(_make_communication(ingestion, data))
+                        communication_count += 1
+                        if len(communications) >= IMPORT_BATCH_SIZE:
+                            _persist_communication_batch(communications)
+                    else:
+                        raise ImportValidationError("Tipo de observación desconocido.")
+        except (ValueError, TypeError, KeyError, UnicodeError) as error:
+            raise ImportValidationError(
+                "El analizador envió una observación inválida; la importación "
+                "se ha revertido."
+            ) from error
 
-        ingestion = (
-            Ingestion.objects.create(
-                pcap_id=pcap_id,
-                analysis_hash=analysis_hash,
-
-                filename=capture[
-                    "filename"
-                ],
-
-                relative_path=capture[
-                    "relative_path"
-                ],
-
-                schema_version=analysis[
-                    "schema_version"
-                ],
-
-                imported_by=user,
-
-                status=(
-                    Ingestion.Status.ACTIVE
-                ),
-
-                interfaces_detected=len(
-                    interfaces
-                ),
-
-                communications_detected=len(
-                    communications
-                ),
+        _persist_interface_batch(interfaces)
+        if not seen_communications:
+            consolidate_interface_observations(
+                InterfaceObservation.objects.filter(ingestion=ingestion)
             )
-        )
+        _persist_communication_batch(communications)
 
-
-        InterfaceObservation.objects.bulk_create([
-            InterfaceObservation(
-                ingestion=ingestion,
-
-                mac=item[
-                    "mac"
-                ],
-
-                ips=item.get(
-                    "ips",
-                    [],
-                ),
-
-                first_seen=item[
-                    "first_seen"
-                ],
-
-                last_seen=item[
-                    "last_seen"
-                ],
+        # Detect analysis replacements during long imports and roll back if
+        # the immutable identity changed while the file was being read.
+        after = get_pcap_import_manifest(pcap_id)
+        if after.get("analysis_hash") != analysis_hash:
+            raise ImportValidationError(
+                "El análisis cambió durante la importación. Reintenta."
             )
-
-            for item in interfaces
-        ], batch_size=500)
-
-        # Consolida a partir de las filas persistidas para obtener los IDs.
-        # Mantener la operación dentro de la misma transacción de importación.
-        consolidate_interface_observations(
-            InterfaceObservation.objects.filter(ingestion=ingestion)
-        )
-
-        communication_observations = [
-            CommunicationObservation(
-                ingestion=ingestion,
-
-                client_ip=item[
-                    "client_ip"
-                ],
-
-                server_ip=item[
-                    "server_ip"
-                ],
-
-                client_macs=item.get(
-                    "client_macs"
-                ),
-
-                server_macs=item.get(
-                    "server_macs"
-                ),
-
-                transport_protocol=item[
-                    "transport_protocol"
-                ],
-
-                service_port=item[
-                    "service_port"
-                ],
-
-                service=item.get(
-                    "service"
-                ),
-
-                role_source=item.get(
-                    "role_source"
-                ),
-
-                packet_count=item[
-                    "packet_count"
-                ],
-
-                first_seen=item[
-                    "first_seen"
-                ],
-
-                last_seen=item[
-                    "last_seen"
-                ],
-
-                network_scope=item.get(
-                    "network_scope"
-                ),
-            )
-
-            for item in communications
-        ]
-
-
-        created_observations = (
-            CommunicationObservation.objects
-            .bulk_create(
-                communication_observations
-            )
-        )
-
-
-        consolidate_communication_observations( created_observations)
-
-        return (
-            ingestion,
-            "CREATED",
-        )
+        ingestion.interfaces_detected = interface_count
+        ingestion.communications_detected = communication_count
+        ingestion.save(update_fields=["interfaces_detected", "communications_detected"])
+        return ingestion, "CREATED"
