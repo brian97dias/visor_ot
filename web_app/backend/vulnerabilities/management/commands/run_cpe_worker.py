@@ -14,6 +14,18 @@ from vulnerabilities.services.nvd_client import PublicNvdPacer
 from vulnerabilities.services.worker_lock import ADVISORY_LOCK_ID
 
 
+def asset_run_precedes_snapshot(run, snapshot):
+    """Fair scheduling except for a run blocked on catalogue completion."""
+    if run is None:
+        return False
+    if snapshot is None:
+        return True
+    waiting = bool(
+        run.queries and run.queries[-1].get("status") == "WAITING_CATALOGUE"
+    )
+    return not waiting and run.created_at <= snapshot.created_at
+
+
 class Command(BaseCommand):
     help = "Procesa búsquedas de activos y recuperaciones de catálogo NVD con un lock global."
 
@@ -63,20 +75,7 @@ class Command(BaseCommand):
                 ).select_related("cache").order_by("created_at", "pk").first()
                 # Fair scheduling by original enqueue time. Legacy asset jobs
                 # and shared catalogue jobs never launch simultaneous NVD calls.
-                # A run waiting on its own shared catalogue cannot make
-                # progress until that snapshot has been processed. Prioritize
-                # queued/incomplete snapshots to avoid starving them behind
-                # the older requesting run.
-                waiting_for_catalogue = bool(
-                    run and run.queries
-                    and run.queries[-1].get("status") == "WAITING_CATALOGUE"
-                )
-                choose_legacy = run is not None and (
-                    snapshot is None or (
-                        not waiting_for_catalogue
-                        and run.created_at <= snapshot.created_at
-                    )
-                )
+                choose_legacy = asset_run_precedes_snapshot(run, snapshot)
                 if choose_legacy:
                     self.stdout.write(f"Buscando CPE: trabajo #{run.pk}, activo #{run.asset_id}")
                     execute_run(run, pacer)

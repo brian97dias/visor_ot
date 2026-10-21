@@ -3,6 +3,10 @@
 NVD always uses injected synthetic responses, never a live HTTP request.
 """
 from uuid import NAMESPACE_DNS, uuid5
+from types import SimpleNamespace
+from datetime import timedelta
+from django.utils import timezone
+from vulnerabilities.management.commands.run_cpe_worker import asset_run_precedes_snapshot
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -207,3 +211,15 @@ class StructuredAutomaticDiscoveryTests(TestCase):
         self.assertEqual(done.queries[-1]["status"], "FAILED")
         self.assertEqual(done.queries[-1]["stop_reason"], "REQUEST_FAILED")
         self.assertFalse(CpeQuerySnapshot.objects.exists())
+
+    def test_worker_prioritizes_catalogue_needed_by_waiting_asset(self):
+        now = timezone.now()
+        run = SimpleNamespace(
+            queries=[], created_at=now - timedelta(minutes=1),
+        )
+        snapshot = SimpleNamespace(created_at=now)
+        self.assertTrue(asset_run_precedes_snapshot(run, snapshot))
+        run.queries = [{"status": "WAITING_CATALOGUE", "snapshot_id": 42}]
+        self.assertFalse(asset_run_precedes_snapshot(run, snapshot))
+        self.assertTrue(asset_run_precedes_snapshot(run, None))
+        self.assertFalse(asset_run_precedes_snapshot(None, snapshot))
