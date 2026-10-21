@@ -206,6 +206,30 @@ def _planned_family_prefix(model, core, manufacturer):
     return ""
 
 
+def _planned_progressive_model_prefixes(model, core, manufacturer):
+    """Model-derived FAMILY probes, never automatic product identification.
+
+    For EDS-508A, query EDS-508*, EDS-50*, EDS-5* in that order.
+    Only an explicit alphanumeric model with a three-or-more-letter series,
+    three-or-more-digit code and optional single-letter suffix is eligible.
+    Avoid unbounded one-letter/number probes and redundant brand prefixes.
+    """
+    if re.search(r"[ _-]+(?:series|serie|family|familia)$", model, re.I):
+        return []
+    found = re.fullmatch(r"([a-z]{3,12})[ _-]+([0-9]{3,6})([a-z]?)", core)
+    if not found:
+        return []
+    series, digits = found.group(1), found.group(2)
+    vendor_words = {
+        normalized(word) for word in re.split(r"[ _-]+", manufacturer)
+    }
+    vendor_words.update(normalized(v) for v in vendor_variants(manufacturer))
+    if normalized(series) in vendor_words:
+        return []
+    sizes = dict.fromkeys((len(digits), len(digits) - 1, 1))
+    return [f"{series}-{digits[:size]}" for size in sizes if size > 0]
+
+
 def build_cpe_match_plan(identity):
     """Plan hardware CPE queries from specific to manufacturer, without NVD I/O.
 
@@ -273,6 +297,12 @@ def build_cpe_match_plan(identity):
                 append("FAMILY", vendor, product)
 
     # A broad family prefix is useful for discovery, never an exact match.
+    # Search nearest model stem before widening. Weak matches cannot satisfy
+    # the existing stop condition and must never be mistaken for exact IDs.
+    for product in _planned_progressive_model_prefixes(model, family_core, manufacturer):
+        for vendor in vendors:
+            append("FAMILY", vendor, product)
+
     if family_prefix:
         for vendor in vendors:
             append("FAMILY", vendor, family_prefix)

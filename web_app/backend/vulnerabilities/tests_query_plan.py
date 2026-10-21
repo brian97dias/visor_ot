@@ -143,3 +143,37 @@ class AlternativeBrandKeywordPlanTests(SimpleTestCase):
         data = {"asset_type":"HARDWARE", "manufacturer":"Example & Co",
                 "model":"EAGLE20", "cpu_model":"", "role":"OTHER"}
         self.assertEqual(build_alternative_keyword_plan(data), [])
+
+    def test_moxa_progressive_family_probes_from_industrial_model(self):
+        data = {"asset_type": "HARDWARE", "manufacturer": "Moxa",
+                "model": "EDS-508A", "cpu_model": "", "role": "SWITCH"}
+        params = [p["parameter"] for p in build_cpe_match_plan(data)]
+        expected = ["cpe:2.3:h:moxa:eds-508*",
+                    "cpe:2.3:h:moxa:eds-50*",
+                    "cpe:2.3:h:moxa:eds-5*"]
+        self.assertEqual(
+            [p["parameter"] for p in build_cpe_match_plan(data)
+             if p["level"] == "FAMILY"], expected
+        )
+        self.assertEqual(params[-1], "cpe:2.3:h:moxa:*")
+        self.assertNotIn("cpe:2.3:h:moxa:eds*", params)
+        self.assertLessEqual(len(params), MAX_CPE_PLAN_QUERIES)
+
+    def test_moxa_spaced_variant_generates_the_same_bounded_family_probes(self):
+        base = {"asset_type": "HARDWARE", "manufacturer": "Moxa",
+                "model": "EDS 508A", "cpu_model": "", "role": "SWITCH"}
+        family = [p["parameter"] for p in build_cpe_match_plan(base)
+                  if p["level"] == "FAMILY"]
+        self.assertEqual(family, ["cpe:2.3:h:moxa:eds-508*",
+                                  "cpe:2.3:h:moxa:eds-50*",
+                                  "cpe:2.3:h:moxa:eds-5*"])
+
+    def test_existing_series_and_vendor_numeric_models_keep_their_plans(self):
+        axis = {"asset_type":"HARDWARE", "manufacturer":"Axis Communications",
+                "model":"AXIS 206", "cpu_model":"", "role":"OTHER"}
+        axis_plan = build_cpe_match_plan(axis)
+        self.assertFalse(any(x["level"] == "FAMILY" for x in axis_plan))
+        adam_plan = build_cpe_match_plan(ADAM)
+        self.assertEqual([p["parameter"] for p in adam_plan
+                          if p["level"] == "FAMILY"],
+                         ["cpe:2.3:h:advantech:adam*"])

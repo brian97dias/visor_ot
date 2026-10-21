@@ -66,6 +66,39 @@ class StructuredAutomaticDiscoveryTests(TestCase):
             identity_snapshot=identity, identity_fingerprint=fingerprint(identity),
         )
 
+    def test_moxa_family_prefix_finds_510a_but_does_not_stop_manufacturer(self):
+        asset = self.hardware("Moxa", "EDS-508A")
+        run = self.make_run(asset)
+        sibling = product("moxa", "eds-510a")
+        seen = []
+
+        def fetch(strategy, parameter, start, pacer):
+            seen.append(parameter)
+            return reply([sibling] if parameter == "cpe:2.3:h:moxa:eds-5*" else [])
+
+        waiting = execute_run(run, object(), fetcher=fetch)
+        self.assertEqual(waiting.status, "QUEUED")
+        self.assertIn("cpe:2.3:h:moxa:eds-508*", seen)
+        self.assertIn("cpe:2.3:h:moxa:eds-50*", seen)
+        self.assertIn("cpe:2.3:h:moxa:eds-5*", seen)
+        self.assertEqual(len(waiting.candidates), 1)
+        self.assertEqual(waiting.candidates[0]["match_level"], "EXPLORATORY")
+        self.assertFalse(waiting.result_truncated)
+        snapshot = CpeQuerySnapshot.objects.get()
+        self.assertEqual(snapshot.cache.parameter, "cpe:2.3:h:moxa:*")
+        execute_catalogue_snapshot(
+            snapshot, object(), fetcher=lambda s, p, i, pacer, *, results_per_page:
+            reply([sibling], start=i),
+        )
+        finished = execute_run(waiting, object(), fetcher=lambda *args:
+                               self.fail("No debe repetir consultas por prefijo"))
+        self.assertEqual(finished.status, "COMPLETED")
+        self.assertEqual(len(finished.candidates), 1)
+        self.assertEqual(finished.candidates[0]["match_level"], "EXPLORATORY")
+        self.assertEqual(finished.candidates[0]["discovery_levels"],
+                         ["FAMILY", "MANUFACTURER"])
+        self.assertFalse(AssetCpe.objects.exists())
+
     def test_siemens_specific_match_stops_before_general_and_uses_only_cpe(self):
         run = self.make_run(self.hardware("Siemens", "SIMATIC S7-1200", "1215C"))
         official = product("siemens", "simatic_s7-1200_cpu_1215c")
