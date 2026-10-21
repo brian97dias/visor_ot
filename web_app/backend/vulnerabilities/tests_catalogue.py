@@ -67,7 +67,7 @@ class CatalogueQueryValidationTests(SimpleTestCase):
             ("keywordSearch", "x"),
             ("keywordSearch", "Rockwell\nOther"),
             ("keywordSearch", "X" * 121),
-            ("cpeMatchString", "cpe:2.3:o:rockwell:factorytalk"),
+            ("cpeMatchString", "cpe:2.3:x:rockwell:factorytalk"),
             ("cpeMatchString", "cpe:2.3:h:"),
             ("cpeMatchString", "cpe:2.3:h:rockwell:*:*:*:*:*:*:*"),
         ]
