@@ -210,12 +210,15 @@ class AlternativeBrandKeywordPlanTests(SimpleTestCase):
         ):
             with self.subTest(model=identity["model"]):
                 plan = build_cpe_match_plan(identity)
-                self.assertFalse(any(
-                    item["level"] == "FAMILY"
-                    and (":fl*" in item["parameter"]
-                         or ":simatic*" in item["parameter"])
-                    for item in plan
-                ))
+                from vulnerabilities.services.identity import (
+                    _planned_short_series_prefixes, _planned_model_core,
+                )
+                self.assertEqual(
+                    _planned_short_series_prefixes(
+                        _planned_model_core(identity["model"]),
+                        identity["manufacturer"],
+                    ), []
+                )
         short = {"asset_type": "HARDWARE", "manufacturer": "Phoenix Contact",
                  "model": "FL", "cpu_model": "", "role": "OTHER"}
         self.assertFalse(any(
