@@ -390,6 +390,51 @@ class SoftwareWorkerTests(TestCase):
         self.assertEqual(len(finished.candidates), 1)
         self.assertEqual(CpeQuerySnapshot.objects.count(), len(fetched))
 
+    def test_axis_numeric_20_prefix_finds_207w_as_exploratory_not_exact(self):
+        sw = self.asset.software
+        sw.manufacturer = "Axis Communications"
+        sw.product = "AXIS 206 Firmware"
+        sw.software_type = Software.SoftwareType.OS
+        sw.version = ""
+        sw.save()
+        run = self.new_run()
+        parameters = []
+        for _ in range(35):
+            run = execute_run(
+                run, object(), fetcher=lambda *args: self.fail(
+                    "Numeric software family queries must use reusable snapshots"
+                ),
+            )
+            if run.status == "COMPLETED":
+                break
+            self.assertEqual(run.status, "QUEUED")
+            snapshot = CpeQuerySnapshot.objects.filter(
+                status=CpeQuerySnapshot.Status.QUEUED,
+            ).select_related("cache").order_by("-pk").first()
+            self.assertIsNotNone(snapshot)
+            parameter = snapshot.cache.parameter
+            parameters.append(parameter)
+            rows = (
+                [nvd(product="207w_firmware", vendor="axis", version="-"),
+                 nvd(product="2060_firmware", vendor="axis", version="-")]
+                if parameter == "cpe:2.3:o:axis:20*" else []
+            )
+            execute_catalogue_snapshot(
+                snapshot, object(),
+                fetcher=lambda strategy, parameter, start, pacer, *,
+                results_per_page, rows=rows: page(rows, start=start),
+            )
+        self.assertEqual(run.status, "COMPLETED")
+        self.assertIn("cpe:2.3:o:axis:20*", parameters)
+        self.assertNotIn("cpe:2.3:o:axis:*", parameters)
+        self.assertEqual(len(run.candidates), 1)
+        item = run.candidates[0]
+        self.assertEqual(item["match_level"], "EXPLORATORY")
+        self.assertIn("207w_firmware", item["cpe_name"])
+        self.assertEqual(item["exploratory_distance"], 1)
+        self.assertEqual(item["discovery_levels"], ["FAMILY"])
+        self.assertFalse(AssetCpe.objects.exists())
+
     def test_axis_large_manufacturer_catalogue_can_find_207w_without_prefix_hit(self):
         # Regression for the real 206 firmware inventory: previous software
         # classifier discarded all 683 AXIS catalogue entries as irrelevant.
