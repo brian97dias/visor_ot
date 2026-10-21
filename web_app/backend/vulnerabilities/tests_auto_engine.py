@@ -110,8 +110,26 @@ class StructuredAutomaticDiscoveryTests(TestCase):
         completed = execute_catalogue_snapshot(snapshot, object(), fetcher=catalogue)
         self.assertEqual(completed.status, "COMPLETED")
         self.assertEqual(completed.retrieved_count, 327)
-        finished = execute_run(waiting, object(), fetcher=lambda *args:
-                               self.fail("El catálogo completo debe reutilizarse"))
+        no_repeated_previews = lambda *args: self.fail(
+            "Las consultas específicas/de familia completadas no deben repetirse"
+        )
+        finished = execute_run(waiting, object(), fetcher=no_repeated_previews)
+        # Recover the two remaining vendor aliases. A completed catalogue
+        # under phoenixcontact does not prove that phoenix_contact or
+        # phoenix-contact contain no additional products.
+        for vendor in ("phoenix_contact", "phoenix-contact"):
+            self.assertEqual(finished.status, "QUEUED")
+            queued = CpeQuerySnapshot.objects.get(
+                cache__parameter=f"cpe:2.3:h:{vendor}:*"
+            )
+            self.assertEqual(queued.status, CpeQuerySnapshot.Status.QUEUED)
+            execute_catalogue_snapshot(
+                queued, object(),
+                fetcher=lambda s, p, i, pacer, *, results_per_page:
+                reply([], start=i),
+            )
+            finished = execute_run(finished, object(),
+                                   fetcher=no_repeated_previews)
         self.assertEqual(finished.status, "COMPLETED")
         self.assertEqual(len(finished.candidates), 5)
         self.assertTrue(all(c["match_level"] == "EXPLORATORY"
