@@ -176,10 +176,13 @@ class CatalogueExplorerAPITests(TestCase):
     def test_cross_snapshot_id_and_random_uuids_cannot_be_selected(self):
         first = CpeQueryProduct.objects.filter(snapshot=self.snapshot).first()
         other_snapshot, _ = enqueue_catalogue_query("keywordSearch", "Siemens")
+        # A finished but different snapshot cannot borrow evidence IDs.
+        other_snapshot.status = CpeQuerySnapshot.Status.COMPLETED
+        other_snapshot.save(update_fields=["status"])
         self.assertEqual(self.client.post(
             self.prefix + f"{other_snapshot.pk}/select/",
             {"evidence_id": first.pk}, format="json",
-        ).status_code, 400 if other_snapshot.status != "COMPLETED" else 404)
+        ).status_code, 404)
         self.assertEqual(self.client.post(
             self.select_url, {"evidence_id": 99999999}, format="json"
         ).status_code, 404)

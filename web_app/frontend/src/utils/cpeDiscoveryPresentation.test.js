@@ -43,3 +43,12 @@ test("Siemens CPU exact remains textual; old candidates remain unclassified",()=
  assert.equal(describeCandidate({title:"Legacy"}).levels.length,0);
  assert.match(reasonLabel("REQUEST_FAILED"),/no terminó/);
 });
+
+test("catalogue evidence provenance is not incorrectly labelled historical", () => {
+  const grouped = groupCpeQueries([{level:"CATALOGUE", strategy:"cpeMatchString",
+    snapshot_id:2, evidence_id:14, status:"COMPLETED"}]);
+  assert.equal(grouped[0].level,"CATALOGUE");
+  assert.match(levelName("CATALOGUE"),/catálogo/);
+  const selected = describeCandidate({match_level:"FAMILY",discovery_levels:["CATALOGUE"]});
+  assert.deepEqual(selected.levels,[levelName("CATALOGUE")]);
+});

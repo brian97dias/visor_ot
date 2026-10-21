@@ -1,5 +1,5 @@
 /** Read-only presentation of NVD CPE discovery. No inferred validations. */
-const LEVEL = {SPECIFIC:"Nivel 1 · Específico",FAMILY:"Nivel 2 · Familia",MANUFACTURER:"Nivel 3 · Fabricante",ADVANCED:"Búsqueda avanzada",LEGACY:"Consulta histórica"};
+const LEVEL = {SPECIFIC:"Nivel 1 · Específico",FAMILY:"Nivel 2 · Familia",MANUFACTURER:"Nivel 3 · Fabricante",ADVANCED:"Búsqueda avanzada",CATALOGUE:"Selección desde catálogo NVD",LEGACY:"Consulta histórica"};
 const OUTCOME = {
  SUFFICIENT_PERTINENT_CANDIDATES:"Coincidencia técnica suficiente para detener la ampliación",
  NO_PERTINENT_CANDIDATES:"Sin coincidencia técnica suficiente; se puede ampliar",
@@ -26,7 +26,7 @@ const CLASSIFICATION = {
  NEEDS_INFO:["Requiere información adicional","needs-info"],
  POSSIBLE_INCOMPATIBILITY:["Posible incompatibilidad","incompatible"],
 };
-const ORDER=["SPECIFIC","FAMILY","MANUFACTURER","ADVANCED"];
+const ORDER=["SPECIFIC","FAMILY","MANUFACTURER","ADVANCED","CATALOGUE"];
 export const levelName = level => LEVEL[level] || "Nivel no registrado";
 export const resultLabel = value => OUTCOME[value] || (value ? "Resultado sin descripción registrada" : "Sin evaluación registrada");
 export const reasonLabel = value => REASON[value] || (value ? "Motivo técnico: " + value : "");
