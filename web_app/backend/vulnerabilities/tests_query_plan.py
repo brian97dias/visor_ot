@@ -177,3 +177,47 @@ class AlternativeBrandKeywordPlanTests(SimpleTestCase):
         self.assertEqual([p["parameter"] for p in adam_plan
                           if p["level"] == "FAMILY"],
                          ["cpe:2.3:h:advantech:adam*"])
+
+    def test_phoenix_multi_segment_model_gets_three_guarded_family_prefixes(self):
+        identity = {"asset_type": "HARDWARE", "manufacturer": "Phoenix Contact",
+                    "model": "FL IL 24 BK PAC", "cpu_model": "", "role": "SWITCH"}
+        original = deepcopy(identity)
+        planned = build_cpe_match_plan(identity)
+        expected = ["fl_il_24", "fl_il", "fl"]
+        by_vendor = [
+            p["parameter"] for p in planned
+            if p["level"] == "FAMILY" and p["parameter"].startswith(
+                "cpe:2.3:h:phoenixcontact:"
+            )
+        ]
+        self.assertEqual(by_vendor, [
+            f"cpe:2.3:h:phoenixcontact:{part}*" for part in expected
+        ])
+        self.assertEqual(planned[-1]["parameter"], "cpe:2.3:h:phoenix-contact:*")
+        self.assertLessEqual(len(planned), MAX_CPE_PLAN_QUERIES)
+        self.assertEqual(len(planned), len({p["parameter"] for p in planned}))
+        self.assertEqual(identity, original)
+        for item in planned:
+            canonical_query(item["strategy"], item["parameter"])
+
+    def test_short_series_queries_do_not_affect_other_inventory_models(self):
+        for identity in (
+            SIEMENS, ADAM, ROCKWELL,
+            {"asset_type": "HARDWARE", "manufacturer": "Axis Communications",
+             "model": "AXIS 206", "cpu_model": "", "role": "OTHER"},
+            {"asset_type": "HARDWARE", "manufacturer": "Moxa",
+             "model": "EDS-508A", "cpu_model": "", "role": "SWITCH"},
+        ):
+            with self.subTest(model=identity["model"]):
+                plan = build_cpe_match_plan(identity)
+                self.assertFalse(any(
+                    item["level"] == "FAMILY"
+                    and (":fl*" in item["parameter"]
+                         or ":simatic*" in item["parameter"])
+                    for item in plan
+                ))
+        short = {"asset_type": "HARDWARE", "manufacturer": "Phoenix Contact",
+                 "model": "FL", "cpu_model": "", "role": "OTHER"}
+        self.assertFalse(any(
+            q["level"] == "FAMILY" for q in build_cpe_match_plan(short)
+        ))

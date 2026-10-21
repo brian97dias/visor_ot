@@ -230,6 +230,26 @@ def _planned_progressive_model_prefixes(model, core, manufacturer):
     return [f"{series}-{digits[:size]}" for size in sizes if size > 0]
 
 
+def _planned_short_series_prefixes(core, manufacturer):
+    """Up to three increasingly broad product-prefix probes.
+
+    'FL IL 24 BK PAC' -> 'fl_il_24', 'fl_il', 'fl'. Only segmented
+    models beginning with a 2-3 letter series qualify. A full model still
+    outranks these exploratory probes; prefix hits never prove identity.
+    """
+    parts = re.split(r"[ _-]+", core)
+    if len(parts) < 3 or not re.fullmatch(r"[a-z]{2,3}", parts[0]):
+        return []
+    if parts[0] in {
+        normalized(v) for v in vendor_variants(manufacturer)
+    }:
+        return []
+    if any(not re.fullmatch(r"[a-z0-9]{1,24}", part) for part in parts):
+        return []
+    # Do not use bare one-character model tokens as the fallback series.
+    return ["_".join(parts[:count]) for count in (3, 2, 1)]
+
+
 def build_cpe_match_plan(identity):
     """Plan hardware CPE queries from specific to manufacturer, without NVD I/O.
 
@@ -300,6 +320,10 @@ def build_cpe_match_plan(identity):
     # Search nearest model stem before widening. Weak matches cannot satisfy
     # the existing stop condition and must never be mistaken for exact IDs.
     for product in _planned_progressive_model_prefixes(model, family_core, manufacturer):
+        for vendor in vendors:
+            append("FAMILY", vendor, product)
+
+    for product in _planned_short_series_prefixes(family_core, manufacturer):
         for vendor in vendors:
             append("FAMILY", vendor, product)
 

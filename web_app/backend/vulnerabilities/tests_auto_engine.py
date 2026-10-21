@@ -66,6 +66,64 @@ class StructuredAutomaticDiscoveryTests(TestCase):
             identity_snapshot=identity, identity_fingerprint=fingerprint(identity),
         )
 
+    def test_phoenix_short_prefix_preview_finds_weak_candidates_and_continues(self):
+        asset = self.hardware("Phoenix Contact", "FL IL 24 BK PAC")
+        run = self.make_run(asset)
+        rows = [product("phoenixcontact", "fl_comserver_basic_232"),
+                product("phoenixcontact", "fl_comserver_uni_422")]
+        calls = []
+
+        def fetch(strategy, parameter, start, pacer):
+            calls.append(parameter)
+            return reply(rows if parameter == "cpe:2.3:h:phoenixcontact:fl*" else [])
+
+        waiting = execute_run(run, object(), fetcher=fetch)
+        self.assertEqual(waiting.status, "QUEUED")
+        self.assertIn("cpe:2.3:h:phoenixcontact:fl_il_24*", calls)
+        self.assertIn("cpe:2.3:h:phoenixcontact:fl_il*", calls)
+        self.assertIn("cpe:2.3:h:phoenixcontact:fl*", calls)
+        self.assertEqual(len(waiting.candidates), 2)
+        self.assertEqual({c["match_level"] for c in waiting.candidates},
+                         {"EXPLORATORY"})
+        self.assertFalse(waiting.result_truncated)
+        snapshot = CpeQuerySnapshot.objects.get()
+        self.assertEqual(snapshot.cache.parameter, "cpe:2.3:h:phoenixcontact:*")
+        self.assertFalse(AssetCpe.objects.exists())
+
+    def test_phoenix_complete_manufacturer_catalogue_ranks_only_five_fl(self):
+        asset = self.hardware("Phoenix Contact", "FL IL 24 BK PAC")
+        run = self.make_run(asset)
+        empty = lambda *args: reply([])
+        waiting = execute_run(run, object(), fetcher=empty)
+        self.assertEqual(waiting.status, "QUEUED")
+        snapshot = CpeQuerySnapshot.objects.get()
+        names = ("fl_comserver_basic_232", "fl_comserver_uni_422",
+                 "fl_il_24_switch", "fl_il_controller", "fl_server_1",
+                 "fl_router_1", "fl_monitor_1")
+        rows = [product("phoenixcontact", f"quint_power_{i}") for i in range(320)]
+        rows += [product("phoenixcontact", name) for name in names]
+
+        def catalogue(strategy, parameter, start, pacer, *, results_per_page):
+            return reply(rows[start:start + results_per_page],
+                         start=start, total=len(rows))
+
+        completed = execute_catalogue_snapshot(snapshot, object(), fetcher=catalogue)
+        self.assertEqual(completed.status, "COMPLETED")
+        self.assertEqual(completed.retrieved_count, 327)
+        finished = execute_run(waiting, object(), fetcher=lambda *args:
+                               self.fail("El catálogo completo debe reutilizarse"))
+        self.assertEqual(finished.status, "COMPLETED")
+        self.assertEqual(len(finished.candidates), 5)
+        self.assertTrue(all(c["match_level"] == "EXPLORATORY"
+                            for c in finished.candidates))
+        self.assertEqual(finished.candidates[0]["cpe_name"].split(":")[4],
+                         "fl_il_24_switch")
+        self.assertEqual(finished.candidates[1]["cpe_name"].split(":")[4],
+                         "fl_il_controller")
+        self.assertFalse(finished.result_truncated)
+        self.assertFalse(AssetCpe.objects.exists())
+        self.assertFalse(AssetCpeDecision.objects.exists())
+
     def test_moxa_family_prefix_finds_510a_but_does_not_stop_manufacturer(self):
         asset = self.hardware("Moxa", "EDS-508A")
         run = self.make_run(asset)
