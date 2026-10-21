@@ -25,7 +25,12 @@ class Command(BaseCommand):
             raise CommandError("Se requiere un usuario activo ADMIN o ANALYST.")
         self.stdout.write("Importando observaciones en lotes. No abras el JSON en el editor.")
         try:
-            ingestion, status = import_analysis(options["pcap_id"], user)
+            ingestion, status = import_analysis(
+                options["pcap_id"], user,
+                progress=lambda count: self.stdout.write(
+                    f"{count:,} comunicaciones procesadas...".replace(",", ".")
+                ),
+            )
         except (
             ImportValidationError,
             PassiveAnalyzerAnalysisNotFound,
