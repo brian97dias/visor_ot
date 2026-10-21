@@ -170,7 +170,7 @@ def _persist_interface_batch(rows):
     rows.clear()
 
 
-def import_analysis(pcap_id, user):
+def import_analysis(pcap_id, user, *, progress=None):
     """Import a validated analyzer stream with bounded RAM and atomic writes.
 
     Crucially, this never calls get_pcap_analysis (which downloads a huge JSON)
@@ -270,6 +270,8 @@ def import_analysis(pcap_id, user):
                         communication_count += 1
                         if len(communications) >= IMPORT_BATCH_SIZE:
                             _persist_communication_batch(communications)
+                            if progress and communication_count % 10000 == 0:
+                                progress(communication_count)
                     else:
                         raise ImportValidationError("Tipo de observación desconocido.")
         except (ValueError, TypeError, KeyError, UnicodeError) as error:
