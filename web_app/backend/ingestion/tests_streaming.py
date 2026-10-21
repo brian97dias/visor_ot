@@ -24,10 +24,22 @@ def _communication(index, *, port=502):
     }
 
 
-def _stream(items):
+def _stream(items, *, include_trailer=True):
     @contextmanager
     def streamed(_pcap_id):
-        yield (json.dumps(item).encode("utf-8") for item in items)
+        def rows():
+            counts = {"interface": 0, "communication": 0}
+            for item in items:
+                if item["type"] in counts:
+                    counts[item["type"]] += 1
+                yield json.dumps(item).encode("utf-8")
+            if include_trailer:
+                yield json.dumps({
+                    "type": "complete", "analysis_hash": "a" * 64,
+                    "interfaces": counts["interface"],
+                    "communications": counts["communication"],
+                }).encode("utf-8")
+        yield rows()
     return streamed
 
 
@@ -123,3 +135,17 @@ class StreamedImportTests(TestCase):
                 import_analysis("pcap-big", self.user)
         self.assertEqual(Ingestion.objects.count(), 0)
         self.assertEqual(CommunicationObservation.objects.count(), 0)
+
+    def test_missing_trailer_rolls_back_even_when_rows_are_valid(self):
+        with patch(
+            "ingestion.services.json_importer.get_pcap_import_manifest",
+            return_value=self.manifest,
+        ), patch(
+            "ingestion.services.json_importer.stream_pcap_analysis",
+            _stream([{"type": "communication", "data": _communication(0)}],
+                    include_trailer=False),
+        ):
+            with self.assertRaisesRegex(ImportValidationError, "sin confirmación"):
+                import_analysis("pcap-big", self.user)
+        self.assertFalse(Ingestion.objects.exists())
+        self.assertFalse(CommunicationObservation.objects.exists())
