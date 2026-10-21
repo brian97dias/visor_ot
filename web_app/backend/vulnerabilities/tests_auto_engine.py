@@ -142,6 +142,48 @@ class StructuredAutomaticDiscoveryTests(TestCase):
         self.assertFalse(AssetCpe.objects.exists())
         self.assertFalse(AssetCpeDecision.objects.exists())
 
+    def test_siemens_ruggedcom_inner_rx_series_from_complete_catalogue(self):
+        asset = self.hardware("Siemens", "RX1100-F-RM-24P-HIP")
+        run = self.make_run(asset)
+        previews = []
+
+        def empty_fetch(strategy, parameter, start, pacer):
+            previews.append((strategy, parameter))
+            return reply([])
+
+        waiting = execute_run(run, object(), fetcher=empty_fetch)
+        self.assertEqual(waiting.status, "QUEUED")
+        self.assertTrue(all(s == "cpeMatchString" for s, _ in previews))
+        snapshot = CpeQuerySnapshot.objects.get()
+        self.assertEqual(snapshot.cache.parameter, "cpe:2.3:h:siemens:*")
+
+        # Recreate the characteristic NVD layout: the RX designation is
+        # embedded after ruggedcom_rox_, rather than at the product start.
+        rows = [product("siemens", f"unrelated_controller_{i}") for i in range(40)]
+        rows += [product("siemens", name) for name in (
+            "ruggedcom_rox_rx1400", "ruggedcom_rox_rx1500",
+            "ruggedcom_rox_mx5000",
+        )]
+
+        def catalogue(strategy, parameter, start, pacer, *, results_per_page):
+            return reply(rows[start:start + results_per_page],
+                         start=start, total=len(rows))
+
+        completed = execute_catalogue_snapshot(snapshot, object(), fetcher=catalogue)
+        self.assertEqual(completed.status, "COMPLETED")
+        self.assertEqual(completed.retrieved_count, 43)
+        finished = execute_run(waiting, object(), fetcher=lambda *args:
+                               self.fail("La consulta al catálogo no debe repetirse"))
+        self.assertEqual(finished.status, "COMPLETED")
+        self.assertEqual([c["cpe_name"].split(":")[4] for c in finished.candidates],
+                         ["ruggedcom_rox_rx1400", "ruggedcom_rox_rx1500"])
+        self.assertTrue(all(c["match_level"] == "EXPLORATORY"
+                            for c in finished.candidates))
+        self.assertEqual(finished.queries[-1]["level"], "MANUFACTURER")
+        self.assertFalse(finished.result_truncated)
+        self.assertFalse(AssetCpe.objects.exists())
+        self.assertFalse(AssetCpeDecision.objects.exists())
+
     def test_moxa_family_prefix_finds_510a_but_does_not_stop_manufacturer(self):
         asset = self.hardware("Moxa", "EDS-508A")
         run = self.make_run(asset)
