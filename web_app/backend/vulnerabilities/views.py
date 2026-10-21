@@ -159,12 +159,13 @@ class CpeOverviewView(APIView):
                 state = "STALE"
             elif completed_run.result_truncated:
                 state = "PARTIAL_RESULTS"
-            elif counts["total"] == 0 or (
-                counts["total"] == counts["exploratory_count"]
-                and counts["confirmed"] == 0
-            ):
-                # Weak suggestions alone do not constitute a technical match.
+            elif counts["total"] == 0:
                 state = "NO_RESULTS"
+            elif (counts["exploratory_count"] > 0 and counts["unreviewed"] == 0
+                  and counts["confirmed"] == 0 and counts["rejected"] == 0):
+                # Weak candidates can be explored; they are not confirmations
+                # and never inflate mandatory pending counts.
+                state = "TO_REVIEW"
             elif counts["unreviewed"] == 0:
                 state = "EVALUATED"
             elif counts["confirmed"] or counts["rejected"]:
