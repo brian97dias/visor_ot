@@ -6,10 +6,10 @@ from rest_framework.exceptions import ValidationError
 from assets.models import Asset
 from vulnerabilities.models import CpeSearchRun, CpeQuerySnapshot, CpeQueryProduct
 
-from .identity import hardware_identity, fingerprint, build_queries, build_level_queries, build_cpe_match_plan
+from .identity import hardware_identity, fingerprint, build_queries, build_level_queries, build_cpe_match_plan, build_alternative_keyword_plan
 from .candidate_matching import (
     normalize_candidate, merge_candidates, hardware_candidates,
-    is_pertinent, is_manufacturer_related,
+    is_pertinent, is_manufacturer_related, classify_alternative_vendor,
 )
 from .nvd_client import fetch_page, PAGE_SIZE, MAX_PAGES_PER_STRATEGY, MAX_TOTAL_CANDIDATES
 from .worker_lock import worker_lock_held
@@ -413,13 +413,21 @@ def _exploratory_rank(item):
 
 
 
-def _record_candidate(row, run, level, dedup, details):
+def _record_candidate(row, run, level, dedup, details, *, alternative=False):
     """Record one NVD product as an explainable suggestion, never validation."""
     item = normalize_candidate(row, run.identity_snapshot, "cpeMatchString")
     if item is None:
         return
     details["hardware_results"] += 1
-    if not is_manufacturer_related(item, run.identity_snapshot):
+    brand_discrepancy = (
+        classify_alternative_vendor(item, run.identity_snapshot)
+        if alternative else None
+    )
+    if brand_discrepancy:
+        item["match_level"] = "EXPLORATORY"
+        item["match_reason"] = brand_discrepancy
+        item["exploratory_distance"] = 0
+    elif not is_manufacturer_related(item, run.identity_snapshot):
         details["filtered_hardware_results"] += 1
         return
     if is_pertinent(item, run.identity_snapshot):
@@ -486,6 +494,7 @@ def execute_run(run, pacer, fetcher=fetch_page):
         planned = build_cpe_match_plan(run.identity_snapshot)
         if run.scope == CpeSearchRun.Scope.BROAD:
             planned = [q for q in planned if q["level"] != "SPECIFIC"]
+        planned += build_alternative_keyword_plan(run.identity_snapshot)
     except ValueError as exc:
         _persist(run, {
             "status": CpeSearchRun.Status.FAILED, "finished_at": timezone.now(),
@@ -507,6 +516,10 @@ def execute_run(run, pacer, fetcher=fetch_page):
     active_details = None
     try:
         for step in planned:
+            # Optional keyword investigation is strictly the LAST resort.
+            # Neither failures nor partial preceding searches prove absence.
+            if step["level"] == "ALTERNATIVE" and (dedup or run.result_truncated):
+                break
             # Only replay a previously WAITING query; completed queries
             # already have durable evidence and must not be requested again.
             previous = next((q for q in queries if
@@ -525,17 +538,17 @@ def execute_run(run, pacer, fetcher=fetch_page):
             active_details = details
             if previous is None:
                 queries.append(details)
-            if step["level"] == "MANUFACTURER":
+            if step["level"] in ("MANUFACTURER", "ALTERNATIVE"):
                 if previous:
                     snapshot = CpeQuerySnapshot.objects.select_related("cache").get(
                         pk=details["snapshot_id"]
                     )
-                    if (snapshot.cache.strategy != "cpeMatchString" or
+                    if (snapshot.cache.strategy != step["strategy"] or
                             snapshot.cache.parameter != step["parameter"]):
                         raise ValueError("La recuperación NVD no pertenece a esta consulta.")
                 else:
                     snapshot, reused = enqueue_catalogue_query(
-                        "cpeMatchString", step["parameter"]
+                        step["strategy"], step["parameter"]
                     )
                     details["snapshot_id"] = snapshot.pk
                     details["cache_reused"] = reused
@@ -560,7 +573,10 @@ def execute_run(run, pacer, fetcher=fetch_page):
                 details["status"] = "RUNNING"
                 # A complete snapshot may be reused by many different assets.
                 for row in _snapshot_products(snapshot):
-                    _record_candidate(row, run, step["level"], dedup, details)
+                    _record_candidate(
+                        row, run, step["level"], dedup, details,
+                        alternative=step["level"] == "ALTERNATIVE",
+                    )
                 details["status"] = "COMPLETED"
                 details["catalogue_complete"] = True
                 details["level_result"] = (
@@ -574,7 +590,8 @@ def execute_run(run, pacer, fetcher=fetch_page):
                 _persist(run, {"queries": queries,
                                "candidates": merge_candidates(list(dedup.values())),
                                "result_truncated": run.result_truncated})
-                if details["pertinent_results"] or details.get("candidate_limit_reached"):
+                if (details["pertinent_results"] or details.get("candidate_limit_reached")
+                        or (step["level"] == "ALTERNATIVE" and dedup)):
                     break
                 continue
 
