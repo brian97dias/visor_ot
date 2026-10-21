@@ -111,6 +111,23 @@ class SoftwareMatchingTests(SimpleTestCase):
         )
         self.assertIsNone(classify_alternative_vendor(app, other_identity))
 
+    def test_cross_vendor_embedded_brand_and_full_product_is_stronger_than_prefix(self):
+        identity = {
+            "asset_type": "SOFTWARE", "software_type": "FIRMWARE",
+            "manufacturer": "Hirschmann",
+            "product": "EAGLE20 Firmware", "version": "",
+        }
+        matching = normalize_candidate(
+            nvd(product="hirschmann_eagle20_firmware", vendor="belden"),
+            identity, "keywordSearch"
+        )
+        self.assertIn("nombre de producto contiene", classify_alternative_vendor(matching, identity))
+        not_matching = normalize_candidate(
+            nvd(product="hirschmann_eagle200_firmware", vendor="belden"),
+            identity, "keywordSearch"
+        )
+        self.assertIsNone(classify_alternative_vendor(not_matching, identity))
+
     def test_version_change_invalidates_identity_fingerprint(self):
         self.assertNotEqual(
             fingerprint(self.identity),
