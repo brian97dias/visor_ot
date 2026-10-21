@@ -55,6 +55,7 @@ def consolidate_communication_observations(observations, *, batch_size=BATCH_SIZ
                 transport_protocol=transport, service_port=port,
             )
         existing = {_signature(row): row for row in Communication.objects.filter(condition)}
+        existing_before = set(existing)
         missing = [
             Communication(
                 source_ip=key[0], destination_ip=key[1],
@@ -73,7 +74,7 @@ def consolidate_communication_observations(observations, *, batch_size=BATCH_SIZ
                 _signature(row): row
                 for row in Communication.objects.filter(condition)
             }
-            created += len(missing)  # Only used as an informational estimate.
+            created += len(set(existing) - existing_before)
 
         services_to_update = {}
         links_to_update = []
