@@ -115,6 +115,32 @@ def _exploratory_proximity(candidate, identity):
             f"y {other.group(2) + other.group(3).upper()} distintas. "
             "La similitud no demuestra compatibilidad técnica."
         )
+    # Last-resort short series prefix. A model with multiple meaningful
+    # segments (FL IL 24 BK PAC) may share only FL with other vendor products.
+    # Never infer compatibility; keep boundary checks to avoid matching
+    # unrelated names like FLUFFY or FL2.
+    parts = re.split(r"[ _-]+", model)
+    if (len(parts) >= 3 and re.fullmatch(r"[a-z]{2,3}", parts[0])
+            and parts[0] not in {
+                normalized(v) for v in vendor_variants(identity.get("manufacturer"))
+            }):
+        prefix = parts[0]
+        candidate_parts = re.split(r"[_-]+", product)
+        if candidate_parts and candidate_parts[0] == prefix:
+            matched = 0
+            for expected, actual in zip(parts, candidate_parts):
+                if expected != actual:
+                    break
+                matched += 1
+            # Keep this class below the existing numerical/series signals.
+            # Greater shared prefix wins; ties rank by current status/name.
+            distance = 1000000 - min(matched, len(parts)) * 100000
+            common = " ".join(part.upper() for part in parts[:matched])
+            return distance, (
+                f"Mismo fabricante y prefijo de producto «{common}». "
+                "Los demás componentes del modelo no están verificados. "
+                "Afinidad exploratoria mínima: no acredita compatibilidad técnica."
+            )
     return None
 
 

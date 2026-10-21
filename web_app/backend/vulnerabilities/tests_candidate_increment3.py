@@ -200,3 +200,55 @@ class CandidateMatchingIncrement3Tests(SimpleTestCase):
         candidate_510 = normalize_candidate(candidate("moxa", "eds-510a"),
                                             asset, "cpeMatchString")
         self.assertEqual(candidate_510["match_level"], "EXPLORATORY")
+
+    def test_phoenix_short_fl_prefix_is_optional_exploratory(self):
+        device = identity("Phoenix Contact", "FL IL 24 BK PAC")
+        candidates = ("fl_comserver_basic_232", "fl_comserver_uni_422")
+        for product_name in candidates:
+            with self.subTest(product_name=product_name):
+                record = normalize_candidate(
+                    candidate("phoenixcontact", product_name),
+                    device, "cpeMatchString",
+                )
+                self.assertEqual(record["match_level"], "EXPLORATORY")
+                self.assertIn("prefijo de producto «FL»", record["match_reason"])
+                self.assertIn("no acredita compatibilidad", record["match_reason"])
+
+    def test_phoenix_prefers_longer_prefix_before_fl_only(self):
+        device = identity("Phoenix Contact", "FL IL 24 BK PAC")
+        weak = normalize_candidate(
+            candidate("phoenixcontact", "fl_comserver_basic_232"), device, "cpeMatchString"
+        )
+        intermediate = normalize_candidate(
+            candidate("phoenixcontact", "fl_il_comserver"), device, "cpeMatchString"
+        )
+        stronger = normalize_candidate(
+            candidate("phoenixcontact", "fl_il_24_switch"), device, "cpeMatchString"
+        )
+        ranked = merge_candidates([weak, stronger, intermediate])
+        self.assertEqual(
+            [c["cpe_name"].split(":")[4] for c in ranked],
+            ["fl_il_24_switch", "fl_il_comserver", "fl_comserver_basic_232"],
+        )
+        self.assertTrue(all(c["match_level"] == "EXPLORATORY" for c in ranked))
+
+    def test_phoenix_short_prefix_boundaries_and_vendor_must_match(self):
+        device = identity("Phoenix Contact", "FL IL 24 BK PAC")
+        for name in ("fluffy_123", "fl2_server", "quint_power", "flserver_232"):
+            with self.subTest(name=name):
+                record = normalize_candidate(
+                    candidate("phoenixcontact", name), device, "cpeMatchString"
+                )
+                self.assertEqual(record["match_level"], "POSSIBLE_INCOMPATIBILITY")
+        foreign = normalize_candidate(
+            candidate("other", "fl_comserver_basic_232"), device, "cpeMatchString"
+        )
+        self.assertEqual(foreign["match_level"], "POSSIBLE_INCOMPATIBILITY")
+
+    def test_single_short_model_word_does_not_admit_weak_candidates(self):
+        device = identity("Phoenix Contact", "FL")
+        row = normalize_candidate(
+            candidate("phoenixcontact", "fl_comserver_basic_232"),
+            device, "cpeMatchString",
+        )
+        self.assertEqual(row["match_level"], "POSSIBLE_INCOMPATIBILITY")
