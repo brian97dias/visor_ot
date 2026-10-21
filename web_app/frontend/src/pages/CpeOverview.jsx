@@ -18,12 +18,10 @@ const STATUS = {
   NO_RESULTS: "Sin resultados",
   FAILED: "Error de consulta",
   STALE: "Revisión necesaria",
-  NOT_SUPPORTED: "Software: disponible en fase 4",
 };
 const OUTCOME = {
   QUEUED: "En cola",
   REUSED: "Ya estaba en cola",
-  UNSUPPORTED: "Software pendiente de implementación",
   SKIPPED: "No procesado",
   NOT_FOUND: "Activo inexistente",
   INVALID_IDENTITY: "Identidad técnica incompleta",
@@ -150,7 +148,7 @@ export default function CpeOverview() {
   }
 
   async function queueIndividual(row) {
-    if (individualWorking.includes(row.asset_id) || row.asset_type !== "HARDWARE") return;
+    if (individualWorking.includes(row.asset_id)) return;
     setIndividualWorking(current => [...current, row.asset_id]);
     setNotice("");
     setError("");
@@ -323,7 +321,7 @@ export default function CpeOverview() {
                     {new Date(row.last_search_at).toLocaleString("es-CO")}
                   </div>}
                 </td>
-                <td>{row.asset_type === "HARDWARE" && row.run_id
+                <td>{row.run_id
                   ? <div className="cpe-overview-counts">
                       <strong>{row.candidate_count} encontrados</strong>
                       {row.exploratory_count > 0 && <div className="cpe-overview-subtitle">
@@ -345,22 +343,15 @@ export default function CpeOverview() {
                     </div> : "—"}
                 </td>
                 <td><div className="cpe-row-actions">
-                  {row.asset_type === "HARDWARE"
-                    ? <button type="button" className="button-primary"
-                        disabled={!canSearch || individualWorking.includes(row.asset_id)}
-                        onClick={() => queueIndividual(row)}>
-                        {individualWorking.includes(row.asset_id) ? "Solicitando..." : "Buscar"}
-                      </button>
-                    : <button type="button" disabled title="La búsqueda de software llegará en la próxima fase">
-                        Buscar
-                      </button>}
-                  {row.asset_type === "HARDWARE"
-                    ? <Link className="button-secondary"
-                        to={"/assets/" + row.asset_id + "/cpe"}
-                        state={{ fromCpeOverview: true, cpeOverviewSearch: "?" + searchParams.toString() }}>
-                          Revisar</Link>
-                    : <Link className="button-secondary"
-                        to={"/assets/" + row.asset_id}>Ver activo</Link>}
+                  <button type="button" className="button-primary"
+                    disabled={!canSearch || individualWorking.includes(row.asset_id)}
+                    onClick={() => queueIndividual(row)}>
+                    {individualWorking.includes(row.asset_id) ? "Solicitando..." : "Buscar"}
+                  </button>
+                  <Link className="button-secondary" to={"/assets/" + row.asset_id + "/cpe"}
+                    state={{ fromCpeOverview: true, cpeOverviewSearch: "?" + searchParams.toString() }}>
+                    Revisar
+                  </Link>
                 </div></td>
               </tr>)}</tbody>
             </table>
@@ -378,9 +369,8 @@ export default function CpeOverview() {
       )}
       <p className="cpe-overview-note">
         La selección admite hardware y software y se conserva al cambiar filtros o página.
-        La búsqueda masiva es específica: el software se informa como no procesado
-        hasta habilitar su descubrimiento. La búsqueda ampliada por familia sigue
-        disponible solo desde el detalle del hardware.
+        La búsqueda masiva es específica para hardware y software. La búsqueda ampliada
+        por familia y la búsqueda avanzada siguen disponibles solo para hardware.
       </p>
     </section>
 
@@ -409,10 +399,7 @@ export default function CpeOverview() {
             <div><span>Procesamiento</span><strong>Cola secuencial NVD</strong></div>
             <div><span>Confirmación CPE</span><strong>Manual, posteriormente</strong></div>
           </div>
-          {selectedTypeCounts.software > 0 && <p className="cpe-bulk-warning">
-            {selectedTypeCounts.software} activo(s) de software serán omitidos hasta habilitar
-            su descubrimiento. Los de hardware válidos sí podrán ponerse en cola.
-          </p>}
+
           {selectedRows.length > MAX_BULK_ASSETS && <p className="cpe-bulk-warning" role="alert">
             Máximo {MAX_BULK_ASSETS} activos por solicitud. Reduce la selección antes de continuar.
           </p>}
