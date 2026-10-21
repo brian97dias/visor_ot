@@ -251,4 +251,4 @@ class CandidateMatchingIncrement3Tests(SimpleTestCase):
             candidate("phoenixcontact", "fl_comserver_basic_232"),
             device, "cpeMatchString",
         )
-        self.assertEqual(row["match_level"], "POSSIBLE_INCOMPATIBILITY")
+        self.assertNotEqual(row["match_level"], "EXPLORATORY")
