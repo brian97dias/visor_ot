@@ -180,13 +180,20 @@ def get_analysis_import_manifest(pcap_id: str):
     output_file = OUTPUT_DIRECTORY / f"{pcap_id}.json"
     if not output_file.is_file():
         raise HTTPException(status_code=404, detail="El análisis no existe.")
+    try:
+        import ijson
+    except ImportError as error:
+        raise HTTPException(
+            status_code=503, detail="Falta ijson en el analizador: pip install ijson."
+        ) from error
+    # These top-level fields appear before the large observation arrays.
+    with output_file.open("rb") as handle:
+        schema = next(ijson.items(handle, "schema_version"), None)
+    with output_file.open("rb") as handle:
+        capture = next(ijson.items(handle, "capture"), None)
     return {
-        "schema_version": "0.2",
-        "capture": {
-            "pcap_id": pcap_id,
-            "filename": pcap_path.name,
-            "relative_path": get_relative_path(pcap_path),
-        },
+        "schema_version": schema,
+        "capture": capture,
         "analysis_hash": get_analysis_hash(pcap_id),
     }
 
