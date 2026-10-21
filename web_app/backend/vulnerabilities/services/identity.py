@@ -304,7 +304,7 @@ def build_alternative_keyword_plan(identity):
     # Keyword API grammar also forbids arbitrary URL/query injection.
     if any(not re.fullmatch(r"[A-Za-z0-9 _./-]+", ascii_text(part))
            for part in (manufacturer, model)):
-        raise ValueError("La identidad no admite búsqueda textual alternativa.")
+        return []  # No alterar la búsqueda estructurada por caracteres no admitidos.
     specific = compact(ascii_text(manufacturer) + " " + ascii_text(model))
     general = ascii_text(manufacturer)
     if len(general) < 4 or len(specific) > 120 or len(general) > 120:
