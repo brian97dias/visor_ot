@@ -7,7 +7,7 @@ const ACTIONS = [
   {
     status: "CONFIRMED", label: "Seleccionar CPE",
     title: "Confirmar asociación CPE", submit: "Confirmar asociación",
-    tone: "confirm", explanation: "Se asociará este CPE oficial con el hardware inventariado.",
+    tone: "confirm", explanation: "Se asociará este CPE oficial con el activo inventariado.",
   },
   {
     status: "REJECTED", label: "Rechazar candidato",
