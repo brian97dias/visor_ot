@@ -56,13 +56,7 @@ class CpeBulkSearchView(APIView):
                 if asset.inventory_status != Asset.InventoryStatus.ACTIVE:
                     result.update(outcome="SKIPPED", message="El activo está archivado.")
                     summary["skipped"] += 1
-                elif asset.asset_type == Asset.AssetType.SOFTWARE:
-                    result.update(
-                        outcome="UNSUPPORTED",
-                        message="La búsqueda CPE de software se habilitará en la siguiente fase.",
-                    )
-                    summary["skipped"] += 1
-                elif asset.asset_type != Asset.AssetType.HARDWARE:
+                elif asset.asset_type not in (Asset.AssetType.HARDWARE, Asset.AssetType.SOFTWARE):
                     result.update(outcome="SKIPPED", message="Tipo de activo sin soporte.")
                     summary["skipped"] += 1
                 else:
