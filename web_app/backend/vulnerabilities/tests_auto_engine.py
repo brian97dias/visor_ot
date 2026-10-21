@@ -271,6 +271,31 @@ class StructuredAutomaticDiscoveryTests(TestCase):
         self.assertFalse(AssetCpe.objects.exists())
         self.assertFalse(run.result_truncated)
 
+    def test_beckhoff_cx1010_revision_reuses_catalogue_for_cx9020(self):
+        run = self.make_run(self.hardware("Beckhoff", "CX 1010-0012"))
+        fetched = []
+        def fetch(strategy, parameter, start, pacer):
+            fetched.append(parameter)
+            return reply([])
+        waiting = execute_run(run, object(), fetcher=fetch)
+        self.assertEqual(waiting.status, "QUEUED")
+        snapshot = CpeQuerySnapshot.objects.get()
+        self.assertEqual(snapshot.cache.parameter, "cpe:2.3:h:beckhoff:*")
+        from_nvd = product("beckhoff", "cx9020")
+        snapshot = execute_catalogue_snapshot(
+            snapshot, object(), fetcher=lambda s, p, i, pacer, *, results_per_page:
+            reply([from_nvd], start=i)
+        )
+        self.assertEqual(snapshot.status, "COMPLETED")
+        finished = execute_run(waiting, object(), fetcher=lambda *args:
+                               self.fail("El catálogo guardado no exige nuevas consultas a NVD"))
+        self.assertEqual(finished.status, "COMPLETED")
+        self.assertEqual(len(finished.candidates), 1)
+        item = finished.candidates[0]
+        self.assertEqual(item["match_level"], "EXPLORATORY")
+        self.assertIn("serie CX", item["match_reason"])
+        self.assertFalse(AssetCpe.objects.exists())
+
     def test_unrelated_manufacturer_catalogue_keeps_zero_candidates(self):
         run = self.make_run(self.hardware("Axis", "206"))
         waiting = execute_run(run, object(), fetcher=lambda *args: reply([]))
