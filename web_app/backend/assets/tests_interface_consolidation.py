@@ -1,6 +1,8 @@
 """Database-backed checks of consolidation and automatic PCAP import."""
 
 from io import StringIO
+from contextlib import contextmanager
+import json
 from unittest.mock import patch
 
 from django.core.management import call_command
@@ -188,9 +190,39 @@ class AutomaticInterfaceConsolidationTests(TestCase):
             "communications": [],
         }
 
+        # The importer now reads a manifest plus NDJSON, never a giant
+        # in-memory JSON response. Exercise that production contract here.
+        manifest = {
+            "schema_version": analysis["schema_version"],
+            "capture": analysis["capture"],
+            "analysis_hash": "a" * 64,
+        }
+
+        @contextmanager
+        def streamed_analysis(_pcap_id):
+            def lines():
+                for record in analysis["interfaces"]:
+                    yield json.dumps(
+                        {"type": "interface", "data": record}
+                    ).encode("utf-8")
+                for record in analysis["communications"]:
+                    yield json.dumps(
+                        {"type": "communication", "data": record}
+                    ).encode("utf-8")
+                yield json.dumps({
+                    "type": "complete",
+                    "analysis_hash": manifest["analysis_hash"],
+                    "interfaces": len(analysis["interfaces"]),
+                    "communications": len(analysis["communications"]),
+                }).encode("utf-8")
+            yield lines()
+
         with patch(
-            "ingestion.services.json_importer.get_pcap_analysis",
-            return_value=analysis,
+            "ingestion.services.json_importer.get_pcap_import_manifest",
+            return_value=manifest,
+        ), patch(
+            "ingestion.services.json_importer.stream_pcap_analysis",
+            streamed_analysis,
         ):
             ingestion, result = import_analysis(pcap_id, self.analyst)
             repeated, repeated_result = import_analysis(pcap_id, self.analyst)
