@@ -206,6 +206,15 @@ class NvdReferencesDecisionTests(TestCase):
         self.assertEqual(changed.status_code, 200, changed.data)
         self.assertEqual(changed.data["association"]["references_source_run_id"], second.pk)
         self.assertEqual(changed.data["association"]["nvd_references"][0]["url"], ADVISORY_URL)
+        # A read after PATCH must not replace the newer Advisory-only
+        # provenance with a Product reference from the older search.
+        persisted = Cpe.objects.get(cpe_name_id=CPE_UUID)
+        self.assertEqual(persisted.references_source_run_id, second.pk)
+        self.assertEqual(persisted.nvd_references[0]["url"], ADVISORY_URL)
+        fetched = self.client.get(self.api)
+        self.assertEqual(fetched.status_code, 200, fetched.data)
+        self.assertEqual(fetched.data["associations"][0]["references_source_run_id"], second.pk)
+        self.assertEqual(fetched.data["associations"][0]["nvd_references"][0]["url"], ADVISORY_URL)
         self.assertEqual(AssetCpeDecision.objects.count(), 2)
         self.assertEqual([x.source_run_id for x in AssetCpeDecision.objects.order_by("pk")],
                          [first.pk, second.pk])

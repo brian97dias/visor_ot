@@ -172,16 +172,15 @@ def serialize_association(association, current_fingerprint, fallback=None):
     catalogue = association.cpe
     references = safe_references(catalogue.nvd_references)
     reference_run_id = catalogue.references_source_run_id
-    # Existing decisions may predate NVD reference capture. A *later completed*
-    # discovery already stores the original NVD evidence in CpeSearchRun JSON.
-    # Read its Product links without forcing a new analyst decision or writing
-    # to catalogue/audit tables during GET requests.
-    if not any(ref["type"].strip().lower() == "product" for ref in references):
-        if fallback is not None:
-            incoming = safe_references(fallback["references"])
-            if any(ref["type"].strip().lower() == "product" for ref in incoming):
-                references = incoming
-                reference_run_id = fallback["run_id"]
+    # Legacy CPEs with no saved references can borrow Product evidence from
+    # a later completed search. An advisory-only catalogue is NOT empty:
+    # replacing its references/source with an older Product would falsify
+    # the provenance of an explicit analyst update.
+    if not references and fallback is not None:
+        incoming = safe_references(fallback["references"])
+        if any(ref["type"].strip().lower() == "product" for ref in incoming):
+            references = incoming
+            reference_run_id = fallback["run_id"]
     return {
         "id": association.pk,
         "cpe_name_id": str(catalogue.cpe_name_id),
@@ -219,13 +218,13 @@ def list_associations(asset):
     if not associations:
         return []
 
-    # Only seek supplemental evidence for catalogue entries without Product
-    # links. A single bounded query serves every association on the asset.
+    # Look up historical evidence ONLY when no references were saved.
+    # Stored Advisory references are real NVD evidence with their own
+    # provenance and must not be overwritten by older Product links.
     missing_ids = {
         str(item.cpe.cpe_name_id).lower()
         for item in associations
-        if not any(ref["type"].strip().lower() == "product"
-                   for ref in safe_references(item.cpe.nvd_references))
+        if not safe_references(item.cpe.nvd_references)
     }
     recent_products = {}
     if missing_ids:
