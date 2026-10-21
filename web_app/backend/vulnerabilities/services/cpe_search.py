@@ -4,9 +4,9 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from assets.models import Asset
-from vulnerabilities.models import CpeSearchRun
+from vulnerabilities.models import CpeSearchRun, CpeQuerySnapshot, CpeQueryProduct
 
-from .identity import hardware_identity, fingerprint, build_queries, build_level_queries
+from .identity import hardware_identity, fingerprint, build_queries, build_level_queries, build_cpe_match_plan
 from .candidate_matching import (
     normalize_candidate, merge_candidates, hardware_candidates,
     is_pertinent, is_manufacturer_related,
@@ -15,6 +15,7 @@ from .nvd_client import fetch_page, PAGE_SIZE, MAX_PAGES_PER_STRATEGY, MAX_TOTAL
 from .worker_lock import worker_lock_held
 from .advanced_query import validate_advanced_query
 from .nvd_references import combine_references
+from .cpe_catalogue import enqueue_catalogue_query
 
 # Shared across all discovery levels: never reset budgets on fallback.
 MAX_TOTAL_PAGE_FETCHES = 8
@@ -34,7 +35,7 @@ def create_run(asset_id, user, scope, *, return_reused=False):
         asset = Asset.objects.select_for_update().get(pk=asset_id)
         identity = hardware_identity(asset)
         try:
-            build_queries(identity, scope)
+            build_cpe_match_plan(identity)
         except ValueError as error:
             raise ValidationError({"identity": str(error)}) from error
         digest = fingerprint(identity)
@@ -198,7 +199,7 @@ def execute_advanced_run(run, pacer, fetcher=fetch_page):
     return run
 
 
-def execute_run(run, pacer, fetcher=fetch_page):
+def execute_legacy_run(run, pacer, fetcher=fetch_page):
     """Progressive hardware discovery. Only the locked worker calls NVD.
 
     SPECIFIC progresses through precise, family, and manufacturer levels.
@@ -393,6 +394,236 @@ def execute_run(run, pacer, fetcher=fetch_page):
             "queries": queries,
             "candidates": merge_candidates(list(dedup.values())),
             "result_truncated": truncated,
+        })
+    return run
+
+
+
+# New automatic engine: bounded preview requests, full manufacturer catalogue
+# traversal delegated to the existing resumable snapshot worker. The old
+# executor above remains available for verifying historical regressions.
+AUTO_MAX_PAGES_PER_QUERY = 3
+AUTO_TOTAL_PREVIEW_PAGES = 40
+
+
+def _record_candidate(row, run, level, dedup, details):
+    """Record one NVD product as an explainable suggestion, never validation."""
+    item = normalize_candidate(row, run.identity_snapshot, "cpeMatchString")
+    if item is None:
+        return
+    details["hardware_results"] += 1
+    if not is_manufacturer_related(item, run.identity_snapshot):
+        details["filtered_hardware_results"] += 1
+        return
+    if is_pertinent(item, run.identity_snapshot):
+        details["pertinent_results"] += 1
+    elif item["match_level"] == "RELATED":
+        details["related_results"] += 1
+    key = item["cpe_name_id"]
+    if key in dedup:
+        old = dedup[key]
+        old["methods"] = sorted(set(old.get("methods", []) + item["methods"]))
+        old["nvd_references"] = combine_references(
+            old.get("nvd_references", []), item.get("nvd_references", [])
+        )
+        old["discovery_levels"] = sorted(set(
+            old.get("discovery_levels", []) + [level]
+        ))
+    elif len(dedup) < MAX_TOTAL_CANDIDATES:
+        item["discovery_levels"] = [level]
+        dedup[key] = item
+    else:
+        details["candidate_limit_reached"] = True
+
+
+def _snapshot_products(snapshot):
+    """Read original NVD evidence in batches, never preload the catalogue."""
+    return (CpeQueryProduct.objects.filter(snapshot=snapshot)
+            .order_by("pk").values_list("nvd_record", flat=True)
+            .iterator(chunk_size=500))
+
+
+def execute_run(run, pacer, fetcher=fetch_page):
+    """Automatic structured-only discovery; advanced requests remain unchanged.
+
+    Each completed query is checkpointed in CpeSearchRun. At the manufacturer
+    level, enqueue/reuse a CpeQuerySnapshot and leave this run QUEUED until
+    the worker finishes the complete catalogue retrieval. On restart, skip
+    completed queries and resume from the recorded waiting snapshot.
+    """
+    if run.status != CpeSearchRun.Status.QUEUED:
+        return run
+    if getattr(run, "trigger", None) == "ADVANCED":
+        return execute_advanced_run(run, pacer, fetcher)
+    if getattr(run, "trigger", "MANUAL") != "MANUAL":
+        return run
+    queries = list(run.queries or [])
+    dedup = {c["cpe_name_id"]: c for c in (run.candidates or [])
+             if isinstance(c, dict) and isinstance(c.get("cpe_name_id"), str)}
+    try:
+        planned = build_cpe_match_plan(run.identity_snapshot)
+        if run.scope == CpeSearchRun.Scope.BROAD:
+            planned = [q for q in planned if q["level"] != "SPECIFIC"]
+    except ValueError as exc:
+        _persist(run, {
+            "status": CpeSearchRun.Status.FAILED, "finished_at": timezone.now(),
+            "error_message": str(exc), "result_truncated": True,
+        })
+        return run
+    if not queries:
+        _persist(run, {
+            "status": CpeSearchRun.Status.RUNNING,
+            "started_at": timezone.now(),
+            "error_message": "", "queries": [], "candidates": [],
+            "result_truncated": False,
+        })
+    else:
+        _persist(run, {"status": CpeSearchRun.Status.RUNNING,
+                       "error_message": ""})
+    preview_pages = sum(q.get("pages", 0) for q in queries
+                        if q.get("level") != "MANUFACTURER")
+    active_details = None
+    try:
+        for step in planned:
+            # Only replay a previously WAITING query; completed queries
+            # already have durable evidence and must not be requested again.
+            previous = next((q for q in queries if
+                             q.get("parameter") == step["parameter"] and
+                             q.get("level") == step["level"]), None)
+            if previous and previous.get("status") == "COMPLETED":
+                continue
+            if previous and previous.get("status") not in ("WAITING_CATALOGUE",):
+                raise ValueError("Estado inconsistente del plan CPE. Requiere nueva búsqueda.")
+            details = previous or {
+                **step, "status": "RUNNING", "pages": 0,
+                "retrieved": 0, "total_results": None,
+                "hardware_results": 0, "filtered_hardware_results": 0,
+                "pertinent_results": 0, "related_results": 0,
+            }
+            active_details = details
+            if previous is None:
+                queries.append(details)
+            if step["level"] == "MANUFACTURER":
+                if previous:
+                    snapshot = CpeQuerySnapshot.objects.select_related("cache").get(
+                        pk=details["snapshot_id"]
+                    )
+                    if (snapshot.cache.strategy != "cpeMatchString" or
+                            snapshot.cache.parameter != step["parameter"]):
+                        raise ValueError("La recuperación NVD no pertenece a esta consulta.")
+                else:
+                    snapshot, reused = enqueue_catalogue_query(
+                        "cpeMatchString", step["parameter"]
+                    )
+                    details["snapshot_id"] = snapshot.pk
+                    details["cache_reused"] = reused
+                details["retrieved"] = snapshot.retrieved_count
+                details["total_results"] = snapshot.expected_total
+                details["pages"] = snapshot.pages_fetched
+                if snapshot.status != CpeQuerySnapshot.Status.COMPLETED:
+                    if snapshot.status == CpeQuerySnapshot.Status.FAILED:
+                        details["status"] = "FAILED"
+                        details["stop_reason"] = snapshot.error_code or "CATALOGUE_FAILED"
+                        raise ValueError(
+                            "No se completó la recuperación del catálogo NVD: "
+                            + (snapshot.error_message or details["stop_reason"])
+                        )
+                    details["status"] = "WAITING_CATALOGUE"
+                    details["level_result"] = "WAITING_CATALOGUE"
+                    _persist(run, {
+                        "status": CpeSearchRun.Status.QUEUED, "queries": queries,
+                        "candidates": merge_candidates(list(dedup.values())),
+                    })
+                    return run
+                details["status"] = "RUNNING"
+                # A complete snapshot may be reused by many different assets.
+                for row in _snapshot_products(snapshot):
+                    _record_candidate(row, run, step["level"], dedup, details)
+                details["status"] = "COMPLETED"
+                details["catalogue_complete"] = True
+                details["level_result"] = (
+                    "SUFFICIENT_PERTINENT_CANDIDATES"
+                    if details["pertinent_results"] else "NO_PERTINENT_CANDIDATES"
+                )
+                if details.get("candidate_limit_reached"):
+                    details["level_result"] = "PARTIAL_RESULTS"
+                    details["stop_reason"] = "CANDIDATE_LIMIT"
+                    run.result_truncated = True
+                _persist(run, {"queries": queries,
+                               "candidates": merge_candidates(list(dedup.values())),
+                               "result_truncated": run.result_truncated})
+                if details["pertinent_results"] or details.get("candidate_limit_reached"):
+                    break
+                continue
+
+            # Bounded preview of specific/product-prefix queries. Truncated
+            # previews are explicitly PARTIAL and do NOT imply no matching CPE.
+            total = None
+            offset = 0
+            for page_index in range(AUTO_MAX_PAGES_PER_QUERY):
+                if preview_pages >= AUTO_TOTAL_PREVIEW_PAGES:
+                    details["stop_reason"] = "GLOBAL_PREVIEW_BUDGET"
+                    break
+                data = fetcher("cpeMatchString", step["parameter"], offset, pacer)
+                preview_pages += 1
+                products = data.get("products")
+                count = data.get("totalResults")
+                if not isinstance(products, list) or type(count) is not int or count < 0:
+                    raise ValueError("NVD devolvió una página inválida.")
+                if len(products) > PAGE_SIZE or offset + len(products) > count:
+                    raise ValueError("NVD devolvió una página inconsistente.")
+                details["pages"] += 1
+                details["total_results"] = count
+                details["retrieved"] += len(products)
+                total = count
+                for row in products:
+                    _record_candidate(row, run, step["level"], dedup, details)
+                _persist(run, {"queries": queries,
+                               "candidates": merge_candidates(list(dedup.values())),
+                               "result_truncated": run.result_truncated})
+                offset += len(products)
+                if offset >= count:
+                    break
+                if not products:
+                    details["stop_reason"] = "EMPTY_PAGE"
+                    break
+            if total is None or offset < total or details.get("candidate_limit_reached"):
+                details["status"] = "PARTIAL"
+                details["stop_reason"] = details.get("stop_reason") or (
+                    "CANDIDATE_LIMIT" if details.get("candidate_limit_reached")
+                    else "PREVIEW_PAGE_LIMIT"
+                )
+                details["level_result"] = "PARTIAL_RESULTS"
+                _persist(run, {"queries": queries,
+                               "result_truncated": True})
+                break
+            details["status"] = "COMPLETED"
+            details["level_result"] = (
+                "SUFFICIENT_PERTINENT_CANDIDATES"
+                if details["pertinent_results"] else "NO_PERTINENT_CANDIDATES"
+            )
+            if not details["pertinent_results"]:
+                details["next_level_reason"] = "NO_PERTINENT_CANDIDATES"
+            _persist(run, {"queries": queries})
+            if details["pertinent_results"]:
+                break
+
+        _persist(run, {
+            "status": CpeSearchRun.Status.COMPLETED,
+            "finished_at": timezone.now(),
+            "candidates": merge_candidates(list(dedup.values())),
+            "queries": queries,
+            "result_truncated": run.result_truncated,
+        })
+    except Exception as exc:
+        if active_details is not None:
+            active_details["status"] = "FAILED"
+            active_details["stop_reason"] = active_details.get("stop_reason") or "REQUEST_FAILED"
+        _persist(run, {
+            "status": CpeSearchRun.Status.FAILED,
+            "finished_at": timezone.now(), "error_message": str(exc)[:1000],
+            "result_truncated": True,
+            "queries": queries, "candidates": merge_candidates(list(dedup.values())),
         })
     return run
 
