@@ -25,9 +25,18 @@ def _batches(observations, size):
         yield batch
 
 
-def _signature(item):
+def _observation_signature(item):
+    """Observation fields describe the observed flow, not its inventory model."""
     return (
         item.client_ip, item.server_ip,
+        item.transport_protocol.upper(), item.service_port,
+    )
+
+
+def _communication_signature(item):
+    """Persisted canonical Communication has source/destination, not client/server."""
+    return (
+        item.source_ip, item.destination_ip,
         item.transport_protocol.upper(), item.service_port,
     )
 
@@ -46,7 +55,7 @@ def consolidate_communication_observations(observations, *, batch_size=BATCH_SIZ
     for batch in _batches(observations, batch_size):
         unique = {}
         for observation in batch:
-            unique.setdefault(_signature(observation), observation)
+            unique.setdefault(_observation_signature(observation), observation)
 
         condition = Q(pk__isnull=True)
         for src, dst, transport, port in unique:
@@ -54,7 +63,7 @@ def consolidate_communication_observations(observations, *, batch_size=BATCH_SIZ
                 source_ip=src, destination_ip=dst,
                 transport_protocol=transport, service_port=port,
             )
-        existing = {_signature(row): row for row in Communication.objects.filter(condition)}
+        existing = {_communication_signature(row): row for row in Communication.objects.filter(condition)}
         existing_before = set(existing)
         missing = [
             Communication(
@@ -71,7 +80,7 @@ def consolidate_communication_observations(observations, *, batch_size=BATCH_SIZ
                 missing, batch_size=batch_size, ignore_conflicts=True
             )
             existing = {
-                _signature(row): row
+                _communication_signature(row): row
                 for row in Communication.objects.filter(condition)
             }
             created += len(set(existing) - existing_before)
@@ -79,7 +88,7 @@ def consolidate_communication_observations(observations, *, batch_size=BATCH_SIZ
         services_to_update = {}
         links_to_update = []
         for observation in batch:
-            communication = existing[_signature(observation)]
+            communication = existing[_observation_signature(observation)]
             if not communication.service and observation.service:
                 communication.service = observation.service
                 services_to_update[communication.pk] = communication
