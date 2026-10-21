@@ -167,3 +167,36 @@ class CandidateMatchingIncrement3Tests(SimpleTestCase):
         record["cpe"]["titles"] = [{"lang": "en", "title": "Hirschmann EAGLE20 guide"}]
         item = normalize_candidate(record, device, "keywordSearch")
         self.assertIsNone(classify_alternative_vendor(item, device))
+
+    def test_moxa_model_suffix_and_nearby_family_are_exploratory(self):
+        asset = identity("Moxa", "EDS-508A")
+        close = normalize_candidate(candidate("moxa", "eds-510a"), asset, "cpeMatchString")
+        revision = normalize_candidate(candidate("moxa", "eds-508b"), asset, "cpeMatchString")
+        remote = normalize_candidate(candidate("moxa", "eds-589a"), asset, "cpeMatchString")
+        other = normalize_candidate(candidate("moxa", "iks-g6824a"), asset, "cpeMatchString")
+        self.assertEqual(close["match_level"], "EXPLORATORY")
+        self.assertEqual(revision["match_level"], "EXPLORATORY")
+        self.assertEqual(remote["match_level"], "EXPLORATORY")
+        self.assertEqual(other["match_level"], "POSSIBLE_INCOMPATIBILITY")
+        self.assertIn("serie EDS", close["match_reason"])
+        self.assertEqual(
+            [item["cpe_name"].split(":")[4] for item in
+             merge_candidates([remote, close, revision])],
+            ["eds-508b", "eds-510a", "eds-589a"],
+        )
+
+    def test_moxa_510a_never_stops_search_for_508a(self):
+        from vulnerabilities.services.candidate_matching import is_pertinent
+        asset = identity("Moxa", "EDS-508A")
+        candidate_510 = normalize_candidate(candidate("moxa", "eds-510a"),
+                                            asset, "cpeMatchString")
+        candidate_508 = normalize_candidate(candidate("moxa", "eds-508a"),
+                                            asset, "cpeMatchString")
+        self.assertFalse(is_pertinent(candidate_510, asset))
+        self.assertTrue(is_pertinent(candidate_508, asset))
+
+    def test_moxa_spaced_model_uses_same_rule_without_special_vendor_cases(self):
+        asset = identity("Moxa", "EDS 508A")
+        candidate_510 = normalize_candidate(candidate("moxa", "eds-510a"),
+                                            asset, "cpeMatchString")
+        self.assertEqual(candidate_510["match_level"], "EXPLORATORY")

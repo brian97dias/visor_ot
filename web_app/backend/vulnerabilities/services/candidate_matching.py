@@ -82,23 +82,38 @@ def _exploratory_proximity(candidate, identity):
     # EAGLE 20 -> eagle_30. The shared lettered series is evidence of
     # proximity, not technical equivalence; numeric differences can be large.
     wanted = re.fullmatch(
-        r"([a-z]{2,12})[ _-]*([0-9]{2,6})(?:[ _/-]+[a-z0-9_.-]+)?",
+        r"([a-z]{2,12})[ _-]*([0-9]{2,6})([a-z]?)(?:[ _/-]+[a-z0-9_.-]+)?",
         model,
     )
     other = re.fullmatch(
-        r"([a-z]{2,12})[_-]*([0-9]{2,6})"
-        r"(?:[a-z](?:[_-][a-z0-9_.-]+)?|[_-][a-z0-9_.-]+)?",
+        r"([a-z]{2,12})[_-]*([0-9]{2,6})([a-z]?)"
+        r"(?:[_-][a-z0-9_.-]+)?",
         product,
     )
     if wanted and other and wanted.group(1) == other.group(1):
-        distance = abs(int(wanted.group(2)) - int(other.group(2)))
-        # The inventory may have a further model revision not identified by
-        # NVD. Such a row remains an optional weak suggestion even if the
-        # main number matches but the full product identifier does not.
-        return distance, (
+        own_number, other_number = wanted.group(2), other.group(2)
+        if len(own_number) != len(other_number):
+            return None
+        common = len(re.match(
+            r"^" + re.escape(own_number[:1]), other_number
+        ).group(0)) if own_number[0] == other_number[0] else 0
+        for a, b in zip(own_number[common:], other_number[common:]):
+            if a != b:
+                break
+            common += 1
+        # A shared series is weak evidence. Prefer a matching numeric stem
+        # and matching revision, not mere vendor-level co-occurrence.
+        distance = abs(int(own_number) - int(other_number))
+        score = (
+            (len(own_number) - common) * 100000
+            + min(distance, 99999)
+            + (0 if wanted.group(3) == other.group(3) else 10000)
+        )
+        return score, (
             f"Mismo fabricante y serie {wanted.group(1).upper()}; "
-            f"códigos {wanted.group(2)} y {other.group(2)}. "
-            "La serie compartida no demuestra compatibilidad entre modelos."
+            f"referencias {wanted.group(2) + wanted.group(3).upper()} "
+            f"y {other.group(2) + other.group(3).upper()} distintas. "
+            "La similitud no demuestra compatibilidad técnica."
         )
     return None
 
