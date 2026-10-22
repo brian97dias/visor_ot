@@ -2,13 +2,12 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useOutletContext, useParams } from "react-router-dom";
 import { getAsset } from "../api/assets";
 import {
-  latestCpeSearch, readCpeSearch, startCpeSearch, startAdvancedCpeSearch, getAssetCpeAssociations,
+  latestCpeSearch, readCpeSearch, startCpeSearch, getAssetCpeAssociations,
 } from "../api/vulnerabilities";
 import CandidateCpeReview from "../components/CandidateCpeReview";
 import CpeEvidence from "../components/CpeEvidence";
 import CpeDiscoveryTrace from "../components/CpeDiscoveryTrace";
 import CpeCandidateExplanation from "../components/CpeCandidateExplanation";
-import CpeAdvancedSearch from "../components/CpeAdvancedSearch";
 import CpeReferences from "../components/CpeReferences";
 import {
   unreviewedCpeCandidates, reopenedWithoutCurrentCandidate, reviewedCpeAssociations,
@@ -122,25 +121,6 @@ export default function AssetCpeDiscovery() {
       setWorking(false);
     }
   }
-  async function advancedSearch(payload) {
-    if (working || pending) return;
-    setWorking(true);
-    setPollingPaused(false);
-    setError("");
-    try {
-      const response = await startAdvancedCpeSearch(assetId, payload);
-      // The work was already stored in PostgreSQL if this read fails.
-      try {
-        setRun(await readCpeSearch(assetId, response.run_id));
-      } catch (err) {
-        setError("La búsqueda quedó en cola, pero no se pudo consultar su estado: " + err.message);
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setWorking(false);
-    }
-  }
   if (loading) return <section className="page">Cargando identificación CPE...</section>;
   if (!asset) return <section className="page"><p className="error-message">{error}</p>
     <Link to={"/assets/" + assetId}>Volver</Link></section>;
@@ -164,10 +144,6 @@ export default function AssetCpeDiscovery() {
             {asset.hardware?.cpu_model ? " · CPU " + asset.hardware.cpu_model : ""}</>}</p>
     </header>
 
-    {!isSoftware && <Link className="button-secondary assets-back-link"
-      to={"/assets/" + assetId + "/cpe/catalogue"} state={{ cpeOverviewSearch: query }}>
-      Explorar catálogo NVD almacenado →
-    </Link>}
     {error && <div className="error-message" role="alert">{error}</div>}
     {!run?.identity_is_current && run && <p className="cpe-warning">
       La identidad técnica cambió. Los resultados anteriores pueden no corresponder al equipo actual.
@@ -176,14 +152,7 @@ export default function AssetCpeDiscovery() {
       <div className="cpe-tools">
         <button className="button-primary" type="button" disabled={working || pending}
           onClick={() => search("SPECIFIC")}>{working ? "Solicitando..." : "Buscar candidatos"}</button>
-        {!isSoftware && <button className="button-secondary" type="button"
-          disabled={working || pending} onClick={() => search("BROAD")}>
-          Ampliar búsqueda por familia
-        </button>}
       </div>}
-    {allowed && asset.asset_type === "HARDWARE" && asset.inventory_status === "ACTIVE" &&
-      <CpeAdvancedSearch key={assetId} asset={asset} busy={working || pending}
-        onStart={advancedSearch} />}
     {!allowed && <p className="cpe-copy">Tu usuario puede consultar, pero no iniciar búsquedas CPE.</p>}
     {run && pending && (pollingPaused || Boolean(error)) && (
       <div className="cpe-tools">
