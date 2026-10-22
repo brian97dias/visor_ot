@@ -34,6 +34,17 @@ export function canReviewExternalCpe(run, allowed) {
     run.identity_is_current && (run.candidates || []).length > 0);
 }
 
+export function additionalNvdReferences(references) {
+  // Product links use the shared CpeReferences display. Preserve other
+  // official NVD links without following unsafe/unverified URL schemes.
+  if (!Array.isArray(references)) return [];
+  return references.filter(item =>
+    item && typeof item.type === "string" &&
+    item.type.trim().toLowerCase() !== "product" &&
+    typeof item.url === "string"
+  );
+}
+
 export function externalCpeAssociation(associations, candidate) {
   if (!candidate?.cpe_name_id) return null;
   return (associations || []).find(item =>
