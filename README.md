@@ -11,6 +11,7 @@ python -m uvicorn api:app --reload --host 127.0.0.1 --port 8001
 
 web-app/backend 
 python manage.py runserver
+python manage.py run_cpe_worker
 
 web-app/frontend
 npm run dev
