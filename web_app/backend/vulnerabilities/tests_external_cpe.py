@@ -77,11 +77,11 @@ class ExternalCpeVerificationTests(TestCase):
             response = {"totalResults": len(rows) if count is None else count,
                         "startIndex": 0, "products": rows}
             fetcher = Mock(return_value=response)
-        completed = execute_external_cpe(run, object(), fetcher=fetcher)
+        pacer = object()
+        completed = execute_external_cpe(run, pacer, fetcher=fetcher)
         if not exc:
             fetcher.assert_called_once_with(
-                "cpeNameId", str(self.uuid), 0, completed if False else fetcher.call_args.args[3],
-                results_per_page=1,
+                "cpeNameId", str(self.uuid), 0, pacer, results_per_page=1,
             )
         completed.refresh_from_db()
         return completed
