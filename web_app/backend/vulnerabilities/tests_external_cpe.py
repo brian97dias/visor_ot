@@ -282,14 +282,139 @@ class ExternalCpeVerificationTests(TestCase):
         self.assertEqual(confirmed.status_code, 201, confirmed.data)
         after = self.client.get("/api/vulnerabilities/cpe-overview/")
         after_row = next(x for x in after.data["results"] if x["asset_id"] == self.hardware.pk)
-        for key in ("run_id", "candidate_count", "confirmed_count",
-                    "unreviewed_count", "out_of_scope_count", "identification_status"):
+        # Discovery remains unchanged; the overview now *also* counts
+        # independently audited UUID decisions for this technical identity.
+        for key in ("run_id", "candidate_count", "unreviewed_count", "out_of_scope_count"):
             self.assertEqual(after_row[key], before_row[key])
+        self.assertEqual(after_row["identification_status"], "EVALUATED")
+        self.assertEqual(after_row["confirmed_count"], 1)
+        self.assertEqual(after_row["automatic_confirmed_count"], 0)
+        self.assertEqual(after_row["manual_confirmed_count"], 1)
+        self.assertEqual(after_row["reviewed_count"], 1)
         associations = self.client.get(
             f"/api/vulnerabilities/assets/{self.hardware.pk}/cpes/"
         )
         self.assertEqual(associations.data["associations"][0]["source_run_trigger"],
                          "EXTERNAL_CPE")
+
+    def test_manual_only_confirmation_is_evaluated_without_automatic_discovery(self):
+        run = self.finish(self.start(self.software),
+                          self.record(part="o", vendor="cisco", product="ios"))
+        response = self.client.post(
+            f"/api/vulnerabilities/assets/{self.software.pk}/cpes/",
+            {"run_id": run.pk, "cpe_name_id": str(self.uuid),
+             "status": "CONFIRMED", "justification": "Contraste documental"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        row = next(x for x in self.client.get(
+            "/api/vulnerabilities/cpe-overview/").data["results"]
+            if x["asset_id"] == self.software.pk)
+        self.assertIsNone(row["run_id"])
+        self.assertEqual(row["candidate_count"], 0)
+        self.assertEqual(row["identification_status"], "EVALUATED")
+        self.assertEqual((row["confirmed_count"], row["manual_confirmed_count"],
+                          row["rejected_count"], row["unreviewed_count"]), (1, 1, 0, 0))
+
+    def test_manual_rejection_and_reopen_are_reflected_in_overview(self):
+        run = self.finish(self.start(), self.record())
+        create = self.client.post(
+            f"/api/vulnerabilities/assets/{self.hardware.pk}/cpes/",
+            {"run_id": run.pk, "cpe_name_id": str(self.uuid),
+             "status": "REJECTED", "justification": "No corresponde"},
+            format="json",
+        )
+        self.assertEqual(create.status_code, 201, create.data)
+        assoc_id = create.data["association"]["id"]
+        def overview():
+            return next(x for x in self.client.get(
+                "/api/vulnerabilities/cpe-overview/").data["results"]
+                if x["asset_id"] == self.hardware.pk)
+        row = overview()
+        self.assertEqual(row["identification_status"], "EVALUATED")
+        self.assertEqual((row["confirmed_count"], row["rejected_count"],
+                          row["manual_rejected_count"]), (0, 1, 1))
+        reopened = self.client.patch(
+            f"/api/vulnerabilities/assets/{self.hardware.pk}/cpes/{assoc_id}/",
+            {"status": "REOPENED"}, format="json",
+        )
+        self.assertEqual(reopened.status_code, 200, reopened.data)
+        row = overview()
+        self.assertEqual(row["identification_status"], "TO_REVIEW")
+        self.assertEqual(row["rejected_count"], 0)
+        self.assertEqual(row["reviewed_count"], 0)
+
+    def test_same_uuid_in_auto_run_and_external_review_is_counted_once(self):
+        from django.utils import timezone
+        run = self.finish(self.start(), self.record())
+        reviewed = self.client.post(
+            f"/api/vulnerabilities/assets/{self.hardware.pk}/cpes/",
+            {"run_id": run.pk, "cpe_name_id": str(self.uuid),
+             "status": "CONFIRMED", "justification": "Coincidencia validada"},
+            format="json",
+        )
+        self.assertEqual(reviewed.status_code, 201, reviewed.data)
+        auto = create_run(self.hardware.pk, self.analyst, "SPECIFIC")
+        auto.status = CpeSearchRun.Status.COMPLETED
+        auto.finished_at = timezone.now()
+        auto.candidates = run.candidates
+        auto.save(update_fields=["status", "finished_at", "candidates"])
+        row = next(x for x in self.client.get(
+            "/api/vulnerabilities/cpe-overview/").data["results"]
+            if x["asset_id"] == self.hardware.pk)
+        self.assertEqual(row["candidate_count"], 1)
+        self.assertEqual(row["confirmed_count"], 1)
+        self.assertEqual(row["automatic_confirmed_count"], 1)
+        self.assertEqual(row["manual_confirmed_count"], 1)
+        self.assertEqual(row["reviewed_count"], 1)
+        self.assertEqual(row["identification_status"], "EVALUATED")
+        self.assertEqual(AssetCpe.objects.count(), 1)
+        self.assertEqual(AssetCpeDecision.objects.count(), 1)
+
+    def test_manual_confirmation_requires_re_review_after_identity_change(self):
+        run = self.finish(self.start(self.software),
+                          self.record(part="o", vendor="cisco", product="ios"))
+        result = self.client.post(
+            f"/api/vulnerabilities/assets/{self.software.pk}/cpes/",
+            {"run_id": run.pk, "cpe_name_id": str(self.uuid),
+             "status": "CONFIRMED"}, format="json",
+        )
+        self.assertEqual(result.status_code, 201, result.data)
+        self.software.software.version = "12.2"
+        self.software.software.save(update_fields=["version"])
+        row = next(x for x in self.client.get(
+            "/api/vulnerabilities/cpe-overview/").data["results"]
+            if x["asset_id"] == self.software.pk)
+        self.assertEqual(row["identification_status"], "STALE")
+        self.assertEqual(row["confirmed_count"], 0)
+        self.assertEqual(row["manual_confirmed_count"], 0)
+        self.assertEqual(AssetCpe.objects.count(), 1)  # Historical audit preserved.
+
+    def test_manual_and_auto_review_combination_keeps_real_unreviewed_count(self):
+        from django.utils import timezone
+        run = self.finish(self.start(), self.record())
+        response = self.client.post(
+            f"/api/vulnerabilities/assets/{self.hardware.pk}/cpes/",
+            {"run_id": run.pk, "cpe_name_id": str(self.uuid),
+             "status": "CONFIRMED"}, format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        automatic = create_run(self.hardware.pk, self.analyst, "SPECIFIC")
+        automatic.status = CpeSearchRun.Status.COMPLETED
+        automatic.finished_at = timezone.now()
+        automatic.candidates = [{
+            **run.candidates[0],
+            "cpe_name_id": str(uuid4()),
+        }]
+        automatic.save(update_fields=["status", "finished_at", "candidates"])
+        row = next(x for x in self.client.get(
+            "/api/vulnerabilities/cpe-overview/").data["results"]
+            if x["asset_id"] == self.hardware.pk)
+        self.assertEqual(row["candidate_count"], 1)
+        self.assertEqual(row["confirmed_count"], 1)
+        self.assertEqual(row["manual_confirmed_count"], 1)
+        self.assertEqual(row["unreviewed_count"], 1)
+        self.assertEqual(row["identification_status"], "IN_REVIEW")
 
     def test_operator_cannot_enqueue_but_can_read_existing_verification(self):
         run = self.start()
