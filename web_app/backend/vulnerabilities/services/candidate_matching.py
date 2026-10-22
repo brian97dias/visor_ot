@@ -374,7 +374,15 @@ def _software_compound_cpu_proximity(candidate, identity):
         first + model + r"_cpu_([0-9]{3,6}[a-z]?)_firmware",
         value,
     )
-    if other_cpu and other_cpu.group(1) != inventoried_cpu:
+    if other_cpu:
+        if other_cpu.group(1) == inventoried_cpu:
+            return (
+                50000,
+                f"Coinciden fabricante, familia {brand.upper()} {series.upper()} "
+                f"{number} y CPU {inventoried_cpu.upper()}, pero el producto "
+                "NVD añade firmware: falta verificar la versión instalada "
+                "y que esa identificación corresponde al activo.",
+            )
         return (
             200000,
             f"Mismo fabricante y familia {brand.upper()} {series.upper()} {number}, "
