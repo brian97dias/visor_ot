@@ -479,6 +479,34 @@ def software_numeric_prefixes(product, manufacturer):
     return list(dict.fromkeys((model + "*", model[:-1] + "*")))
 
 
+def software_short_series_model(product, manufacturer):
+    """Recover segmented device series from explicitly named firmware products.
+
+    Phoenix Contact / FL IL 24 BK PAC Firmware -> fl_il_24_bk_pac.
+    The suffix is a software descriptor, not part of the device model.
+    Do not treat an unrelated OS/application version or arbitrary short
+    word as a product family.
+    """
+    canonical = _software_product_spellings(product, manufacturer)[0]
+    if not canonical.endswith("_firmware"):
+        return ""
+    core = canonical[:-len("_firmware")]
+    return core if _planned_short_series_prefixes(core, manufacturer) else ""
+
+
+def software_short_series_prefixes(product, manufacturer):
+    """Reuse hardware's bounded FL IL 24 -> FL IL -> FL progression.
+
+    The two-letter fallback is delimited (fl_*) so it will not query
+    unrelated products such as fluffy, fl2 or flserver.
+    """
+    core = software_short_series_model(product, manufacturer)
+    if not core:
+        return []
+    prefixes = _planned_short_series_prefixes(core, manufacturer)
+    return [p + "*" if "_" in p else p + "_*" for p in prefixes]
+
+
 def _software_cpe_version(version):
     """Escape CPE 2.3 special characters, preserving Cisco version suffixes.
 
@@ -590,6 +618,14 @@ def build_software_cpe_match_plan(identity):
     for prefix in software_numeric_prefixes(product, manufacturer):
         for vendor in vendors:
             add("FAMILY", vendor, prefix, None, "NUMERIC_MODEL_PREFIX",
+                local_filter=True)
+
+    # Hardware already uses the same progressive short-series planner.
+    # Keep the firmware qualifier out of the model comparison, and retain
+    # a delimited final prefix: fl_il_24* -> fl_il* -> fl_*.
+    for prefix in software_short_series_prefixes(product, manufacturer):
+        for vendor in vendors:
+            add("FAMILY", vendor, prefix, None, "SHORT_SERIES_PREFIX",
                 local_filter=True)
 
     for vendor in vendors:
