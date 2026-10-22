@@ -19,12 +19,6 @@ export function startCpeSearch(id, scope = "SPECIFIC") {
     body: JSON.stringify({ scope }),
   });
 }
-export function startAdvancedCpeSearch(id, payload) {
-  return request("/api/vulnerabilities/assets/" + id + "/cpe-searches/advanced/", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-}
 export async function latestCpeSearch(id) {
   const data = await request("/api/vulnerabilities/assets/" + id + "/cpe-searches/latest/");
   return data.run;
@@ -61,7 +55,7 @@ export async function updateAssetCpeAssociation(id, associationId, payload) {
   });
 }
 
-/** Bulk enqueue is specific-only; software is explicitly reported, never queued yet. */
+/** Analyst-triggered bulk enqueue supports both hardware and software. */
 export function startBulkCpeSearch(assetIds) {
   return request("/api/vulnerabilities/cpe-searches/bulk/", {
     method: "POST",
@@ -71,25 +65,3 @@ export function startBulkCpeSearch(assetIds) {
 }
 
 
-/** Shared NVD catalogue browsing. Only the prepare endpoint writes evidence. */
-export function getCpeCatalogueSnapshots(assetId) {
-  return request("/api/vulnerabilities/assets/" + assetId + "/cpe-catalogue/snapshots/");
-}
-export function browseCpeCatalogue(assetId, snapshotId, filters = {}) {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(filters)) {
-    if (value !== undefined && value !== null && value !== "") {
-      search.set(key, String(value));
-    }
-  }
-  return request("/api/vulnerabilities/assets/" + assetId +
-    "/cpe-catalogue/snapshots/" + snapshotId + "/?" + search.toString());
-}
-export function selectCpeCatalogueEvidence(assetId, snapshotId, evidenceId) {
-  return request("/api/vulnerabilities/assets/" + assetId +
-    "/cpe-catalogue/snapshots/" + snapshotId + "/select/", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ evidence_id: evidenceId }),
-  });
-}
