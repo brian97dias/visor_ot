@@ -11,6 +11,37 @@ def is_outdated_association(association, identity_fingerprint):
     )
 
 
+def count_external_reviewed_cpes(associations, identity_fingerprint, automatic_ids):
+    """Count current, audited external-UUID decisions outside automatic discovery.
+
+    A CPE present in BOTH sources contributes only once to overall totals.
+    The full manually reviewed count remains independently visible as provenance.
+    Older or reopened decisions are not current confirmations/rejections.
+    """
+    external = {}
+    for association in associations:
+        if (association.source_run.trigger != "EXTERNAL_CPE"
+                or association.validated_identity_fingerprint != identity_fingerprint):
+            continue
+        external[str(association.cpe.cpe_name_id).lower()] = association.validation_status
+
+    statuses = (AssetCpe.Validation.CONFIRMED, AssetCpe.Validation.REJECTED)
+    extras = {
+        uid: status for uid, status in external.items()
+        if uid not in automatic_ids and status in statuses
+    }
+    return {
+        "confirmed": sum(status == AssetCpe.Validation.CONFIRMED for status in extras.values()),
+        "rejected": sum(status == AssetCpe.Validation.REJECTED for status in extras.values()),
+        "manual_confirmed": sum(
+            status == AssetCpe.Validation.CONFIRMED for status in external.values()),
+        "manual_rejected": sum(
+            status == AssetCpe.Validation.REJECTED for status in external.values()),
+        "manual_reopened": sum(
+            status == AssetCpe.Validation.REOPENED for status in external.values()),
+    }
+
+
 def count_current_cpes(run, associations, identity_fingerprint):
     """Never count an old or missing NVD result as currently discovered.
 
