@@ -588,6 +588,7 @@ def execute_run(run, pacer, fetcher=fetch_page):
                     or (software and step.get("version_scope") in (
                         "BRANCH_PREFIX", "PRODUCT_CATALOGUE", "RELATED_SERIES",
                         "NUMERIC_MODEL_PREFIX", "SHORT_SERIES_PREFIX",
+                        "COMPOUND_CPU_FAMILY",
                     ))):
                 if previous:
                     snapshot = CpeQuerySnapshot.objects.select_related("cache").get(
