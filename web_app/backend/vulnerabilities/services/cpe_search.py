@@ -65,36 +65,6 @@ def create_run(asset_id, user, scope, *, return_reused=False):
 
 
 
-def create_advanced_run(asset_id, user, payload):
-    """Queue a validated manual plan; reuses only an identical active manual job."""
-    with transaction.atomic():
-        asset = Asset.objects.select_for_update().get(pk=asset_id)
-        if asset.inventory_status != Asset.InventoryStatus.ACTIVE:
-            raise ValidationError({"asset": "Solo se buscan CPE de hardware activo."})
-        identity = hardware_identity(asset)
-        try:
-            build_queries(identity, "SPECIFIC")
-            plan = validate_advanced_query(identity, payload)
-        except ValueError as exc:
-            raise ValidationError({"advanced": str(exc)}) from exc
-        digest = fingerprint(identity)
-        for existing in CpeSearchRun.objects.filter(
-            asset=asset, identity_fingerprint=digest, trigger="ADVANCED",
-            status__in=(CpeSearchRun.Status.QUEUED, CpeSearchRun.Status.RUNNING),
-        ):
-            if existing.queries:
-                prior = existing.queries[0]
-                if all(prior.get(k) == v for k, v in plan.items()):
-                    return existing, True
-        run = CpeSearchRun.objects.create(
-            asset=asset, requested_by=user, scope=CpeSearchRun.Scope.SPECIFIC,
-            trigger="ADVANCED", identity_snapshot=identity,
-            identity_fingerprint=digest,
-            queries=[{**plan, "level": "ADVANCED", "status": "PLANNED"}],
-        )
-        return run, False
-
-
 def _persist(run, fields):
     for key, value in fields.items():
         setattr(run, key, value)
