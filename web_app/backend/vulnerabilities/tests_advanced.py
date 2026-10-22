@@ -11,7 +11,7 @@ from assets.services import register_hardware_asset
 from vulnerabilities.models import CpeSearchRun
 from vulnerabilities.services.advanced_query import validate_advanced_query
 from vulnerabilities.services.cpe_search import (
-    create_advanced_run, create_run, execute_run,
+    create_run, execute_run,
 )
 from vulnerabilities.services.identity import fingerprint, hardware_identity
 
@@ -172,11 +172,13 @@ class AdvancedWorkerTests(SimpleTestCase):
         self.assertIn("fabricante", run.error_message.lower())
 
 
-class AdvancedApiTests(TestCase):
+class RetiredAdvancedApiTests(TestCase):
+    """Manual CPE queries cannot be created through HTTP anymore."""
+
     def setUp(self):
         User = get_user_model()
-        self.analyst = User.objects.create_user(username="advanced-analyst", role=User.Role.ANALYST)
-        self.operator = User.objects.create_user(username="advanced-operator", role=User.Role.OPERATOR)
+        self.analyst = User.objects.create_user(username="retired-advanced-analyst", role=User.Role.ANALYST)
+        self.operator = User.objects.create_user(username="retired-advanced-operator", role=User.Role.OPERATOR)
         self.client = APIClient()
         self.client.force_authenticate(self.analyst)
         self.asset = register_hardware_asset(
@@ -185,56 +187,19 @@ class AdvancedApiTests(TestCase):
                                "cpu_model": "1215C", "role": "PLC"}},
             user=self.operator,
         )
-        self.url = f"/api/vulnerabilities/assets/{self.asset.pk}/cpe-searches/advanced/"
-        self.body = {"strategy": "keywordSearch", "parameter": "Siemens",
-                     "start_index": 100, "max_pages": 2}
 
-    def test_enqueue_stores_plan_and_is_readable_without_working_worker(self):
-        created = self.client.post(self.url, self.body, format="json")
-        self.assertEqual(created.status_code, 202, created.data)
-        run = CpeSearchRun.objects.get(pk=created.data["run_id"])
-        self.assertEqual(run.status, "QUEUED")
-        self.assertEqual(run.trigger, "ADVANCED")
-        self.assertEqual(run.scope, "SPECIFIC")
-        self.assertEqual(run.queries[0]["start_index"], 100)
-        self.assertEqual(run.queries[0]["status"], "PLANNED")
-        detail = self.client.get(f"/api/vulnerabilities/assets/{self.asset.pk}/cpe-searches/{run.pk}/")
-        self.assertEqual(detail.data["run"]["trigger"], "ADVANCED")
-        self.assertEqual(detail.data["run"]["queries"][0]["max_pages"], 2)
-
-    def test_duplicate_advanced_reuses_only_identical_live_request(self):
-        one = self.client.post(self.url, self.body, format="json")
-        two = self.client.post(self.url, self.body, format="json")
-        self.assertEqual(one.data["run_id"], two.data["run_id"])
-        self.assertTrue(two.data["reused"])
-        self.client.post(self.url, {**self.body, "start_index": 200}, format="json")
-        self.assertEqual(CpeSearchRun.objects.count(), 2)
-
-    def test_automatic_and_advanced_never_reuse_each_other(self):
-        automatic = create_run(self.asset.pk, self.analyst, "SPECIFIC")
-        advanced, reused = create_advanced_run(self.asset.pk, self.analyst, self.body)
-        self.assertFalse(reused)
-        self.assertNotEqual(automatic.pk, advanced.pk)
-        self.assertEqual(CpeSearchRun.objects.count(), 2)
-
-    def test_auto_request_after_advanced_job_does_not_reuse_manual_plan(self):
-        advanced, _ = create_advanced_run(self.asset.pk, self.analyst, self.body)
-        automatic = create_run(self.asset.pk, self.analyst, "SPECIFIC")
-        self.assertNotEqual(advanced.pk, automatic.pk)
-        self.assertEqual(automatic.trigger, "MANUAL")
-        self.assertEqual(CpeSearchRun.objects.count(), 2)
-
-    def test_role_and_validation_protections(self):
-        self.client.force_authenticate(self.operator)
-        self.assertEqual(self.client.post(self.url, self.body, format="json").status_code, 403)
-        self.client.force_authenticate(self.analyst)
-        bad = self.client.post(self.url, {"strategy": "keywordSearch", "parameter": "Apache"}, format="json")
-        self.assertEqual(bad.status_code, 400)
-        self.assertEqual(CpeSearchRun.objects.count(), 0)
-
-    def test_archived_hardware_cannot_be_enqueued(self):
-        self.asset.inventory_status = Asset.InventoryStatus.ARCHIVED
-        self.asset.save(update_fields=["inventory_status"])
-        result = self.client.post(self.url, self.body, format="json")
-        self.assertEqual(result.status_code, 400)
+    def test_retired_endpoint_is_unavailable_and_creates_nothing(self):
+        url = f"/api/vulnerabilities/assets/{self.asset.pk}/cpe-searches/advanced/"
+        result = self.client.post(url, {"strategy": "keywordSearch",
+                                        "parameter": "Siemens"}, format="json")
+        self.assertEqual(result.status_code, 404)
         self.assertFalse(CpeSearchRun.objects.exists())
+
+    def test_new_search_does_not_accept_broad_scope(self):
+        url = f"/api/vulnerabilities/assets/{self.asset.pk}/cpe-searches/"
+        response = self.client.post(url, {"scope": "BROAD"}, format="json")
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(CpeSearchRun.objects.exists())
+        response = self.client.post(url, {"scope": "SPECIFIC"}, format="json")
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(CpeSearchRun.objects.count(), 1)
