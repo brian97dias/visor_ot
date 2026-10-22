@@ -199,6 +199,7 @@ def serialize_association(association, current_fingerprint, fallback=None):
         "validated_by": association.validated_by.username if association.validated_by else None,
         "needs_review": association.validation_status != AssetCpe.Validation.REOPENED and association.validated_identity_fingerprint != current_fingerprint,
         "source_run_id": association.source_run_id,
+        "source_run_trigger": association.source_run.trigger,
         "history": [{
             "id": entry.pk,
             "previous_status": entry.previous_status,
@@ -207,6 +208,7 @@ def serialize_association(association, current_fingerprint, fallback=None):
             "actor": entry.actor.username if entry.actor else None,
             "created_at": entry.created_at,
             "source_run_id": entry.source_run_id,
+            "source_run_trigger": entry.source_run.trigger,
         } for entry in association.decision_history.all()],
     }
 
@@ -221,7 +223,7 @@ def list_associations(asset):
         current = ""
     associations = list(AssetCpe.objects.filter(asset=asset).select_related(
         "cpe", "validated_by", "source_run"
-    ).prefetch_related("decision_history__actor"))
+    ).prefetch_related("decision_history__actor", "decision_history__source_run"))
     if not associations:
         return []
 
