@@ -4,7 +4,7 @@ from .nvd_references import safe_references, combine_references
 from .identity import (
     normalized, cpu_spelling, family_term, vendor_variants, catalog_code_prefix,
     _software_product_spellings, software_series_stem, software_numeric_model,
-    software_version_in_branch, SOFTWARE_CPE_PARTS, ascii_text,
+    software_short_series_model, software_version_in_branch, SOFTWARE_CPE_PARTS, ascii_text,
 )
 
 
@@ -319,6 +319,23 @@ def _software_numeric_proximity(candidate, identity):
     )
 
 
+def _software_short_series_proximity(candidate, identity):
+    """Reuse hardware's delimited FL-series matcher for firmware evidence.
+
+    Accept only a sufficiently segmented inventoried device model with an
+    explicit 'Firmware' product designation. The CPE part/vendor checks are
+    still performed by classify_software; this is NEVER a version match.
+    """
+    core = software_short_series_model(
+        identity.get("product") or "", identity.get("manufacturer") or ""
+    )
+    if not core:
+        return None
+    return _exploratory_proximity(
+        candidate, {"manufacturer": identity.get("manufacturer"), "model": core}
+    )
+
+
 def classify_software(candidate, identity):
     """Explain a possible CPE software association; NEVER validate a version."""
     name = candidate["cpe_name"]
@@ -335,6 +352,14 @@ def classify_software(candidate, identity):
                 "EXPLORATORY",
                 nearby[1] + " Los productos representan firmware de modelos "
                 "distintos; esta sugerencia no identifica la versión instalada."
+            )
+        short_series = _software_short_series_proximity(candidate, identity)
+        if short_series:
+            return (
+                "EXPLORATORY",
+                short_series[1] + " El modelo completo y el tipo exacto de "
+                "producto/firmware no están verificados; tampoco se conoce "
+                "una versión instalada compatible."
             )
         return "POSSIBLE_INCOMPATIBILITY", "El producto CPE no corresponde al software inventariado."
     if product == "RELATED":
@@ -509,7 +534,11 @@ def normalize_candidate(record, identity, strategy):
     if item["match_level"] == "EXPLORATORY":
         if identity.get("asset_type") == "SOFTWARE":
             numeric = _software_numeric_proximity(item, identity)
-            item["exploratory_distance"] = numeric[0] if numeric else 0
+            short_series = _software_short_series_proximity(item, identity)
+            item["exploratory_distance"] = (
+                numeric[0] if numeric else
+                short_series[0] if short_series else 0
+            )
         else:
             item["exploratory_distance"] = _exploratory_proximity(item, identity)[0]
     return item
