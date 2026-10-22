@@ -162,6 +162,54 @@ class SoftwareMatchingTests(SimpleTestCase):
                 if level == "EXPLORATORY":
                     self.assertIn("modelos distintos", row["match_reason"])
 
+    def test_phoenix_software_fl_family_reuses_hardware_proximity_ranking(self):
+        identity = {
+            "asset_type": "SOFTWARE", "software_type": "OS",
+            "manufacturer": "Phoenix Contact",
+            "product": "FL IL 24 BK PAC Firmware", "version": "",
+        }
+        examples = {
+            "fl_il_24_switch": ("EXPLORATORY", 700000),
+            "fl_il_comserver": ("EXPLORATORY", 800000),
+            "fl_comserver_basic_232": ("EXPLORATORY", 900000),
+            "fluffy_server": ("POSSIBLE_INCOMPATIBILITY", None),
+            "fl2_server": ("POSSIBLE_INCOMPATIBILITY", None),
+            "flserver_232": ("POSSIBLE_INCOMPATIBILITY", None),
+            "quint_power": ("POSSIBLE_INCOMPATIBILITY", None),
+        }
+        for prod, (expected, distance) in examples.items():
+            item = normalize_candidate(
+                nvd(product=prod, vendor="phoenixcontact", version="-"),
+                identity, "cpeMatchString",
+            )
+            with self.subTest(product=prod):
+                self.assertEqual(item["match_level"], expected)
+                self.assertEqual(item.get("exploratory_distance"), distance)
+                self.assertFalse(is_pertinent(item, identity))
+                self.assertEqual(
+                    is_manufacturer_related(item, identity), expected == "EXPLORATORY"
+                )
+                if expected == "EXPLORATORY":
+                    self.assertIn("prefijo de producto", item["match_reason"])
+                    self.assertIn("no están verificados", item["match_reason"])
+
+        wrong_vendor = normalize_candidate(
+            nvd(product="fl_comserver_basic_232", vendor="unrelated"),
+            identity, "cpeMatchString",
+        )
+        self.assertEqual(wrong_vendor["match_level"], "POSSIBLE_INCOMPATIBILITY")
+        self.assertIsNone(normalize_candidate(
+            nvd(product="fl_comserver_basic_232", vendor="phoenixcontact", part="a"),
+            identity, "cpeMatchString",
+        ))
+        # A generic software product must not reuse the FL firmware heuristic.
+        ios_identity = {**identity, "product": "FL IL 24 BK PAC"}
+        rejected = normalize_candidate(
+            nvd(product="fl_comserver_basic_232", vendor="phoenixcontact"),
+            ios_identity, "cpeMatchString",
+        )
+        self.assertEqual(rejected["match_level"], "POSSIBLE_INCOMPATIBILITY")
+
     def test_version_change_invalidates_identity_fingerprint(self):
         self.assertNotEqual(
             fingerprint(self.identity),
@@ -491,6 +539,103 @@ class SoftwareWorkerTests(TestCase):
         self.assertEqual(run.result_truncated, False)
         self.assertFalse(AssetCpe.objects.exists())
         self.assertFalse(AssetCpeDecision.objects.exists())
+
+    def test_phoenix_software_short_series_queues_fl_and_limits_to_five_weak(self):
+        sw = self.asset.software
+        sw.manufacturer = "Phoenix Contact"
+        sw.product = "FL IL 24 BK PAC Firmware"
+        sw.software_type = Software.SoftwareType.OS
+        sw.version = ""
+        sw.save()
+        run = self.new_run()
+        processed = []
+        for _ in range(35):
+            run = execute_run(run, object(), fetcher=lambda *args:
+                              self.fail("Short series must use resumable snapshots"))
+            if run.status == "COMPLETED":
+                break
+            self.assertEqual(run.status, "QUEUED")
+            snapshot = CpeQuerySnapshot.objects.filter(
+                status=CpeQuerySnapshot.Status.QUEUED
+            ).select_related("cache").order_by("-pk").first()
+            self.assertIsNotNone(snapshot)
+            parameter = snapshot.cache.parameter
+            processed.append(parameter)
+            rows = []
+            if parameter == "cpe:2.3:o:phoenixcontact:fl_*":
+                rows = [
+                    nvd(product="fl_il_24_switch", vendor="phoenixcontact"),
+                    nvd(product="fl_il_comserver", vendor="phoenixcontact"),
+                    *[nvd(product=f"fl_comserver_{i}", vendor="phoenixcontact")
+                      for i in range(15)],
+                    nvd(product="fluffy_server", vendor="phoenixcontact"),
+                    nvd(product="quint_power", vendor="phoenixcontact"),
+                ]
+            execute_catalogue_snapshot(
+                snapshot, object(),
+                fetcher=lambda strategy, parameter, start, pacer, *,
+                results_per_page, rows=rows: page(rows, start=start),
+            )
+        self.assertEqual(run.status, "COMPLETED")
+        self.assertIn("cpe:2.3:o:phoenixcontact:fl_il_24*", processed)
+        self.assertIn("cpe:2.3:o:phoenixcontact:fl_il*", processed)
+        self.assertIn("cpe:2.3:o:phoenixcontact:fl_*", processed)
+        self.assertNotIn("cpe:2.3:o:phoenixcontact:*", processed)
+        self.assertEqual(len(run.candidates), 5)
+        self.assertTrue(all(c["match_level"] == "EXPLORATORY" for c in run.candidates))
+        self.assertTrue(all(c["cpe_type"] == "o" for c in run.candidates))
+        self.assertIn("fl_il_24_switch", run.candidates[0]["cpe_name"])
+        self.assertIn("fl_il_comserver", run.candidates[1]["cpe_name"])
+        self.assertFalse(AssetCpe.objects.exists())
+        self.assertFalse(AssetCpeDecision.objects.exists())
+
+    def test_phoenix_manufacturer_catalogue_can_reclassify_fl_software_locally(self):
+        sw = self.asset.software
+        sw.manufacturer = "Phoenix Contact"
+        sw.product = "FL IL 24 BK PAC Firmware"
+        sw.software_type = Software.SoftwareType.OS
+        sw.version = ""
+        sw.save()
+        run = self.new_run()
+        params = []
+        for _ in range(35):
+            run = execute_run(run, object(), fetcher=lambda *args:
+                              self.fail("Catalogue queries must use snapshots"))
+            if run.status == "COMPLETED":
+                break
+            self.assertEqual(run.status, "QUEUED")
+            snapshot = CpeQuerySnapshot.objects.filter(
+                status=CpeQuerySnapshot.Status.QUEUED
+            ).select_related("cache").order_by("-pk").first()
+            self.assertIsNotNone(snapshot)
+            parameter = snapshot.cache.parameter
+            params.append(parameter)
+            rows = []
+            if parameter == "cpe:2.3:o:phoenixcontact:*":
+                rows = [
+                    nvd(product=f"unrelated_{i}", vendor="phoenixcontact")
+                    for i in range(140)
+                ] + [
+                    nvd(product="fl_comserver_basic_232", vendor="phoenixcontact"),
+                    nvd(product="fl_il_comserver", vendor="phoenixcontact"),
+                    nvd(product="fluffy_123", vendor="phoenixcontact"),
+                ]
+            execute_catalogue_snapshot(
+                snapshot, object(),
+                fetcher=lambda strategy, parameter, start, pacer, *,
+                results_per_page, rows=rows: page(rows, start=start),
+            )
+        self.assertEqual(run.status, "COMPLETED")
+        self.assertIn("cpe:2.3:o:phoenixcontact:*", params)
+        self.assertEqual(len(run.candidates), 2)
+        self.assertEqual(
+            [c["match_level"] for c in run.candidates], ["EXPLORATORY", "EXPLORATORY"]
+        )
+        self.assertIn("fl_il_comserver", run.candidates[0]["cpe_name"])
+        self.assertIn("fl_comserver_basic_232", run.candidates[1]["cpe_name"])
+        self.assertTrue(all(c["discovery_levels"] == ["MANUFACTURER"]
+                            for c in run.candidates))
+        self.assertFalse(AssetCpe.objects.exists())
 
     def test_review_creates_only_explicit_audited_software_decision(self):
         run = self.new_run()
