@@ -9,6 +9,7 @@ from vulnerabilities.services.identity import (
     software_identity, hardware_identity, build_cpe_match_plan,
     build_software_cpe_match_plan, build_alternative_keyword_plan,
     software_numeric_model, software_numeric_prefixes,
+    software_short_series_model, software_short_series_prefixes,
     fingerprint, software_version_in_branch,
 )
 from vulnerabilities.tests_query_plan import SIEMENS, ADAM, ROCKWELL
@@ -170,6 +171,57 @@ class SoftwareCpePlanPhase1Tests(SimpleTestCase):
         self.assertNotIn(
             "NUMERIC_MODEL_PREFIX",
             [q["version_scope"] for q in build_software_cpe_match_plan(ios())],
+        )
+
+    def test_phoenix_fl_firmware_reuses_progressive_hardware_short_series(self):
+        inventory = {
+            "asset_type": "SOFTWARE", "software_type": "OS",
+            "manufacturer": "Phoenix Contact",
+            "product": "FL IL 24 BK PAC Firmware", "version": "",
+        }
+        self.assertEqual(
+            software_short_series_model(inventory["product"], inventory["manufacturer"]),
+            "fl_il_24_bk_pac",
+        )
+        self.assertEqual(
+            software_short_series_prefixes(inventory["product"], inventory["manufacturer"]),
+            ["fl_il_24*", "fl_il*", "fl_*"],
+        )
+        plan = build_software_cpe_match_plan(inventory)
+        params = [step["parameter"] for step in plan]
+        expected = [
+            "cpe:2.3:o:phoenixcontact:fl_il_24_bk_pac_firmware:*",
+            "cpe:2.3:o:phoenixcontact:fl_il_24*",
+            "cpe:2.3:o:phoenixcontact:fl_il*",
+            "cpe:2.3:o:phoenixcontact:fl_*",
+            "cpe:2.3:o:phoenixcontact:*",
+        ]
+        for param in expected:
+            self.assertIn(param, params)
+        self.assertEqual(
+            [params.index(p) for p in expected],
+            sorted(params.index(p) for p in expected),
+        )
+        self.assertTrue(
+            all(step["version_scope"] == "SHORT_SERIES_PREFIX"
+                and step["level"] == "FAMILY" and step["requires_local_version_filter"]
+                for step in plan
+                if step["parameter"].startswith("cpe:2.3:o:phoenixcontact:fl_")
+                and step["parameter"] in expected[1:4])
+        )
+        self.assertEqual(plan, build_software_cpe_match_plan(inventory))
+
+    def test_short_series_is_not_inferred_from_generic_software_or_short_names(self):
+        self.assertEqual(software_short_series_prefixes("IOS", "Cisco"), [])
+        self.assertEqual(software_short_series_prefixes("FL", "Phoenix Contact"), [])
+        self.assertEqual(software_short_series_prefixes("FL IL 24 BK PAC", "Phoenix Contact"), [])
+        self.assertEqual(software_short_series_prefixes("FL IL 24 BK PAC Firmware",
+                                                       "Other FL"), [])
+        self.assertEqual(software_short_series_prefixes("Fluffy 24 BK Firmware",
+                                                       "Phoenix Contact"), [])
+        self.assertNotIn(
+            "SHORT_SERIES_PREFIX",
+            [p["version_scope"] for p in build_software_cpe_match_plan(ios())],
         )
 
     def test_software_series_fallback_is_not_generated_for_generic_products(self):
