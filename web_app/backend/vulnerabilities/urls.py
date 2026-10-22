@@ -4,6 +4,7 @@ from django.urls import path
 from .views import CpeSearchStartView, CpeSearchLatestView, CpeSearchDetailView, CpeOverviewView
 from .association_views import AssetCpeListCreateView, AssetCpeDecisionView
 from .bulk_views import CpeBulkSearchView
+from .external_cpe_views import ExternalCpeVerificationListView, ExternalCpeVerificationDetailView
 
 app_name = "vulnerabilities"
 urlpatterns = [
@@ -11,6 +12,8 @@ urlpatterns = [
     path("cpe-searches/bulk/", CpeBulkSearchView.as_view(), name="cpe-search-bulk"),
     path("assets/<int:asset_id>/cpes/", AssetCpeListCreateView.as_view(), name="asset-cpes"),
     path("assets/<int:asset_id>/cpes/<int:association_id>/", AssetCpeDecisionView.as_view(), name="asset-cpe-review"),
+    path("assets/<int:asset_id>/cpe-verifications/", ExternalCpeVerificationListView.as_view(), name="cpe-verifications"),
+    path("assets/<int:asset_id>/cpe-verifications/<int:run_id>/", ExternalCpeVerificationDetailView.as_view(), name="cpe-verification-detail"),
     path("assets/<int:asset_id>/cpe-searches/", CpeSearchStartView.as_view(), name="cpe-search-start"),
     path("assets/<int:asset_id>/cpe-searches/latest/", CpeSearchLatestView.as_view(), name="cpe-search-latest"),
     path("assets/<int:asset_id>/cpe-searches/<int:run_id>/", CpeSearchDetailView.as_view(), name="cpe-search-detail"),
