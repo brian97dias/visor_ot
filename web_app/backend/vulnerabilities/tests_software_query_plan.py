@@ -10,6 +10,7 @@ from vulnerabilities.services.identity import (
     build_software_cpe_match_plan, build_alternative_keyword_plan,
     software_numeric_model, software_numeric_prefixes,
     software_short_series_model, software_short_series_prefixes,
+    software_compound_cpu_family, software_compound_cpu_prefixes,
     fingerprint, software_version_in_branch,
 )
 from vulnerabilities.tests_query_plan import SIEMENS, ADAM, ROCKWELL
@@ -221,6 +222,69 @@ class SoftwareCpePlanPhase1Tests(SimpleTestCase):
             "SHORT_SERIES_PREFIX",
             [p["version_scope"] for p in build_software_cpe_match_plan(ios())],
         )
+
+    def test_compound_cpu_series_progresses_before_siemens_manufacturer(self):
+        identity = {
+            "asset_type": "SOFTWARE", "software_type": "OS",
+            "manufacturer": "Siemens",
+            "product": "SIMATIC S7 1200 CPU 1215C", "version": "",
+        }
+        self.assertEqual(
+            software_compound_cpu_family(identity["product"], identity["manufacturer"]),
+            ("simatic", "s7", "1200", "1215c"),
+        )
+        self.assertEqual(
+            software_compound_cpu_prefixes(identity["product"], identity["manufacturer"]),
+            ["simatic_s7_1200_cpu*", "simatic_s7_1200*"],
+        )
+        plan = build_software_cpe_match_plan(identity)
+        expected = [
+            "cpe:2.3:o:siemens:simatic_s7_1200_cpu_1215c:*",
+            "cpe:2.3:o:siemens:simatic_s7_1200_cpu*",
+            "cpe:2.3:o:siemens:simatic_s7_1200*",
+            "cpe:2.3:o:siemens:*",
+        ]
+        params = [step["parameter"] for step in plan]
+        for param in expected:
+            self.assertIn(param, params)
+        self.assertEqual(
+            [params.index(p) for p in expected],
+            sorted(params.index(p) for p in expected),
+        )
+        compound = [step for step in plan
+                    if step["version_scope"] == "COMPOUND_CPU_FAMILY"]
+        self.assertEqual(len(compound), 2)
+        self.assertTrue(all(step["level"] == "FAMILY"
+                            and step["requires_local_version_filter"]
+                            for step in compound))
+        self.assertEqual(
+            [step["parameter"] for step in build_alternative_keyword_plan(identity)],
+            [
+                "Siemens SIMATIC S7 1200 CPU 1215C",
+                "Siemens SIMATIC S7 1200",
+                "Siemens",
+            ],
+        )
+        self.assertEqual(plan, build_software_cpe_match_plan(identity))
+
+    def test_compound_cpu_rule_avoids_unrelated_or_partial_models(self):
+        vendor = "Siemens"
+        for product in (
+            "SIMATIC S7 1200", "SIMATIC S7 1200 Firmware",
+            "SIMATIC S7 1200 CPU", "SIMATIC S7 1200 CPU 12150",
+            "SIMATIC S7 1200 CPU 1215C firmware", "S7 1200 CPU 1215C",
+        ):
+            with self.subTest(product=product):
+                # No CPU-stripping probe for products without the *entire*
+                # bounded identity. The CPU 12150 still matches syntactically
+                # as a different CPU, not an equivalent designation.
+                if product != "SIMATIC S7 1200 CPU 12150":
+                    self.assertEqual(software_compound_cpu_prefixes(product, vendor), [])
+        self.assertEqual(software_compound_cpu_prefixes("IOS", "Cisco"), [])
+        self.assertEqual(software_compound_cpu_prefixes("AXIS 206 Firmware",
+                                                        "Axis Communications"), [])
+        self.assertEqual(software_compound_cpu_prefixes("FL IL 24 BK PAC Firmware",
+                                                        "Phoenix Contact"), [])
 
     def test_software_series_fallback_is_not_generated_for_generic_products(self):
         self.assertNotIn("RELATED_SERIES", [
