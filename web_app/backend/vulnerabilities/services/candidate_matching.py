@@ -423,6 +423,9 @@ def classify_software(candidate, identity):
             return "EXPLORATORY", compound[1]
         return "POSSIBLE_INCOMPATIBILITY", "El producto CPE no corresponde al software inventariado."
     if product == "RELATED":
+        compound = _software_compound_cpu_proximity(candidate, identity)
+        if compound:
+            return "EXPLORATORY", compound[1]
         return ("EXPLORATORY", "El producto comparte una denominación con el inventario, "
                 "pero es otro producto o variante; requiere investigación.")
     if product == "SERIES":
