@@ -687,6 +687,51 @@ class SoftwareWorkerTests(TestCase):
                             for c in run.candidates))
         self.assertFalse(AssetCpe.objects.exists())
 
+    def test_siemens_compound_family_prefix_retrieves_weak_firmware_without_vendor_scan(self):
+        sw = self.asset.software
+        sw.manufacturer = "Siemens"
+        sw.product = "SIMATIC S7 1200 CPU 1215C"
+        sw.software_type = Software.SoftwareType.OS
+        sw.version = ""
+        sw.save()
+        run = self.new_run()
+        recorded = []
+        for _ in range(30):
+            run = execute_run(run, object(), fetcher=lambda *args:
+                              self.fail("Compound prefix discovery uses snapshots"))
+            if run.status == "COMPLETED":
+                break
+            self.assertEqual(run.status, "QUEUED", getattr(run, "error_message", ""))
+            snapshot = CpeQuerySnapshot.objects.filter(
+                status=CpeQuerySnapshot.Status.QUEUED
+            ).select_related("cache").order_by("-pk").first()
+            self.assertIsNotNone(snapshot)
+            parameter = snapshot.cache.parameter
+            recorded.append(parameter)
+            rows = []
+            if parameter == "cpe:2.3:o:siemens:simatic_s7_1200*":
+                rows = [
+                    nvd(product="simatic_s7_1200_firmware", vendor="siemens",
+                        version="4.0"),
+                    nvd(product="simatic_s7_1500_firmware", vendor="siemens",
+                        version="4.0"),
+                ]
+            execute_catalogue_snapshot(
+                snapshot, object(),
+                fetcher=lambda strategy, parameter, start, pacer, *,
+                results_per_page, rows=rows: page(rows, start=start),
+            )
+        self.assertEqual(run.status, "COMPLETED", run.error_message)
+        self.assertIn("cpe:2.3:o:siemens:simatic_s7_1200_cpu*", recorded)
+        self.assertIn("cpe:2.3:o:siemens:simatic_s7_1200*", recorded)
+        self.assertNotIn("cpe:2.3:o:siemens:*", recorded)
+        self.assertEqual(len(run.candidates), 1)
+        item = run.candidates[0]
+        self.assertEqual(item["match_level"], "EXPLORATORY")
+        self.assertEqual(item["discovery_levels"], ["FAMILY"])
+        self.assertIn("simatic_s7_1200_firmware", item["cpe_name"])
+        self.assertFalse(AssetCpe.objects.exists())
+
     def test_siemens_compound_family_is_found_in_paginated_manufacturer_catalogue(self):
         sw = self.asset.software
         sw.manufacturer = "Siemens"
