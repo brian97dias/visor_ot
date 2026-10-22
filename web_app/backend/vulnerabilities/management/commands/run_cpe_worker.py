@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from vulnerabilities.models import CpeSearchRun, CpeQuerySnapshot
 from vulnerabilities.services.cpe_search import execute_run
+from vulnerabilities.services.external_cpe import EXTERNAL_CPE_TRIGGER, execute_external_cpe
 from vulnerabilities.services.cpe_catalogue import (
     execute_catalogue_snapshot, recover_interrupted_catalogue_snapshots,
 )
@@ -78,7 +79,10 @@ class Command(BaseCommand):
                 choose_legacy = asset_run_precedes_snapshot(run, snapshot)
                 if choose_legacy:
                     self.stdout.write(f"Buscando CPE: trabajo #{run.pk}, activo #{run.asset_id}")
-                    execute_run(run, pacer)
+                    if run.trigger == EXTERNAL_CPE_TRIGGER:
+                        execute_external_cpe(run, pacer)
+                    else:
+                        execute_run(run, pacer)
                     self.stdout.write(f"Trabajo #{run.pk}: {run.status}, {len(run.candidates)} candidatos")
                 elif snapshot is not None:
                     self.stdout.write(
