@@ -210,6 +210,53 @@ class SoftwareMatchingTests(SimpleTestCase):
         )
         self.assertEqual(rejected["match_level"], "POSSIBLE_INCOMPATIBILITY")
 
+    def test_compound_siemens_family_is_exploratory_not_an_exact_cpu_match(self):
+        identity = {
+            "asset_type": "SOFTWARE", "software_type": "OS",
+            "manufacturer": "Siemens",
+            "product": "SIMATIC S7 1200 CPU 1215C", "version": "",
+        }
+        products = [
+            ("simatic_s7_1200_cpu_1215c", "SOFTWARE_PRODUCT", None),
+            ("simatic_s7_1200_firmware", "EXPLORATORY", 100000),
+            ("simatic_s7_cpu_1200_firmware", "EXPLORATORY", 110000),
+            ("simatic_s7_1200_cpu_1214c_firmware", "EXPLORATORY", 200000),
+            ("simatic_s7_1500_firmware", "POSSIBLE_INCOMPATIBILITY", None),
+            ("simatic_s70_cpu_1200_firmware", "POSSIBLE_INCOMPATIBILITY", None),
+            ("simatic_s7_cpu_12000_firmware", "POSSIBLE_INCOMPATIBILITY", None),
+            ("simatic_s7_1200_unrelated", "POSSIBLE_INCOMPATIBILITY", None),
+        ]
+        for product, level, distance in products:
+            item = normalize_candidate(
+                nvd(product=product, vendor="siemens", version="4.0"),
+                identity, "cpeMatchString",
+            )
+            with self.subTest(product=product):
+                self.assertEqual(item["match_level"], level)
+                self.assertEqual(item.get("exploratory_distance"), distance)
+                self.assertFalse(is_pertinent(item, identity))
+                if level == "EXPLORATORY":
+                    self.assertIn("CPU", item["match_reason"])
+                    self.assertTrue(is_manufacturer_related(item, identity))
+                if level == "POSSIBLE_INCOMPATIBILITY":
+                    self.assertFalse(is_manufacturer_related(item, identity))
+        wrong_vendor = normalize_candidate(
+            nvd(product="simatic_s7_cpu_1200_firmware", vendor="rockwell"),
+            identity, "cpeMatchString",
+        )
+        self.assertEqual(wrong_vendor["match_level"], "POSSIBLE_INCOMPATIBILITY")
+        self.assertFalse(is_manufacturer_related(wrong_vendor, identity))
+        self.assertIsNone(normalize_candidate(
+            nvd(product="simatic_s7_cpu_1200_firmware", vendor="siemens", part="h"),
+            identity, "cpeMatchString",
+        ))
+        other_number = {**identity, "product": "SIMATIC S7 1500 CPU 1515C"}
+        value = normalize_candidate(
+            nvd(product="simatic_s7_cpu_1200_firmware", vendor="siemens"),
+            other_number, "cpeMatchString",
+        )
+        self.assertEqual(value["match_level"], "POSSIBLE_INCOMPATIBILITY")
+
     def test_version_change_invalidates_identity_fingerprint(self):
         self.assertNotEqual(
             fingerprint(self.identity),
