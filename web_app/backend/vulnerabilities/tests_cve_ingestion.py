@@ -118,6 +118,18 @@ class CveConfigurationParsingTests(SimpleTestCase):
         with self.assertRaises(CveResponseError):
             find_experimental_configuration(configs)
 
+    def test_and_parent_with_one_or_child_does_not_mean_both_conditions(self):
+        # A single OR operand holding both CPEs would mean hardware OR
+        # firmware, not the conjunctive applicability scenario.
+        wrong = configuration()
+        wrong["nodes"] = [
+            {"operator": "OR", "negate": False,
+             "cpeMatch": [*wrong["nodes"][0]["cpeMatch"],
+                          *wrong["nodes"][1]["cpeMatch"]]},
+        ]
+        with self.assertRaises(CveResponseError):
+            find_experimental_configuration([wrong])
+
     def test_duplicate_or_missing_scenario_is_rejected(self):
         with self.assertRaises(CveResponseError):
             find_experimental_configuration([configuration(), configuration()])
@@ -245,6 +257,7 @@ class CveWorkerPersistenceTests(TestCase):
         job, _ = enqueue_experimental_cve(refresh=True)
         failed = execute_cve_fetch(job, object(), fetcher=Mock(side_effect=TimeoutError()))
         self.assertEqual(failed.fetch_status, Cve.FetchStatus.FAILED)
+        self.assertIn("TimeoutError", failed.fetch_error)
         self.assertEqual(len(failed.configurations), 18)
         self.assertIsNotNone(failed.retrieved_at)
         self.assertEqual(Cve.objects.count(), 1)
