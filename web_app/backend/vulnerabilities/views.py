@@ -60,7 +60,7 @@ class CpeSearchLatestView(APIView):
 
     def get(self, request, asset_id):
         identifiable_asset_or_404(asset_id)
-        run = CpeSearchRun.objects.filter(asset_id=asset_id).first()
+        run = CpeSearchRun.objects.filter(asset_id=asset_id, trigger="MANUAL").first()
         if run is None:
             return Response({"run": None})
         return Response({"run": serialize_run(run)})
@@ -84,7 +84,7 @@ class CpeOverviewView(APIView):
 
     def get(self, request):
         ordered_runs = CpeSearchRun.objects.filter(
-            asset_id=OuterRef("pk")
+            asset_id=OuterRef("pk"), trigger="MANUAL"
         ).order_by("-created_at", "-pk")
         latest = ordered_runs.values("pk")[:1]
         latest_completed = ordered_runs.filter(
