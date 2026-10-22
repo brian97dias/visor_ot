@@ -385,7 +385,19 @@ def build_alternative_keyword_plan(identity):
     if (len(normalized(general)) < minimum_vendor_length
             or len(specific) > 120 or len(general) > 120):
         return []
-    terms = list(dict.fromkeys([specific, general]))[:MAX_ALTERNATIVE_QUERIES]
+    terms = [specific]
+    # A compound device product can include a CPU identifier absent from NVD.
+    # Preserve manufacturer + product family as a middle keyword probe.
+    # Hardware and all other software keep the existing two-query behaviour.
+    if asset_type == "SOFTWARE":
+        compound = software_compound_cpu_family(model, manufacturer)
+        if compound:
+            family_phrase = " ".join(compound[:3]).upper()
+            middle = compact(manufacturer + " " + family_phrase)
+            if len(middle) <= 120:
+                terms.append(middle)
+    terms.append(general)
+    terms = list(dict.fromkeys(terms))
     return [{"level": "ALTERNATIVE", "strategy": "keywordSearch",
              "parameter": term} for term in terms]
 
@@ -507,6 +519,36 @@ def software_short_series_prefixes(product, manufacturer):
     return [p + "*" if "_" in p else p + "_*" for p in prefixes]
 
 
+def software_compound_cpu_family(product, manufacturer):
+    """A bounded compound device-series identity, not an installed firmware claim.
+
+    SIMATIC S7 1200 CPU 1215C -> ('simatic', 's7', '1200', '1215c').
+    Require an explicit CPU designation and three distinctive family tokens.
+    This cannot turn IOS versions, AXIS numbers or a broad brand into a series.
+    """
+    primary = _software_product_spellings(product, manufacturer)[0]
+    match = re.fullmatch(
+        r"([a-z][a-z0-9]{3,23})_([a-z]{1,8}[0-9]{1,3})_"
+        r"([0-9]{3,6})_cpu_([0-9]{3,6}[a-z]?)",
+        primary,
+    )
+    if not match:
+        return None
+    brand, series, model, cpu = match.groups()
+    if brand in {normalized(v) for v in vendor_variants(manufacturer)}:
+        return None
+    return brand, series, model, cpu
+
+
+def software_compound_cpu_prefixes(product, manufacturer):
+    """Broaden a compound product by removing CPU revision, then CPU token."""
+    family = software_compound_cpu_family(product, manufacturer)
+    if not family:
+        return []
+    stem = "_".join(family[:3])
+    return [stem + "_cpu*", stem + "*"]
+
+
 def _software_cpe_version(version):
     """Escape CPE 2.3 special characters, preserving Cisco version suffixes.
 
@@ -626,6 +668,11 @@ def build_software_cpe_match_plan(identity):
     for prefix in software_short_series_prefixes(product, manufacturer):
         for vendor in vendors:
             add("FAMILY", vendor, prefix, None, "SHORT_SERIES_PREFIX",
+                local_filter=True)
+
+    for prefix in software_compound_cpu_prefixes(product, manufacturer):
+        for vendor in vendors:
+            add("FAMILY", vendor, prefix, None, "COMPOUND_CPU_FAMILY",
                 local_filter=True)
 
     for vendor in vendors:
