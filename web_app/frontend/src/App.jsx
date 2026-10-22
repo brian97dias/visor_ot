@@ -20,7 +20,6 @@ import AssetImport from "./pages/AssetImport";
 import AssetDetail from "./pages/AssetDetail";
 import AssetCpeDiscovery from "./pages/AssetCpeDiscovery";
 import CpeOverview from "./pages/CpeOverview";
-import CpeCatalogueExplorer from "./pages/CpeCatalogueExplorer";
 import AssetEditor from "./pages/AssetEditor";
 import Interfaces from "./pages/Interfaces";
 import InterfaceDetail from "./pages/InterfaceDetail";
@@ -119,7 +118,6 @@ function App() {
           <Route path="/assets/:assetId" element={<AssetDetail />} />
           <Route path="/assets/:assetId/edit" element={<AssetEditor />} />
           <Route path="/assets/:assetId/cpe" element={<AssetCpeDiscovery />} />
-          <Route path="/assets/:assetId/cpe/catalogue" element={<CpeCatalogueExplorer />} />
           <Route path="/vulnerabilities/cpe" element={<CpeOverview />} />
 
         </Route>
