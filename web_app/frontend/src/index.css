@@ -2721,3 +2721,66 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 @media (max-width: 560px) {
   .cpe-catalogue-filters, .cpe-catalogue-stats { grid-template-columns: 1fr; }
 }
+
+/* Verified CPE UUID workflow: shares the existing CPE review controls. */
+.cpe-uuid-overlay { z-index: 210; }
+.cpe-uuid-dialog {
+  width: min(100%, 820px);
+  max-width: 820px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.cpe-uuid-form, .cpe-uuid-history, .cpe-uuid-result {
+  margin-top: 16px;
+  border-top: 1px solid #334155;
+  padding-top: 16px;
+}
+.cpe-uuid-form > label, .cpe-uuid-history > label {
+  display: block; margin-bottom: 8px;
+  color: #cbd5e1; font-size: .88rem; font-weight: 600;
+}
+.cpe-uuid-input-row { display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; }
+.cpe-uuid-input-row input, .cpe-uuid-history select {
+  background: #0f172a; color: #e2e8f0; border: 1px solid #475569;
+  border-radius: 6px; padding: 10px 12px; font: inherit;
+}
+.cpe-uuid-input-row input { flex: 1 1 310px; min-width: 0; }
+.cpe-uuid-history select { width: 100%; max-width: 100%; }
+.cpe-uuid-input-row input:focus-visible, .cpe-uuid-history select:focus-visible,
+.cpe-uuid-dialog button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+.cpe-uuid-history h3, .cpe-uuid-result h3, .cpe-uuid-result h4 {
+  color: #f1f5f9; margin: 0 0 12px;
+}
+.cpe-uuid-result-heading {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.cpe-uuid-result-heading h3 { margin: 0; }
+.cpe-uuid-status {
+  border: 1px solid #64748b; border-radius: 5px;
+  padding: 5px 9px; color: #cbd5e1; font-size: .8rem;
+}
+.cpe-uuid-status[data-status="VERIFIED"] { color: #7dd3fc; border-color: #0369a1; }
+.cpe-uuid-status[data-status="INCOMPATIBLE_PART"],
+.cpe-uuid-status[data-status="NOT_FOUND"] { color: #fde68a; border-color: #92400e; }
+.cpe-uuid-warnings {
+  border: 1px solid #92400e; border-radius: 7px;
+  background: #342616; padding: 12px 16px; color: #fde68a;
+  font-size: .86rem; margin-top: 12px;
+}
+.cpe-uuid-warnings ul { margin: 8px 0 0; padding-left: 19px; }
+.cpe-uuid-warnings li + li { margin-top: 6px; }
+.cpe-uuid-progress, .cpe-uuid-existing {
+  border-left: 3px solid #0284c7; padding: 10px 12px;
+  background: #13263b; border-radius: 4px; margin: 14px 0;
+}
+.cpe-uuid-result .cpe-uuid-official, .cpe-uuid-result .cpe-uuid-match {
+  font-size: .86rem; color: #cbd5e1;
+}
+.cpe-uuid-dialog .cpe-evidence { overflow-wrap: anywhere; }
+.cpe-uuid-dialog .cpe-bulk-dialog-actions { margin-top: 18px; }
+@media (max-width: 600px) {
+  .cpe-uuid-dialog { max-height: calc(100vh - 16px); padding: 16px; }
+  .cpe-uuid-input-row button { flex: 1 1 100%; }
+}
