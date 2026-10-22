@@ -4,7 +4,7 @@ import { CPE_OVERVIEW_PAGE_SIZE, readCpePage, updateCpeOverviewParams } from "..
 import {
   getCpeOverview, startCpeSearch, startBulkCpeSearch,
 } from "../api/vulnerabilities";
-import { cpeCountDetails } from "../utils/cpeOverviewPresentation";
+import { cpeCountDetails, cpeManualDecisionDetails } from "../utils/cpeOverviewPresentation";
 import { togglePageSelection, toggleRowSelection, countSelectedTypes } from "../utils/cpeBulkSelection";
 import ExternalCpeModal from "../components/ExternalCpeModal";
 
@@ -337,9 +337,11 @@ export default function CpeOverview() {
                     {new Date(row.last_search_at).toLocaleString("es-CO")}
                   </div>}
                 </td>
-                <td>{row.run_id
+                <td>{row.run_id || row.reviewed_count > 0 || row.reopened_count > 0
                   ? <div className="cpe-overview-counts">
-                      <strong>{row.candidate_count} encontrados</strong>
+                      <strong>{row.run_id
+                        ? row.candidate_count + " encontrados automáticamente"
+                        : "Sin búsqueda automática"}</strong>
                       {row.exploratory_count > 0 && <div className="cpe-overview-subtitle">
                         {row.exploratory_count} correspondencia(s) débil(es), no pendientes obligatorios
                       </div>}
@@ -350,6 +352,10 @@ export default function CpeOverview() {
                           </span>
                         ))}
                       </div>
+                      {cpeManualDecisionDetails(row) && <div className="cpe-overview-subtitle">
+                        Por UUID NVD: {row.manual_confirmed_count} confirmado(s) ·
+                        {" "}{row.manual_rejected_count} rechazado(s)
+                      </div>}
                       {row.legacy_pending_count > 0 && <div className="cpe-overview-subtitle">
                         {row.legacy_pending_count} pendiente(s) histórico(s) incluido(s) en por revisar
                       </div>}
@@ -392,8 +398,10 @@ export default function CpeOverview() {
         La selección admite hardware y software y se conserva al cambiar filtros o página.
         La búsqueda individual y la masiva se inician únicamente cuando el analista
         pulsa Buscar. El motor amplía automáticamente las consultas cuando hace falta.
-        Agregar CPE por ID verifica un registro oficial sin confirmarlo automáticamente;
-        los contadores de esta tabla reflejan solo el descubrimiento automático.
+        Agregar CPE por ID verifica un registro oficial sin confirmarlo automáticamente.
+        Los encontrados corresponden al descubrimiento automático; los confirmados
+        y rechazados incluyen decisiones vigentes por UUID sin duplicar un mismo CPE.
+        Las cifras por procedencia pueden solaparse, no deben sumarse.
       </p>
     </section>
 
