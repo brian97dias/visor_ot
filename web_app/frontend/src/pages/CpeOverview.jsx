@@ -369,8 +369,8 @@ export default function CpeOverview() {
       )}
       <p className="cpe-overview-note">
         La selección admite hardware y software y se conserva al cambiar filtros o página.
-        La búsqueda masiva es específica para hardware y software. La búsqueda ampliada
-        por familia y la búsqueda avanzada siguen disponibles solo para hardware.
+        La búsqueda individual y la masiva se inician únicamente cuando el analista
+        pulsa Buscar. El motor amplía automáticamente las consultas cuando hace falta.
       </p>
     </section>
 
