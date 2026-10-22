@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   normalizedCpeUuid, externalCpeStatus, externalCpeEvidence,
-  canReviewExternalCpe, externalCpeAssociation,
+  canReviewExternalCpe, externalCpeAssociation, additionalNvdReferences,
 } from "./externalCpeUi.js";
 
 const uuid = "a47a92dc-5510-4c51-a59c-a0b3162ec512";
@@ -62,4 +62,16 @@ test("previously reviewed CPE is selected by UUID regardless of casing", () => {
   const association = {id:5,cpe_name_id:uuid.toUpperCase(),validation_status:"CONFIRMED"};
   assert.deepEqual(externalCpeAssociation([association],record), association);
   assert.equal(externalCpeAssociation([association],{...record,cpe_name_id:"other"}),null);
+});
+
+test("non-product NVD references are displayed only with safe HTTPS links", () => {
+  const refs = [
+    {url:"https://nvd.nist.gov/products",type:"Product"},
+    {url:"https://support.siemens.com/advisory",type:"Advisory"},
+    {url:"javascript:alert(1)",type:"Advisory"},
+    {url:"http://example.net/untrusted",type:"Vendor"},
+    {url:"https://www.cisa.gov/alerts",type:"Vendor"},
+  ];
+  assert.deepEqual(additionalNvdReferences(refs).map(x => x.type),
+    ["Advisory", "Vendor"]);
 });
