@@ -4,7 +4,8 @@ from .nvd_references import safe_references, combine_references
 from .identity import (
     normalized, cpu_spelling, family_term, vendor_variants, catalog_code_prefix,
     _software_product_spellings, software_series_stem, software_numeric_model,
-    software_short_series_model, software_version_in_branch, SOFTWARE_CPE_PARTS, ascii_text,
+    software_short_series_model, software_compound_cpu_family,
+    software_version_in_branch, SOFTWARE_CPE_PARTS, ascii_text,
 )
 
 
@@ -336,6 +337,54 @@ def _software_short_series_proximity(candidate, identity):
     )
 
 
+def _software_compound_cpu_proximity(candidate, identity):
+    """Compare a delimited compound device family across CPE token orderings.
+
+    The matching vendor/CPE part must be checked by classify_software.
+    Identical family tokens with a different/unspecified CPU are *weak*
+    evidence only. Never interpret the CPE firmware version as installed.
+    """
+    signature = software_compound_cpu_family(
+        identity.get("product") or "", identity.get("manufacturer") or ""
+    )
+    if not signature:
+        return None
+    brand, series, number, inventoried_cpu = signature
+    value = _product_without_vendor_prefix(
+        _cpe_part(candidate.get("cpe_name", ""), 4).lower(), identity
+    )
+    # Token boundaries matter: s7 != s70; 1200 != 12000 or 1500.
+    first = re.escape(brand) + "_" + re.escape(series) + "_"
+    model = re.escape(number)
+    # NVD sometimes places CPU *before* the series number.
+    variant = re.fullmatch(
+        first + r"(?:cpu_" + model + "|" + model + r")_firmware",
+        value,
+    )
+    if variant:
+        return (
+            100000 if value.startswith(f"{brand}_{series}_{number}_") else 110000,
+            f"Mismo fabricante y familia {brand.upper()} {series.upper()} {number}; "
+            f"el inventario indica CPU {inventoried_cpu.upper()}, pero el CPE "
+            "no confirma esa CPU ni la versión de firmware instalada. "
+            "Correspondencia débil para investigación.",
+        )
+
+    other_cpu = re.fullmatch(
+        first + model + r"_cpu_([0-9]{3,6}[a-z]?)_firmware",
+        value,
+    )
+    if other_cpu and other_cpu.group(1) != inventoried_cpu:
+        return (
+            200000,
+            f"Mismo fabricante y familia {brand.upper()} {series.upper()} {number}, "
+            f"pero CPU inventariada {inventoried_cpu.upper()} y referencia NVD "
+            f"{other_cpu.group(1).upper()} distintas. "
+            "No se acredita compatibilidad de firmware.",
+        )
+    return None
+
+
 def classify_software(candidate, identity):
     """Explain a possible CPE software association; NEVER validate a version."""
     name = candidate["cpe_name"]
@@ -361,6 +410,9 @@ def classify_software(candidate, identity):
                 "producto/firmware no están verificados; tampoco se conoce "
                 "una versión instalada compatible."
             )
+        compound = _software_compound_cpu_proximity(candidate, identity)
+        if compound:
+            return "EXPLORATORY", compound[1]
         return "POSSIBLE_INCOMPATIBILITY", "El producto CPE no corresponde al software inventariado."
     if product == "RELATED":
         return ("EXPLORATORY", "El producto comparte una denominación con el inventario, "
@@ -535,9 +587,11 @@ def normalize_candidate(record, identity, strategy):
         if identity.get("asset_type") == "SOFTWARE":
             numeric = _software_numeric_proximity(item, identity)
             short_series = _software_short_series_proximity(item, identity)
+            compound = _software_compound_cpu_proximity(item, identity)
             item["exploratory_distance"] = (
                 numeric[0] if numeric else
-                short_series[0] if short_series else 0
+                short_series[0] if short_series else
+                compound[0] if compound else 0
             )
         else:
             item["exploratory_distance"] = _exploratory_proximity(item, identity)[0]
