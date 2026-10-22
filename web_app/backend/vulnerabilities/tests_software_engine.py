@@ -218,6 +218,7 @@ class SoftwareMatchingTests(SimpleTestCase):
         }
         products = [
             ("simatic_s7_1200_cpu_1215c", "SOFTWARE_PRODUCT", None),
+            ("simatic_s7_1200_cpu_1215c_firmware", "EXPLORATORY", 50000),
             ("simatic_s7_1200_firmware", "EXPLORATORY", 100000),
             ("simatic_s7_cpu_1200_firmware", "EXPLORATORY", 110000),
             ("simatic_s7_1200_cpu_1214c_firmware", "EXPLORATORY", 200000),
