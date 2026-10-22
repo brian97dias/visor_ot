@@ -57,8 +57,9 @@ export default function ExternalCpeModal({ asset, allowed, onClose, onReviewed }
     return () => { mounted = false; };
   }, [asset.asset_id]);
 
+  useEffect(() => { firstFocus.current?.focus(); }, []);
+
   useEffect(() => {
-    firstFocus.current?.focus();
     function handleKeyDown(event) {
       if (event.key === "Escape" && !submitting) {
         event.preventDefault();
@@ -252,9 +253,9 @@ export default function ExternalCpeModal({ asset, allowed, onClose, onReviewed }
       {selected && <section className="cpe-uuid-result" aria-label="Resultado de verificación">
         <div className="cpe-uuid-result-heading">
           <h3>Resultado oficial de NVD</h3>
-          <span className="cpe-review-status" data-validation={
-            selected.verification_status === "VERIFIED" ? "CONFIRMED" : "PENDING"
-          }>{externalCpeStatus(selected)}</span>
+          <span className="cpe-uuid-status" data-status={selected.verification_status}>
+            {externalCpeStatus(selected)}
+          </span>
         </div>
         {pending && <div className="cpe-uuid-progress" role="status">
           <p>{selected.status === "QUEUED" ? "Esperando al worker NVD." :
