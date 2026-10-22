@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 from assets.models import Asset
 from users.models import User
 from vulnerabilities.models import CpeSearchRun
-from .services.cpe_search import create_run, create_advanced_run, serialize_run
+from .services.cpe_search import create_run, serialize_run
 from .models import AssetCpe
 from .services.identity import fingerprint, hardware_identity, software_identity
 from .services.cpe_overview import count_current_cpes, is_outdated_association
@@ -48,28 +48,11 @@ class CpeSearchStartView(APIView):
         if set(request.data) - {"scope"}:
             raise ValidationError({"scope": "Solo se admite el campo scope."})
         scope = request.data.get("scope", "SPECIFIC")
-        if scope not in CpeSearchRun.Scope.values:
-            raise ValidationError({"scope": "Usa SPECIFIC o BROAD."})
+        if scope != CpeSearchRun.Scope.SPECIFIC:
+            raise ValidationError({"scope": "Solo se admite SPECIFIC para nuevas búsquedas."})
         run = create_run(asset.pk, request.user, scope)
         return Response({"run_id": run.pk, "status": run.status}, status=status.HTTP_202_ACCEPTED)
 
-
-
-class CpeAdvancedSearchView(APIView):
-    """Advanced requests use the same PostgreSQL queue and authenticated roles."""
-    permission_classes = [IsAuthenticated, CpeSearchPermission]
-
-    def post(self, request, asset_id):
-        asset = hardware_or_404(asset_id)
-        if asset.inventory_status != Asset.InventoryStatus.ACTIVE:
-            raise ValidationError({"asset": "Solo se buscan CPE de hardware activo."})
-        if not isinstance(request.data, dict):
-            raise ValidationError({"advanced": "Envía un objeto JSON."})
-        run, reused = create_advanced_run(asset.pk, request.user, request.data)
-        return Response(
-            {"run_id": run.pk, "status": run.status, "reused": reused},
-            status=status.HTTP_202_ACCEPTED,
-        )
 
 
 class CpeSearchLatestView(APIView):
