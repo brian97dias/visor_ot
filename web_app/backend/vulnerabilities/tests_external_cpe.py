@@ -141,6 +141,8 @@ class ExternalCpeVerificationTests(TestCase):
         run = self.start(self.software)
         done = self.finish(run, self.record(part="h"))
         self.assertEqual(done.queries[0]["status"], "INCOMPATIBLE_PART")
+        self.assertEqual(done.queries[0]["official_cpe"]["title"], "Official product NVD")
+        self.assertTrue(done.queries[0]["official_cpe"]["nvd_references"])
         self.assertEqual(done.candidates, [])
         post = self.client.post(
             f"/api/vulnerabilities/assets/{self.software.pk}/cpes/",
