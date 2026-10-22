@@ -166,6 +166,28 @@ class ExternalCpeVerificationTests(TestCase):
         self.assertEqual(AssetCpeDecision.objects.count(), 1)
         self.assertEqual(AssetCpe.objects.first().validation_status, "REJECTED")
 
+    def test_firmware_uses_o_and_application_uses_a(self):
+        self.software.software.software_type = "FIRMWARE"
+        self.software.software.save(update_fields=["software_type"])
+        firmware = self.finish(self.start(self.software),
+                               self.record(part="o", vendor="cisco",
+                                           product="ios", version="12.1"))
+        self.assertEqual(firmware.queries[0]["status"], "VERIFIED")
+
+        application = Asset.objects.create(
+            name="Cisco App", asset_type=Asset.AssetType.SOFTWARE,
+            created_by=self.analyst, updated_by=self.analyst,
+        )
+        Software.objects.create(
+            asset=application, software_type="APPLICATION",
+            manufacturer="Cisco", product="App", version="1.0",
+        )
+        app_run = self.start(application)
+        app_verified = self.finish(
+            app_run, self.record(part="a", vendor="cisco", product="app", version="1.0")
+        )
+        self.assertEqual(app_verified.queries[0]["status"], "VERIFIED")
+
     def test_deprecated_cpe_remains_verifiable_but_warns(self):
         done = self.finish(self.start(), self.record(deprecated=True))
         self.assertTrue(done.candidates[0]["deprecated"])
@@ -238,6 +260,34 @@ class ExternalCpeVerificationTests(TestCase):
             self.assertEqual(row[key], next_row[key])
         verifications = self.client.get(self.url())
         self.assertEqual(len(verifications.data["verifications"]), 1)
+
+    def test_manual_confirmed_cpe_does_not_make_completed_empty_auto_search_stale(self):
+        from django.utils import timezone
+        original = create_run(self.hardware.pk, self.analyst, "SPECIFIC")
+        original.status = CpeSearchRun.Status.COMPLETED
+        original.finished_at = timezone.now()
+        original.save(update_fields=["status", "finished_at"])
+        before = self.client.get("/api/vulnerabilities/cpe-overview/")
+        before_row = next(x for x in before.data["results"] if x["asset_id"] == self.hardware.pk)
+        self.assertEqual(before_row["identification_status"], "NO_RESULTS")
+        verified = self.finish(self.start(), self.record())
+        confirmed = self.client.post(
+            f"/api/vulnerabilities/assets/{self.hardware.pk}/cpes/",
+            {"run_id": verified.pk, "cpe_name_id": str(self.uuid),
+             "status": "CONFIRMED", "justification": "Revisión documental externa"},
+            format="json",
+        )
+        self.assertEqual(confirmed.status_code, 201, confirmed.data)
+        after = self.client.get("/api/vulnerabilities/cpe-overview/")
+        after_row = next(x for x in after.data["results"] if x["asset_id"] == self.hardware.pk)
+        for key in ("run_id", "candidate_count", "confirmed_count",
+                    "unreviewed_count", "out_of_scope_count", "identification_status"):
+            self.assertEqual(after_row[key], before_row[key])
+        associations = self.client.get(
+            f"/api/vulnerabilities/assets/{self.hardware.pk}/cpes/"
+        )
+        self.assertEqual(associations.data["associations"][0]["source_run_trigger"],
+                         "EXTERNAL_CPE")
 
     def test_operator_cannot_enqueue_but_can_read_existing_verification(self):
         run = self.start()
