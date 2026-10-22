@@ -523,7 +523,10 @@ class SoftwareWorkerTests(TestCase):
             execute_catalogue_snapshot(
                 snapshot, object(),
                 fetcher=lambda strategy, parameter, start, pacer, *,
-                results_per_page, rows=rows: page(rows, start=start),
+                results_per_page, rows=rows: page(
+                    rows[start:start + results_per_page],
+                    start=start, total=len(rows),
+                ),
             )
         self.assertEqual(run.status, "COMPLETED")
         self.assertIn("cpe:2.3:o:axis:206*", parameters)
