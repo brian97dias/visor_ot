@@ -108,7 +108,7 @@ class CpeOverviewView(APIView):
         associations_by_asset = {}
         for association in AssetCpe.objects.filter(
             asset_id__in=[asset.pk for asset in assets]
-        ).select_related("cpe"):
+        ).select_related("cpe", "source_run"):
             associations_by_asset.setdefault(association.asset_id, []).append(association)
 
         results = []
@@ -132,6 +132,7 @@ class CpeOverviewView(APIView):
             # search DOES: its applicability requires renewed investigation.
             unmatched_decisions = sum(
                 a.validation_status == AssetCpe.Validation.CONFIRMED
+                and a.source_run.trigger != "EXTERNAL_CPE"
                 and a.validated_identity_fingerprint == identity
                 and str(a.cpe.cpe_name_id).lower() not in counts["candidate_ids"]
                 for a in associations
