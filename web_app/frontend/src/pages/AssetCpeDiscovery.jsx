@@ -208,6 +208,7 @@ export default function AssetCpeDiscovery() {
           <CpeDiscoveryTrace queries={run.queries} truncated={run.result_truncated} />
         </div>
       </section>
+    </>}
       <section className="panel cpe-review-summary">
         <div className="panel-header"><div>
           <h2>CPE revisados</h2>
@@ -232,10 +233,13 @@ export default function AssetCpeDiscovery() {
                     <CpeEvidence cpeName={item.cpe_name} cpeNameId={item.cpe_name_id} />
                     <CpeReferences references={item.nvd_references}
                       sourceRunId={item.references_source_run_id} showMissing />
-                    {run.candidates?.some(c =>
+                    {run?.candidates?.some(c =>
                       c.cpe_name_id?.toLowerCase() === item.cpe_name_id?.toLowerCase()) &&
                       <CpeCandidateExplanation candidate={run.candidates.find(c =>
                         c.cpe_name_id?.toLowerCase() === item.cpe_name_id?.toLowerCase())}/>}
+                    {item.source_run_trigger === "EXTERNAL_CPE" && <p className="cpe-uuid-official">
+                      Origen: verificación manual por identificador NVD (trabajo #{item.source_run_id}).
+                    </p>}
                     <p><strong>Justificación:</strong> {item.justification || "No registrada (opcional)"}</p>
                     <p>Revisado por {item.validated_by || "Usuario retirado"} ·
                       {" "}{new Date(item.validated_at).toLocaleString("es-CO")}</p>
@@ -248,11 +252,13 @@ export default function AssetCpeDiscovery() {
                         {new Date(history.created_at).toLocaleString("es-CO")} —
                         {" "}{history.actor || "Usuario retirado"}: {history.new_status}
                         {history.previous_status ? " (antes " + history.previous_status + ")" : ""}
+                        {history.source_run_trigger === "EXTERNAL_CPE"
+                          ? " · Verificación manual por ID" : ""}
                         {history.justification ? " — " + history.justification : ""}
                       </li>)}</ul>
                     </details>
                     <CandidateCpeReview
-                      candidate={run.candidates?.find(c =>
+                      candidate={run?.candidates?.find(c =>
                         c.cpe_name_id.toLowerCase() === item.cpe_name_id.toLowerCase())}
                       assetId={assetId} run={run} association={item}
                       allowed={allowed && asset.inventory_status === "ACTIVE"}
@@ -263,7 +269,7 @@ export default function AssetCpeDiscovery() {
               </div>}
         </div>
       </section>
-      <section className="cpe-candidate-section" aria-labelledby="cpe-candidate-title">
+      {run && <section className="cpe-candidate-section" aria-labelledby="cpe-candidate-title">
         <div className="cpe-candidate-heading">
           <div>
             <h2 id="cpe-candidate-title">CPE candidatos</h2>
@@ -315,7 +321,6 @@ export default function AssetCpeDiscovery() {
           NVD propone coincidencias, pero solo una decisión expresa del analista
           registra su asociación con el activo.
         </p>}
-      </section>
-    </>}
+      </section>}
   </section>;
 }
