@@ -49,22 +49,33 @@ def find_experimental_configuration(configurations):
         if config.get("negate") is True:
             continue
         nodes = config.get("nodes", [])
-        if not isinstance(nodes, list) or any(
-            isinstance(node, dict) and node.get("negate") is True for node in nodes
+        if not isinstance(nodes, list) or len(nodes) != 2:
+            continue
+        # Two independent AND operands are required. An OR containing both
+        # products would describe a DIFFERENT condition despite its labels.
+        if any(
+            not isinstance(node, dict) or node.get("negate") is True
+            or node.get("operator") != "OR"
+            or not isinstance(node.get("cpeMatch"), list)
+            or len(node["cpeMatch"]) != 1
+            or node.get("nodes")
+            for node in nodes
         ):
             continue
-        criteria = list(_criteria_of(nodes))
+        criteria = [node["cpeMatch"][0] for node in nodes]
+        if not all(isinstance(entry, dict) for entry in criteria):
+            continue
         wanted = {
             (FIRMWARE_CRITERION, True),
             (HARDWARE_CRITERION, False),
         }
         actual = {
-            (item.get("criteria"), item.get("vulnerable"))
-            for item in criteria
-            if isinstance(item.get("criteria"), str)
-            and type(item.get("vulnerable")) is bool
+            (entry.get("criteria"), entry.get("vulnerable"))
+            for entry in criteria
+            if isinstance(entry.get("criteria"), str)
+            and type(entry.get("vulnerable")) is bool
         }
-        if len(criteria) == 2 and actual == wanted:
+        if actual == wanted:
             matches.append({"index": position - 1, "position": position,
                             "configuration": config,
                             "firmware": next(x for x in criteria
@@ -197,7 +208,7 @@ def execute_cve_fetch(cve, pacer, fetcher=fetch_cve):
             OSError, ValueError, TypeError) as error:
         # Any old completed snapshot remains on disk but is NOT marked fresh.
         cve.fetch_status = Cve.FetchStatus.FAILED
-        cve.fetch_error = str(error)[:1000]
+        cve.fetch_error = (str(error) or type(error).__name__)[:1000]
         cve.finished_at = timezone.now()
         cve.save(update_fields=["fetch_status", "fetch_error", "finished_at"])
         return cve
