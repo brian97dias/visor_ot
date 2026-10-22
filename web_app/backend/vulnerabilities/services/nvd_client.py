@@ -6,6 +6,7 @@ from email.utils import parsedate_to_datetime
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+from uuid import UUID
 
 NVD_CPE_URL = "https://services.nvd.nist.gov/rest/json/cpes/2.0"
 PAGE_SIZE = 100
@@ -60,8 +61,15 @@ def _retry_seconds(headers):
 
 
 def fetch_page(strategy, parameter, start_index, pacer, *, results_per_page=PAGE_SIZE):
-    if strategy not in ("keywordSearch", "cpeMatchString"):
+    if strategy not in ("keywordSearch", "cpeMatchString", "cpeNameId"):
         raise ValueError("Estrategia de consulta inválida.")
+    if strategy == "cpeNameId":
+        try:
+            canonical = str(UUID(parameter))
+        except (ValueError, TypeError, AttributeError) as error:
+            raise ValueError("El cpeNameId debe ser un UUID válido.") from error
+        if str(parameter).lower() != canonical or start_index != 0 or results_per_page != 1:
+            raise ValueError("La verificación por UUID solo admite una consulta exacta.")
     if type(results_per_page) is not int or not 1 <= results_per_page <= 1000:
         raise ValueError("results_per_page debe estar entre 1 y 1000.")
     params = {strategy: parameter, "startIndex": start_index, "resultsPerPage": results_per_page}
