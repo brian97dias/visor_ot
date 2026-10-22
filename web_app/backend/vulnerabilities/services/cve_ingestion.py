@@ -22,18 +22,6 @@ class CveResponseError(ValueError):
     """Malformed, wrong or incomplete NVD response; never certify its data."""
 
 
-def _criteria_of(nodes):
-    """Iterate native cpeMatch entries without flattening the stored tree."""
-    for node in nodes:
-        if not isinstance(node, dict):
-            continue
-        yield from (entry for entry in node.get("cpeMatch", [])
-                    if isinstance(entry, dict))
-        children = node.get("nodes", [])
-        if isinstance(children, list):
-            yield from _criteria_of(children)
-
-
 def find_experimental_configuration(configurations):
     """Find the AND scenario by actual criteria, NOT a mutable NVD array index.
 
