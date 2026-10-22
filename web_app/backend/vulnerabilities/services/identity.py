@@ -351,8 +351,9 @@ def build_cpe_match_plan(identity):
 
 # Final optional discovery level: NVD may attribute a product to a different
 # manufacturer even though the inventoried brand occurs in the CPE title/model.
-# Both expressions are cacheable keywordSearch queries, not new vendor aliases.
-MAX_ALTERNATIVE_QUERIES = 2
+# Cacheable keywordSearch hints, never new vendor aliases.
+# Hardware/noncompound software use two; eligible compound software uses three.
+MAX_ALTERNATIVE_QUERIES = 3
 
 
 def build_alternative_keyword_plan(identity):
@@ -397,7 +398,7 @@ def build_alternative_keyword_plan(identity):
             if len(middle) <= 120:
                 terms.append(middle)
     terms.append(general)
-    terms = list(dict.fromkeys(terms))
+    terms = list(dict.fromkeys(terms))[:MAX_ALTERNATIVE_QUERIES]
     return [{"level": "ALTERNATIVE", "strategy": "keywordSearch",
              "parameter": term} for term in terms]
 
