@@ -316,6 +316,41 @@ class ExternalCpeVerificationTests(TestCase):
         self.assertEqual((row["confirmed_count"], row["manual_confirmed_count"],
                           row["rejected_count"], row["unreviewed_count"]), (1, 1, 0, 0))
 
+    def test_moxa_firmware_manual_confirmation_with_zero_auto_results_is_evaluated(self):
+        """Regression for EDS 508A / G508E UUID evidence in asset overview."""
+        from django.utils import timezone
+        firmware = self.software.software
+        firmware.manufacturer = "Moxa"
+        firmware.product = "EDS 508A"
+        firmware.version = "2.6"
+        firmware.software_type = "FIRMWARE"
+        firmware.save()
+        auto = create_run(self.software.pk, self.analyst, "SPECIFIC")
+        auto.status = CpeSearchRun.Status.COMPLETED
+        auto.finished_at = timezone.now()
+        auto.save(update_fields=["status", "finished_at"])
+        manual = self.finish(self.start(self.software), self.record(
+            part="o", vendor="moxa", product="eds-g508e_firmware", version="-",
+        ))
+        self.assertEqual(manual.candidates[0]["match_level"], "POSSIBLE_INCOMPATIBILITY")
+        decided = self.client.post(
+            f"/api/vulnerabilities/assets/{self.software.pk}/cpes/",
+            {"run_id": manual.pk, "cpe_name_id": str(self.uuid),
+             "status": "CONFIRMED", "justification": "Revisión manual documentada"},
+            format="json",
+        )
+        self.assertEqual(decided.status_code, 201, decided.data)
+        row = next(x for x in self.client.get(
+            "/api/vulnerabilities/cpe-overview/").data["results"]
+            if x["asset_id"] == self.software.pk)
+        self.assertEqual(row["identification_status"], "EVALUATED")
+        self.assertEqual(row["run_id"], auto.pk)
+        self.assertEqual(row["candidate_count"], 0)
+        self.assertEqual(row["confirmed_count"], 1)
+        self.assertEqual(row["manual_confirmed_count"], 1)
+        self.assertEqual(row["automatic_confirmed_count"], 0)
+        self.assertEqual(row["unreviewed_count"], 0)
+
     def test_manual_rejection_and_reopen_are_reflected_in_overview(self):
         run = self.finish(self.start(), self.record())
         create = self.client.post(
