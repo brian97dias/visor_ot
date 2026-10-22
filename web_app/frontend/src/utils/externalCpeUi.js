@@ -1,3 +1,5 @@
+import { nvdReferenceUrl } from "./nvdReferences.js";
+
 /** View-only helpers for worker-verified NVD UUIDs. No association is created here. */
 export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -41,7 +43,7 @@ export function additionalNvdReferences(references) {
   return references.filter(item =>
     item && typeof item.type === "string" &&
     item.type.trim().toLowerCase() !== "product" &&
-    typeof item.url === "string"
+    nvdReferenceUrl(item.url)
   );
 }
 
