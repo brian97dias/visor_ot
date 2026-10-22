@@ -15,6 +15,7 @@ from vulnerabilities.models import CpeSearchRun, AssetCpe
 from .candidate_matching import normalize_candidate, matches_vendor, _cpe_part
 from .identity import fingerprint, hardware_identity, software_identity, SOFTWARE_CPE_PARTS
 from .nvd_client import fetch_page, NvdError
+from .nvd_references import safe_references
 
 
 EXTERNAL_CPE_TRIGGER = "EXTERNAL_CPE"  # 12 chars, fits existing trigger column
@@ -144,6 +145,18 @@ def execute_external_cpe(run, pacer, fetcher=fetch_page):
         if _cpe_part(name, 2) != expected_part:
             query["status"] = "INCOMPATIBLE_PART"
             query["warning"] = "La parte CPE no corresponde al tipo del activo."
+            titles = cpe.get("titles")
+            titles = titles if isinstance(titles, list) else []
+            title = next((t.get("title") for t in titles
+                          if isinstance(t, dict) and t.get("lang") == "en"
+                          and isinstance(t.get("title"), str) and t.get("title")), name)
+            query["official_cpe"] = {
+                "cpe_name_id": str(returned_id), "cpe_name": name[:500],
+                "title": title[:400], "deprecated": bool(cpe.get("deprecated")),
+                "nvd_references": safe_references(cpe.get("refs")),
+            }
+            # Preserve official evidence for display, but never permit a
+            # cross-part association through the existing review endpoint.
             run.candidates = []
         else:
             try:
