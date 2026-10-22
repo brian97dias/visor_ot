@@ -13,7 +13,9 @@ from vulnerabilities.models import CpeSearchRun
 from .services.cpe_search import create_run, serialize_run
 from .models import AssetCpe
 from .services.identity import fingerprint, hardware_identity, software_identity
-from .services.cpe_overview import count_current_cpes, is_outdated_association
+from .services.cpe_overview import (
+    count_current_cpes, count_external_reviewed_cpes, is_outdated_association,
+)
 
 
 class CpeSearchPermission(BasePermission):
@@ -124,12 +126,23 @@ class CpeOverviewView(APIView):
             except (ValueError, AttributeError):
                 identity = ""
             counts = count_current_cpes(completed_run, associations, identity)
+            external = count_external_reviewed_cpes(
+                associations, identity, counts["candidate_ids"]
+            )
+            # Overall reviewed totals join *current* automatic evidence and
+            # independently confirmed external UUID evidence. UUIDs seen by both
+            # channels are counted once. Keep automatic discovery totals intact.
+            confirmed_count = counts["confirmed"] + external["confirmed"]
+            rejected_count = counts["rejected"] + external["rejected"]
+            reviewed_count = confirmed_count + rejected_count
+            reopened_count = sum(
+                a.validation_status == AssetCpe.Validation.REOPENED
+                for a in associations
+            )
             outdated = any(is_outdated_association(a, identity) for a in associations)
-            # A current decision absent from the latest completed valid search
-            # cannot be silently treated as validated by that search.
-            # A rejected historical suggestion missing from a fresh search
-            # needs no further review. A confirmed CPE missing from a valid
-            # search DOES: its applicability requires renewed investigation.
+            # A previously confirmed AUTO result missing in the latest valid
+            # automatic search still requires review; manually verified CPEs
+            # are deliberately independent of that search.
             unmatched_decisions = sum(
                 a.validation_status == AssetCpe.Validation.CONFIRMED
                 and a.source_run.trigger != "EXTERNAL_CPE"
@@ -137,33 +150,30 @@ class CpeOverviewView(APIView):
                 and str(a.cpe.cpe_name_id).lower() not in counts["candidate_ids"]
                 for a in associations
             ) if counts["available"] else 0
-            if latest_run is None:
-                state = "NOT_SEARCHED"
-            elif latest_run.status in (
+            if latest_run and latest_run.status in (
                 CpeSearchRun.Status.QUEUED, CpeSearchRun.Status.RUNNING,
             ):
                 state = latest_run.status
-            elif latest_run.status == CpeSearchRun.Status.FAILED:
+            elif latest_run and latest_run.status == CpeSearchRun.Status.FAILED:
                 state = "FAILED"
             elif outdated or unmatched_decisions:
                 state = "STALE"
-            elif not counts["available"]:
+            elif latest_run and not counts["available"]:
                 state = "STALE"
-            elif completed_run.result_truncated:
+            elif latest_run and completed_run.result_truncated:
                 state = "PARTIAL_RESULTS"
-            elif counts["total"] == 0:
-                state = "NO_RESULTS"
-            elif (counts["exploratory_count"] > 0 and counts["unreviewed"] == 0
-                  and counts["confirmed"] == 0 and counts["rejected"] == 0):
-                # Weak candidates can be explored; they are not confirmations
-                # and never inflate mandatory pending counts.
-                state = "TO_REVIEW"
-            elif counts["unreviewed"] == 0:
+            elif counts["unreviewed"] > 0 or external["manual_reopened"] > 0:
+                state = "IN_REVIEW" if reviewed_count > 0 else "TO_REVIEW"
+            elif reviewed_count > 0:
                 state = "EVALUATED"
-            elif counts["confirmed"] or counts["rejected"]:
-                state = "IN_REVIEW"
-            else:
+            elif counts["total"] > 0:
+                # Weak exploratory matches are optional, but remain visible
+                # for an analyst who wants to investigate them.
                 state = "TO_REVIEW"
+            elif latest_run is None:
+                state = "NOT_SEARCHED"
+            else:
+                state = "NO_RESULTS"
 
             hardware = getattr(asset, "hardware", None)
             software = getattr(asset, "software", None)
@@ -184,17 +194,17 @@ class CpeOverviewView(APIView):
                 "run_id": latest_run.pk if latest_run else None,
                 "candidate_count": counts["total"],
                 "exploratory_count": counts["exploratory_count"],
-                "confirmed_count": counts["confirmed"],
-                "rejected_count": counts["rejected"],
+                "confirmed_count": confirmed_count,
+                "rejected_count": rejected_count,
+                "automatic_confirmed_count": counts["confirmed"],
+                "automatic_rejected_count": counts["rejected"],
+                "manual_confirmed_count": external["manual_confirmed"],
+                "manual_rejected_count": external["manual_rejected"],
                 "unreviewed_count": counts["unreviewed"],
                 "legacy_pending_count": counts["legacy_pending"],
                 # Kept for backwards compatibility; reopened are NOT reviewed.
-                "reopened_count": sum(
-                    a.validation_status == AssetCpe.Validation.REOPENED
-                    for a in associations
-                ),
-                "reviewed_count": counts["confirmed"] + counts["rejected"]
-                    + counts["legacy_pending"],
+                "reopened_count": reopened_count,
+                "reviewed_count": reviewed_count + counts["legacy_pending"],
                 "out_of_scope_count": unmatched_decisions,
                 "last_search_at": latest_run.created_at if latest_run else None,
             })
