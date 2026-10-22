@@ -15,6 +15,13 @@ from vulnerabilities.services.nvd_client import PublicNvdPacer
 from vulnerabilities.services.worker_lock import ADVISORY_LOCK_ID
 
 
+def dispatch_cpe_run(run, pacer):
+    """Use one global worker for automatic searches and verified UUID requests."""
+    if run.trigger == EXTERNAL_CPE_TRIGGER:
+        return execute_external_cpe(run, pacer)
+    return execute_run(run, pacer)
+
+
 def asset_run_precedes_snapshot(run, snapshot):
     """Fair scheduling except for a run blocked on catalogue completion."""
     if run is None:
@@ -79,10 +86,7 @@ class Command(BaseCommand):
                 choose_legacy = asset_run_precedes_snapshot(run, snapshot)
                 if choose_legacy:
                     self.stdout.write(f"Buscando CPE: trabajo #{run.pk}, activo #{run.asset_id}")
-                    if run.trigger == EXTERNAL_CPE_TRIGGER:
-                        execute_external_cpe(run, pacer)
-                    else:
-                        execute_run(run, pacer)
+                    dispatch_cpe_run(run, pacer)
                     self.stdout.write(f"Trabajo #{run.pk}: {run.status}, {len(run.candidates)} candidatos")
                 elif snapshot is not None:
                     self.stdout.write(
