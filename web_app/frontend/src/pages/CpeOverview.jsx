@@ -6,6 +6,7 @@ import {
 } from "../api/vulnerabilities";
 import { cpeCountDetails } from "../utils/cpeOverviewPresentation";
 import { togglePageSelection, toggleRowSelection, countSelectedTypes } from "../utils/cpeBulkSelection";
+import ExternalCpeModal from "../components/ExternalCpeModal";
 
 const STATUS = {
   NOT_SEARCHED: "Sin búsqueda",
@@ -41,6 +42,9 @@ export default function CpeOverview() {
   const [bulkResult, setBulkResult] = useState(null);
   const [bulkError, setBulkError] = useState("");
   const [individualWorking, setIndividualWorking] = useState([]);
+  const [externalCpeAsset, setExternalCpeAsset] = useState(null);
+  const externalTriggerFocus = useRef(null);
+
   const [pollingPaused, setPollingPaused] = useState(false);
   const pollStartedAt = useRef(null);
   const dialogFocus = useRef(null);
@@ -139,6 +143,18 @@ export default function CpeOverview() {
     document.addEventListener("keydown", onEscape);
     return () => document.removeEventListener("keydown", onEscape);
   }, [dialogOpen, bulkWorking, bulkResult]);
+
+  function openExternalCpe(row) {
+    if (!canSearch || dialogOpen) return;
+    externalTriggerFocus.current = document.activeElement;
+    setExternalCpeAsset(row);
+  }
+
+  function closeExternalCpe() {
+    setExternalCpeAsset(null);
+    // Restore focus to the button which opened the form.
+    window.requestAnimationFrame(() => externalTriggerFocus.current?.focus());
+  }
 
   function openConfirmation() {
     if (!selectedRows.length) return;
@@ -352,6 +368,11 @@ export default function CpeOverview() {
                     state={{ fromCpeOverview: true, cpeOverviewSearch: "?" + searchParams.toString() }}>
                     Revisar
                   </Link>
+                  {canSearch && <button type="button" className="button-secondary"
+                    aria-label={"Agregar CPE por ID a " + row.asset_name}
+                    onClick={() => openExternalCpe(row)}>
+                    Agregar CPE por ID
+                  </button>}
                 </div></td>
               </tr>)}</tbody>
             </table>
@@ -374,6 +395,15 @@ export default function CpeOverview() {
       </p>
     </section>
 
+    {externalCpeAsset && <ExternalCpeModal key={externalCpeAsset.asset_id}
+      asset={externalCpeAsset} allowed={canSearch} onClose={closeExternalCpe}
+      onReviewed={async () => {
+        try { await refreshOverview(); }
+        catch (refreshError) {
+          setNotice("La decisión se guardó; no se pudo refrescar el listado: " +
+            refreshError.message);
+        }
+      }}/>}
     {dialogOpen && <div className="cpe-bulk-overlay">
       <div className="cpe-bulk-dialog" role="dialog" aria-modal="true"
         aria-labelledby="cpe-bulk-title" aria-describedby="cpe-bulk-description">
