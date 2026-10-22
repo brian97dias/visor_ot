@@ -7,8 +7,8 @@ import CandidateCpeReview from "./CandidateCpeReview";
 import CpeEvidence from "./CpeEvidence";
 import CpeReferences from "./CpeReferences";
 import {
-  canReviewExternalCpe, externalCpeAssociation, externalCpeEvidence,
-  externalCpeStatus, normalizedCpeUuid,
+  additionalNvdReferences, canReviewExternalCpe, externalCpeAssociation,
+  externalCpeEvidence, externalCpeStatus, normalizedCpeUuid,
 } from "../utils/externalCpeUi";
 
 const POLL_MS = 5000;
@@ -226,6 +226,8 @@ export default function ExternalCpeModal({ asset, allowed, onClose, onReviewed }
           Introduce el UUID, no la cadena cpe:2.3. La verificación se realizará
           mediante el worker NVD, sin bloquear la aplicación.
         </p>
+        {uuid.trim() && !normalizedCpeUuid(uuid) && <p className="cpe-review-form-error"
+          role="status">El identificador debe tener el formato UUID 8-4-4-4-12.</p>}
       </form>
       {!allowed && <p className="cpe-warning">
         Solo los analistas y administradores pueden solicitar verificaciones o registrar decisiones.
@@ -288,6 +290,18 @@ export default function ExternalCpeModal({ asset, allowed, onClose, onReviewed }
           <p>Tipo CPE: <strong>{evidence.cpe_name?.split(":")[2]}</strong> ·
             {" "}{evidence.deprecated ? "Deprecado en NVD" : "No deprecado en NVD"}</p>
           <CpeReferences references={evidence.nvd_references}/>
+          {additionalNvdReferences(evidence.nvd_references).length > 0 && <details className="cpe-uuid-other-refs">
+            <summary>Otras referencias incluidas por NVD ({additionalNvdReferences(evidence.nvd_references).length})</summary>
+            <ul>{additionalNvdReferences(evidence.nvd_references).map(item =>
+              <li key={item.url}>
+                <span>{item.type}: </span>
+                <a href={item.url} rel="noopener noreferrer" target="_blank">
+                  {new URL(item.url).hostname} ↗
+                </a>
+              </li>)}</ul>
+            <p>Son enlaces incluidos por NVD; no acreditan por sí mismos que el CPE
+              corresponda al activo.</p>
+          </details>}
           {selected.verification_status === "VERIFIED" && <>
             <p className="cpe-uuid-match">{candidate?.match_reason}</p>
             {(candidate?.warnings || []).length > 0 && <div className="cpe-uuid-warnings">
@@ -317,8 +331,9 @@ export default function ExternalCpeModal({ asset, allowed, onClose, onReviewed }
               try {
                 await refreshAssociations();
               } catch (err) {
-                setAssociationError("La decisión se registró, pero no se pudo actualizar el historial: " + err.message);
-                throw err;
+                // The decision was already saved; a refresh error must not
+                // encourage a duplicate POST or report that the decision failed.
+                setAssociationError("La decisión se guardó, pero no se pudo actualizar el historial: " + err.message);
               }
             }}/>
         </>}
