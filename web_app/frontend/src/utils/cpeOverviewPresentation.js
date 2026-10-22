@@ -8,3 +8,12 @@ export function cpeCountDetails(row) {
     { key: "unreviewed", count: number(row?.unreviewed_count), label: "por revisar" },
   ];
 }
+
+/** Provenance is descriptive, never an extra amount added to overall totals. */
+export function cpeManualDecisionDetails(row) {
+  const number = value => Number.isFinite(Number(value))
+    ? Math.max(0, Number(value)) : 0;
+  const confirmed = number(row?.manual_confirmed_count);
+  const rejected = number(row?.manual_rejected_count);
+  return confirmed || rejected ? { confirmed, rejected } : null;
+}
