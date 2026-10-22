@@ -274,7 +274,8 @@ class CveWorkerPersistenceTests(TestCase):
 class WorkerSchedulingTests(SimpleTestCase):
     def test_cve_and_cpe_use_same_worker_queue_without_reordering_old_tasks(self):
         now = timezone.now()
-        run = Mock(created_at=now)
+        # Real CpeSearchRun.queries is a list; a bare Mock is not subscriptable.
+        run = Mock(created_at=now, queries=[])
         snapshot = Mock(created_at=now + timedelta(seconds=2))
         cve = Mock(queued_at=now + timedelta(seconds=1))
         self.assertEqual(oldest_work_kind(run, snapshot, cve), "ASSET")
