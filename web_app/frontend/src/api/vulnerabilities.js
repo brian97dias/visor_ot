@@ -19,6 +19,25 @@ export function startCpeSearch(id, scope = "SPECIFIC") {
     body: JSON.stringify({ scope }),
   });
 }
+/** Verify an NVD CPE UUID through the existing PostgreSQL/worker queue. */
+export function startExternalCpeVerification(assetId, cpeNameId) {
+  return request("/api/vulnerabilities/assets/" + assetId + "/cpe-verifications/", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cpe_name_id: cpeNameId }),
+  });
+}
+
+export async function listExternalCpeVerifications(assetId) {
+  const data = await request("/api/vulnerabilities/assets/" + assetId + "/cpe-verifications/");
+  return data.verifications;
+}
+
+export async function readExternalCpeVerification(assetId, runId) {
+  const data = await request("/api/vulnerabilities/assets/" + assetId +
+    "/cpe-verifications/" + runId + "/");
+  return data.verification;
+}
+
 export async function latestCpeSearch(id) {
   const data = await request("/api/vulnerabilities/assets/" + id + "/cpe-searches/latest/");
   return data.run;
