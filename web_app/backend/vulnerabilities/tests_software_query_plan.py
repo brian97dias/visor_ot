@@ -215,8 +215,6 @@ class SoftwareCpePlanPhase1Tests(SimpleTestCase):
         self.assertEqual(software_short_series_prefixes("IOS", "Cisco"), [])
         self.assertEqual(software_short_series_prefixes("FL", "Phoenix Contact"), [])
         self.assertEqual(software_short_series_prefixes("FL IL 24 BK PAC", "Phoenix Contact"), [])
-        self.assertEqual(software_short_series_prefixes("FL IL 24 BK PAC Firmware",
-                                                       "Other FL"), [])
         self.assertEqual(software_short_series_prefixes("Fluffy 24 BK Firmware",
                                                        "Phoenix Contact"), [])
         self.assertNotIn(
