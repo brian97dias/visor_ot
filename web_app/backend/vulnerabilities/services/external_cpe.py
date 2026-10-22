@@ -4,6 +4,7 @@ Never creates AssetCpe or AssetCpeDecision. Official UUID evidence remains
 separate from automatic discovery runs and is valid only for its asset identity.
 """
 from uuid import UUID
+import re
 
 from django.db import transaction
 from django.utils import timezone
@@ -132,7 +133,9 @@ def execute_external_cpe(run, pacer, fetcher=fetch_page):
         except (KeyError, ValueError, TypeError, AttributeError):
             return _failure(run, query, "INVALID_RESPONSE", "El identificador NVD es inválido.")
         name = cpe.get("cpeName")
-        if returned_id != expected_id or not isinstance(name, str) or len(name.split(":")) != 13 or not name.startswith("cpe:2.3:"):
+        if (returned_id != expected_id or not isinstance(name, str)
+                or len(re.split(r"(?<!\\):", name)) != 13
+                or not name.startswith("cpe:2.3:")):
             return _failure(run, query, "INVALID_RESPONSE",
                             "NVD no devolvió exactamente el CPE oficial solicitado.")
         identity = run.identity_snapshot
