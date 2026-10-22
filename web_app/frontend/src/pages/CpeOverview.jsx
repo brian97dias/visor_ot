@@ -392,6 +392,8 @@ export default function CpeOverview() {
         La selección admite hardware y software y se conserva al cambiar filtros o página.
         La búsqueda individual y la masiva se inician únicamente cuando el analista
         pulsa Buscar. El motor amplía automáticamente las consultas cuando hace falta.
+        Agregar CPE por ID verifica un registro oficial sin confirmarlo automáticamente;
+        los contadores de esta tabla reflejan solo el descubrimiento automático.
       </p>
     </section>
 
