@@ -26,6 +26,24 @@ class NvdUUIDClientValidationTests(SimpleTestCase):
             fetch_page("cpeNameId", str(uuid4()), 0, Mock(), results_per_page=100)
 
 
+class WorkerDispatchTests(SimpleTestCase):
+    def test_one_worker_routes_manual_uuid_without_running_discovery(self):
+        from unittest.mock import patch
+        from vulnerabilities.management.commands.run_cpe_worker import dispatch_cpe_run
+        external = Mock(trigger=EXTERNAL_CPE_TRIGGER)
+        automatic = Mock(trigger="MANUAL")
+        with patch(
+            "vulnerabilities.management.commands.run_cpe_worker.execute_external_cpe"
+        ) as verify, patch(
+            "vulnerabilities.management.commands.run_cpe_worker.execute_run"
+        ) as discover:
+            dispatch_cpe_run(external, "pacer")
+            verify.assert_called_once_with(external, "pacer")
+            discover.assert_not_called()
+            dispatch_cpe_run(automatic, "pacer")
+            discover.assert_called_once_with(automatic, "pacer")
+
+
 class ExternalCpeVerificationTests(TestCase):
     def setUp(self):
         User = get_user_model()
