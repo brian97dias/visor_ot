@@ -687,6 +687,112 @@ class SoftwareWorkerTests(TestCase):
                             for c in run.candidates))
         self.assertFalse(AssetCpe.objects.exists())
 
+    def test_siemens_compound_family_is_found_in_paginated_manufacturer_catalogue(self):
+        sw = self.asset.software
+        sw.manufacturer = "Siemens"
+        sw.product = "SIMATIC S7 1200 CPU 1215C"
+        sw.software_type = Software.SoftwareType.OS
+        sw.version = ""
+        sw.save()
+        run = self.new_run()
+        parameters = []
+        for _ in range(30):
+            run = execute_run(run, object(), fetcher=lambda *args:
+                              self.fail("Software families must use snapshots"))
+            if run.status == "COMPLETED":
+                break
+            self.assertEqual(run.status, "QUEUED", getattr(run, "error_message", ""))
+            snapshot = CpeQuerySnapshot.objects.filter(
+                status=CpeQuerySnapshot.Status.QUEUED
+            ).select_related("cache").order_by("-pk").first()
+            self.assertIsNotNone(snapshot)
+            parameter = snapshot.cache.parameter
+            parameters.append(parameter)
+            rows = []
+            if parameter == "cpe:2.3:o:siemens:*":
+                rows = [
+                    nvd(product=f"unrelated_{i}", vendor="siemens", version="-")
+                    for i in range(527)
+                ] + [
+                    nvd(product="simatic_s7_1500_firmware", vendor="siemens",
+                        version="4.0"),
+                    nvd(product="simatic_s7_cpu_1200_firmware", vendor="siemens",
+                        version="4.0"),
+                    nvd(product="simatic_s7_1200_firmware", vendor="siemens",
+                        version="3.0"),
+                ]
+            execute_catalogue_snapshot(
+                snapshot, object(),
+                fetcher=lambda strategy, parameter, start, pacer, *,
+                results_per_page, rows=rows: page(
+                    rows[start:start + results_per_page],
+                    start=start, total=len(rows),
+                ),
+            )
+        self.assertEqual(run.status, "COMPLETED", run.error_message)
+        self.assertIn("cpe:2.3:o:siemens:simatic_s7_1200_cpu*", parameters)
+        self.assertIn("cpe:2.3:o:siemens:simatic_s7_1200*", parameters)
+        self.assertIn("cpe:2.3:o:siemens:*", parameters)
+        self.assertEqual(len(run.candidates), 2)
+        self.assertEqual(
+            [item["match_level"] for item in run.candidates],
+            ["EXPLORATORY", "EXPLORATORY"],
+        )
+        self.assertIn("simatic_s7_1200_firmware", run.candidates[0]["cpe_name"])
+        self.assertIn("simatic_s7_cpu_1200_firmware", run.candidates[1]["cpe_name"])
+        self.assertTrue(all(item["discovery_levels"] == ["MANUFACTURER"]
+                            for item in run.candidates))
+        self.assertFalse(run.result_truncated)
+        self.assertFalse(AssetCpe.objects.exists())
+        self.assertFalse(AssetCpeDecision.objects.exists())
+
+    def test_siemens_intermediate_keyword_finds_weak_firmware_if_catalogue_has_none(self):
+        sw = self.asset.software
+        sw.manufacturer = "Siemens"
+        sw.product = "SIMATIC S7 1200 CPU 1215C"
+        sw.software_type = Software.SoftwareType.OS
+        sw.version = ""
+        sw.save()
+        run = self.new_run()
+        recorded = []
+        for _ in range(30):
+            run = execute_run(run, object(), fetcher=lambda *args:
+                              self.fail("Keyword searches must use snapshots"))
+            if run.status == "COMPLETED":
+                break
+            self.assertEqual(run.status, "QUEUED", getattr(run, "error_message", ""))
+            snapshot = CpeQuerySnapshot.objects.filter(
+                status=CpeQuerySnapshot.Status.QUEUED
+            ).select_related("cache").order_by("-pk").first()
+            self.assertIsNotNone(snapshot)
+            parameter = snapshot.cache.parameter
+            recorded.append((snapshot.cache.strategy, parameter))
+            rows = []
+            if parameter == "Siemens SIMATIC S7 1200":
+                rows = [
+                    nvd(product="simatic_s7_cpu_1200_firmware",
+                        vendor="siemens", version="4.0"),
+                    nvd(product="simatic_s7_1500_firmware",
+                        vendor="siemens", version="4.0"),
+                    nvd(product="simatic_s7_cpu_1200_firmware",
+                        vendor="siemens", version="4.0", part="h"),
+                ]
+            execute_catalogue_snapshot(
+                snapshot, object(),
+                fetcher=lambda strategy, parameter, start, pacer, *,
+                results_per_page, rows=rows: page(rows, start=start),
+            )
+        self.assertEqual(run.status, "COMPLETED", run.error_message)
+        self.assertIn(("keywordSearch", "Siemens SIMATIC S7 1200 CPU 1215C"), recorded)
+        self.assertIn(("keywordSearch", "Siemens SIMATIC S7 1200"), recorded)
+        self.assertNotIn(("keywordSearch", "Siemens"), recorded)
+        self.assertEqual(len(run.candidates), 1)
+        candidate = run.candidates[0]
+        self.assertEqual(candidate["match_level"], "EXPLORATORY")
+        self.assertIn("simatic_s7_cpu_1200_firmware", candidate["cpe_name"])
+        self.assertEqual(candidate["discovery_levels"], ["ALTERNATIVE"])
+        self.assertFalse(AssetCpe.objects.exists())
+
     def test_review_creates_only_explicit_audited_software_decision(self):
         run = self.new_run()
         row = nvd(version="12.1")
