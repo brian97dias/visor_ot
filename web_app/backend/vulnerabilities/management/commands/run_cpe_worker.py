@@ -1,11 +1,11 @@
-"""Single-process, PostgreSQL-locked NVD worker. Start in a separate terminal."""
+"""Single-process, PostgreSQL-locked NVD worker for CPE and CVE."""
 import time
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 from django.utils import timezone
 
-from vulnerabilities.models import CpeSearchRun, CpeQuerySnapshot
+from vulnerabilities.models import CpeSearchRun, CpeQuerySnapshot, Cve
 from vulnerabilities.services.cpe_search import execute_run
 from vulnerabilities.services.external_cpe import EXTERNAL_CPE_TRIGGER, execute_external_cpe
 from vulnerabilities.services.cpe_catalogue import (
@@ -13,6 +13,7 @@ from vulnerabilities.services.cpe_catalogue import (
 )
 from vulnerabilities.services.nvd_client import PublicNvdPacer
 from vulnerabilities.services.worker_lock import ADVISORY_LOCK_ID
+from vulnerabilities.services.cve_ingestion import execute_cve_fetch
 
 
 def dispatch_cpe_run(run, pacer):
@@ -34,8 +35,21 @@ def asset_run_precedes_snapshot(run, snapshot):
     return not waiting and run.created_at <= snapshot.created_at
 
 
+def oldest_work_kind(run, snapshot, cve):
+    """Respect existing run/snapshot ordering and share their NVD pace with CVE."""
+    if asset_run_precedes_snapshot(run, snapshot):
+        previous = ("ASSET", run.created_at)
+    elif snapshot is not None:
+        previous = ("SNAPSHOT", snapshot.created_at)
+    else:
+        previous = None
+    if cve is not None and (previous is None or cve.queued_at <= previous[1]):
+        return "CVE"
+    return previous[0] if previous else None
+
+
 class Command(BaseCommand):
-    help = "Procesa búsquedas de activos y recuperaciones de catálogo NVD con un lock global."
+    help = "Procesa búsquedas CPE, catálogos y recuperación CVE con un lock NVD global."
 
     def add_arguments(self, parser):
         parser.add_argument("--once", action="store_true", help="Procesa como máximo un trabajo y termina.")
@@ -67,6 +81,11 @@ class Command(BaseCommand):
                 error_message="El trabajador se interrumpió. Solicita una nueva búsqueda.",
                 finished_at=timezone.now(),
             )
+            Cve.objects.filter(fetch_status=Cve.FetchStatus.RUNNING).update(
+                fetch_status=Cve.FetchStatus.FAILED,
+                fetch_error="Worker NVD interrumpido; vuelve a encolar el CVE.",
+                finished_at=timezone.now(),
+            )
             while True:
                 # A lost/reopened PostgreSQL session also loses its advisory lock.
                 # Stop rather than risk issuing requests without exclusivity.
@@ -81,14 +100,16 @@ class Command(BaseCommand):
                         CpeQuerySnapshot.Status.INCOMPLETE,
                     )
                 ).select_related("cache").order_by("created_at", "pk").first()
-                # Fair scheduling by original enqueue time. Legacy asset jobs
-                # and shared catalogue jobs never launch simultaneous NVD calls.
-                choose_legacy = asset_run_precedes_snapshot(run, snapshot)
-                if choose_legacy:
+                cve = Cve.objects.filter(
+                    fetch_status=Cve.FetchStatus.QUEUED
+                ).order_by("queued_at", "pk").first()
+                # One PostgreSQL lock and one pacer for CPE and CVE HTTP calls.
+                kind = oldest_work_kind(run, snapshot, cve)
+                if kind == "ASSET":
                     self.stdout.write(f"Buscando CPE: trabajo #{run.pk}, activo #{run.asset_id}")
                     dispatch_cpe_run(run, pacer)
                     self.stdout.write(f"Trabajo #{run.pk}: {run.status}, {len(run.candidates)} candidatos")
-                elif snapshot is not None:
+                elif kind == "SNAPSHOT":
                     self.stdout.write(
                         f"Recuperando catálogo: snapshot #{snapshot.pk}, "
                         f"{snapshot.cache.strategy}={snapshot.cache.parameter} "
@@ -100,9 +121,16 @@ class Command(BaseCommand):
                         f"{result.unique_products_count} productos, "
                         f"checkpoint={result.next_start_index}"
                     )
+                elif kind == "CVE":
+                    self.stdout.write(f"Recuperando CVE: {cve.cve_id}")
+                    result = execute_cve_fetch(cve, pacer)
+                    self.stdout.write(
+                        f"CVE {result.cve_id}: {result.fetch_status}"
+                        + (f" — {result.fetch_error}" if result.fetch_error else "")
+                    )
                 if options["once"]:
                     break
-                if run is None and snapshot is None:
+                if kind is None:
                     time.sleep(options["poll_seconds"])
         except KeyboardInterrupt:
             self.stdout.write("Trabajador detenido. Trabajos pendientes conservados.")
