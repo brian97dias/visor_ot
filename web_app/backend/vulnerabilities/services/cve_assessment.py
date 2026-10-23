@@ -230,6 +230,7 @@ def assessment_context(hardware_id):
         "hardware_name": context["hardware"].asset.name,
         "cve_id": context["cve"].cve_id,
         "description": context["cve"].description,
+        "descriptions": context["cve"].descriptions,
         "severity": context["cve"].severity,
         "base_score": context["cve"].base_score,
         "configuration_position": context["scenario"]["position"],
