@@ -268,6 +268,45 @@ def _relevance_summary(configs, technical_trees):
     return [row for _, row in relevant]
 
 
+def summarize_hardware_cve_review(configurations):
+    """One conservative human-review summary per (hardware, CVE).
+
+    Individual append-only decisions remain bound to NVD configuration
+    indices. This is only a read-only projection across *all* alternatives,
+    including those not displayed in the routine pertinent-evidence view.
+    """
+    total = len(configurations)
+    effective = [
+        row.get("latest_assessment") for row in configurations
+    ]
+    current = [
+        row for row in effective if row and not row.get("stale")
+    ]
+    stale_count = sum(bool(row and row.get("stale")) for row in effective)
+    confirmed = sum(row.get("effective_status") == "APPLIES" for row in current)
+    excluded = sum(row.get("effective_status") == "NOT_APPLICABLE" for row in current)
+    reviewed = len(current)
+    if confirmed:
+        status = "APPLIES"
+    elif total > 0 and excluded == total and not stale_count:
+        status = "NOT_APPLICABLE"
+    elif stale_count:
+        status = "STALE"
+    elif reviewed:
+        status = "IN_REVIEW"
+    else:
+        status = "PENDING_REVIEW"
+    return {
+        "status": status,
+        "total_configurations": total,
+        "reviewed_configurations": reviewed,
+        "pending_configurations": total - reviewed,
+        "confirmed_configurations": confirmed,
+        "excluded_configurations": excluded,
+        "stale_configurations": stale_count,
+    }
+
+
 def general_assessment_context(cve_id, hardware_id):
     hw, cve, confirmed, installed, inventory_fp = _context(cve_id, hardware_id)
     technical = evaluate_configurations(
@@ -306,6 +345,7 @@ def general_assessment_context(cve_id, hardware_id):
         "hardware_name": hw.asset.name, "inventory_fingerprint": inventory_fp,
         "installed_software": installed,
         "technical_result": technical["result"],
+        "assessment_summary": summarize_hardware_cve_review(configs),
         "confirmed_hardware_cpes": [
             {"cpe_name": name, "association_id": assoc.pk}
             for name, assoc in confirmed.items()
