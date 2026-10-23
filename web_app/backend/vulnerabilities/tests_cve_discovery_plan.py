@@ -222,7 +222,7 @@ class CveDiscoveryPlanTests(TestCase):
         ])
         self.assertEqual(plan["eligible_hardware_ids"], [])
         self.assertEqual([s["reason"] for s in plan["skipped"]],
-                         ["ARCHIVED", "NOT_HARDWARE", "NOT_HARDWARE",
+                         ["ARCHIVED", "NOT_HARDWARE", "NOT_FOUND",
                           "NO_CURRENT_CONFIRMED_HARDWARE_CPE"])
 
     def test_invalid_input_and_query_cap(self):

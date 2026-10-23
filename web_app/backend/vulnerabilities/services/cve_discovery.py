@@ -88,6 +88,10 @@ def build_cve_discovery_plan(hardware_ids):
         raise ValueError("Selecciona como máximo 100 hardware por búsqueda.")
 
     hardware = Hardware.objects.select_related("asset").in_bulk(ids)
+    # Differentiate an unknown ID from an existing Software/other asset ID.
+    known_asset_ids = set(Asset.objects.filter(
+        pk__in=ids
+    ).values_list("pk", flat=True))
     active = {
         pk: hw for pk, hw in hardware.items()
         if hw.asset.inventory_status == Asset.InventoryStatus.ACTIVE
@@ -138,7 +142,9 @@ def build_cve_discovery_plan(hardware_ids):
         hw = hardware.get(hardware_id)
         if hw is None:
             plan["skipped"].append({
-                "hardware_id": hardware_id, "reason": "NOT_HARDWARE",
+                "hardware_id": hardware_id,
+                "reason": "NOT_HARDWARE" if hardware_id in known_asset_ids
+                          else "NOT_FOUND",
             })
             continue
         if hw.asset.inventory_status != Asset.InventoryStatus.ACTIVE:
