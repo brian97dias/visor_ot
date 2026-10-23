@@ -30,6 +30,7 @@ export const CVE_TECHNICAL_STATE = {
   EXCLUDED: "No aplica técnicamente",
   INDETERMINATE: "Por verificar",
 };
+export const DEFAULT_CVE_TECHNICAL_FILTER = "ATTENTION";
 export const CVE_TECHNICAL_FILTER = {
   ATTENTION: "Requieren atención",
   COMPATIBLE: "Coincidencia técnica",

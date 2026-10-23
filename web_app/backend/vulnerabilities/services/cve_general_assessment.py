@@ -228,7 +228,7 @@ def _relevance_summary(configs, technical_trees):
     relevant = []
     for config, evaluation in zip(configs, technical_trees):
         matches = _matching_criterion_count(evaluation)
-        if matches:
+        if matches or config.get("history"):
             relevant.append((matches, config))
     priority = {"COMPATIBLE": 0, "INDETERMINATE": 1, "EXCLUDED": 2}
     relevant.sort(key=lambda row: (

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   CVE_SEVERITY, CVE_DISCOVERY_STATE, CVE_EVALUATION_STATE,
   CVE_EVALUATION_HELP, CVE_TECHNICAL_STATE, CVE_TECHNICAL_FILTER,
+  DEFAULT_CVE_TECHNICAL_FILTER,
   cvePageCount,
   cveHardwareCandidates, toggleCveHardwareSelection,
   cveHardwareSelectionValid, isCveDiscoveryActive,
@@ -62,4 +63,10 @@ test("technical compatibility has its own labels and an attention filter", () =>
   assert.equal(CVE_EVALUATION_STATE.NOT_APPLICABLE, "No aplica");
   assert.notEqual(CVE_EVALUATION_STATE.NOT_APPLICABLE,
     CVE_TECHNICAL_STATE.EXCLUDED);
+});
+
+test("default CVE view prioritizes unresolved/compatible results", () => {
+  assert.equal(DEFAULT_CVE_TECHNICAL_FILTER, "ATTENTION");
+  assert.equal(CVE_TECHNICAL_FILTER.ATTENTION, "Requieren atención");
+  assert.equal(CVE_TECHNICAL_FILTER.EXCLUDED, "No aplica técnicamente");
 });

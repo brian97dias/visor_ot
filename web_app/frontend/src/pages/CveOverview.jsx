@@ -8,7 +8,7 @@ import {
 import SuccessNotice from "../components/SuccessNotice";
 import {
   CVE_DISCOVERY_STATE, CVE_EVALUATION_STATE, CVE_EVALUATION_HELP,
-  CVE_TECHNICAL_STATE, CVE_TECHNICAL_FILTER,
+  CVE_TECHNICAL_STATE, CVE_TECHNICAL_FILTER, DEFAULT_CVE_TECHNICAL_FILTER,
   CVE_SEVERITY, cveHardwareCandidates,
   cveHardwareSelectionValid, cvePageCount, isCveDiscoveryActive,
   toggleCveHardwareSelection,
@@ -26,7 +26,7 @@ export default function CveOverview() {
   const search = params.get("q") || "";
   const severity = params.get("severity") || "ALL";
   const status = params.get("status") || "ALL";
-  const technical = params.get("technical") || "ALL";
+  const technical = params.get("technical") || DEFAULT_CVE_TECHNICAL_FILTER;
   const requestedPage = readCpePage(params.get("page"));
   const [catalogue, setCatalogue] = useState({ count: 0, results: [], page: 1 });
   const [runs, setRuns] = useState([]);
@@ -49,7 +49,7 @@ export default function CveOverview() {
 
   function changeFilter(name, value) {
     const next = new URLSearchParams(params);
-    if (!value || (["severity", "status", "technical"].includes(name) && value === "ALL") ||
+    if (!value || (["severity", "status"].includes(name) && value === "ALL") ||
         (name === "page" && String(value) === "1")) next.delete(name);
     else next.set(name, String(value));
     if (name !== "page") next.delete("page");
