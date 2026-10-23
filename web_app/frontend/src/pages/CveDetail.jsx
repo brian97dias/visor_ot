@@ -8,7 +8,7 @@ import SuccessNotice from "../components/SuccessNotice";
 import CveAnalysis from "./CveAnalysis";
 import { CVE_SEVERITY, CVE_TECHNICAL_STATE } from "../utils/cveCataloguePresentation";
 import {
-  localizedTimestamp, assessmentActionOptions, versionConstraintsText,
+  localizedTimestamp, contextualCveActionOptions, versionConstraintsText,
 } from "../utils/cveAssessmentPresentation";
 
 const STATE = {
@@ -130,13 +130,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide }) {
     ["APPLIES", "NOT_APPLICABLE"].includes(last.status));
   const canReopen = staleDecision && canDecide;
   const canReview = config.review_supported && canDecide;
-  const options = (staleDecision
-    ? [{ key: "UNKNOWN", title: "Reabrir evaluación desactualizada" }]
-    : assessmentActionOptions(status)
-  ).filter(option =>
-    !(config.review_installation_id &&
-      config.technical_result === "COMPATIBLE" &&
-      option.key === "NOT_MATCH"));
+  const options = contextualCveActionOptions(config, last);
   const noSelected = choice !== "UNKNOWN" && !selectedId;
   const invalid = !justification.trim() || noSelected;
 

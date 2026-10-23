@@ -6,7 +6,7 @@ import {
   advisoryOutcome, cpePartLabel, versionConstraintsText, localizedTimestamp,
   selectedFirmwareInstallation, proposedFirmwareDecision, experimentalDescription,
   nvdCveDetailUrl, nvdVulnerabilitiesByCpeUrl, nvdCvesApiByCpeNameUrl,
-  assessmentActionOptions,
+  assessmentActionOptions, contextualCveActionOptions,
 } from "./cveAssessmentPresentation.js";
 
 const installment = {
@@ -259,4 +259,29 @@ test("undo restores pending review without claiming the vulnerability does not a
   assert.equal(decision.inventory_declared_complete, false);
   assert.equal(submissionGuard(context(), decision), "");
   assert.equal(advisoryOutcome(context(), decision), "PENDING_REVIEW");
+});
+
+
+test("a verified version-bounded match cannot be manually discarded", () => {
+  const config = {
+    technical_result: "COMPATIBLE", review_installation_id: 5,
+  };
+  assert.deepEqual(contextualCveActionOptions(config, null)
+    .map(option => option.key), ["CONFIRMED"]);
+  assert.deepEqual(contextualCveActionOptions({
+    technical_result: "INDETERMINATE", review_installation_id: null,
+  }, null).map(option => option.key), ["CONFIRMED", "NOT_MATCH"]);
+});
+
+test("stale historical positive or negative remains reopenable", () => {
+  const config = { review_supported: false, technical_result: "INDETERMINATE" };
+  for (const status of ["APPLIES", "NOT_APPLICABLE"]) {
+    const actions = contextualCveActionOptions(config, {
+      status, effective_status: "PENDING_REVIEW", stale: true,
+    });
+    assert.deepEqual(actions.map(option => option.key), ["UNKNOWN"]);
+    assert.match(actions[0].title, /desactualizada/);
+  }
+  assert.deepEqual(contextualCveActionOptions(config, null)
+    .map(option => option.key), ["CONFIRMED", "NOT_MATCH"]);
 });

@@ -191,3 +191,19 @@ export function assessmentActionOptions(status) {
     { key: "NOT_MATCH", title: "Descartar correspondencia" },
   ];
 }
+
+
+/** Decisions for one contextual NVD configuration. A proven matching version
+ * must not be labelled NOT_APPLICABLE. Historical positives can still be
+ * reopened when their original product evidence becomes stale.
+ */
+export function contextualCveActionOptions(config, last) {
+  if (last?.stale && ["APPLIES", "NOT_APPLICABLE"].includes(last.status)) {
+    return [{ key: "UNKNOWN", title: "Reabrir evaluación desactualizada" }];
+  }
+  const status = last?.effective_status || "PENDING_REVIEW";
+  return assessmentActionOptions(status).filter(option =>
+    !(config?.review_installation_id &&
+      config?.technical_result === "COMPATIBLE" &&
+      option.key === "NOT_MATCH"));
+}
