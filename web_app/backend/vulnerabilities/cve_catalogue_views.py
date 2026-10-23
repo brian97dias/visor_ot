@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 from vulnerabilities.models import AssetCveAssessment, AssetCveFinding, Cve
 from .services.cve_discovery import build_cve_discovery_plan
 from .services.cve_catalogue_status import CATALOGUE_STATES, catalogue_statuses
+from .services.cve_technical_status import TECHNICAL_FILTERS, technical_statuses
 from .views import CpeSearchPermission
 
 
@@ -29,6 +30,9 @@ class CveCatalogueFilterSerializer(serializers.Serializer):
     )
     status = serializers.ChoiceField(
         choices=("ALL", *CATALOGUE_STATES), default="ALL",
+    )
+    technical = serializers.ChoiceField(
+        choices=("ALL", *TECHNICAL_FILTERS), default="ALL",
     )
     page = serializers.IntegerField(min_value=1, default=1)
     page_size = serializers.IntegerField(
@@ -75,7 +79,8 @@ def _asset_counts(cves):
     return {pk: len(values) for pk, values in counts.items()}
 
 
-def _cve_brief(cve, hardware_count=0, evaluation_status="PENDING_REVIEW"):
+def _cve_brief(cve, hardware_count=0, evaluation_status="PENDING_REVIEW",
+               technical_result="INDETERMINATE"):
     description, source = _description_es(cve)
     return {
         "cve_id": cve.cve_id,
@@ -89,6 +94,7 @@ def _cve_brief(cve, hardware_count=0, evaluation_status="PENDING_REVIEW"):
         "hardware_count": hardware_count,
         "selected_assets_count": hardware_count,
         "evaluation_status": evaluation_status,
+        "technical_result": technical_result,
         # Correlation from NVD CPE is not an asset applicability decision.
         "relationship_kind": "CANDIDATE",
     }
@@ -119,29 +125,40 @@ class CveCatalogueView(APIView):
         page_size = values["page_size"]
         offset = (page - 1) * page_size
         selected_status = values["status"]
-        if selected_status == "ALL":
-            # Compute review state for the current page only.
+        selected_technical = values["technical"]
+        if selected_status == "ALL" and selected_technical == "ALL":
             count = ordered.count()
             results = list(ordered[offset:offset + page_size])
             statuses = catalogue_statuses(results)
+            technicals = technical_statuses(results)
         else:
-            # Filter BEFORE pagination. Assessment status is computed from
-            # fingerprints and latest per-hardware/configuration audit rows,
-            # so a simple SQL filter on historical status would be misleading.
+            # Derive BOTH states before pagination. Historical analyst
+            # decisions and fresh technical checks are independent.
             candidates = list(ordered)
-            candidate_statuses = catalogue_statuses(candidates)
+            statuses = (catalogue_statuses(candidates)
+                        if selected_status != "ALL" else {})
+            technicals = (technical_statuses(candidates)
+                          if selected_technical != "ALL" else {})
             filtered = [
                 cve for cve in candidates
-                if candidate_statuses[cve.pk] == selected_status
+                if (selected_status == "ALL" or
+                    statuses[cve.pk] == selected_status)
+                and (selected_technical == "ALL" or
+                     technicals[cve.pk] == selected_technical or
+                     (selected_technical == "ATTENTION" and
+                      technicals[cve.pk] != "EXCLUDED"))
             ]
             count = len(filtered)
             results = filtered[offset:offset + page_size]
-            statuses = candidate_statuses
+            if selected_status == "ALL":
+                statuses = catalogue_statuses(results)
+            if selected_technical == "ALL":
+                technicals = technical_statuses(results)
         counts = _asset_counts(results)
         return Response({
             "count": count, "page": page, "page_size": page_size,
             "results": [_cve_brief(
-                cve, counts[cve.pk], statuses[cve.pk]
+                cve, counts[cve.pk], statuses[cve.pk], technicals[cve.pk]
             ) for cve in results],
         })
 
@@ -160,6 +177,7 @@ class CveCatalogueDetailView(APIView):
             **_cve_brief(
                 cve, _asset_counts([cve])[cve.pk],
                 catalogue_statuses([cve])[cve.pk],
+                technical_statuses([cve])[cve.pk],
             ),
             "descriptions": cve.descriptions,
             "metrics": cve.metrics,
