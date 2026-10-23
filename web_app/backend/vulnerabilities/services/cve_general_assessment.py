@@ -165,7 +165,7 @@ def _context(cve_id, hardware_id, *, lock=False):
             for association in confirmed_software.get(row.software_id, [])
         ],
     } for row in installations]
-    inventory_fp = _digest({
+    fingerprint_basis = {
         "hardware": identity,
         "hardware_cpe_associations": [
             (assoc.pk, assoc.cpe.cpe_name, assoc.validated_at.isoformat())
@@ -175,13 +175,17 @@ def _context(cve_id, hardware_id, *, lock=False):
             (row["installation_id"], row["software_asset_id"], row["identity"])
             for row in installed
         ],
-        "software_cpe_associations": [
+    }
+    # Preserve historical generic assessment fingerprints when no confirmed
+    # software CPE was used. New software CPE confirmation changes evidence.
+    if confirmed_software:
+        fingerprint_basis["software_cpe_associations"] = [
             (association.pk, association.cpe.cpe_name,
              association.validated_at.isoformat())
             for associations in confirmed_software.values()
             for association in associations
-        ],
-    })
+        ]
+    inventory_fp = _digest(fingerprint_basis)
     return hardware, cve, confirmed_cpes, installed, inventory_fp
 
 
