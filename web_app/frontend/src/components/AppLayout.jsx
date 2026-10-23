@@ -114,11 +114,12 @@ function AppLayout() {
               <SidebarIcon name="fingerprint" />
               <span>Identificación CPE</span>
             </NavLink>
-            <span className="nav-item nav-subitem nav-item-disabled"
-              aria-disabled="true" title="Disponible en una fase futura">
+            <NavLink to="/vulnerabilities/cve" className={({ isActive }) =>
+              isActive ? "nav-item nav-subitem active" : "nav-item nav-subitem"
+            }>
               <SidebarIcon name="shield" />
-              <span>Análisis CVE (futuro)</span>
-            </span>
+              <span>Análisis CVE</span>
+            </NavLink>
           </div>
         </nav>
 
