@@ -4,6 +4,7 @@ import {
   CVE_STATUS, EXPERIMENT_CVE_ID, EXPERIMENT_HARDWARE_ID,
   latestEffectiveStatus, currentCriterionEvidence, submissionGuard,
   advisoryOutcome, cpePartLabel, versionConstraintsText, localizedTimestamp,
+  selectedFirmwareInstallation, proposedFirmwareDecision, experimentalDescription,
 } from "./cveAssessmentPresentation.js";
 
 const installment = {
@@ -128,4 +129,63 @@ test("platform match criteria are never advertised as proof of being safe", () =
   assert.equal(cpePartLabel(true), "Criterio vulnerable (NVD)");
   assert.equal(localizedTimestamp(null), "Sin fecha");
   assert.equal(localizedTimestamp("unknown"), "Fecha no disponible");
+});
+
+test("one current installation is automatically identified as evidence, not accepted as a CVE match", () => {
+  const info = context();
+  assert.equal(selectedFirmwareInstallation(info, "").installation_id, 4);
+  const pending = proposedFirmwareDecision(info, "UNKNOWN", "", "No hay evidencia");
+  assert.equal(pending.software_installation_id, 4);
+  assert.equal(pending.firmware_verdict, "UNKNOWN");
+  assert.equal(advisoryOutcome(info, pending), "PENDING_REVIEW");
+  assert.equal(submissionGuard(info, pending), "");
+});
+
+test("multiple installed firmware candidates require an explicit selection", () => {
+  const info = context({active_firmware_installations:[
+    installment, {installation_id:8, software_asset_id:10},
+  ]});
+  assert.equal(selectedFirmwareInstallation(info, ""), null);
+  assert.equal(selectedFirmwareInstallation(info, "8").installation_id, 8);
+  assert.equal(selectedFirmwareInstallation(info, "99"), null);
+  const unselected = proposedFirmwareDecision(info, "CONFIRMED", "", "Comprobé");
+  assert.equal(unselected.software_installation_id, null);
+  assert.match(submissionGuard(info, unselected), /Selecciona/);
+  assert.equal(advisoryOutcome(info, unselected), "PENDING_REVIEW");
+});
+
+test("not found means no installation and forbids confirmation, while uncertainty remains recordable", () => {
+  const info = context({active_firmware_installations:[]});
+  assert.equal(selectedFirmwareInstallation(info, ""), null);
+  const confirm = proposedFirmwareDecision(info, "CONFIRMED", "", "Comprobé");
+  assert.match(submissionGuard(info, confirm), /Selecciona/);
+  const pending = proposedFirmwareDecision(info, "UNKNOWN", "", "No hay instalación registrada");
+  assert.equal(submissionGuard(info, pending), "");
+  assert.equal(advisoryOutcome(info, pending), "PENDING_REVIEW");
+});
+
+test("negative firmware evidence does not silently declare NOT_APPLICABLE", () => {
+  const info = context();
+  const negative = proposedFirmwareDecision(info, "NOT_MATCH", "",
+    "Inspección técnica", "DOCUMENTATION", false);
+  assert.equal(negative.software_installation_id, 4);
+  assert.equal(negative.evidence_source, "DOCUMENTATION");
+  assert.equal(negative.inventory_declared_complete, false);
+  assert.equal(advisoryOutcome(info, negative), "PENDING_REVIEW");
+  const attested = proposedFirmwareDecision(info, "NOT_MATCH", "",
+    "Inventario completo comprobado", "SIMULATION", true);
+  assert.equal(advisoryOutcome(info, attested), "NOT_APPLICABLE");
+  const notMatchWithoutCheckbox = proposedFirmwareDecision(info, "CONFIRMED", "",
+    "Verificado", "DOCUMENTATION", true);
+  assert.equal(notMatchWithoutCheckbox.inventory_declared_complete, false);
+});
+
+test("the specific NVD description has a clearly identified unofficial Spanish translation", () => {
+  const english = "In certain devices of the Phoenix Contact AXL F BK and IL BK product families an undocumented password protected FTP access to the root directory exists.";
+  const result = experimentalDescription("CVE-2021-33540", english);
+  assert.match(result.text, /acceso FTP no documentado/);
+  assert.match(result.label, /no oficial/);
+  assert.equal(result.original, english);
+  assert.equal(experimentalDescription("CVE-2021-99999", english).text, english);
+  assert.equal(experimentalDescription("CVE-2021-33540", "Another text").text, "Another text");
 });
