@@ -104,6 +104,47 @@ def _product_match(criterion, confirmed):
     return True
 
 
+
+def _verified_distinct_product(criterion, confirmed):
+    """Only disjoint, explicit Siemens *product lines*; never fuzzy CPE matching.
+
+    NVD CPE family and variant relationships cannot be deduced from arbitrary
+    spelling differences. These two Siemens product lines are not aliases:
+    S7-PLCSIM Advanced is simulation software, not a S7-1200 CPU.
+    Extend only with independently verified disjoint families.
+    """
+    if criterion[3] != confirmed[3] or criterion[3] != "siemens":
+        return False
+    names = (criterion[4].lower(), confirmed[4].lower())
+    return ((any("s7-plcsim" in name for name in names)
+             and any("s7-1200" in name for name in names)))
+
+
+def _identity(criterion, candidates):
+    if any(_product_match(criterion, candidate) for candidate in candidates):
+        return "MATCHED"
+    if candidates and all(
+        _verified_distinct_product(criterion, candidate)
+        for candidate in candidates
+    ):
+        return "DISTINCT"
+    return "UNKNOWN"
+
+
+def _trace(result, reason, *, identity="UNKNOWN", cpe=None, asset=None, version=None):
+    observation = {"result": result, "reason": reason, "identity": identity}
+    if cpe:
+        observation["matched_cpe"] = ":".join(cpe)
+    if asset:
+        observation["software_asset_id"] = asset.get("software_asset_id")
+        observation["software_name"] = asset.get("software_name")
+        observation["software_installation_id"] = asset.get("installation_id")
+        observation["installed_version"] = asset.get("version") or ""
+    elif version is not None:
+        observation["installed_version"] = version
+    return observation
+
+
 def evaluate_criterion(criterion, hardware_cpes, installed_software):
     """Return result for one cpeMatch, without interpreting vulnerable:false as safe."""
     if not isinstance(criterion, dict) or not isinstance(criterion.get("vulnerable"), bool):
@@ -113,70 +154,73 @@ def evaluate_criterion(criterion, hardware_cpes, installed_software):
         return {"result": INDETERMINATE, "reason": "El CPE del criterio no es válido."}
     bounds = {key: criterion[key] for key in VERSION_KEYS if key in criterion}
     if cpe[2] == "h":
-        names = [_parse_cpe(cpe_name) for cpe_name in hardware_cpes]
-        names = [item for item in names if item and item[2] == "h"]
+        names = [_parse_cpe(name) for name in hardware_cpes]
+        names = [name for name in names if name and name[2] == "h"]
+        identity = _identity(cpe, names)
+        candidate = next((name for name in names if _product_match(cpe, name)), None)
         if not names:
-            result, reason = INDETERMINATE, "No existe un CPE vigente confirmado del hardware."
-        elif not any(_product_match(cpe, name) for name in names):
-            # A family-level NVD CPE may cover a more specific inventoried
-            # variant. A different product string alone cannot disprove scope.
-            result, reason = INDETERMINATE, (
-                "El CPE de plataforma no coincide exactamente; "
-                "no se ha demostrado que sea una variante excluida."
-            )
-        elif bounds or cpe[5] not in ("*", "-"):
-            result, reason = INDETERMINATE, "La comparación de versión del hardware requiere otra evidencia."
-        else:
-            result, reason = COMPATIBLE, "La identidad del hardware coincide con el criterio de plataforma NVD."
-        return {"result": result, "reason": reason}
+            return _trace(INDETERMINATE, "No existe CPE vigente confirmado del hardware.")
+        if identity == "DISTINCT":
+            return _trace(EXCLUDED, "Producto distinto comprobado: S7-PLCSIM y S7-1200 no son la misma línea de producto.", identity=identity)
+        if identity != "MATCHED":
+            return _trace(INDETERMINATE,
+                "La relación de familia o variante entre CPE no está acreditada.",
+                identity=identity)
+        if bounds or cpe[5] not in ("*", "-"):
+            return _trace(INDETERMINATE,
+                "La comparación de versión del hardware requiere otra evidencia.",
+                identity=identity, cpe=candidate)
+        return _trace(COMPATIBLE,
+            "CPE de hardware confirmado; condición de plataforma satisfecha.",
+            identity=identity, cpe=candidate)
 
     expected_type = ("FIRMWARE", "OS") if cpe[2] == "o" else ("APPLICATION",)
     relevant = [sw for sw in installed_software if sw.get("software_type") in expected_type]
     if not relevant:
-        return {"result": INDETERMINATE, "reason": "No hay instalación vigente del tipo de software requerido."}
+        return _trace(INDETERMINATE, "No hay instalación vigente del tipo de software requerido.")
+
     matching = []
     unknown = False
     for sw in relevant:
-        # Confirmed CPEs must be current for *this* software identity.
-        names = [_parse_cpe(row) for row in sw.get("confirmed_cpes", [])]
+        names = [_parse_cpe(name) for name in sw.get("confirmed_cpes", [])]
         names = [name for name in names if name and name[2] == cpe[2]]
         if not names:
             unknown = True
             continue
-        if not any(_product_match(cpe, name) for name in names):
-            # Without complete inventory attestation, different products
-            # cannot prove that the NVD target is absent from the equipment.
+        candidate = next((name for name in names if _product_match(cpe, name)), None)
+        if not candidate:
+            # Lack of a specific installed software name does not attest an
+            # exhaustive software inventory. This is never an absence proof.
             unknown = True
             continue
-        matching.append(sw)
-    if not matching:
-        return {"result": INDETERMINATE,
-                "reason": "No hay correspondencia exacta con un CPE vigente confirmado del producto instalado."}
+        matching.append((sw, candidate))
 
-    excluded = []
-    for sw in matching:
+    if not matching:
+        return _trace(INDETERMINATE,
+            "No hay correspondencia exacta con un CPE vigente confirmado del producto instalado.")
+
+    exclusions = []
+    for sw, candidate in matching:
         result, reason = evaluate_version(sw.get("version", ""), cpe[5], bounds)
-        # An official CPE with a fixed version must not contradict the software
-        # inventory version even if the identity fingerprint happened to match.
-        if any(
-            (_parse_cpe(name) or [None] * 13)[5] not in ("*", "-", sw.get("version", ""))
-            for name in sw.get("confirmed_cpes", [])
-            if _parse_cpe(name) and _product_match(cpe, _parse_cpe(name))
-        ):
-            result, reason = INDETERMINATE, "Versión del CPE confirmado distinta de la registrada."
+        if candidate[5] not in ("*", "-", sw.get("version", "")):
+            result, reason = INDETERMINATE, (
+                "La versión del CPE confirmado difiere de la versión inventariada."
+            )
         if result == COMPATIBLE:
-            return {"result": COMPATIBLE, "reason": reason,
-                    "software_installation_id": sw["installation_id"],
-                    "installed_version": sw.get("version") or ""}
+            return _trace(COMPATIBLE, reason, identity="MATCHED",
+                          cpe=candidate, asset=sw)
         if result == INDETERMINATE:
             unknown = True
         else:
-            excluded.append(reason)
+            exclusions.append((sw, candidate, reason))
     if unknown:
-        return {"result": INDETERMINATE,
-                "reason": "Hay otra instalación o una versión sin correspondencia verificable."}
-    return {"result": EXCLUDED, "reason": excluded[0] if excluded else "Criterio excluido por versión.",
-            "installed_version": matching[0].get("version") or ""}
+        sw, candidate = matching[0]
+        return _trace(INDETERMINATE,
+            "No puede resolverse la versión o existen otras instalaciones sin verificar.",
+            identity="MATCHED", cpe=candidate, asset=sw)
+    sw, candidate, reason = exclusions[0]
+    return _trace(EXCLUDED, reason, identity="MATCHED",
+                  cpe=candidate, asset=sw)
 
 
 def _combine(results, operator):
@@ -207,8 +251,10 @@ def _evaluate_group(group, hardware_cpes, installed):
                 "reason": "Árbol NVD no interpretable."}
     children = [_evaluate_group(node, hardware_cpes, installed) for node in nodes]
     children.extend(
-        {"kind": "CRITERION", **evaluate_criterion(item, hardware_cpes, installed)}
+        {"kind": "CRITERION", "criteria": item.get("criteria"),
+         **evaluate_criterion(item, hardware_cpes, installed)}
         for item in matches
+        if isinstance(item, dict)
     )
     value = _combine([child["result"] for child in children], operator)
     if group.get("negate") is True:
