@@ -64,6 +64,17 @@ export default function CveAnalysis() {
     setSource("INVENTORY");
   }
 
+  function chooseDecision(value) {
+    // Avoid reusing a rejection justification for a later confirmation.
+    if (choice !== value) {
+      setJustification("");
+      setSource("INVENTORY");
+    }
+    setChoice(value);
+    setComplete(false);
+    setError("");
+  }
+
   async function refresh() {
     if (saving || refreshing) return;
     setRefreshing(true);
@@ -293,13 +304,13 @@ export default function CveAnalysis() {
                   (choice === item.key ? " selected" : "")}
                 aria-pressed={choice === item.key}
                 disabled={saving || !installed}
-                onClick={() => { setChoice(item.key); setComplete(false); setError(""); }}>
+                onClick={() => chooseDecision(item.key)}>
                 {item.title}
               </button>)}
               <button type="button" className="cve-unknown-button"
                 aria-pressed={choice === "UNKNOWN"}
                 disabled={saving}
-                onClick={() => { setChoice("UNKNOWN"); setComplete(false); setError(""); }}>
+                onClick={() => chooseDecision("UNKNOWN")}>
                 No puedo verificarlo
               </button>
             </div>
