@@ -5,6 +5,7 @@ import {
   latestEffectiveStatus, currentCriterionEvidence, submissionGuard,
   advisoryOutcome, cpePartLabel, versionConstraintsText, localizedTimestamp,
   selectedFirmwareInstallation, proposedFirmwareDecision, experimentalDescription,
+  nvdCveDetailUrl, nvdVulnerabilitiesByCpeUrl,
 } from "./cveAssessmentPresentation.js";
 
 const installment = {
@@ -188,4 +189,34 @@ test("the specific NVD description has a clearly identified unofficial Spanish t
   assert.equal(result.original, english);
   assert.equal(experimentalDescription("CVE-2021-99999", english).text, english);
   assert.equal(experimentalDescription("CVE-2021-33540", "Another text").text, "Another text");
+});
+
+test("official Spanish from stored NVD descriptions takes priority over local translation", () => {
+  const english = "In certain devices of the Phoenix Contact AXL F BK and IL BK product families an undocumented password protected FTP access exists.";
+  const data = [
+    { lang: "en", value: english },
+    { lang: "es", value: "Descripción en español procedente de NVD." },
+  ];
+  const result = experimentalDescription("CVE-2021-33540", english, data);
+  assert.equal(result.text, "Descripción en español procedente de NVD.");
+  assert.match(result.label, /oficial en español/);
+  assert.equal(result.original, english);
+  const onlyEn = experimentalDescription("CVE-2021-33540", english, [data[0]]);
+  assert.match(onlyEn.label, /no oficial/);
+  assert.equal(experimentalDescription("CVE-2021-33540", english, []).original, english);
+  assert.equal(experimentalDescription("CVE-2021-33540", english, {}).original, english);
+});
+
+test("official NVD CVE title opens vulnerability detail, CPE opens separate CPE-search UI", () => {
+  const cpe = "cpe:2.3:h:phoenixcontact:il_pn_bk-pac:-:*:*:*:*:*:*:*";
+  assert.equal(nvdCveDetailUrl("CVE-2021-33540"),
+    "https://nvd.nist.gov/vuln/detail/CVE-2021-33540");
+  const searchUrl = nvdVulnerabilitiesByCpeUrl(cpe);
+  assert.ok(searchUrl.startsWith("https://nvd.nist.gov/vuln/search/results?"));
+  const parsed = new URL(searchUrl);
+  assert.equal(parsed.searchParams.get("query"), cpe);
+  assert.equal(parsed.searchParams.get("isCpeNameSearch"), "true");
+  assert.equal(nvdCveDetailUrl("invalid-id"), null);
+  assert.equal(nvdVulnerabilitiesByCpeUrl("cpe:2.3:h:vendor:item:*:*:*:*:*:*:*:*"), null);
+  assert.equal(nvdVulnerabilitiesByCpeUrl("not a cpe"), null);
 });
