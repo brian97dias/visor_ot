@@ -26,10 +26,9 @@ const context = ({
 });
 const form = ({
   software_installation_id = "4", firmware_verdict = "CONFIRMED",
-  evidence_source = "INVENTORY", inventory_declared_complete = false,
-  justification = "Inspección documentada",
+  inventory_declared_complete = false, justification = "Inspección documentada",
 } = {}) => ({
-  software_installation_id, firmware_verdict, evidence_source,
+  software_installation_id, firmware_verdict,
   inventory_declared_complete, justification,
 });
 
@@ -94,7 +93,7 @@ test("form prevents decision against an installation not currently linked", () =
 });
 
 test("justification and complete inventory attestation need explicit evidence", () => {
-  assert.match(submissionGuard(context(), form({justification:"  "})), /Describe/);
+  assert.match(submissionGuard(context(), form({justification:"  "})), /Explica/);
   assert.match(submissionGuard(context(), form({justification:"x".repeat(1001)})), /1000/);
   assert.match(submissionGuard(context(), form({inventory_declared_complete:true})),
     /solo procede/);
@@ -168,16 +167,16 @@ test("not found means no installation and forbids confirmation, while uncertaint
 test("negative firmware evidence does not silently declare NOT_APPLICABLE", () => {
   const info = context();
   const negative = proposedFirmwareDecision(info, "NOT_MATCH", "",
-    "Inspección técnica", "DOCUMENTATION", false);
+    "Inspección técnica", false);
   assert.equal(negative.software_installation_id, 4);
-  assert.equal(negative.evidence_source, "DOCUMENTATION");
+  assert.equal(Object.hasOwn(negative, "evidence_source"), false);
   assert.equal(negative.inventory_declared_complete, false);
   assert.equal(advisoryOutcome(info, negative), "PENDING_REVIEW");
   const attested = proposedFirmwareDecision(info, "NOT_MATCH", "",
-    "Inventario completo comprobado", "SIMULATION", true);
+    "Inventario completo comprobado", true);
   assert.equal(advisoryOutcome(info, attested), "NOT_APPLICABLE");
   const notMatchWithoutCheckbox = proposedFirmwareDecision(info, "CONFIRMED", "",
-    "Verificado", "DOCUMENTATION", true);
+    "Verificado", true);
   assert.equal(notMatchWithoutCheckbox.inventory_declared_complete, false);
 });
 
@@ -236,4 +235,12 @@ test("CVE API query preserves one cpeName parameter even with reserved delimiter
   const url = nvdCvesApiByCpeNameUrl(unusualCpe);
   assert.ok(url.includes("product%26debug%3Dtrue"));
   assert.equal(decodeURIComponent(url.split("?cpeName=")[1]), unusualCpe);
+});
+
+test("assessment payload excludes evidence source", () => {
+  const decision = proposedFirmwareDecision(context(), "CONFIRMED", "", "Verificado");
+  assert.deepEqual(Object.keys(decision).sort(), [
+    "software_installation_id", "firmware_verdict",
+    "inventory_declared_complete", "justification"
+  ].sort());
 });

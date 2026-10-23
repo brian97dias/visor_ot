@@ -2967,14 +2967,6 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cve-compact-review > small { color: #94a3b8; text-align: right; }
 .cve-compact-review .cve-form-actions { margin-top: 8px; }
 .cve-compact-review .cve-form-actions button { font-size: .84rem; }
-.cve-evidence-origin { border-top: 1px solid #334155; padding-top: 10px; }
-.cve-evidence-origin summary { color: #93c5fd; cursor: pointer; font-size: .8rem; }
-.cve-evidence-origin fieldset { border: 0; margin: 10px 0; padding: 0;
-  display: flex; flex-direction: column; gap: 8px; }
-.cve-evidence-origin legend { font-size: .77rem; color: #94a3b8; margin-bottom: 9px; }
-.cve-evidence-origin label { font-size: .79rem; font-weight: 400; display: flex; gap: 9px; }
-.cve-evidence-origin input { accent-color: #38bdf8; }
-.cve-evidence-origin p { font-size: .78rem; color: #94a3b8; line-height: 1.5; }
 .cve-technical-content { padding: 12px 0; font-size: .82rem; color: #94a3b8;
   overflow-wrap: anywhere; }
 .cve-technical-content > p { margin: 12px 0 7px; }

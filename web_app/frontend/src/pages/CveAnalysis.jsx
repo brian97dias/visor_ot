@@ -4,7 +4,7 @@ import {
   createExperimentalCveAssessment, getExperimentalCveAssessment,
 } from "../api/vulnerabilities";
 import {
-  CVE_STATUS, EVIDENCE_STATE, SOURCE_LABEL, EXPERIMENT_CVE_ID,
+  CVE_STATUS, EVIDENCE_STATE, EXPERIMENT_CVE_ID,
   currentCriterionEvidence, latestEffectiveStatus, submissionGuard,
   localizedTimestamp, versionConstraintsText, selectedFirmwareInstallation,
   proposedFirmwareDecision, experimentalDescription,
@@ -37,7 +37,6 @@ export default function CveAnalysis() {
   const [selectedId, setSelectedId] = useState("");
   const [choice, setChoice] = useState("");
   const [justification, setJustification] = useState("");
-  const [source, setSource] = useState("INVENTORY");
   const [complete, setComplete] = useState(false);
 
   useEffect(() => {
@@ -55,13 +54,13 @@ export default function CveAnalysis() {
     setChoice("");
     setJustification("");
     setComplete(false);
-    setSource("INVENTORY");
+    
   }
 
   function chooseDecision(next) {
     if (choice !== next) {
       setJustification("");
-      setSource("INVENTORY");
+      
     }
     setChoice(next);
     setComplete(false);
@@ -81,7 +80,7 @@ export default function CveAnalysis() {
     info?.criteria_evidence?.firmware?.version_constraints
   );
   const draft = proposedFirmwareDecision(
-    info, choice, selectedId, justification, source, complete
+    info, choice, selectedId, justification, complete
   );
   const guard = choice ? submissionGuard(info, draft) : "";
   const hardwareConfirmed = Boolean(info?.hardware_cpe_confirmed);
@@ -294,13 +293,12 @@ export default function CveAnalysis() {
             </button>)}
           </div>
           {choice && <form className="cve-compact-review" onSubmit={save}>
-            <p><strong>{choice === "CONFIRMED"
-              ? "Justifica la correspondencia"
-              : "Justifica por qué no corresponde"}</strong></p>
-            <label htmlFor="cve-justification">Evidencia y justificación</label>
+            <label htmlFor="cve-justification">Justificación de la decisión</label>
             <textarea id="cve-justification" maxLength={1000} rows={3}
               value={justification} disabled={saving} required
-              placeholder="Documento, inspección técnica o evidencia que respalda tu decisión..."
+              placeholder={choice === "CONFIRMED"
+                ? "Explica por qué el firmware corresponde al criterio de NVD..."
+                : "Explica por qué el firmware no corresponde al criterio de NVD..."}
               onChange={event => setJustification(event.target.value)}/>
             <small>{justification.length}/1000 caracteres</small>
 
@@ -316,16 +314,6 @@ export default function CveAnalysis() {
               {installations.length > 1 && <p>Hay varios firmwares vigentes.
                 No se puede descartar toda la configuración con una sola decisión.</p>}
             </div>}
-            <details className="cve-evidence-origin">
-              <summary>Procedencia de la evidencia: {SOURCE_LABEL[source]}</summary>
-              <fieldset>
-                <legend>Fuente de la comprobación</legend>
-                {Object.entries(SOURCE_LABEL).map(([key, label]) =>
-                  <label key={key}><input type="radio" name="cve-evidence-source"
-                    value={key} checked={source === key} disabled={saving}
-                    onChange={() => setSource(key)}/>{label}</label>)}
-              </fieldset>
-            </details>
             {guard && <p className="cve-hint" role="status">{guard}</p>}
             <div className="cve-form-actions">
               <button type="submit" className="button-primary"
@@ -353,18 +341,16 @@ export default function CveAnalysis() {
               <span className="cve-status-label" data-status={record.status}>
                 {CVE_STATUS[record.status] || record.status}</span>
             </div>
-            <p>{record.decided_by || "Usuario no disponible"} · {
+            <p>Decidido por: {record.decided_by || "Usuario no disponible"} · {
               localizedTimestamp(record.decided_at)}</p>
             {record.stale && <p className="cve-history-warning">
               Evaluación histórica desactualizada: no representa el estado actual.
             </p>}
             <p>{record.justification}</p>
             <details className="cve-nvd-history-detail">
-              <summary>Ver procedencia y criterios registrados</summary>
+              <summary>Ver criterios evaluados</summary>
               <p>Hardware: {record.criteria_evidence?.hardware?.criteria || "No registrado"}</p>
               <p>Firmware: {record.criteria_evidence?.firmware?.criteria || "No registrado"}</p>
-              <p>Fuente: {SOURCE_LABEL[record.criteria_evidence?.firmware?.source] ||
-                record.criteria_evidence?.firmware?.source || "No registrada"}</p>
               <p>Instalación: {record.software_installation_id ?? "No seleccionada"}</p>
             </details>
           </li>)}

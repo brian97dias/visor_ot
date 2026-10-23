@@ -16,10 +16,6 @@ class CveAssessmentDecisionSerializer(serializers.Serializer):
     software_installation_id = serializers.IntegerField(
         required=False, allow_null=True, min_value=1, default=None
     )
-    evidence_source = serializers.ChoiceField(
-        choices=["INVENTORY", "DOCUMENTATION", "SIMULATION"],
-        default="INVENTORY",
-    )
     inventory_declared_complete = serializers.BooleanField(default=False)
     justification = serializers.CharField(max_length=1000, allow_blank=False)
     inventory_fingerprint = serializers.RegexField(regex=r"^[a-f0-9]{64}$")
@@ -46,7 +42,6 @@ class ExperimentalCveAssessmentView(APIView):
             asset_id, request.user,
             firmware_verdict=fields["firmware_verdict"],
             software_installation_id=fields["software_installation_id"],
-            evidence_source=fields["evidence_source"],
             inventory_declared_complete=fields["inventory_declared_complete"],
             justification=fields["justification"],
             expected_inventory_fingerprint=fields["inventory_fingerprint"],

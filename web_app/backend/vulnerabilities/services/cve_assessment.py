@@ -23,7 +23,6 @@ from .identity import fingerprint, hardware_identity, software_identity
 EXPERIMENTAL_HARDWARE_ID = 2
 EXPECTED_HARDWARE_CPE_UUID = UUID("f9fc7f57-0f76-4dcb-aca0-3b767bc3dafd")
 VERDICTS = ("UNKNOWN", "CONFIRMED", "NOT_MATCH")
-EVIDENCE_SOURCES = ("INVENTORY", "DOCUMENTATION", "SIMULATION")
 
 
 def _digest(data):
@@ -122,7 +121,7 @@ def display_cpe_criterion(criteria):
     return f"{vendor} {product}"
 
 
-def _snapshot(context, *, verdict, installation, source, note, complete):
+def _snapshot(context, *, verdict, installation, complete):
     hw_cpe = context["hardware_cpe"]
     criterion_hw = context["scenario"]["hardware"]
     criterion_fw = context["scenario"]["firmware"]
@@ -154,7 +153,6 @@ def _snapshot(context, *, verdict, installation, source, note, complete):
         "match_criteria_id": criterion_hw.get("matchCriteriaId"),
         "nvd_vulnerable": criterion_hw["vulnerable"],
         "state": "SATISFIED" if hw_verified else "UNVERIFIED",
-        "source": "CONFIRMED_CPE" if hw_verified else "INVENTORY_ONLY",
         "asset_id": context["hardware"].pk,
         "asset_cpe_id": hw_cpe.pk if hw_cpe else None,
         "cpe_name_id": str(hw_cpe.cpe.cpe_name_id) if hw_cpe else None,
@@ -167,14 +165,12 @@ def _snapshot(context, *, verdict, installation, source, note, complete):
         "state": "SATISFIED" if fw_positive else (
             "NOT_SATISFIED" if justified_negative else "UNVERIFIED"
         ),
-        "source": source,
         "analyst_verdict": verdict,
         "selected_installation_id": installation["installation_id"] if installation else None,
         "software_asset_id": installation["software_asset_id"] if installation else None,
         "software_identity": installation if installation else None,
         "active_installation_ids": [r["installation_id"] for r in context["installations"]],
         "inventory_declared_complete": complete,
-        "note": note,
         # No official dictionary CPE can be inferred from this cpeMatch pattern.
         "official_cpe_name_id": None,
         "version_constraints": bounds,
@@ -192,6 +188,14 @@ def _latest_record(context):
 def _serialize_record(record, context):
     if record is None:
         return None
+    # Keep historic audit JSON intact in PostgreSQL. Drop obsolete provenance
+    # only from the public representation of records saved by older versions.
+    criteria = {
+        kind: {key: value for key, value in criterion.items()
+               if key not in ("source", "note")}
+        if isinstance(criterion, dict) else criterion
+        for kind, criterion in (record.criteria_evidence or {}).items()
+    }
     is_current = (
         record.inventory_fingerprint == context["inventory_fingerprint"]
         and record.configuration_fingerprint == context["configuration_fingerprint"]
@@ -204,7 +208,7 @@ def _serialize_record(record, context):
         "configuration_index": record.configuration_index,
         "configuration_fingerprint": record.configuration_fingerprint,
         "inventory_fingerprint": record.inventory_fingerprint,
-        "criteria_evidence": record.criteria_evidence,
+        "criteria_evidence": criteria,
         "software_installation_id": record.software_installation_id,
         "justification": record.justification,
         "decided_by": record.decided_by.username if record.decided_by else None,
@@ -218,8 +222,7 @@ def assessment_context(hardware_id):
     hw_cpe = context["hardware_cpe"]
     last = _latest_record(context)
     status, evidence = _snapshot(
-        context, verdict="UNKNOWN", installation=None,
-        source="INVENTORY", note="", complete=False,
+        context, verdict="UNKNOWN", installation=None, complete=False,
     )
     # Snapshot status is always PENDING here; historical decision read separately.
     firmware_asset_4 = Asset.objects.filter(
@@ -260,7 +263,7 @@ def assessment_context(hardware_id):
 
 @transaction.atomic
 def record_assessment(hardware_id, actor, *, firmware_verdict="UNKNOWN",
-                      software_installation_id=None, evidence_source="INVENTORY",
+                      software_installation_id=None,
                       inventory_declared_complete=False, justification="",
                       expected_inventory_fingerprint=None,
                       expected_configuration_fingerprint=None):
@@ -273,11 +276,9 @@ def record_assessment(hardware_id, actor, *, firmware_verdict="UNKNOWN",
         })
     if firmware_verdict not in VERDICTS:
         raise ValidationError({"firmware_verdict": "Decisión de firmware inválida."})
-    if evidence_source not in EVIDENCE_SOURCES:
-        raise ValidationError({"evidence_source": "Origen de evidencia inválido."})
     reason = justification.strip()
     if not reason:
-        raise ValidationError({"justification": "Explica la evidencia o ausencia de evidencia."})
+        raise ValidationError({"justification": "Explica el motivo de tu decisión."})
     if len(reason) > 1000:
         raise ValidationError({"justification": "Máximo 1000 caracteres."})
     if type(inventory_declared_complete) is not bool:
@@ -308,7 +309,6 @@ def record_assessment(hardware_id, actor, *, firmware_verdict="UNKNOWN",
             })
     status, evidence = _snapshot(
         context, verdict=firmware_verdict, installation=selected,
-        source=evidence_source, note=reason,
         complete=inventory_declared_complete,
     )
     record = AssetCveAssessment.objects.create(

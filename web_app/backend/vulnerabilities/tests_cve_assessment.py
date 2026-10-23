@@ -83,13 +83,12 @@ class ExperimentalCveAssessmentTests(TestCase):
         )
 
     def post_decision(self, *, verdict="UNKNOWN", installation=None,
-                      source="DOCUMENTATION", complete=False,
-                      justification="Evidencia evaluada por el analista", **overrides):
+                      complete=False,
+                      justification="Decisión justificada por el analista", **overrides):
         info = self.context()
         payload = {
             "firmware_verdict": verdict,
             "software_installation_id": installation.pk if installation else None,
-            "evidence_source": source,
             "inventory_declared_complete": complete,
             "justification": justification,
             "inventory_fingerprint": info["inventory_fingerprint"],
@@ -134,8 +133,7 @@ class ExperimentalCveAssessmentTests(TestCase):
     def test_confirmed_firmware_plus_active_installation_and_confirmed_hardware_applies(self):
         confirmed = self.confirm_hardware_cpe()
         linked = self.link()
-        response = self.post_decision(verdict="CONFIRMED", installation=linked,
-                                      source="SIMULATION")
+        response = self.post_decision(verdict="CONFIRMED", installation=linked)
         self.assertEqual(response.status_code, 201, response.data)
         data = response.data["assessment"]
         self.assertEqual(data["status"], "APPLIES")
@@ -143,7 +141,12 @@ class ExperimentalCveAssessmentTests(TestCase):
         self.assertEqual(data["criteria_evidence"]["firmware"]["software_asset_id"], 4)
         self.assertEqual(data["criteria_evidence"]["firmware"]["display_name"],
                          "Phoenix Contact IL PN BK-PAC Firmware")
-        self.assertEqual(data["criteria_evidence"]["firmware"]["source"], "SIMULATION")
+        self.assertNotIn("source", data["criteria_evidence"]["firmware"])
+        self.assertNotIn("source", data["criteria_evidence"]["hardware"])
+        self.assertNotIn("note", data["criteria_evidence"]["firmware"])
+        self.assertEqual(data["decided_by"], self.analyst.username)
+        self.assertIsNotNone(data["decided_at"])
+        self.assertEqual(data["justification"], "Decisión justificada por el analista")
         self.assertIsNone(data["criteria_evidence"]["firmware"]["official_cpe_name_id"])
         self.assertEqual(Cpe.objects.count(), 1)
         self.assertEqual(AssetCpe.objects.count(), 1)
@@ -316,3 +319,45 @@ class ExperimentalCveAssessmentTests(TestCase):
         self.assertEqual(self.client.get(
             "/api/vulnerabilities/assets/2/cve-assessments/CVE-2021-11111/"
         ).status_code, 404)
+
+    def test_obsolete_source_is_ignored_and_old_json_preserved(self):
+        self.confirm_hardware_cpe()
+        linked = self.link()
+        response = self.post_decision(
+            verdict="CONFIRMED", installation=linked, evidence_source="SIMULATION"
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertNotIn("source", response.data["assessment"]["criteria_evidence"]["firmware"])
+        record = AssetCveAssessment.objects.get()
+        legacy = record.criteria_evidence
+        legacy["firmware"]["source"] = "DOCUMENTATION"
+        legacy["firmware"]["note"] = "Nota antigua"
+        legacy["hardware"]["source"] = "CONFIRMED_CPE"
+        record.criteria_evidence = legacy
+        record.save(update_fields=["criteria_evidence"])
+        history = self.context()["history"][0]
+        self.assertNotIn("source", history["criteria_evidence"]["hardware"])
+        self.assertNotIn("source", history["criteria_evidence"]["firmware"])
+        self.assertNotIn("note", history["criteria_evidence"]["firmware"])
+        self.assertEqual(history["decided_by"], self.analyst.username)
+        self.assertIsNotNone(history["decided_at"])
+        record.refresh_from_db()
+        self.assertEqual(record.criteria_evidence["firmware"]["source"], "DOCUMENTATION")
+
+    def test_reversing_firmware_decision_keeps_original_audit_row(self):
+        self.confirm_hardware_cpe()
+        linked = self.link()
+        first = self.post_decision(verdict="CONFIRMED", installation=linked)
+        second = self.post_decision(
+            verdict="NOT_MATCH", installation=linked, complete=True,
+            justification="Tras inspección se descartó el firmware"
+        )
+        self.assertEqual(first.status_code, 201, first.data)
+        self.assertEqual(second.status_code, 201, second.data)
+        self.assertEqual(first.data["assessment"]["status"], "APPLIES")
+        self.assertEqual(second.data["assessment"]["status"], "NOT_APPLICABLE")
+        self.assertEqual(AssetCveAssessment.objects.count(), 2)
+        history = self.context()["history"]
+        self.assertEqual(history[0]["status"], "NOT_APPLICABLE")
+        self.assertEqual(history[1]["status"], "APPLIES")
+        self.assertTrue(all(row["decided_by"] == self.analyst.username for row in history))

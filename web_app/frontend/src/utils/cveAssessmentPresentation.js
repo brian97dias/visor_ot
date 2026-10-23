@@ -19,11 +19,6 @@ export const VERDICT_LABEL = {
   CONFIRMED: "Corresponde al firmware vulnerable",
   NOT_MATCH: "El firmware instalado no corresponde",
 };
-export const SOURCE_LABEL = {
-  INVENTORY: "Información del inventario",
-  DOCUMENTATION: "Documentación / inspección técnica",
-  SIMULATION: "Evidencia de simulación",
-};
 
 export const latestEffectiveStatus = data => {
   const latest = data?.latest_assessment;
@@ -41,7 +36,7 @@ export const currentCriterionEvidence = (data, type) => {
 export function submissionGuard(data, form) {
   if (!data) return "Primero hay que cargar las condiciones del CVE.";
   if (!form.justification?.trim())
-    return "Describe la evidencia y el motivo de tu decisión.";
+    return "Explica el motivo de tu decisión.";
   if (form.justification.length > 1000)
     return "La justificación no puede superar 1000 caracteres.";
   if (form.firmware_verdict !== "UNKNOWN" && !form.software_installation_id)
@@ -106,12 +101,11 @@ export function selectedFirmwareInstallation(data, requestedId) {
 }
 
 export function proposedFirmwareDecision(data, choice, requestedId, justification,
-  evidenceSource = "INVENTORY", inventoryComplete = false) {
+  inventoryComplete = false) {
   const selected = selectedFirmwareInstallation(data, requestedId);
   return {
     software_installation_id: selected?.installation_id ?? null,
     firmware_verdict: choice || "UNKNOWN",
-    evidence_source: evidenceSource,
     inventory_declared_complete: choice === "NOT_MATCH" && inventoryComplete,
     justification,
   };
