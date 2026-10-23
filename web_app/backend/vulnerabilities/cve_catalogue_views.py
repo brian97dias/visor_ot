@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 
 from vulnerabilities.models import AssetCveAssessment, AssetCveFinding, Cve
 from .services.cve_discovery import build_cve_discovery_plan
+from .services.cve_catalogue_status import CATALOGUE_STATES, catalogue_statuses
 from .views import CpeSearchPermission
 
 
@@ -25,6 +26,9 @@ class CveCatalogueFilterSerializer(serializers.Serializer):
     q = serializers.CharField(required=False, max_length=120, allow_blank=True)
     severity = serializers.ChoiceField(
         choices=("ALL", *SEVERITIES), default="ALL",
+    )
+    status = serializers.ChoiceField(
+        choices=("ALL", *CATALOGUE_STATES), default="ALL",
     )
     page = serializers.IntegerField(min_value=1, default=1)
     page_size = serializers.IntegerField(
@@ -71,7 +75,7 @@ def _asset_counts(cves):
     return {pk: len(values) for pk, values in counts.items()}
 
 
-def _cve_brief(cve, hardware_count=0):
+def _cve_brief(cve, hardware_count=0, evaluation_status="PENDING_REVIEW"):
     description, source = _description_es(cve)
     return {
         "cve_id": cve.cve_id,
@@ -84,6 +88,7 @@ def _cve_brief(cve, hardware_count=0):
         "retrieved_at": cve.retrieved_at,
         "hardware_count": hardware_count,
         "selected_assets_count": hardware_count,
+        "evaluation_status": evaluation_status,
         # Correlation from NVD CPE is not an asset applicability decision.
         "relationship_kind": "CANDIDATE",
     }
@@ -109,17 +114,35 @@ class CveCatalogueView(APIView):
             query = query.filter(severity="")
         elif severity != "ALL":
             query = query.filter(severity=severity)
-        count = query.count()
+        ordered = query.order_by("-published", "cve_id")
         page = values["page"]
         page_size = values["page_size"]
         offset = (page - 1) * page_size
-        results = list(query.order_by("-published", "cve_id")[
-            offset:offset + page_size
-        ])
+        selected_status = values["status"]
+        if selected_status == "ALL":
+            # Compute review state for the current page only.
+            count = ordered.count()
+            results = list(ordered[offset:offset + page_size])
+            statuses = catalogue_statuses(results)
+        else:
+            # Filter BEFORE pagination. Assessment status is computed from
+            # fingerprints and latest per-hardware/configuration audit rows,
+            # so a simple SQL filter on historical status would be misleading.
+            candidates = list(ordered)
+            candidate_statuses = catalogue_statuses(candidates)
+            filtered = [
+                cve for cve in candidates
+                if candidate_statuses[cve.pk] == selected_status
+            ]
+            count = len(filtered)
+            results = filtered[offset:offset + page_size]
+            statuses = candidate_statuses
         counts = _asset_counts(results)
         return Response({
             "count": count, "page": page, "page_size": page_size,
-            "results": [_cve_brief(cve, counts[cve.pk]) for cve in results],
+            "results": [_cve_brief(
+                cve, counts[cve.pk], statuses[cve.pk]
+            ) for cve in results],
         })
 
 
@@ -134,7 +157,10 @@ class CveCatalogueDetailView(APIView):
         # The original NVD configuration is kept intact; this endpoint never
         # infers that a hardware is affected from an OR or a platform match.
         return Response({"cve": {
-            **_cve_brief(cve, _asset_counts([cve])[cve.pk]),
+            **_cve_brief(
+                cve, _asset_counts([cve])[cve.pk],
+                catalogue_statuses([cve])[cve.pk],
+            ),
             "descriptions": cve.descriptions,
             "metrics": cve.metrics,
             "configurations": cve.configurations,
