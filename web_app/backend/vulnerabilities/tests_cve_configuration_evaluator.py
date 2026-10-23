@@ -227,3 +227,44 @@ class NvdVersionIntegrationTests(TestCase):
         # The CVE currently lacks a discovery finding/assessment relationship;
         # merely fetching it does not automatically link the hardware.
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
+
+    def _link_candidate_finding(self):
+        from vulnerabilities.models import CveDiscoveryRun, AssetCveFinding
+        run = CveDiscoveryRun.objects.create(
+            requested_by=self.user, selected_hardware_ids=[self.hw.pk],
+            status=CveDiscoveryRun.Status.COMPLETED,
+        )
+        return AssetCveFinding.objects.create(
+            hardware=self.hw, cve=self.cve,
+            first_discovery_run=run, last_discovery_run=run,
+        )
+
+    def test_http_filter_shows_technical_result_but_not_a_human_verdict(self):
+        self._link_candidate_finding()
+        base = "/api/vulnerabilities/cves/"
+        response = self.client.get(base, {"technical": "COMPATIBLE"})
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["count"], 1)
+        row = response.data["results"][0]
+        self.assertEqual(row["technical_result"], COMPATIBLE)
+        self.assertEqual(row["evaluation_status"], "PENDING_REVIEW")
+        self.assertEqual(self.client.get(base, {"technical": "EXCLUDED"}).data["count"], 0)
+        self.assertEqual(self.client.get(base, {"technical": "ATTENTION"}).data["count"], 1)
+        self.assertEqual(self.client.get(base, {"technical": "invalid"}).status_code, 400)
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
+
+    def test_http_filter_recalculates_after_version_change_without_worker(self):
+        self._link_candidate_finding()
+        base = "/api/vulnerabilities/cves/"
+        self.sw.version = "4.0"
+        self.sw.save(update_fields=["version"])
+        pending = self.client.get(base, {"technical": "INDETERMINATE"})
+        self.assertEqual(pending.data["count"], 1)
+        self.sample.confirm(self.sw.asset, SW_CPE.replace(":2.0:", ":4.0:"))
+        excluded = self.client.get(base, {"technical": "EXCLUDED"})
+        self.assertEqual(excluded.status_code, 200, excluded.data)
+        self.assertEqual(excluded.data["count"], 1)
+        self.assertEqual(excluded.data["results"][0]["technical_result"], EXCLUDED)
+        self.assertEqual(excluded.data["results"][0]["evaluation_status"], "PENDING_REVIEW")
+        self.assertEqual(self.client.get(base, {"technical": "ATTENTION"}).data["count"], 0)
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
