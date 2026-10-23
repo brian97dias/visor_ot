@@ -110,7 +110,7 @@ function Criterion({ item, depth = 0 }) {
   </div>;
 }
 
-function ConfigurationReview({ context, config, onSaved, canDecide }) {
+function ConfigurationReview({ context, config, onSaved, canDecide, highlight = false }) {
   const last = config.latest_assessment;
   const status = last?.effective_status || "PENDING_REVIEW";
   const [choice, setChoice] = useState("");
@@ -166,13 +166,15 @@ function ConfigurationReview({ context, config, onSaved, canDecide }) {
   }
   return <div className="panel cve-nvd-decision">
     <div className="cve-nvd-joint-title">
-      <h3>Evaluación conjunta · Configuración {config.position}</h3>
+      <h3>{highlight ? "Registrar decisión · CVE en este hardware" :
+        "Revisión de evidencia adicional · Configuración " + config.position}</h3>
       <span className="cve-status-label" data-status={status}>
         {STATE[status] || status}</span>
     </div>
-    <p>Esta decisión corresponde únicamente a esta configuración de NVD
-      y al hardware #{context.hardware_asset_id}. No confirma por sí sola
-      otras configuraciones del mismo CVE.</p>
+    <p>La decisión se sustenta en la configuración NVD {config.position}
+      para el hardware #{context.hardware_asset_id}. Su efecto en el estado
+      consolidado del CVE depende de las otras alternativas de NVD.
+      El historial se conserva sin modificar decisiones anteriores.</p>
     {last?.stale && <p className="cpe-warning">
       La evaluación previa conserva su registro histórico, pero la evidencia cambió.
       Se necesita revisar nuevamente.</p>}
@@ -422,7 +424,7 @@ export default function CveDetail() {
             </div>
             <Criterion item={primary.tree}/>
             <ConfigurationReview context={context} config={primary}
-              canDecide={canDecide}
+              highlight canDecide={canDecide}
               onSaved={() => {
                 setNotice("Evaluación guardada. El historial se actualizó.");
                 setRevision(n => n + 1);
@@ -454,9 +456,15 @@ export default function CveDetail() {
             </section>)}
           </details>}
         </> : <div className="panel cve-technical-summary">
-          <p>No existen condiciones NVD con correspondencia demostrada
-            para los CPE vigentes de este hardware. El resultado permanece
-            sujeto a verificación; las configuraciones originales se conservan.</p>
+          {context.technical_result === "EXCLUDED"
+            ? <p>Las configuraciones NVD de este CVE quedan excluidas
+                técnicamente para el hardware y la evidencia disponible.
+                Esto no registra automáticamente una decisión del analista.
+                Las configuraciones originales se conservan para auditoría.</p>
+            : <p>No existen configuraciones NVD con correspondencia demostrada
+                frente a los CPE vigentes de este hardware. La aplicabilidad
+                permanece por verificar; las configuraciones originales se conservan.</p>}
+        
         </div>}
       </>}
   </section>;
