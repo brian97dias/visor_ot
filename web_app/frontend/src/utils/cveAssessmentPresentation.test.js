@@ -213,9 +213,8 @@ test("official NVD CVE title opens vulnerability detail, CPE opens separate CPE-
     "https://nvd.nist.gov/vuln/detail/CVE-2021-33540");
   const searchUrl = nvdVulnerabilitiesByCpeUrl(cpe);
   assert.ok(searchUrl.startsWith("https://nvd.nist.gov/vuln/search/results?"));
-  const parsed = new URL(searchUrl);
-  assert.equal(parsed.searchParams.get("query"), cpe);
-  assert.equal(parsed.searchParams.get("isCpeNameSearch"), "true");
+  assert.equal(decodeURIComponent(searchUrl.split("&query=")[1]), cpe);
+  assert.match(searchUrl, /isCpeNameSearch=true/);
   assert.equal(nvdCveDetailUrl("invalid-id"), null);
   assert.equal(nvdVulnerabilitiesByCpeUrl("cpe:2.3:h:vendor:item:*:*:*:*:*:*:*:*"), null);
   assert.equal(nvdVulnerabilitiesByCpeUrl("not a cpe"), null);
