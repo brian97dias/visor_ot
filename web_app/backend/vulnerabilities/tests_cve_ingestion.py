@@ -216,7 +216,9 @@ class CveWorkerPersistenceTests(TestCase):
     def test_worker_persists_all_18_configurations_without_creating_cpes(self):
         queued, _ = enqueue_experimental_cve()
         pacer = object()
-        fetcher = Mock(return_value=nvd_fixture())
+        # Generate once: matchCriteriaId values are random UUIDs in nvd_fixture().
+        payload = nvd_fixture()
+        fetcher = Mock(return_value=payload)
         done = execute_cve_fetch(queued, pacer, fetcher=fetcher)
         fetcher.assert_called_once_with(EXPERIMENTAL_CVE_ID, pacer)
         done.refresh_from_db()
@@ -224,8 +226,7 @@ class CveWorkerPersistenceTests(TestCase):
         self.assertIsNotNone(done.retrieved_at)
         self.assertEqual(done.description, "Undocumented password protected FTP access.")
         self.assertEqual(len(done.configurations), 18)
-        self.assertEqual(done.nvd_record,
-                         nvd_fixture()["vulnerabilities"][0]["cve"])
+        self.assertEqual(done.nvd_record, payload["vulnerabilities"][0]["cve"])
         self.assertEqual(find_experimental_configuration(done.configurations)["position"], 12)
         self.assertEqual(done.severity, "HIGH")
         self.assertEqual(done.base_score, Decimal("7.3"))
