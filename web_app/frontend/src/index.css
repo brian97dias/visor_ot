@@ -3002,11 +3002,10 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   gap: 30px; }
 .cve-nvd-header-text { flex: 1 1 600px; min-width: 0; }
 .cve-nvd-header-text h1 { margin: 5px 0 6px; font-size: 2rem; line-height: 1.24; }
-.cve-nvd-api-link { display: flex; flex-direction: column; align-items: flex-start;
-  gap: 5px; margin: 0 0 13px; }
+.cve-nvd-api-link { margin: 0 0 15px; }
 .cve-nvd-api-link a { font-size: .84rem; font-weight: 600; color: #7dd3fc; }
-.cve-nvd-api-link code { font-size: .75rem; color: #94a3b8;
-  overflow-wrap: anywhere; }
+.cve-nvd-description-heading { color: #cbd5e1; font-size: .82rem;
+  font-weight: 700; margin: 0 0 5px; }
 .cve-nvd-header-text h1 a { color: #f8fafc; text-decoration: none; }
 .cve-nvd-header-text h1 a:hover { color: #7dd3fc; text-decoration: underline; }
 .cve-external-mark { font-size: .75rem; color: #93c5fd; font-weight: 400; }

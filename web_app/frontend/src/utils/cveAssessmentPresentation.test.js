@@ -224,7 +224,16 @@ test("CVE view links directly to NVD CVE API using the exact CPE name", () => {
   const cpe = "cpe:2.3:h:phoenixcontact:il_pn_bk-pac:-:*:*:*:*:*:*:*";
   const url = nvdCvesApiByCpeNameUrl(cpe);
   assert.ok(url.startsWith("https://services.nvd.nist.gov/rest/json/cves/2.0?cpeName="));
+  assert.equal(url,
+    "https://services.nvd.nist.gov/rest/json/cves/2.0?cpeName=" + cpe);
   assert.equal(decodeURIComponent(url.split("?cpeName=")[1]), cpe);
   assert.equal(nvdCvesApiByCpeNameUrl("not a CPE"), null);
   assert.equal(nvdCvesApiByCpeNameUrl("cpe:2.3:h:vendor:product:*:*:*:*:*:*:*:*"), null);
+});
+
+test("CVE API query preserves one cpeName parameter even with reserved delimiters", () => {
+  const unusualCpe = "cpe:2.3:h:vendor:product&debug=true:-:*:*:*:*:*:*:*";
+  const url = nvdCvesApiByCpeNameUrl(unusualCpe);
+  assert.ok(url.includes("product%26debug%3Dtrue"));
+  assert.equal(decodeURIComponent(url.split("?cpeName=")[1]), unusualCpe);
 });

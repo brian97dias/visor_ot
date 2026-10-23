@@ -176,6 +176,8 @@ export function nvdCvesApiByCpeNameUrl(cpeName) {
   if (parts.length !== 13 || parts[0] !== "cpe" || parts[1] !== "2.3" ||
       !["h", "o", "a"].includes(parts[2]) ||
       parts.slice(3, 6).some(value => !value || value === "*")) return null;
+  // Preserve CPE's ':' and '*' in the visible URL while escaping query
+  // delimiters (e.g. '&', '=' and '#') that would alter the API parameters.
   return "https://services.nvd.nist.gov/rest/json/cves/2.0?cpeName=" +
-    encodeURIComponent(cpeName);
+    encodeURIComponent(cpeName).replace(/%3A/gi, ":");
 }

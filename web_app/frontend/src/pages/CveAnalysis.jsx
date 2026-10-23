@@ -8,7 +8,7 @@ import {
   currentCriterionEvidence, latestEffectiveStatus, submissionGuard,
   localizedTimestamp, versionConstraintsText, selectedFirmwareInstallation,
   proposedFirmwareDecision, experimentalDescription,
-  nvdCveDetailUrl, nvdVulnerabilitiesByCpeUrl, nvdCvesApiByCpeNameUrl,
+  nvdCveDetailUrl, nvdCvesApiByCpeNameUrl,
 } from "../utils/cveAssessmentPresentation";
 
 const ACTIONS = [
@@ -86,7 +86,6 @@ export default function CveAnalysis() {
   const guard = choice ? submissionGuard(info, draft) : "";
   const hardwareConfirmed = Boolean(info?.hardware_cpe_confirmed);
   const canAttestInventory = choice === "NOT_MATCH" && installations.length === 1;
-  const cpeSearchUrl = nvdVulnerabilitiesByCpeUrl(hardware?.criteria);
   const cveApiUrl = nvdCvesApiByCpeNameUrl(hardware?.criteria);
   const cveDetailUrl = nvdCveDetailUrl(info?.cve_id);
 
@@ -163,11 +162,11 @@ export default function CveAnalysis() {
           </h1>
           {cveApiUrl && <div className="cve-nvd-api-link">
             <a href={cveApiUrl} target="_blank" rel="noopener noreferrer"
-              title="Abrir la respuesta JSON de la API NVD filtrada por cpeName">
+              title="Abrir respuesta JSON de NVD para este CPE">
               Búsqueda de CVE por CPE name · API NVD <span aria-hidden="true">↗</span>
             </a>
-            <code>cpeName={hardware?.criteria}</code>
           </div>}
+          <p className="cve-nvd-description-heading">Descripción</p>
           <p className="cve-nvd-description">{description.text}</p>
           <p className="cve-nvd-description-label">{description.label}</p>
           <p className="cve-nvd-meta">
@@ -210,16 +209,16 @@ export default function CveAnalysis() {
         }</p>
         <div className="cve-nvd-criterion">
           <span className="cve-nvd-criterion-label">CPE de hardware · NVD</span>
-          {cpeSearchUrl
-            ? <a href={cpeSearchUrl} target="_blank" rel="noopener noreferrer"
-                title="Consultar vulnerabilidades asociadas a este CPE en NVD">
+          {cveApiUrl
+            ? <a href={cveApiUrl} target="_blank" rel="noopener noreferrer"
+                title="Consultar la API de CVE de NVD filtrada por este CPE">
                 <code>{hardware?.criteria}</code> <span aria-hidden="true">↗</span>
               </a>
             : <code>{hardware?.criteria || "CPE no disponible"}</code>}
           <CriterionId criterion={hardware}/>
-          {cpeSearchUrl && <p className="cve-nvd-source-note">
-            El enlace abre la búsqueda de vulnerabilidades por CPE en NVD;
-            no confirma por sí mismo la aplicabilidad de un CVE.
+          {cveApiUrl && <p className="cve-nvd-source-note">
+            La consulta abre la respuesta JSON de CVE por CPE name en NVD;
+            no confirma por sí misma que la vulnerabilidad aplique al activo.
           </p>}
         </div>
       </article>
