@@ -2991,3 +2991,92 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   .cve-direct-actions .cve-choice-button { flex: 1 1 135px; }
   .cve-direct-actions .cve-unknown-button { flex: 1 1 100%; text-align: left; }
 }
+
+/* CVE NVD detail — one continuous, vertical AND evaluation. */
+.cve-nvd-detail { max-width: 1120px; margin: 0 auto; }
+.cve-nvd-detail .cve-nvd-overview {
+  background: #0d1420; border: 1px solid #263244; border-radius: 14px;
+  padding: 24px 27px; margin: 0; 
+}
+.cve-nvd-titlebar { display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 30px; }
+.cve-nvd-header-text { flex: 1 1 600px; min-width: 0; }
+.cve-nvd-header-text h1 { margin: 0 0 8px; font-size: 1.7rem; line-height: 1.24; }
+.cve-nvd-header-text h1 a { color: #f8fafc; text-decoration: none; }
+.cve-nvd-header-text h1 a:hover { color: #7dd3fc; text-decoration: underline; }
+.cve-external-mark { font-size: .75rem; color: #93c5fd; font-weight: 400; }
+.cve-nvd-description { color: #e2e8f0; line-height: 1.55; font-size: .96rem; margin: 0 0 5px; }
+.cve-nvd-description-label { color: #94a3b8; font-size: .72rem; margin: 0 0 16px; }
+.cve-nvd-meta { font-size: .88rem; color: #cbd5e1; margin: 13px 0 0; }
+.cve-nvd-badges { display: flex; align-items: flex-end; flex-direction: column; gap: 16px;
+  flex: 0 0 auto; padding-top: 3px; }
+.cve-nvd-severity { border-radius: 22px; padding: 6px 12px; background: #442015;
+  color: #fb923c; font-weight: 750; font-size: .87rem; }
+.cve-nvd-severity[data-level="CRITICAL"] { background: #461923; color: #fda4af; }
+.cve-nvd-severity[data-level="MEDIUM"], .cve-nvd-severity[data-level="LOW"] {
+  background: #10343a; color: #99f6e4; }
+.cve-nvd-detail .cve-status-label { border-radius: 20px; padding: 6px 12px; }
+.cve-nvd-conditions { margin-top: 25px; }
+.cve-nvd-conditions > h2 { margin: 0 0 16px; font-size: 1.13rem; color: #f1f5f9; }
+.cve-nvd-condition { border: 1px solid #334155; border-radius: 12px;
+  background: #101a2a; padding: 22px 24px; min-width: 0; }
+.cve-nvd-condition-heading { display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; }
+.cve-nvd-condition-tags { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.cve-nvd-condition-tags h3 { margin: 0; font-size: 1.04rem; }
+.cve-nvd-category { font-size: .74rem; font-weight: 700; border-radius: 20px;
+  padding: 5px 10px; letter-spacing: .01em; }
+.cve-nvd-platform { border: 1px solid #a16207; background: #332512; color: #fde68a; }
+.cve-nvd-vulnerable { border: 1px solid #991b1b; background: #431c21; color: #fecaca; }
+.cve-nvd-condition .cve-condition-state { border-radius: 20px; }
+.cve-nvd-product { color: #f8fafc; font-size: 1.06rem; margin: 19px 0 5px;
+  font-weight: 600; }
+.cve-nvd-condition .cve-muted { margin: 7px 0; }
+.cve-nvd-criterion { margin-top: 19px; padding: 12px 15px; border: 1px solid #27384a;
+  background: #0c1626; border-radius: 8px; overflow-wrap: anywhere; }
+.cve-nvd-criterion-label { display: block; font-size: .73rem; color: #94a3b8;
+  font-weight: 600; margin-bottom: 6px; }
+.cve-nvd-criterion > code, .cve-nvd-criterion > a code { color: #93c5fd;
+  font-size: .82rem; line-height: 1.6; overflow-wrap: anywhere; }
+.cve-nvd-criterion > a { text-decoration: none; }
+.cve-nvd-criterion > a:hover { text-decoration: underline; }
+.cve-criterion-id { font-size: .72rem; color: #94a3b8; margin: 8px 0 0; }
+.cve-criterion-id code { color: #cbd5e1; }
+.cve-nvd-source-note { font-size: .72rem; color: #94a3b8; margin: 9px 0 0; line-height: 1.45; }
+.cve-nvd-plus { color: #cbd5e1; text-align: center; font-size: 1.7rem;
+  font-weight: 400; padding: 12px 0; line-height: 1; }
+.cve-nvd-firmware-criterion { background: transparent; border-color: #293447; }
+.cve-nvd-found { margin-top: 20px; border-top: 1px solid #334155; padding-top: 19px; }
+.cve-nvd-found h4 { font-size: .92rem; color: #e2e8f0; margin: 0 0 11px; }
+.cve-nvd-installed { padding: 10px 0; border-bottom: 1px solid #263244; }
+.cve-nvd-installed:last-child { border-bottom: 0; }
+.cve-nvd-installed strong { color: #f1f5f9; font-size: .92rem; }
+.cve-nvd-installed p { margin-bottom: 0; font-size: .83rem; }
+.cve-nvd-decision { margin-top: 18px; border-top: 1px solid #334155; padding-top: 18px; }
+.cve-nvd-decision > p { font-size: .91rem; line-height: 1.5; margin: 0 0 13px; }
+.cve-nvd-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.cve-nvd-action { border: 1px solid #475569; font: inherit; font-size: .89rem;
+  font-weight: 680; border-radius: 22px; background: transparent; color: #e2e8f0;
+  padding: 10px 19px; cursor: pointer; }
+.cve-nvd-action[data-action="CONFIRMED"] { border-color: #047857; background: #047857;
+  color: #ecfdf5; }
+.cve-nvd-action[data-action="CONFIRMED"]:hover:not(:disabled) { background: #059669; }
+.cve-nvd-action[data-action="NOT_MATCH"]:hover:not(:disabled) {
+  border-color: #f87171; color: #fecaca; }
+.cve-nvd-action.selected { outline: 2px solid #e2e8f0; outline-offset: 2px; }
+.cve-nvd-action:disabled { opacity: .45; cursor: not-allowed; }
+.cve-nvd-history-detail { padding-top: 6px; color: #94a3b8; overflow-wrap: anywhere; }
+.cve-nvd-history-detail summary { color: #7dd3fc; font-size: .8rem; cursor: pointer; }
+.cve-nvd-history-detail p { font-size: .8rem; }
+.cve-nvd-scope { margin-top: 16px; }
+@media (max-width: 740px) {
+  .cve-nvd-titlebar { flex-direction: column; gap: 10px; }
+  .cve-nvd-badges { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 9px; }
+  .cve-nvd-condition { padding: 17px; }
+}
+@media (max-width: 480px) {
+  .cve-nvd-detail .cve-nvd-overview { padding: 17px; }
+  .cve-nvd-header-text h1 { font-size: 1.4rem; }
+  .cve-nvd-category { font-size: .7rem; }
+  .cve-nvd-action { width: 100%; }
+}
