@@ -282,6 +282,8 @@ export default function CveDetail() {
 
   function changeHardware(id) {
     setSelectedHardware(id);
+    setContext(null);
+    setNotice("");
     const next = new URLSearchParams(searchParams);
     next.set("hardware", id);
     setSearchParams(next, { replace: true });
@@ -362,7 +364,7 @@ export default function CveDetail() {
     </div>
 
     {contextLoading ? <p className="cve-muted">Cargando condiciones del inventario...</p>
-      : context && <>
+      : context && Number(context.hardware_asset_id) === Number(selectedHardware) && <>
         <p className="cve-general-context-summary">
           Evaluación de este CVE para el hardware #{context.hardware_asset_id}.
           {" "}{configs.length} configuraciones pertinentes de NVD.
