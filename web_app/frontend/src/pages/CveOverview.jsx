@@ -8,6 +8,7 @@ import {
 import SuccessNotice from "../components/SuccessNotice";
 import {
   CVE_DISCOVERY_STATE, CVE_EVALUATION_STATE, CVE_EVALUATION_HELP,
+  CVE_TECHNICAL_STATE, CVE_TECHNICAL_FILTER,
   CVE_SEVERITY, cveHardwareCandidates,
   cveHardwareSelectionValid, cvePageCount, isCveDiscoveryActive,
   toggleCveHardwareSelection,
@@ -25,6 +26,7 @@ export default function CveOverview() {
   const search = params.get("q") || "";
   const severity = params.get("severity") || "ALL";
   const status = params.get("status") || "ALL";
+  const technical = params.get("technical") || "ALL";
   const requestedPage = readCpePage(params.get("page"));
   const [catalogue, setCatalogue] = useState({ count: 0, results: [], page: 1 });
   const [runs, setRuns] = useState([]);
@@ -47,7 +49,7 @@ export default function CveOverview() {
 
   function changeFilter(name, value) {
     const next = new URLSearchParams(params);
-    if (!value || (["severity", "status"].includes(name) && value === "ALL") ||
+    if (!value || (["severity", "status", "technical"].includes(name) && value === "ALL") ||
         (name === "page" && String(value) === "1")) next.delete(name);
     else next.set(name, String(value));
     if (name !== "page") next.delete("page");
@@ -58,14 +60,14 @@ export default function CveOverview() {
     let alive = true;
     setLoading(true);
     const timer = window.setTimeout(() => {
-      listCveCatalogue({ q: search, severity, status, page: requestedPage,
+      listCveCatalogue({ q: search, severity, status, technical, page: requestedPage,
                          page_size: PAGE_SIZE })
         .then(data => { if (alive) setCatalogue(data); })
         .catch(err => { if (alive) setError(err.message); })
         .finally(() => { if (alive) setLoading(false); });
     }, search ? 300 : 0);
     return () => { alive = false; window.clearTimeout(timer); };
-  }, [search, severity, status, requestedPage, reload]);
+  }, [search, severity, status, technical, requestedPage, reload]);
 
   useEffect(() => {
     let alive = true;
@@ -221,6 +223,15 @@ export default function CveOverview() {
               <option key={code} value={code}>{label}</option>)}
           </select>
         </label>
+        <label className="cve-catalogue-control">
+          <span>Resultado técnico</span>
+          <select aria-label="Filtrar por evaluación técnica" value={technical}
+            onChange={event => changeFilter("technical", event.target.value)}>
+            <option value="ALL">Todos</option>
+            {Object.entries(CVE_TECHNICAL_FILTER).map(([code, label]) =>
+              <option key={code} value={code}>{label}</option>)}
+          </select>
+        </label>
         <button type="button" className="button-secondary" onClick={refreshAll}>
           Actualizar
         </button>
@@ -228,10 +239,10 @@ export default function CveOverview() {
       <div className="table-container">
         <table className="data-table">
           <thead><tr><th>CVE</th><th>Severidad</th><th>Descripción NVD</th>
-            <th>Activos seleccionados</th><th>Estado</th><th>Acción</th></tr></thead>
+            <th>Activos seleccionados</th><th>Estado</th><th>Resultado técnico</th><th>Acción</th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan="6">Cargando CVE...</td></tr>
-            : catalogue.results.length === 0 ? <tr><td colSpan="6">
+            {loading ? <tr><td colSpan="7">Cargando CVE...</td></tr>
+            : catalogue.results.length === 0 ? <tr><td colSpan="7">
               No hay CVE recuperados para estos filtros. Inicia una búsqueda
               con hardware que tenga CPE confirmados.
             </td></tr>
@@ -256,6 +267,15 @@ export default function CveOverview() {
                 <small className="cve-catalogue-secondary">
                   {CVE_EVALUATION_HELP[row.evaluation_status] ||
                     CVE_EVALUATION_HELP.PENDING_REVIEW}
+                </small>
+              </td>
+              <td>
+                <span className="cve-technical-tag" data-result={row.technical_result}>
+                  {CVE_TECHNICAL_STATE[row.technical_result] ||
+                    CVE_TECHNICAL_STATE.INDETERMINATE}
+                </span>
+                <small className="cve-catalogue-secondary">
+                  Calculado con CPE, instalación y versión vigentes
                 </small>
               </td>
               <td><Link className="button-secondary"

@@ -24,6 +24,19 @@ export const CVE_EVALUATION_HELP = {
   STALE: "Cambió la evidencia desde la última evaluación",
 };
 
+/** Read-only NVD compatibility; separate from analyst decisions. */
+export const CVE_TECHNICAL_STATE = {
+  COMPATIBLE: "Compatible con el criterio",
+  EXCLUDED: "Excluido por criterio técnico",
+  INDETERMINATE: "Indeterminado",
+};
+export const CVE_TECHNICAL_FILTER = {
+  ATTENTION: "Requieren atención",
+  COMPATIBLE: "Compatible",
+  INDETERMINATE: "Indeterminado",
+  EXCLUDED: "Excluido técnicamente",
+};
+
 export const CVE_DISCOVERY_STATE = {
   QUEUED: "En cola",
   RUNNING: "Consultando NVD",

@@ -3234,3 +3234,25 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   border-color: #15803d; color: #86efac; }
 .cve-catalogue-evaluation-status[data-status="STALE"] {
   border-color: #d97706; color: #fdba74; }
+
+
+/* CVE version/context checks: technical evidence never replaces human audit. */
+.cve-technical-tag { display: inline-flex; border-radius: 6px; padding: 5px 10px;
+  max-width: 100%; font-size: .77rem; line-height: 1.35; font-weight: 650;
+  border: 1px solid #64748b; color: #cbd5e1; }
+.cve-technical-tag[data-result="COMPATIBLE"] {
+  border-color: #ca8a04; color: #fde68a; }
+.cve-technical-tag[data-result="EXCLUDED"] {
+  border-color: #15803d; color: #86efac; }
+.cve-technical-tag[data-result="INDETERMINATE"] {
+  border-color: #64748b; color: #cbd5e1; }
+.cve-technical-summary { padding: 16px 20px; margin: 12px 0 22px; }
+.cve-technical-summary-heading { display: flex; flex-wrap: wrap; gap: 12px;
+  align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.cve-technical-summary-heading h2 { margin: 0; }
+.cve-technical-summary > p { color: #94a3b8; font-size: .84rem; line-height: 1.6; }
+.cve-technical-criterion { border-left: 2px solid #475569; margin-top: 13px;
+  padding: 7px 12px; }
+.cve-technical-criterion p { color: #94a3b8; font-size: .83rem; line-height: 1.5;
+  margin: 7px 0 0; }
+.cve-general-constraints { font-size: .85rem; color: #cbd5e1; }

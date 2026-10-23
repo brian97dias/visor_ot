@@ -6,7 +6,7 @@ import {
 } from "../api/vulnerabilities";
 import SuccessNotice from "../components/SuccessNotice";
 import CveAnalysis from "./CveAnalysis";
-import { CVE_SEVERITY } from "../utils/cveCataloguePresentation";
+import { CVE_SEVERITY, CVE_TECHNICAL_STATE } from "../utils/cveCataloguePresentation";
 import {
   localizedTimestamp, assessmentActionOptions, versionConstraintsText,
 } from "../utils/cveAssessmentPresentation";
@@ -43,9 +43,18 @@ function Criterion({ item, depth = 0 }) {
         {item.match_criteria_id && <p className="cve-criterion-id">
           ID criterio NVD: <code>{item.match_criteria_id}</code></p>}
       </div>
-      {versionConstraintsText(item.bounds) && <p className="cpe-warning">
-        Restricciones de versión: {versionConstraintsText(item.bounds)}.
-        Su cumplimiento requiere verificación antes de confirmar.</p>}
+      {versionConstraintsText(item.bounds) && <p className="cve-general-constraints">
+        Restricciones NVD: {versionConstraintsText(item.bounds)}.</p>}
+      <div className="cve-technical-criterion">
+        <span className="cve-technical-tag" data-result={
+          item.technical_result || "INDETERMINATE"
+        }>{CVE_TECHNICAL_STATE[item.technical_result] ||
+          CVE_TECHNICAL_STATE.INDETERMINATE}</span>
+        <p>{item.technical_reason || "No hay evidencia suficiente para resolver el criterio."}</p>
+        {item.technical_installed_version && <p>Versión comprobada: {
+          item.technical_installed_version
+        }</p>}
+      </div>
       {isSoftware && <div className="cve-nvd-found">
         <h4>Software instalado en este hardware</h4>
         {item.installed_software?.length ? item.installed_software.map(sw =>
@@ -55,6 +64,11 @@ function Criterion({ item, depth = 0 }) {
             <p className="cve-muted">Software #{sw.software_asset_id} ·
               Instalación #{sw.installation_id} ·
               {sw.version ? " Versión " + sw.version : " Versión desconocida"}</p>
+            {sw.confirmed_cpes?.length ? <p className="cve-muted">
+              CPE de producto confirmado y vigente: {sw.confirmed_cpes.length}
+            </p> : <p className="cve-muted">
+              Sin CPE vigente confirmado para esta versión del software.
+            </p>}
           </div>) : <p className="cve-muted">No hay software instalado vigente registrado.
             Esto no demuestra que la condición no se cumpla.</p>}
       </div>}
@@ -317,10 +331,28 @@ export default function CveDetail() {
           </select>
           <span>{configs.length} configuraciones conservadas de NVD</span>
         </div>
+        <div className="panel cve-technical-summary">
+          <div className="cve-technical-summary-heading">
+            <h2>Resultado técnico del CVE en este hardware</h2>
+            <span className="cve-technical-tag" data-result={context.technical_result}>
+              {CVE_TECHNICAL_STATE[context.technical_result] ||
+                CVE_TECHNICAL_STATE.INDETERMINATE}
+            </span>
+          </div>
+          <p>Comparación automática y no una decisión del analista.
+            Una configuración excluida no descarta por sí sola las demás alternativas.
+            Una configuración compatible todavía requiere revisar su aplicabilidad real.</p>
+        </div>
         {selection ? <section className="cve-nvd-conditions" key={
           context.hardware_asset_id + ":" + selection.index
         }>
-          <h2>Condiciones de la configuración {selection.position}</h2>
+          <div className="cve-technical-summary-heading">
+            <h2>Condiciones de la configuración {selection.position}</h2>
+            <span className="cve-technical-tag" data-result={selection.technical_result}>
+              {CVE_TECHNICAL_STATE[selection.technical_result] ||
+                CVE_TECHNICAL_STATE.INDETERMINATE}
+            </span>
+          </div>
           <Criterion item={selection.tree}/>
           <ConfigurationReview context={context} config={selection}
             canDecide={canDecide}
