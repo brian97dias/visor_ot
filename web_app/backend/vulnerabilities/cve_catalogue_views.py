@@ -14,7 +14,9 @@ from rest_framework.views import APIView
 from vulnerabilities.models import AssetCveAssessment, AssetCveFinding, Cve
 from .services.cve_discovery import build_cve_discovery_plan
 from .services.cve_catalogue_status import CATALOGUE_STATES, catalogue_statuses
-from .services.cve_technical_status import TECHNICAL_FILTERS, technical_statuses
+from .services.cve_technical_status import (
+    TECHNICAL_FILTERS, technical_statuses, related_assets_for_cves,
+)
 from .views import CpeSearchPermission
 
 
@@ -80,7 +82,7 @@ def _asset_counts(cves):
 
 
 def _cve_brief(cve, hardware_count=0, evaluation_status="PENDING_REVIEW",
-               technical_result="INDETERMINATE"):
+               technical_result="INDETERMINATE", related_assets=None):
     description, source = _description_es(cve)
     return {
         "cve_id": cve.cve_id,
@@ -93,6 +95,7 @@ def _cve_brief(cve, hardware_count=0, evaluation_status="PENDING_REVIEW",
         "retrieved_at": cve.retrieved_at,
         "hardware_count": hardware_count,
         "selected_assets_count": hardware_count,
+        "related_assets": related_assets if related_assets is not None else [],
         "evaluation_status": evaluation_status,
         "technical_result": technical_result,
         # Correlation from NVD CPE is not an asset applicability decision.
@@ -157,10 +160,12 @@ class CveCatalogueView(APIView):
             if selected_technical == "ALL":
                 technicals = technical_statuses(results)
         counts = _asset_counts(results)
+        assets = related_assets_for_cves(results)
         return Response({
             "count": count, "page": page, "page_size": page_size,
             "results": [_cve_brief(
-                cve, counts[cve.pk], statuses[cve.pk], technicals[cve.pk]
+                cve, counts[cve.pk], statuses[cve.pk], technicals[cve.pk],
+                assets[cve.pk],
             ) for cve in results],
         })
 
@@ -180,6 +185,7 @@ class CveCatalogueDetailView(APIView):
                 cve, _asset_counts([cve])[cve.pk],
                 catalogue_statuses([cve])[cve.pk],
                 technical_statuses([cve])[cve.pk],
+                related_assets_for_cves([cve])[cve.pk],
             ),
             "descriptions": cve.descriptions,
             "metrics": cve.metrics,
