@@ -136,7 +136,8 @@ class CveCatalogueView(APIView):
             # decisions and fresh technical checks are independent.
             candidates = list(ordered)
             statuses = (catalogue_statuses(candidates)
-                        if selected_status != "ALL" else {})
+                        if selected_status != "ALL" or selected_technical == "ATTENTION"
+                        else {})
             technicals = (technical_statuses(candidates)
                           if selected_technical != "ALL" else {})
             filtered = [
@@ -146,7 +147,8 @@ class CveCatalogueView(APIView):
                 and (selected_technical == "ALL" or
                      technicals[cve.pk] == selected_technical or
                      (selected_technical == "ATTENTION" and
-                      technicals[cve.pk] != "EXCLUDED"))
+                      (technicals[cve.pk] != "EXCLUDED" or
+                       statuses[cve.pk] in ("APPLIES", "IN_REVIEW", "STALE"))))
             ]
             count = len(filtered)
             results = filtered[offset:offset + page_size]
