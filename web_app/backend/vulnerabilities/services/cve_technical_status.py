@@ -98,7 +98,7 @@ def related_assets_for_cves(cves):
                 for config in analysed["configurations"]:
                     matched_sw.update(_matched_software(config))
                 assets = [{
-                    "asset_id": hw.pk, "asset_type": "HARDWARE",
+                    "asset_id": hardware.pk, "asset_type": "HARDWARE",
                     "name": hardware.asset.name, "version": None,
                     "role": "HARDWARE_CONTEXT",
                 }]
