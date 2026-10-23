@@ -165,3 +165,17 @@ export function nvdVulnerabilitiesByCpeUrl(cpeName) {
     "form_type=Advanced&results_type=overview&isCpeNameSearch=true&query=" +
     encodeURIComponent(cpeName);
 }
+
+/** Direct NVD CVE API query for a concrete CPE 2.3 name.
+ * NVD matches this name against CVE configurations; the result is not an
+ * applicability verdict for the asset in VISOR OT.
+ */
+export function nvdCvesApiByCpeNameUrl(cpeName) {
+  if (typeof cpeName !== "string") return null;
+  const parts = cpeName.split(":");
+  if (parts.length !== 13 || parts[0] !== "cpe" || parts[1] !== "2.3" ||
+      !["h", "o", "a"].includes(parts[2]) ||
+      parts.slice(3, 6).some(value => !value || value === "*")) return null;
+  return "https://services.nvd.nist.gov/rest/json/cves/2.0?cpeName=" +
+    encodeURIComponent(cpeName);
+}

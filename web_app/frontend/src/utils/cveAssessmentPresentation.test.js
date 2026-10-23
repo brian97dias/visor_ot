@@ -5,7 +5,7 @@ import {
   latestEffectiveStatus, currentCriterionEvidence, submissionGuard,
   advisoryOutcome, cpePartLabel, versionConstraintsText, localizedTimestamp,
   selectedFirmwareInstallation, proposedFirmwareDecision, experimentalDescription,
-  nvdCveDetailUrl, nvdVulnerabilitiesByCpeUrl,
+  nvdCveDetailUrl, nvdVulnerabilitiesByCpeUrl, nvdCvesApiByCpeNameUrl,
 } from "./cveAssessmentPresentation.js";
 
 const installment = {
@@ -218,4 +218,13 @@ test("official NVD CVE title opens vulnerability detail, CPE opens separate CPE-
   assert.equal(nvdCveDetailUrl("invalid-id"), null);
   assert.equal(nvdVulnerabilitiesByCpeUrl("cpe:2.3:h:vendor:item:*:*:*:*:*:*:*:*"), null);
   assert.equal(nvdVulnerabilitiesByCpeUrl("not a cpe"), null);
+});
+
+test("CVE view links directly to NVD CVE API using the exact CPE name", () => {
+  const cpe = "cpe:2.3:h:phoenixcontact:il_pn_bk-pac:-:*:*:*:*:*:*:*";
+  const url = nvdCvesApiByCpeNameUrl(cpe);
+  assert.ok(url.startsWith("https://services.nvd.nist.gov/rest/json/cves/2.0?cpeName="));
+  assert.equal(decodeURIComponent(url.split("?cpeName=")[1]), cpe);
+  assert.equal(nvdCvesApiByCpeNameUrl("not a CPE"), null);
+  assert.equal(nvdCvesApiByCpeNameUrl("cpe:2.3:h:vendor:product:*:*:*:*:*:*:*:*"), null);
 });

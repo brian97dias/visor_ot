@@ -2993,15 +2993,20 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 }
 
 /* CVE NVD detail — one continuous, vertical AND evaluation. */
-.cve-nvd-detail { max-width: 1120px; margin: 0 auto; }
+.cve-nvd-detail { max-width: none; margin: 0; }
 .cve-nvd-detail .cve-nvd-overview {
-  background: #0d1420; border: 1px solid #263244; border-radius: 14px;
-  padding: 24px 27px; margin: 0; 
+  background: transparent; border: 0; border-radius: 0;
+  padding: 0; margin: 0 0 28px; overflow: visible;
 }
 .cve-nvd-titlebar { display: flex; justify-content: space-between; align-items: flex-start;
   gap: 30px; }
 .cve-nvd-header-text { flex: 1 1 600px; min-width: 0; }
-.cve-nvd-header-text h1 { margin: 0 0 8px; font-size: 1.7rem; line-height: 1.24; }
+.cve-nvd-header-text h1 { margin: 5px 0 6px; font-size: 2rem; line-height: 1.24; }
+.cve-nvd-api-link { display: flex; flex-direction: column; align-items: flex-start;
+  gap: 5px; margin: 0 0 13px; }
+.cve-nvd-api-link a { font-size: .84rem; font-weight: 600; color: #7dd3fc; }
+.cve-nvd-api-link code { font-size: .75rem; color: #94a3b8;
+  overflow-wrap: anywhere; }
 .cve-nvd-header-text h1 a { color: #f8fafc; text-decoration: none; }
 .cve-nvd-header-text h1 a:hover { color: #7dd3fc; text-decoration: underline; }
 .cve-external-mark { font-size: .75rem; color: #93c5fd; font-weight: 400; }
@@ -3018,8 +3023,8 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cve-nvd-detail .cve-status-label { border-radius: 20px; padding: 6px 12px; }
 .cve-nvd-conditions { margin-top: 25px; }
 .cve-nvd-conditions > h2 { margin: 0 0 16px; font-size: 1.13rem; color: #f1f5f9; }
-.cve-nvd-condition { border: 1px solid #334155; border-radius: 12px;
-  background: #101a2a; padding: 22px 24px; min-width: 0; }
+.cve-nvd-condition { border: 1px solid #263244; border-radius: 10px;
+  background: #111827; padding: 22px 24px; min-width: 0; }
 .cve-nvd-condition-heading { display: flex; align-items: center; justify-content: space-between;
   flex-wrap: wrap; gap: 12px; }
 .cve-nvd-condition-tags { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }

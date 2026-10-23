@@ -8,7 +8,7 @@ import {
   currentCriterionEvidence, latestEffectiveStatus, submissionGuard,
   localizedTimestamp, versionConstraintsText, selectedFirmwareInstallation,
   proposedFirmwareDecision, experimentalDescription,
-  nvdCveDetailUrl, nvdVulnerabilitiesByCpeUrl,
+  nvdCveDetailUrl, nvdVulnerabilitiesByCpeUrl, nvdCvesApiByCpeNameUrl,
 } from "../utils/cveAssessmentPresentation";
 
 const ACTIONS = [
@@ -87,6 +87,7 @@ export default function CveAnalysis() {
   const hardwareConfirmed = Boolean(info?.hardware_cpe_confirmed);
   const canAttestInventory = choice === "NOT_MATCH" && installations.length === 1;
   const cpeSearchUrl = nvdVulnerabilitiesByCpeUrl(hardware?.criteria);
+  const cveApiUrl = nvdCvesApiByCpeNameUrl(hardware?.criteria);
   const cveDetailUrl = nvdCveDetailUrl(info?.cve_id);
 
   async function save(event) {
@@ -140,10 +141,16 @@ export default function CveAnalysis() {
   </section>;
 
   return <section className="page cve-analysis-page cve-nvd-detail">
+    <nav className="breadcrumbs" aria-label="Ruta de navegación">
+      <span>Vulnerabilidades</span><span>/</span>
+      <Link to="/vulnerabilities/cpe">Identificación CPE</Link><span>/</span>
+      <span>Análisis CVE</span>
+    </nav>
     {error && <p className="error-message" role="alert">{error}</p>}
     {notice && <p className="cve-success" role="status">{notice}</p>}
 
-    <section className="panel cve-nvd-overview" aria-label="Resumen CVE">
+    <header className="page-header cve-nvd-overview" aria-label="Resumen CVE">
+      <span className="page-eyebrow">ANÁLISIS CVE</span>
       <div className="cve-nvd-titlebar">
         <div className="cve-nvd-header-text">
           <h1>
@@ -154,12 +161,15 @@ export default function CveAnalysis() {
                 </a>
               : info.cve_id}
           </h1>
+          {cveApiUrl && <div className="cve-nvd-api-link">
+            <a href={cveApiUrl} target="_blank" rel="noopener noreferrer"
+              title="Abrir la respuesta JSON de la API NVD filtrada por cpeName">
+              Búsqueda de CVE por CPE name · API NVD <span aria-hidden="true">↗</span>
+            </a>
+            <code>cpeName={hardware?.criteria}</code>
+          </div>}
           <p className="cve-nvd-description">{description.text}</p>
           <p className="cve-nvd-description-label">{description.label}</p>
-          {description.original && description.original !== description.text && <details className="cve-text-original">
-            <summary>Ver descripción original de NVD</summary>
-            <p>{description.original}</p>
-          </details>}
           <p className="cve-nvd-meta">
             Evaluación del hardware <Link to={"/assets/" + info.hardware_asset_id}>
               #{info.hardware_asset_id}</Link> · Configuración {info.configuration_position}
@@ -179,7 +189,7 @@ export default function CveAnalysis() {
         La evidencia del inventario o la configuración NVD cambió.
         La última evaluación se conserva en el historial, pero requiere revisión.
       </p>}
-    </section>
+    </header>
 
     <section className="cve-nvd-conditions" aria-labelledby="cve-conditions-title">
       <h2 id="cve-conditions-title">Se requieren ambas condiciones</h2>
