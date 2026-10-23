@@ -98,6 +98,17 @@ class ExperimentalCveAssessmentTests(TestCase):
         payload.update(overrides)
         return self.client.post(self.url, payload, format="json")
 
+    def test_multilingual_nvd_descriptions_are_returned_without_translating_or_overwriting(self):
+        descriptions = [
+            {"lang": "en", "value": "NVD English original"},
+            {"lang": "es", "value": "Descripción oficial en español"},
+        ]
+        self.cve.descriptions = descriptions
+        self.cve.save(update_fields=["descriptions"])
+        info = self.context()
+        self.assertEqual(info["descriptions"], descriptions)
+        self.assertEqual(info["description"], "Undocumented FTP access")
+
     def test_without_hardware_confirmation_or_installation_stays_pending(self):
         info = self.context()
         self.assertEqual(info["configuration_position"], 12)
