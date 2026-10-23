@@ -204,6 +204,56 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(undone.data["assessment"]["status"], "PENDING_REVIEW")
         self.assertEqual(AssetCveAssessment.objects.count(), 2)
 
+    def test_verified_version_range_cannot_be_marked_not_applicable(self):
+        context = self.client.get(self.url).data
+        config = context["relevant_configurations"][0]
+        self.assertEqual(config["technical_result"], COMPATIBLE)
+        self.assertTrue(config["review_supported"])
+        response = self.client.post(self.url, {
+            "configuration_index": config["index"],
+            "verdict": "NOT_MATCH",
+            "software_installation_id": self.installation.pk,
+            "inventory_declared_complete": True,
+            "justification": "Intento de descartar una coincidencia técnica demostrada.",
+            "inventory_fingerprint": context["inventory_fingerprint"],
+            "configuration_fingerprint": config["fingerprint"],
+        }, format="json")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("verdict", response.data)
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
+
+    def test_stale_positive_can_be_reopened_without_current_matching_cpe(self):
+        context = self.client.get(self.url).data
+        config = context["relevant_configurations"][0]
+        confirmed = self.client.post(self.url, {
+            "configuration_index": config["index"],
+            "verdict": "CONFIRMED",
+            "software_installation_id": self.installation.pk,
+            "inventory_declared_complete": False,
+            "justification": "Firmware 4.5.2 dentro de rango y CPE vigentes.",
+            "inventory_fingerprint": context["inventory_fingerprint"],
+            "configuration_fingerprint": config["fingerprint"],
+        }, format="json")
+        self.assertEqual(confirmed.status_code, 201, confirmed.data)
+        self.sw.version = "4.6.0"
+        self.sw.save(update_fields=["version"])
+        changed = self.client.get(self.url).data
+        stale_config = changed["relevant_configurations"][0]
+        self.assertFalse(stale_config["review_supported"])
+        self.assertTrue(stale_config["latest_assessment"]["stale"])
+        reopened = self.client.post(self.url, {
+            "configuration_index": stale_config["index"],
+            "verdict": "UNKNOWN",
+            "software_installation_id": None,
+            "inventory_declared_complete": False,
+            "justification": "Versión cambió; reabrir revisión.",
+            "inventory_fingerprint": changed["inventory_fingerprint"],
+            "configuration_fingerprint": stale_config["fingerprint"],
+        }, format="json")
+        self.assertEqual(reopened.status_code, 201, reopened.data)
+        self.assertEqual(reopened.data["assessment"]["status"], "PENDING_REVIEW")
+        self.assertEqual(AssetCveAssessment.objects.count(), 2)
+
     def test_version_bounded_review_does_not_accept_stale_product_identity(self):
         self.sw.version = "4.6.0"
         self.sw.save(update_fields=["version"])

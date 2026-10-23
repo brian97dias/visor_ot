@@ -340,6 +340,14 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
     supported = _simple_and_firmware(config, confirmed, installed)
     if not supported and verdict != "UNKNOWN":
         raise ValidationError({"verdict": "La configuración no es verificable mediante este flujo."})
+    if (supported and supported["required_installation_id"] is not None
+            and verdict == "NOT_MATCH"):
+        # A validated installed version currently satisfies this NVD AND.
+        # Contradicting evidence cannot be converted into NOT_APPLICABLE.
+        raise ValidationError({
+            "verdict": "El firmware y la versión cumplen esta configuración NVD. "
+                       "No es válido descartarla con la evidencia vigente."
+        })
     installed_by_id = {row["installation_id"]: row for row in installed}
     selected = installed_by_id.get(software_installation_id)
     if selected is not None and supported and verdict != "UNKNOWN":
