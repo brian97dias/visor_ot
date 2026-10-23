@@ -7,7 +7,8 @@ import {
 } from "../api/vulnerabilities";
 import SuccessNotice from "../components/SuccessNotice";
 import {
-  CVE_DISCOVERY_STATE, CVE_SEVERITY, cveHardwareCandidates,
+  CVE_DISCOVERY_STATE, CVE_EVALUATION_STATE, CVE_EVALUATION_HELP,
+  CVE_SEVERITY, cveHardwareCandidates,
   cveHardwareSelectionValid, cvePageCount, isCveDiscoveryActive,
   toggleCveHardwareSelection,
 } from "../utils/cveCataloguePresentation";
@@ -23,6 +24,7 @@ export default function CveOverview() {
   const [params, setParams] = useSearchParams();
   const search = params.get("q") || "";
   const severity = params.get("severity") || "ALL";
+  const status = params.get("status") || "ALL";
   const requestedPage = readCpePage(params.get("page"));
   const [catalogue, setCatalogue] = useState({ count: 0, results: [], page: 1 });
   const [runs, setRuns] = useState([]);
@@ -45,7 +47,7 @@ export default function CveOverview() {
 
   function changeFilter(name, value) {
     const next = new URLSearchParams(params);
-    if (!value || (name === "severity" && value === "ALL") ||
+    if (!value || (["severity", "status"].includes(name) && value === "ALL") ||
         (name === "page" && String(value) === "1")) next.delete(name);
     else next.set(name, String(value));
     if (name !== "page") next.delete("page");
@@ -56,14 +58,14 @@ export default function CveOverview() {
     let alive = true;
     setLoading(true);
     const timer = window.setTimeout(() => {
-      listCveCatalogue({ q: search, severity, page: requestedPage,
+      listCveCatalogue({ q: search, severity, status, page: requestedPage,
                          page_size: PAGE_SIZE })
         .then(data => { if (alive) setCatalogue(data); })
         .catch(err => { if (alive) setError(err.message); })
         .finally(() => { if (alive) setLoading(false); });
     }, search ? 300 : 0);
     return () => { alive = false; window.clearTimeout(timer); };
-  }, [search, severity, requestedPage, reload]);
+  }, [search, severity, status, requestedPage, reload]);
 
   useEffect(() => {
     let alive = true;
@@ -210,6 +212,15 @@ export default function CveOverview() {
               <option key={code} value={code}>{label}</option>)}
           </select>
         </label>
+        <label className="cve-catalogue-control">
+          <span>Estado del CVE</span>
+          <select aria-label="Filtrar CVE por estado" value={status}
+            onChange={event => changeFilter("status", event.target.value)}>
+            <option value="ALL">Todos</option>
+            {Object.entries(CVE_EVALUATION_STATE).map(([code, label]) =>
+              <option key={code} value={code}>{label}</option>)}
+          </select>
+        </label>
         <button type="button" className="button-secondary" onClick={refreshAll}>
           Actualizar
         </button>
@@ -217,10 +228,10 @@ export default function CveOverview() {
       <div className="table-container">
         <table className="data-table">
           <thead><tr><th>CVE</th><th>Severidad</th><th>Descripción NVD</th>
-            <th>Activos seleccionados</th><th>Acción</th></tr></thead>
+            <th>Activos seleccionados</th><th>Estado</th><th>Acción</th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan="5">Cargando CVE...</td></tr>
-            : catalogue.results.length === 0 ? <tr><td colSpan="5">
+            {loading ? <tr><td colSpan="6">Cargando CVE...</td></tr>
+            : catalogue.results.length === 0 ? <tr><td colSpan="6">
               No hay CVE recuperados para estos filtros. Inicia una búsqueda
               con hardware que tenga CPE confirmados.
             </td></tr>
@@ -235,6 +246,17 @@ export default function CveOverview() {
               <td><strong>{row.selected_assets_count ?? row.hardware_count}</strong>
                 <small className="cve-catalogue-secondary">
                   Hardware vinculado por búsqueda o evaluación</small>
+              </td>
+              <td>
+                <span className="cve-catalogue-evaluation-status"
+                  data-status={row.evaluation_status || "PENDING_REVIEW"}>
+                  {CVE_EVALUATION_STATE[row.evaluation_status] ||
+                    CVE_EVALUATION_STATE.PENDING_REVIEW}
+                </span>
+                <small className="cve-catalogue-secondary">
+                  {CVE_EVALUATION_HELP[row.evaluation_status] ||
+                    CVE_EVALUATION_HELP.PENDING_REVIEW}
+                </small>
               </td>
               <td><Link className="button-secondary"
                 to={"/vulnerabilities/cve/" + encodeURIComponent(row.cve_id)}>Ver</Link></td>

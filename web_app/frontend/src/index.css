@@ -3218,3 +3218,19 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   .cve-general-hardware-select select,
   .cve-general-configuration-selector select { width: 100%; }
 }
+
+
+/* Human CVE evaluation status, separate from the NVD fetch/worker state. */
+.cve-catalogue-evaluation-status { display: inline-block; padding: 5px 11px;
+  border: 1px solid #475569; border-radius: 22px; font-size: .78rem;
+  font-weight: 650; color: #cbd5e1; white-space: nowrap; }
+.cve-catalogue-evaluation-status[data-status="PENDING_REVIEW"] {
+  border-color: #64748b; color: #cbd5e1; }
+.cve-catalogue-evaluation-status[data-status="IN_REVIEW"] {
+  border-color: #b45309; color: #fde68a; }
+.cve-catalogue-evaluation-status[data-status="APPLIES"] {
+  border-color: #b91c1c; color: #fca5a5; }
+.cve-catalogue-evaluation-status[data-status="NOT_APPLICABLE"] {
+  border-color: #15803d; color: #86efac; }
+.cve-catalogue-evaluation-status[data-status="STALE"] {
+  border-color: #d97706; color: #fdba74; }

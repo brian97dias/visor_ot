@@ -7,6 +7,23 @@ export const CVE_SEVERITY = {
   UNKNOWN: "Sin clasificar",
 };
 
+/** Summary of scoped human assessments, never an automatic NVD verdict. */
+export const CVE_EVALUATION_STATE = {
+  PENDING_REVIEW: "Por validar",
+  IN_REVIEW: "En revisión",
+  APPLIES: "Aplica",
+  NOT_APPLICABLE: "No aplica",
+  STALE: "Revisar evidencia",
+};
+
+export const CVE_EVALUATION_HELP = {
+  PENDING_REVIEW: "Sin evaluaciones vigentes registradas",
+  IN_REVIEW: "Quedan configuraciones o activos por revisar",
+  APPLIES: "Existe al menos una correspondencia vigente confirmada",
+  NOT_APPLICABLE: "Todas las configuraciones y activos relacionados están descartados",
+  STALE: "Cambió la evidencia desde la última evaluación",
+};
+
 export const CVE_DISCOVERY_STATE = {
   QUEUED: "En cola",
   RUNNING: "Consultando NVD",

@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  CVE_SEVERITY, CVE_DISCOVERY_STATE, cvePageCount,
+  CVE_SEVERITY, CVE_DISCOVERY_STATE, CVE_EVALUATION_STATE,
+  CVE_EVALUATION_HELP, cvePageCount,
   cveHardwareCandidates, toggleCveHardwareSelection,
   cveHardwareSelectionValid, isCveDiscoveryActive,
 } from "./cveCataloguePresentation.js";
@@ -39,4 +40,15 @@ test("catalogue pagination clamps empty or invalid totals", () => {
   assert.equal(cvePageCount(16), 2);
   assert.equal(cvePageCount(undefined), 1);
   assert.equal(cvePageCount(101, 20), 6);
+});
+
+
+test("catalogue statuses explain scoped evaluation rather than NVD fetch", () => {
+  assert.equal(CVE_EVALUATION_STATE.PENDING_REVIEW, "Por validar");
+  assert.equal(CVE_EVALUATION_STATE.IN_REVIEW, "En revisión");
+  assert.equal(CVE_EVALUATION_STATE.APPLIES, "Aplica");
+  assert.equal(CVE_EVALUATION_STATE.NOT_APPLICABLE, "No aplica");
+  assert.equal(CVE_EVALUATION_STATE.STALE, "Revisar evidencia");
+  assert.match(CVE_EVALUATION_HELP.APPLIES, /al menos una/i);
+  assert.match(CVE_EVALUATION_HELP.NOT_APPLICABLE, /todas/i);
 });
