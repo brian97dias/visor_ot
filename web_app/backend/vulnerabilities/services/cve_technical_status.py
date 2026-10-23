@@ -5,7 +5,7 @@ applicability solely from a CVE discovered by CPE.
 """
 from collections import defaultdict
 
-from django.shortcuts import get_object_or_404
+from django.http import Http404
 from rest_framework.exceptions import NotFound, ValidationError
 
 from vulnerabilities.models import AssetCveAssessment, AssetCveFinding
@@ -40,7 +40,7 @@ def technical_statuses(cves):
                 technical.append(evaluate_configurations(
                     cve.configurations, list(hardware_cpes), installed
                 )["result"])
-            except (NotFound, ValidationError, ValueError, AttributeError):
+            except (Http404, NotFound, ValidationError, ValueError, AttributeError):
                 technical.append(INDETERMINATE)
         if not technical:
             result[cve.pk] = INDETERMINATE
