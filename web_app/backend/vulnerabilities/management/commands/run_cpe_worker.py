@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 from django.utils import timezone
 
-from vulnerabilities.models import CpeSearchRun, CpeQuerySnapshot, Cve
+from vulnerabilities.models import CpeSearchRun, CpeQuerySnapshot, Cve, CveDiscoveryRun
 from vulnerabilities.services.cpe_search import execute_run
 from vulnerabilities.services.external_cpe import EXTERNAL_CPE_TRIGGER, execute_external_cpe
 from vulnerabilities.services.cpe_catalogue import (
@@ -14,6 +14,9 @@ from vulnerabilities.services.cpe_catalogue import (
 from vulnerabilities.services.nvd_client import PublicNvdPacer
 from vulnerabilities.services.worker_lock import ADVISORY_LOCK_ID
 from vulnerabilities.services.cve_ingestion import execute_cve_fetch
+from vulnerabilities.services.cve_discovery_worker import (
+    execute_cve_discovery_run, recover_interrupted_cve_discoveries,
+)
 
 
 def dispatch_cpe_run(run, pacer):
@@ -35,8 +38,8 @@ def asset_run_precedes_snapshot(run, snapshot):
     return not waiting and run.created_at <= snapshot.created_at
 
 
-def oldest_work_kind(run, snapshot, cve):
-    """Respect existing run/snapshot ordering and share their NVD pace with CVE."""
+def oldest_work_kind(run, snapshot, cve, discovery=None):
+    """Fair scheduling of CPE, single CVE and CVE discovery under one pacer."""
     if asset_run_precedes_snapshot(run, snapshot):
         previous = ("ASSET", run.created_at)
     elif snapshot is not None:
@@ -44,7 +47,11 @@ def oldest_work_kind(run, snapshot, cve):
     else:
         previous = None
     if cve is not None and (previous is None or cve.queued_at <= previous[1]):
-        return "CVE"
+        previous = ("CVE", cve.queued_at)
+    if discovery is not None and (
+        previous is None or discovery.created_at < previous[1]
+    ):
+        return "CVE_DISCOVERY"
     return previous[0] if previous else None
 
 
@@ -75,6 +82,7 @@ class Command(BaseCommand):
         pacer = PublicNvdPacer(guard=require_lock)
         try:
             recover_interrupted_catalogue_snapshots()
+            recover_interrupted_cve_discoveries()
             # After crashes never present abandoned RUNNING results as live.
             CpeSearchRun.objects.filter(status=CpeSearchRun.Status.RUNNING).update(
                 status=CpeSearchRun.Status.FAILED,
@@ -103,8 +111,14 @@ class Command(BaseCommand):
                 cve = Cve.objects.filter(
                     fetch_status=Cve.FetchStatus.QUEUED
                 ).order_by("queued_at", "pk").first()
-                # One PostgreSQL lock and one pacer for CPE and CVE HTTP calls.
-                kind = oldest_work_kind(run, snapshot, cve)
+                discovery = CveDiscoveryRun.objects.filter(
+                    status__in=(
+                        CveDiscoveryRun.Status.QUEUED,
+                        CveDiscoveryRun.Status.INCOMPLETE,
+                    )
+                ).order_by("created_at", "pk").first()
+                # One PostgreSQL lock and one pacer for all CPE and CVE HTTP calls.
+                kind = oldest_work_kind(run, snapshot, cve, discovery)
                 if kind == "ASSET":
                     self.stdout.write(f"Buscando CPE: trabajo #{run.pk}, activo #{run.asset_id}")
                     dispatch_cpe_run(run, pacer)
@@ -127,6 +141,13 @@ class Command(BaseCommand):
                     self.stdout.write(
                         f"CVE {result.cve_id}: {result.fetch_status}"
                         + (f" — {result.fetch_error}" if result.fetch_error else "")
+                    )
+                elif kind == "CVE_DISCOVERY":
+                    self.stdout.write(f"Descubriendo CVE: búsqueda #{discovery.pk}")
+                    result = execute_cve_discovery_run(discovery, pacer)
+                    self.stdout.write(
+                        f"Búsqueda CVE #{result.pk}: {result.status}"
+                        + (f" — {result.error_message}" if result.error_message else "")
                     )
                 if options["once"]:
                     break
