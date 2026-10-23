@@ -6,6 +6,9 @@ from .association_views import AssetCpeListCreateView, AssetCpeDecisionView
 from .bulk_views import CpeBulkSearchView
 from .external_cpe_views import ExternalCpeVerificationListView, ExternalCpeVerificationDetailView
 from .cve_assessment_views import ExperimentalCveAssessmentView
+from .cve_catalogue_views import (
+    CveCatalogueView, CveCatalogueDetailView, CveCatalogueHardwareView,
+)
 from .cve_discovery_views import (
     CveDiscoveryListCreateView, CveDiscoveryDetailView,
     CveDiscoveryFindingListView,
@@ -13,6 +16,9 @@ from .cve_discovery_views import (
 
 app_name = "vulnerabilities"
 urlpatterns = [
+    path("cves/", CveCatalogueView.as_view(), name="cve-catalogue"),
+    path("cves/<str:cve_id>/", CveCatalogueDetailView.as_view(), name="cve-catalogue-detail"),
+    path("cves/<str:cve_id>/hardware/", CveCatalogueHardwareView.as_view(), name="cve-catalogue-hardware"),
     path("cve-discoveries/", CveDiscoveryListCreateView.as_view(), name="cve-discovery-list"),
     path("cve-discoveries/<int:run_id>/", CveDiscoveryDetailView.as_view(), name="cve-discovery-detail"),
     path("cve-discoveries/<int:run_id>/findings/", CveDiscoveryFindingListView.as_view(), name="cve-discovery-findings"),
