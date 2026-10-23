@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import { Link, useOutletContext, useParams } from "react-router-dom";
+import { Link, useOutletContext, useParams, useSearchParams } from "react-router-dom";
 import {
   listCveHardware, readCveCatalogue, readGeneralCveAssessment,
   createGeneralCveAssessment,
 } from "../api/vulnerabilities";
 import SuccessNotice from "../components/SuccessNotice";
 import CveAnalysis from "./CveAnalysis";
-import { CVE_SEVERITY, CVE_TECHNICAL_STATE } from "../utils/cveCataloguePresentation";
+import {
+  CVE_SEVERITY, CVE_TECHNICAL_STATE, selectedCveHardwareId,
+} from "../utils/cveCataloguePresentation";
 import {
   localizedTimestamp, contextualCveActionOptions, versionConstraintsText,
 } from "../utils/cveAssessmentPresentation";
@@ -243,6 +245,8 @@ function ConfigurationReview({ context, config, onSaved, canDecide }) {
 
 export default function CveDetail() {
   const { cveId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedHardware = searchParams.get("hardware");
   const { user } = useOutletContext();
   const canDecide = ["ADMIN", "ANALYST"].includes(user?.role);
   const [cve, setCve] = useState(null);
@@ -262,12 +266,26 @@ export default function CveDetail() {
       .then(([info, related]) => {
         if (!active) return;
         setCve(info); setHardware(related.results);
-        setSelectedHardware(String(related.results[0]?.hardware_id || ""));
+        setSelectedHardware(selectedCveHardwareId(related.results, requestedHardware));
       })
       .catch(err => { if (active) setError(err.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [cveId]);
+
+  useEffect(() => {
+    if (requestedHardware && hardware.length) {
+      const nextId = selectedCveHardwareId(hardware, requestedHardware);
+      if (nextId && nextId !== selectedHardware) setSelectedHardware(nextId);
+    }
+  }, [requestedHardware, hardware, selectedHardware]);
+
+  function changeHardware(id) {
+    setSelectedHardware(id);
+    const next = new URLSearchParams(searchParams);
+    next.set("hardware", id);
+    setSearchParams(next, { replace: true });
+  }
 
   const isLegacy = cveId === "CVE-2021-33540" &&
     Number(selectedHardware) === 2;
@@ -335,7 +353,7 @@ export default function CveDetail() {
     <div className="cve-general-hardware-select">
       <label htmlFor="cve-hardware-choice">Hardware a evaluar</label>
       {hardware.length ? <select id="cve-hardware-choice" value={selectedHardware}
-        onChange={event => setSelectedHardware(event.target.value)}>
+        onChange={event => changeHardware(event.target.value)}>
         {hardware.map(row => <option key={row.hardware_id} value={row.hardware_id}>
           #{row.hardware_id} · {row.hardware_name}</option>)}
       </select> : <p className="cve-muted">

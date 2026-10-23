@@ -72,3 +72,29 @@ export function cveHardwareSelectionValid(ids) {
 export function isCveDiscoveryActive(status) {
   return ["QUEUED", "RUNNING", "INCOMPLETE"].includes(status);
 }
+
+
+/** A CVE may be associated with several assets. Open the hardware that
+ * explains the row's positive technical result, not simply the lowest ID.
+ */
+export function preferredCveHardwareId(row) {
+  const contexts = Array.isArray(row?.related_assets) ? row.related_assets : [];
+  const valid = contexts.filter(item => Number.isSafeInteger(item?.hardware_id) &&
+    item.hardware_id > 0);
+  const primary = valid.find(item => item.technical_result === "COMPATIBLE") ||
+    valid[0];
+  return primary?.hardware_id ?? null;
+}
+
+/** Honor only hardware IDs actually related to this CVE; never open
+ * arbitrary inventory assets from an untrusted URL query parameter.
+ */
+export function selectedCveHardwareId(hardware, requestedId) {
+  const available = Array.isArray(hardware) ? hardware : [];
+  const candidate = Number(requestedId);
+  const found = requestedId != null && requestedId !== "" &&
+    Number.isSafeInteger(candidate) && candidate > 0
+    ? available.find(item => Number(item.hardware_id) === candidate)
+    : null;
+  return String((found || available[0])?.hardware_id || "");
+}

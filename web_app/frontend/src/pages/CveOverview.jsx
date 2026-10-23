@@ -11,6 +11,7 @@ import {
   CVE_TECHNICAL_STATE, CVE_TECHNICAL_FILTER, DEFAULT_CVE_TECHNICAL_FILTER,
   CVE_SEVERITY, cveHardwareCandidates,
   cveHardwareSelectionValid, cvePageCount, isCveDiscoveryActive,
+  preferredCveHardwareId,
   toggleCveHardwareSelection,
 } from "../utils/cveCataloguePresentation";
 import { readCpePage } from "../utils/cpeOverviewUrlState";
@@ -261,6 +262,14 @@ export default function CveOverview() {
               <td><div className="cve-catalogue-related">
                 {(row.related_assets || []).length ? row.related_assets.map(context =>
                   <div className="cve-catalogue-asset-context" key={context.hardware_id}>
+                    <div className="cve-catalogue-asset-context-heading">
+                      <span>Hardware #{context.hardware_id}</span>
+                      <span className="cve-technical-tag"
+                        data-result={context.technical_result}>
+                        {CVE_TECHNICAL_STATE[context.technical_result] ||
+                          CVE_TECHNICAL_STATE.INDETERMINATE}
+                      </span>
+                    </div>
                     {context.assets?.length ? context.assets.map(asset =>
                       <div key={asset.asset_id} className="cve-catalogue-asset-item">
                         <span>{asset.asset_type === "HARDWARE" ? "Hardware" :
@@ -299,7 +308,9 @@ export default function CveOverview() {
                 </small>
               </td>
               <td><Link className="button-secondary"
-                to={"/vulnerabilities/cve/" + encodeURIComponent(row.cve_id)}>Ver</Link></td>
+                to={"/vulnerabilities/cve/" + encodeURIComponent(row.cve_id) +
+                  (preferredCveHardwareId(row) ?
+                    "?hardware=" + preferredCveHardwareId(row) : "")}>Ver</Link></td>
             </tr>)}
           </tbody>
         </table>

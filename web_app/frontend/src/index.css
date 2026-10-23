@@ -3275,3 +3275,13 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   margin-top: 20px; border-top: 1px solid #334155; padding-top: 16px;
 }
 .cve-technical-criterion code { overflow-wrap: anywhere; }
+
+
+/* Per-hardware applicability on CVE catalogue rows (never a global verdict). */
+.cve-catalogue-asset-context-heading {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 6px; margin-bottom: 7px; font-size: .74rem; color: #94a3b8;
+}
+.cve-catalogue-asset-context-heading .cve-technical-tag {
+  font-size: .7rem; padding: 3px 7px;
+}

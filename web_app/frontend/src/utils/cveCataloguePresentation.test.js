@@ -7,6 +7,7 @@ import {
   cvePageCount,
   cveHardwareCandidates, toggleCveHardwareSelection,
   cveHardwareSelectionValid, isCveDiscoveryActive,
+  preferredCveHardwareId, selectedCveHardwareId,
 } from "./cveCataloguePresentation.js";
 
 test("severity and run state never claim that a candidate CVE applies", () => {
@@ -69,4 +70,28 @@ test("default CVE view prioritizes unresolved/compatible results", () => {
   assert.equal(DEFAULT_CVE_TECHNICAL_FILTER, "ATTENTION");
   assert.equal(CVE_TECHNICAL_FILTER.ATTENTION, "Requieren atención");
   assert.equal(CVE_TECHNICAL_FILTER.EXCLUDED, "No aplica técnicamente");
+});
+
+
+test("CVE Ver selects the hardware explaining the positive technical result", () => {
+  const row = { related_assets: [
+    { hardware_id: 2, technical_result: "EXCLUDED" },
+    { hardware_id: 10, technical_result: "COMPATIBLE" },
+    { hardware_id: 12, technical_result: "INDETERMINATE" },
+  ] };
+  assert.equal(preferredCveHardwareId(row), 10);
+  assert.equal(preferredCveHardwareId({ related_assets: [
+    { hardware_id: 2, technical_result: "INDETERMINATE" },
+    { hardware_id: 10, technical_result: "EXCLUDED" },
+  ] }), 2);
+  assert.equal(preferredCveHardwareId({ related_assets: [] }), null);
+});
+
+test("CVE hardware deep link accepts only related asset IDs", () => {
+  const rows = [{ hardware_id: 2 }, { hardware_id: 10 }];
+  assert.equal(selectedCveHardwareId(rows, "10"), "10");
+  assert.equal(selectedCveHardwareId(rows, "99"), "2");
+  assert.equal(selectedCveHardwareId(rows, "10;DROP TABLE"), "2");
+  assert.equal(selectedCveHardwareId(rows, null), "2");
+  assert.equal(selectedCveHardwareId([], "10"), "");
 });
