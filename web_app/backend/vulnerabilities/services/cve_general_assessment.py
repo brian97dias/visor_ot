@@ -16,6 +16,7 @@ from rest_framework.exceptions import ValidationError
 from assets.models import Asset, Hardware, SoftwareInstallation
 from vulnerabilities.models import AssetCpe, AssetCveAssessment, Cve
 from .identity import fingerprint, hardware_identity, software_identity
+from .cve_configuration_evaluator import evaluate_configurations
 
 VERSION_KEYS = (
     "versionStartIncluding", "versionStartExcluding",
@@ -58,6 +59,22 @@ def _render_tree(node, confirmed_cpes, installed):
         "kind": "GROUP", "operator": node.get("operator", "OR"),
         "negate": node.get("negate") is True, "children": children,
     }
+
+
+def _annotate_tree(tree, technical):
+    """Merge technical observations into the existing visual NVD tree."""
+    if not isinstance(tree, dict) or not isinstance(technical, dict):
+        return tree
+    tree["technical_result"] = technical.get("result", "INDETERMINATE")
+    if technical.get("reason"):
+        tree["technical_reason"] = technical["reason"]
+    if "installed_version" in technical:
+        tree["technical_installed_version"] = technical["installed_version"]
+    if "software_installation_id" in technical:
+        tree["technical_software_installation_id"] = technical["software_installation_id"]
+    for visual, evaluated in zip(tree.get("children", []), technical.get("children", [])):
+        _annotate_tree(visual, evaluated)
+    return tree
 
 
 def _simple_and_firmware(config, confirmed_cpes):
@@ -117,6 +134,23 @@ def _context(cve_id, hardware_id, *, lock=False):
         hardware_id=hardware_id, unlinked_at__isnull=True,
         software__asset__inventory_status=Asset.InventoryStatus.ACTIVE,
     ).select_related("software", "software__asset").order_by("pk"))
+    software_identities = {
+        row.software_id: fingerprint(software_identity(row.software.asset))
+        for row in installations
+    }
+    software_associations = list(AssetCpe.objects.filter(
+        asset_id__in=software_identities,
+        validation_status=AssetCpe.Validation.CONFIRMED,
+        cpe__deprecated=False,
+    ).select_related("cpe").order_by("asset_id", "pk"))
+    confirmed_software = {}
+    for association in software_associations:
+        if (association.validated_identity_fingerprint
+                == software_identities[association.asset_id]
+                and association.cpe.cpe_name.startswith(
+                    ("cpe:2.3:o:", "cpe:2.3:a:")
+                )):
+            confirmed_software.setdefault(association.asset_id, []).append(association)
     installed = [{
         "installation_id": row.pk,
         "software_asset_id": row.software_id,
@@ -125,7 +159,11 @@ def _context(cve_id, hardware_id, *, lock=False):
         "manufacturer": row.software.manufacturer,
         "product": row.software.product,
         "version": row.software.version,
-        "identity": fingerprint(software_identity(row.software.asset)),
+        "identity": software_identities[row.software_id],
+        "confirmed_cpes": [
+            association.cpe.cpe_name
+            for association in confirmed_software.get(row.software_id, [])
+        ],
     } for row in installations]
     inventory_fp = _digest({
         "hardware": identity,
@@ -136,6 +174,12 @@ def _context(cve_id, hardware_id, *, lock=False):
         "installations": [
             (row["installation_id"], row["software_asset_id"], row["identity"])
             for row in installed
+        ],
+        "software_cpe_associations": [
+            (association.pk, association.cpe.cpe_name,
+             association.validated_at.isoformat())
+            for associations in confirmed_software.values()
+            for association in associations
         ],
     })
     return hardware, cve, confirmed_cpes, installed, inventory_fp
@@ -157,9 +201,13 @@ def _serialize_assessment(item, inventory_fp, config_fp):
 
 def general_assessment_context(cve_id, hardware_id):
     hw, cve, confirmed, installed, inventory_fp = _context(cve_id, hardware_id)
+    technical = evaluate_configurations(
+        cve.configurations, list(confirmed), installed
+    )
     configs = []
     for index, config in enumerate(cve.configurations):
         cfg_fp = _digest(config)
+        observation = technical["configurations"][index]
         history = list(AssetCveAssessment.objects.filter(
             cve=cve, hardware=hw, configuration_index=index,
         ).select_related("decided_by")[:30])
@@ -168,7 +216,10 @@ def general_assessment_context(cve_id, hardware_id):
         configs.append({
             "index": index, "position": index + 1,
             "fingerprint": cfg_fp,
-            "tree": _render_tree(config, confirmed, installed),
+            "tree": _annotate_tree(
+                _render_tree(config, confirmed, installed), observation
+            ),
+            "technical_result": observation["result"],
             "review_supported": bool(supported),
             "review_reason": "" if supported else (
                 "La combinación de operadores, negaciones, rangos o CPE "
@@ -183,6 +234,7 @@ def general_assessment_context(cve_id, hardware_id):
         "cve_id": cve.cve_id, "hardware_asset_id": hw.pk,
         "hardware_name": hw.asset.name, "inventory_fingerprint": inventory_fp,
         "installed_software": installed,
+        "technical_result": technical["result"],
         "confirmed_hardware_cpes": [
             {"cpe_name": name, "association_id": assoc.pk}
             for name, assoc in confirmed.items()
