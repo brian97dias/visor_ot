@@ -23,6 +23,7 @@ import CpeOverview from "./pages/CpeOverview";
 import CveAnalysis from "./pages/CveAnalysis";
 import CveOverview from "./pages/CveOverview";
 import CveDetail from "./pages/CveDetail";
+import CveDiscoveryRun from "./pages/CveDiscoveryRun";
 import AssetEditor from "./pages/AssetEditor";
 import Interfaces from "./pages/Interfaces";
 import InterfaceDetail from "./pages/InterfaceDetail";
@@ -124,6 +125,7 @@ function App() {
           <Route path="/vulnerabilities/cpe" element={<CpeOverview />} />
           <Route path="/vulnerabilities/cve" element={<CveOverview />} />
           <Route path="/vulnerabilities/cve/experimental" element={<CveAnalysis />} />
+          <Route path="/vulnerabilities/cve/discoveries/:runId" element={<CveDiscoveryRun />} />
           <Route path="/vulnerabilities/cve/:cveId" element={<CveDetail />} />
 
         </Route>

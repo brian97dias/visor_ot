@@ -3088,3 +3088,90 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   .cve-nvd-category { font-size: .7rem; }
   .cve-nvd-action { width: 100%; }
 }
+
+
+/* CVE catalogue, generic detail and queued discovery progress. */
+.cve-catalogue-heading { display: flex; gap: 18px; flex-wrap: wrap;
+  align-items: flex-start; justify-content: space-between; }
+.cve-catalogue-stats { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 20px; }
+.cve-catalogue-stats > div { flex: 1 1 150px; }
+.cve-catalogue-panel, .cve-catalogue-jobs { margin-top: 18px; }
+.cve-catalogue-control { display: grid; gap: 5px; font-size: .78rem; color: #94a3b8; }
+.cve-catalogue-control input { width: min(400px, 100%); }
+.cve-catalogue-control select { min-width: 165px; }
+.cve-catalogue-id { color: #dbeafe; font-size: .94rem; }
+.cve-catalogue-secondary { display: block; color: #94a3b8; font-size: .76rem;
+  line-height: 1.5; margin-top: 5px; }
+.cve-catalogue-description { max-width: 530px; font-size: .86rem;
+  line-height: 1.5; margin: 0; display: -webkit-box; -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical; overflow: hidden; }
+.cve-catalogue-severity { display: inline-block; border: 1px solid #475569;
+  border-radius: 6px; padding: 6px 10px; font-size: .8rem; color: #dbeafe; }
+.cve-catalogue-severity[data-severity="CRITICAL"] { border-color: #e11d48; color: #fecdd3; }
+.cve-catalogue-severity[data-severity="HIGH"] { border-color: #c2410c; color: #fdba74; }
+.cve-catalogue-severity[data-severity="MEDIUM"] { border-color: #b45309; color: #fde68a; }
+.cve-catalogue-severity[data-severity="LOW"] { border-color: #15803d; color: #bbf7d0; }
+.cve-catalogue-job-status { color: #cbd5e1; font-size: .84rem; }
+.cve-catalogue-job-status[data-status="COMPLETED"] { color: #86efac; }
+.cve-catalogue-job-status[data-status="RUNNING"] { color: #7dd3fc; }
+.cve-catalogue-job-status[data-status="INCOMPLETE"] { color: #fde68a; }
+.cve-catalogue-job-status[data-status="FAILED"] { color: #fca5a5; }
+.cve-catalogue-job-error { display: block; color: #fca5a5;
+  font-size: .78rem; margin-top: 5px; max-width: 350px; }
+.cve-catalogue-inline-note { color: #94a3b8; font-size: .76rem; }
+.cve-catalogue-empty { color: #a8b7cb; padding: 19px; font-size: .88rem; }
+.cve-overview-disclaimer { color: #94a3b8; line-height: 1.6; font-size: .84rem;
+  padding: 15px 3px; }
+.cve-overview-disclaimer a, .cve-catalogue-page a:not(.button-secondary) {
+  color: #7dd3fc; }
+.cve-catalogue-dialog { max-width: 620px; }
+.cve-catalogue-hardware-search { width: 100%; background: #0f172a;
+  border: 1px solid #475569; border-radius: 7px; color: #f8fafc;
+  padding: 10px 12px; font: inherit; }
+.cve-catalogue-hardware-list { max-height: 300px; overflow-y: auto;
+  border: 1px solid #334155; border-radius: 7px; margin: 14px 0; }
+.cve-catalogue-hardware-list > p { padding: 14px; color: #a8b7cb; }
+.cve-catalogue-hardware-row { display: flex; gap: 12px; align-items: flex-start;
+  padding: 11px 14px; border-bottom: 1px solid #263244; cursor: pointer; }
+.cve-catalogue-hardware-row:last-child { border-bottom: 0; }
+.cve-catalogue-hardware-row:hover { background: #15253a; }
+.cve-catalogue-hardware-row input { accent-color: #38bdf8; margin-top: 4px; }
+.cve-catalogue-hardware-row strong { display: block; color: #e2e8f0; }
+.cve-catalogue-hardware-row small { display: block; margin-top: 4px;
+  color: #94a3b8; font-size: .77rem; line-height: 1.5; }
+.cve-catalogue-dialog-foot { display: flex; justify-content: space-between;
+  align-items: center; flex-wrap: wrap; gap: 8px; color: #cbd5e1;
+  font-size: .8rem; margin-bottom: 8px; }
+.cve-catalogue-disclaimer { color: #94a3b8; font-size: .83rem;
+  line-height: 1.55; padding: 15px 22px; }
+.cve-catalogue-detail-panel { padding: 22px; }
+.cve-catalogue-detail-heading { display: flex; gap: 16px;
+  flex-wrap: wrap; align-items: flex-start; justify-content: space-between; }
+.cve-catalogue-detail-heading > div { flex: 1 1 400px; }
+.cve-catalogue-detail-heading h2 { margin-bottom: 12px; }
+.cve-catalogue-detail-heading p { color: #cbd5e1; line-height: 1.65; }
+.cve-catalogue-detail-meta { display: flex; flex-wrap: wrap; gap: 24px;
+  border-top: 1px solid #334155; padding: 18px 0; margin-top: 10px; }
+.cve-catalogue-detail-meta div { display: grid; gap: 5px; }
+.cve-catalogue-detail-meta span { color: #94a3b8; font-size: .75rem; }
+.cve-catalogue-detail-meta strong { color: #f1f5f9; }
+.cve-catalogue-raw { padding: 12px; border: 1px solid #334155;
+  border-radius: 7px; margin-top: 10px; color: #cbd5e1; }
+.cve-catalogue-raw summary { cursor: pointer; color: #7dd3fc; }
+.cve-catalogue-raw p { font-size: .82rem; line-height: 1.5; }
+.cve-catalogue-raw pre { white-space: pre-wrap; overflow-wrap: anywhere;
+  max-height: 360px; overflow-y: auto; font-size: .75rem; }
+.cve-catalogue-evidence { color: #bbf7d0; font-size: .8rem; }
+.cve-catalogue-evidence[data-status="STALE"] { color: #fca5a5; }
+.cve-catalogue-sources { max-width: 460px; overflow-wrap: anywhere;
+  display: grid; gap: 5px; font-size: .77rem; }
+.cve-catalogue-sources span { color: #cbd5e1; }
+.cve-catalogue-eval-link { display: block; font-size: .8rem; margin-top: 9px; }
+.cve-catalogue-query { font-size: .75rem; overflow-wrap: anywhere; }
+@media (max-width: 740px) {
+  .cve-catalogue-heading > button { width: 100%; }
+  .cve-catalogue-control, .cve-catalogue-control input,
+  .cve-catalogue-control select { width: 100%; }
+  .cve-catalogue-detail-panel { padding: 15px; }
+  .cve-catalogue-dialog { padding: 16px; }
+}
