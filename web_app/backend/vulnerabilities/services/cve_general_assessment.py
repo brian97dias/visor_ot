@@ -83,12 +83,13 @@ def _annotate_tree(tree, technical):
     return tree
 
 
-def _simple_and_firmware(config, confirmed_cpes):
-    """Allow explicit review only for exactly two independent AND criteria.
+def _simple_and_firmware(config, confirmed_cpes, installed=None):
+    """Permit scoped analyst review of a simple NVD platform AND software.
 
-    One verified non-vulnerable platform CPE + one vulnerable software match.
-    No negations, additional nodes or version bounds; we do not pretend to
-    support semantic OR resolution or version comparisons yet.
+    Version-limited software criteria are reviewable only when the conservative
+    evaluator verifies an exact confirmed product CPE, the installed version
+    and the specific installation. Unbounded legacy manual reviews retain
+    their previous behavior for backwards compatibility.
     """
     if not isinstance(config, dict) or config.get("operator") != "AND" or config.get("negate"):
         return None
@@ -103,7 +104,7 @@ def _simple_and_firmware(config, confirmed_cpes):
                 or len(node["cpeMatch"]) != 1):
             return None
         leaf = node["cpeMatch"][0]
-        if (not isinstance(leaf, dict) or any(key in leaf for key in VERSION_KEYS)):
+        if not isinstance(leaf, dict):
             return None
         pair.append(leaf)
     platform = [x for x in pair if x.get("vulnerable") is False
@@ -116,9 +117,38 @@ def _simple_and_firmware(config, confirmed_cpes):
         return None
     if platform[0]["criteria"] not in confirmed_cpes:
         return None
-    return {"hardware_criterion": platform[0]["criteria"],
-            "software_criterion": target[0]["criteria"]}
+    if any(key in platform[0] for key in VERSION_KEYS):
+        return None
+    supported = {
+        "hardware_criterion": platform[0]["criteria"],
+        "software_criterion": target[0]["criteria"],
+        "required_installation_id": None,
+    }
+    if any(key in target[0] for key in VERSION_KEYS):
+        technical = evaluate_configurations(
+            [config], list(confirmed_cpes), installed or []
+        )
+        if technical["result"] != "COMPATIBLE":
+            return None
+        # The positive criterion must have selected an actual current
+        # software installation, never just a compatible version string.
+        def evidence(node):
+            if (node.get("kind") == "CRITERION"
+                    and node.get("criteria") == target[0]["criteria"]
+                    and node.get("identity") == "MATCHED"
+                    and node.get("result") == "COMPATIBLE"):
+                return node.get("software_installation_id")
+            for child in node.get("children", []):
+                found = evidence(child)
+                if found is not None:
+                    return found
+            return None
 
+        installation_id = evidence(technical["configurations"][0])
+        if installation_id is None:
+            return None
+        supported["required_installation_id"] = installation_id
+    return supported
 
 def _context(cve_id, hardware_id, *, lock=False):
     queryset = Hardware.objects.select_related("asset")
@@ -251,7 +281,7 @@ def general_assessment_context(cve_id, hardware_id):
             cve=cve, hardware=hw, configuration_index=index,
         ).select_related("decided_by")[:30])
         current = _serialize_assessment(history[0], inventory_fp, cfg_fp) if history else None
-        supported = _simple_and_firmware(config, confirmed)
+        supported = _simple_and_firmware(config, confirmed, installed)
         configs.append({
             "index": index, "position": index + 1,
             "fingerprint": cfg_fp,
@@ -266,6 +296,7 @@ def general_assessment_context(cve_id, hardware_id):
             ),
             "hardware_criterion": supported["hardware_criterion"] if supported else None,
             "software_criterion": supported["software_criterion"] if supported else None,
+            "review_installation_id": supported["required_installation_id"] if supported else None,
             "latest_assessment": current,
             "history": [_serialize_assessment(row, inventory_fp, cfg_fp) for row in history],
         })
@@ -306,7 +337,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
     reason = justification.strip()
     if not reason or len(reason) > 1000:
         raise ValidationError({"justification": "Justifica tu decisión (máximo 1000 caracteres)."})
-    supported = _simple_and_firmware(config, confirmed)
+    supported = _simple_and_firmware(config, confirmed, installed)
     if not supported and verdict != "UNKNOWN":
         raise ValidationError({"verdict": "La configuración no es verificable mediante este flujo."})
     installed_by_id = {row["installation_id"]: row for row in installed}
@@ -325,6 +356,13 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         raise ValidationError({"software_installation_id": "La instalación no está vigente."})
     if verdict != "UNKNOWN" and selected is None:
         raise ValidationError({"software_installation_id": "Selecciona software instalado vigente."})
+    if (supported and supported["required_installation_id"] is not None
+            and verdict != "UNKNOWN"
+            and software_installation_id != supported["required_installation_id"]):
+        raise ValidationError({
+            "software_installation_id":
+                "Selecciona la instalación concreta verificada contra NVD."
+        })
     # A negative verdict only settles an AND branch if the inventory was
     # explicitly attested complete and only this installation was in scope.
     status = "PENDING_REVIEW"

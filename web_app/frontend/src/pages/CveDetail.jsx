@@ -115,10 +115,13 @@ function ConfigurationReview({ context, config, onSaved, canDecide }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const targetPart = config.software_criterion?.split(":")[2];
-  const installations = (context.installed_software || []).filter(sw =>
-    targetPart === "o" ? ["FIRMWARE", "OS"].includes(sw.software_type)
-      : targetPart === "a" ? sw.software_type === "APPLICATION" : false
-  );
+  const installations = (context.installed_software || []).filter(sw => {
+    const compatibleType = targetPart === "o"
+      ? ["FIRMWARE", "OS"].includes(sw.software_type)
+      : targetPart === "a" && sw.software_type === "APPLICATION";
+    return compatibleType && (!config.review_installation_id ||
+      sw.installation_id === config.review_installation_id);
+  });
   const selectedId = installId || (installations.length === 1 ?
     String(installations[0].installation_id) : "");
   const options = assessmentActionOptions(status);
