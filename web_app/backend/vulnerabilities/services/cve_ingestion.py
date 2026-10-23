@@ -1,4 +1,5 @@
 """Phase 1: persist the original NVD CVE record, no asset applicability logic."""
+import re
 from datetime import timezone as utc_timezone
 from decimal import Decimal, InvalidOperation
 
@@ -218,7 +219,7 @@ def execute_cve_fetch(cve, pacer, fetcher=fetch_cve):
 
 
 # --- Generic CVE records recovered by future cpeName discovery jobs ---
-_CVE_ID_PATTERN = __import__("re").compile(r"CVE-[0-9]{4}-[0-9]{4,}\Z")
+_CVE_ID_PATTERN = re.compile(r"CVE-[0-9]{4}-[0-9]{4,}\Z")
 
 
 def validated_cve_record(record):
@@ -246,7 +247,9 @@ def validated_cve_record(record):
                        for item in descriptions)
             or not isinstance(metrics, dict)
             or not isinstance(configurations, list)
-            or not isinstance(references, list)):
+            or not all(isinstance(item, dict) for item in configurations)
+            or not isinstance(references, list)
+            or not all(isinstance(item, dict) for item in references)):
         raise CveResponseError("NVD devolvió campos CVE inválidos.")
     description = next(
         (item["value"] for item in descriptions if item["lang"] == "en"), None

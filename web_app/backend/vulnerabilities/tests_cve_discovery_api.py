@@ -1,6 +1,7 @@
 """Generic NVD CVE 2.0 pagination and ingestion; no external network."""
 import copy
 import json
+from decimal import Decimal
 from io import BytesIO
 from urllib.error import URLError
 from urllib.parse import parse_qs, urlparse
@@ -157,7 +158,7 @@ class GenericCveRecordValidationTests(SimpleTestCase):
         self.assertEqual(data["nvd_record"], original)
         self.assertEqual(data["configurations"], original["configurations"])
         self.assertFalse(data["configurations"][0]["nodes"][0]["cpeMatch"][0]["vulnerable"])
-        self.assertEqual(data["base_score"], 5.3)
+        self.assertEqual(data["base_score"], Decimal("5.3"))
         self.assertEqual(data["severity"], "MEDIUM")
         self.assertEqual(data["nvd_record"]["weaknesses"][0]["description"][0]["value"],
                          "CWE-287")
@@ -178,6 +179,7 @@ class GenericCveRecordValidationTests(SimpleTestCase):
             ("published", None), ("lastModified", "invalid"),
             ("configurations", None), ("descriptions", "not a list"),
             ("metrics", []), ("references", {}),
+            ("configurations", [None]), ("references", [None]),
         ):
             candidate = record()
             candidate[field] = value
