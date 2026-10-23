@@ -148,7 +148,7 @@ export function experimentalDescription(cveId, original, descriptions = []) {
 
 /** Official NVD detail for the selected CVE, not a locally inferred result. */
 export function nvdCveDetailUrl(cveId) {
-  if (!/^CVE-\\d{4}-\\d{4,}$/i.test(String(cveId || ""))) return null;
+  if (!/^CVE-\d{4}-\d{4,}$/i.test(String(cveId || ""))) return null;
   return "https://nvd.nist.gov/vuln/detail/" + encodeURIComponent(cveId);
 }
 
