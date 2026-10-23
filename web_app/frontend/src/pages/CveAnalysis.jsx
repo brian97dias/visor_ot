@@ -352,6 +352,7 @@ export default function CveAnalysis() {
                 disabled={saving} onClick={clearDecision}>Cancelar</button>
             </div>
           </form>}
+        </div>
         {!canDecide && <p className="cve-muted">
           Este rol puede consultar la evaluación. Solo el analista o
           administrador puede registrar una decisión.</p>}
