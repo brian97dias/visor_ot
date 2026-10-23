@@ -13,7 +13,9 @@ from vulnerabilities.models import (
 from vulnerabilities.services.cve_configuration_evaluator import (
     COMPATIBLE, EXCLUDED, INDETERMINATE, evaluate_configurations,
 )
-from vulnerabilities.services.cve_general_assessment import general_assessment_context
+from vulnerabilities.services.cve_general_assessment import (
+    general_assessment_context, summarize_hardware_cve_review,
+)
 from vulnerabilities.tests_cve_discovery_plan import CveDiscoveryPlanTests
 
 CPU_HW = "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*"
@@ -45,6 +47,62 @@ def installed(version="4.5.2", *, confirmed=True):
         "software_type": "FIRMWARE", "version": version,
         "confirmed_cpes": [CPU_FW] if confirmed else [],
     }]
+
+
+class HardwareCveReviewSummaryTests(SimpleTestCase):
+    """A global human verdict must be conservative across all NVD alternatives."""
+
+    @staticmethod
+    def alternative(status=None, *, stale=False):
+        return {
+            "latest_assessment": (
+                {"status": status,
+                 "effective_status": "PENDING_REVIEW" if stale else status,
+                 "stale": stale}
+                if status else None
+            ),
+        }
+
+    def test_no_analyst_decisions_is_pending_not_automatically_applicable(self):
+        info = summarize_hardware_cve_review([
+            self.alternative(), self.alternative(),
+        ])
+        self.assertEqual(info["status"], "PENDING_REVIEW")
+        self.assertEqual(info["reviewed_configurations"], 0)
+        self.assertEqual(info["pending_configurations"], 2)
+
+    def test_one_confirmed_alternative_proves_only_scoped_positive(self):
+        info = summarize_hardware_cve_review([
+            self.alternative("APPLIES"), self.alternative(),
+        ])
+        self.assertEqual(info["status"], "APPLIES")
+        self.assertEqual(info["confirmed_configurations"], 1)
+        self.assertEqual(info["pending_configurations"], 1)
+
+    def test_negative_does_not_exclude_the_cve_when_any_alternative_is_pending(self):
+        info = summarize_hardware_cve_review([
+            self.alternative("NOT_APPLICABLE"), self.alternative(),
+        ])
+        self.assertEqual(info["status"], "IN_REVIEW")
+        self.assertEqual(info["excluded_configurations"], 1)
+
+    def test_no_aplica_requires_every_alternative_to_be_current_and_negative(self):
+        rows = [self.alternative("NOT_APPLICABLE") for _ in range(2)]
+        self.assertEqual(
+            summarize_hardware_cve_review(rows)["status"], "NOT_APPLICABLE"
+        )
+        rows[1] = self.alternative("NOT_APPLICABLE", stale=True)
+        changed = summarize_hardware_cve_review(rows)
+        self.assertEqual(changed["status"], "STALE")
+        self.assertEqual(changed["stale_configurations"], 1)
+
+    def test_reopened_evaluation_is_reviewed_but_no_longer_positive(self):
+        info = summarize_hardware_cve_review([
+            self.alternative("PENDING_REVIEW"),
+        ])
+        self.assertEqual(info["status"], "IN_REVIEW")
+        self.assertEqual(info["reviewed_configurations"], 1)
+        self.assertEqual(summarize_hardware_cve_review([])["status"], "PENDING_REVIEW")
 
 
 class SiemensContextualLogicTests(SimpleTestCase):
@@ -151,6 +209,9 @@ class SiemensContextualHttpTests(TestCase):
         data = response.data
         self.assertEqual(data["context_unit"], "HARDWARE_CVE")
         self.assertEqual(data["technical_result"], COMPATIBLE)
+        self.assertEqual(data["assessment_summary"]["status"], "PENDING_REVIEW")
+        self.assertEqual(data["assessment_summary"]["total_configurations"], 12)
+        self.assertEqual(data["assessment_summary"]["pending_configurations"], 12)
         self.assertEqual(len(data["configurations"]), 12)  # NVD preserved
         self.assertEqual([row["position"] for row in data["relevant_configurations"]], [9])
         self.assertEqual(data["unrelated_configuration_count"], 11)
@@ -193,6 +254,10 @@ class SiemensContextualHttpTests(TestCase):
         created = self.client.post(self.url, payload, format="json")
         self.assertEqual(created.status_code, 201, created.data)
         self.assertEqual(created.data["assessment"]["status"], "APPLIES")
+        summary = self.client.get(self.url).data["assessment_summary"]
+        self.assertEqual(summary["status"], "APPLIES")
+        self.assertEqual(summary["confirmed_configurations"], 1)
+        self.assertEqual(summary["pending_configurations"], 11)
         self.assertEqual(AssetCveAssessment.objects.count(), 1)
         listing = self.client.get("/api/vulnerabilities/cves/?technical=ALL")
         self.assertEqual(listing.data["results"][0]["evaluation_status"], "APPLIES")
