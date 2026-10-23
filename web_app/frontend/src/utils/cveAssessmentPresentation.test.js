@@ -86,8 +86,9 @@ test("form prevents decision against an installation not currently linked", () =
     /ya no figura como vigente/);
   assert.match(submissionGuard(context(), form({software_installation_id:""})),
     /Selecciona/);
-  assert.equal(submissionGuard(context(), form({software_installation_id:""}).firmware_verdict
-    ? form({software_installation_id:"",firmware_verdict:"UNKNOWN"}) : {}), "");
+  assert.equal(submissionGuard(context(), form({
+    software_installation_id:"", firmware_verdict:"UNKNOWN"
+  })), "");
 });
 
 test("justification and complete inventory attestation need explicit evidence", () => {
