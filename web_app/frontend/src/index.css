@@ -3256,3 +3256,22 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cve-technical-criterion p { color: #94a3b8; font-size: .83rem; line-height: 1.5;
   margin: 7px 0 0; }
 .cve-general-constraints { font-size: .85rem; color: #cbd5e1; }
+
+
+/* Per-hardware CVE context: compact, evidence-backed inventory relationships. */
+.cve-catalogue-related { display: grid; gap: 10px; min-width: 220px; }
+.cve-catalogue-asset-context + .cve-catalogue-asset-context {
+  border-top: 1px solid #334155; padding-top: 8px;
+}
+.cve-catalogue-asset-item { display: grid; gap: 2px; margin-bottom: 5px; }
+.cve-catalogue-asset-item > span { font-size: .7rem; font-weight: 700;
+  color: #94a3b8; text-transform: uppercase; }
+.cve-catalogue-asset-item > a { color: #7dd3fc; font-size: .84rem;
+  overflow-wrap: anywhere; }
+.cve-catalogue-asset-item > small { color: #94a3b8; font-size: .76rem; }
+.cve-general-context-summary { color: #94a3b8; font-size: .85rem;
+  line-height: 1.65; margin: 16px 0; }
+.cve-general-relevant-configuration {
+  margin-top: 20px; border-top: 1px solid #334155; padding-top: 16px;
+}
+.cve-technical-criterion code { overflow-wrap: anywhere; }

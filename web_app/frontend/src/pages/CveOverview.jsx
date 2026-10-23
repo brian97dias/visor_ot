@@ -188,8 +188,6 @@ export default function CveOverview() {
     {error && <p className="error-message" role="alert">{error}</p>}
 
     <div className="cve-catalogue-stats">
-      <div className="cpe-overview-stat"><strong>{catalogue.count}</strong>
-        <span>CVE en el listado filtrado</span></div>
       <div className="cpe-overview-stat"><strong>{runs.length}</strong>
         <span>Búsquedas recientes</span></div>
       <div className="cpe-overview-stat"><strong>
@@ -198,6 +196,12 @@ export default function CveOverview() {
     </div>
 
     <div className="panel cve-catalogue-panel">
+      <div className="panel-header">
+        <div><h2>CVE registrados</h2>
+          <p>Vulnerabilidades descubiertas y resultados de evaluación del inventario.</p>
+        </div>
+        <span className="record-count">{catalogue.count} resultados</span>
+      </div>
       <div className="cpe-overview-toolbar">
         <label className="cve-catalogue-control">
           <span>Buscar CVE</span>
@@ -239,7 +243,7 @@ export default function CveOverview() {
       <div className="table-container">
         <table className="data-table">
           <thead><tr><th>CVE</th><th>Severidad</th><th>Descripción NVD</th>
-            <th>Activos seleccionados</th><th>Estado</th><th>Resultado técnico</th><th>Acción</th></tr></thead>
+            <th>Activos relacionados</th><th>Estado</th><th>Resultado técnico</th><th>Acción</th></tr></thead>
           <tbody>
             {loading ? <tr><td colSpan="7">Cargando CVE...</td></tr>
             : catalogue.results.length === 0 ? <tr><td colSpan="7">
@@ -254,10 +258,26 @@ export default function CveOverview() {
                 {row.base_score != null && <small className="cve-catalogue-secondary">
                   CVSS {row.base_score}</small>}</td>
               <td><p className="cve-catalogue-description">{row.description || "Sin descripción."}</p></td>
-              <td><strong>{row.selected_assets_count ?? row.hardware_count}</strong>
-                <small className="cve-catalogue-secondary">
-                  Hardware vinculado por búsqueda o evaluación</small>
-              </td>
+              <td><div className="cve-catalogue-related">
+                {(row.related_assets || []).length ? row.related_assets.map(context =>
+                  <div className="cve-catalogue-asset-context" key={context.hardware_id}>
+                    {context.assets?.length ? context.assets.map(asset =>
+                      <div key={asset.asset_id} className="cve-catalogue-asset-item">
+                        <span>{asset.asset_type === "HARDWARE" ? "Hardware" :
+                          asset.software_type === "FIRMWARE" ? "Firmware" : "Software"}</span>
+                        <Link to={"/assets/" + asset.asset_id}
+                          title={"Ver ficha técnica de " + asset.name}>
+                          {asset.name}
+                        </Link>
+                        {asset.version && <small>Versión {asset.version}</small>}
+                      </div>) : <span className="cve-catalogue-secondary">
+                        Hardware #{context.hardware_id}: evidencia desactualizada
+                      </span>}
+                  </div>
+                ) : <span className="cve-catalogue-secondary">
+                  Sin activos vinculados en el inventario
+                </span>}
+              </div></td>
               <td>
                 <span className="cve-catalogue-evaluation-status"
                   data-status={row.evaluation_status || "PENDING_REVIEW"}>

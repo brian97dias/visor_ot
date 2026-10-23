@@ -54,6 +54,14 @@ function Criterion({ item, depth = 0 }) {
         }>{CVE_TECHNICAL_STATE[item.technical_result] ||
           CVE_TECHNICAL_STATE.INDETERMINATE}</span>
         <p>{item.technical_reason || "No hay evidencia suficiente para resolver el criterio."}</p>
+        {item.technical_matched_cpe && <p>
+          CPE confirmado usado: <code>{item.technical_matched_cpe}</code>
+        </p>}
+        {item.technical_software_asset_id && <p>
+          Software #{item.technical_software_asset_id}
+          {item.technical_software_installation_id &&
+            " · Instalación #" + item.technical_software_installation_id}
+        </p>}
         {item.technical_installed_version && <p>Versión comprobada: {
           item.technical_installed_version
         }</p>}
@@ -225,7 +233,6 @@ export default function CveDetail() {
   const [hardware, setHardware] = useState([]);
   const [selectedHardware, setSelectedHardware] = useState("");
   const [context, setContext] = useState(null);
-  const [activeConfig, setActiveConfig] = useState(0);
   const [loading, setLoading] = useState(true);
   const [contextLoading, setContextLoading] = useState(false);
   const [error, setError] = useState("");
@@ -259,15 +266,13 @@ export default function CveDetail() {
       .then(data => {
         if (!live) return;
         setContext(data);
-        setActiveConfig(data.configurations.find(row => row.review_supported)?.index ?? 0);
       })
       .catch(err => { if (live) setError(err.message); })
       .finally(() => { if (live) setContextLoading(false); });
     return () => { live = false; };
   }, [cveId, selectedHardware, isLegacy, revision]);
 
-  const configs = context?.configurations || [];
-  const selection = configs[activeConfig] || configs[0];
+  const configs = context?.relevant_configurations || [];
   const source = cve?.description_source;
   const nvdUrl = "https://nvd.nist.gov/vuln/detail/" + encodeURIComponent(cveId);
   if (loading) return <section className="page" aria-busy="true">
@@ -314,7 +319,7 @@ export default function CveDetail() {
     <div className="cve-general-hardware-select">
       <label htmlFor="cve-hardware-choice">Hardware a evaluar</label>
       {hardware.length ? <select id="cve-hardware-choice" value={selectedHardware}
-        onChange={event => { setSelectedHardware(event.target.value); setActiveConfig(0); }}>
+        onChange={event => setSelectedHardware(event.target.value)}>
         {hardware.map(row => <option key={row.hardware_id} value={row.hardware_id}>
           #{row.hardware_id} · {row.hardware_name}</option>)}
       </select> : <p className="cve-muted">
@@ -324,16 +329,14 @@ export default function CveDetail() {
 
     {contextLoading ? <p className="cve-muted">Cargando condiciones del inventario...</p>
       : context && <>
-        <div className="cve-general-configuration-selector">
-          <label htmlFor="cve-configuration-choice">Configuración NVD</label>
-          <select id="cve-configuration-choice" value={selection?.index ?? ""}
-            onChange={event => setActiveConfig(Number(event.target.value))}>
-            {configs.map(conf => <option value={conf.index} key={conf.index}>
-              Configuración {conf.position}{conf.review_supported ? " · Evaluación asistida" :
-                " · Revisión técnica"}</option>)}
-          </select>
-          <span>{configs.length} configuraciones conservadas de NVD</span>
-        </div>
+        <p className="cve-general-context-summary">
+          Evaluación de este CVE para el hardware #{context.hardware_asset_id}.
+          {" "}{configs.length} configuraciones pertinentes de NVD.
+          {context.unrelated_configuration_count > 0 && <>
+            {" "}{context.unrelated_configuration_count} alternativas de otros productos
+            se conservan en el registro NVD sin mostrarse como condiciones de este equipo.
+          </>}
+        </p>
         <div className="panel cve-technical-summary">
           <div className="cve-technical-summary-heading">
             <h2>Resultado técnico del CVE en este hardware</h2>
@@ -346,26 +349,28 @@ export default function CveDetail() {
             Una configuración excluida no descarta por sí sola las demás alternativas.
             Una configuración compatible todavía requiere revisar su aplicabilidad real.</p>
         </div>
-        {selection ? <section className="cve-nvd-conditions" key={
-          context.hardware_asset_id + ":" + selection.index
-        }>
+        {configs.length ? configs.map(config => <section
+          className="cve-nvd-conditions cve-general-relevant-configuration"
+          key={context.hardware_asset_id + ":" + config.index}>
           <div className="cve-technical-summary-heading">
-            <h2>Condiciones de la configuración {selection.position}</h2>
-            <span className="cve-technical-tag" data-result={selection.technical_result}>
-              {CVE_TECHNICAL_STATE[selection.technical_result] ||
+            <h2>Condiciones relevantes · Configuración NVD {config.position}</h2>
+            <span className="cve-technical-tag" data-result={config.technical_result}>
+              {CVE_TECHNICAL_STATE[config.technical_result] ||
                 CVE_TECHNICAL_STATE.INDETERMINATE}
             </span>
           </div>
-          <Criterion item={selection.tree}/>
-          <ConfigurationReview context={context} config={selection}
+          <Criterion item={config.tree}/>
+          <ConfigurationReview context={context} config={config}
             canDecide={canDecide}
             onSaved={() => {
-              setNotice("Evaluación guardada. El historial de la configuración se actualizó.");
+              setNotice("Evaluación guardada. El historial se actualizó.");
               setRevision(n => n + 1);
             }}/>
-        </section> : <p className="cpe-warning">
-          NVD no ha publicado configuraciones evaluables para este CVE.
-          La correspondencia queda pendiente de verificación.</p>}
+        </section>) : <div className="panel cve-technical-summary">
+          <p>No existen condiciones NVD con correspondencia demostrada
+            para los CPE vigentes de este hardware. El resultado permanece
+            sujeto a verificación; las configuraciones originales se conservan.</p>
+        </div>}
       </>}
   </section>;
 }

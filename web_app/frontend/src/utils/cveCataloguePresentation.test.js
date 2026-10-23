@@ -55,9 +55,9 @@ test("catalogue statuses explain scoped evaluation rather than NVD fetch", () =>
 });
 
 test("technical compatibility has its own labels and an attention filter", () => {
-  assert.equal(CVE_TECHNICAL_STATE.COMPATIBLE, "Compatible con el criterio");
-  assert.equal(CVE_TECHNICAL_STATE.EXCLUDED, "Excluido por criterio técnico");
-  assert.equal(CVE_TECHNICAL_STATE.INDETERMINATE, "Indeterminado");
+  assert.equal(CVE_TECHNICAL_STATE.COMPATIBLE, "Coincidencia técnica");
+  assert.equal(CVE_TECHNICAL_STATE.EXCLUDED, "No aplica técnicamente");
+  assert.equal(CVE_TECHNICAL_STATE.INDETERMINATE, "Por verificar");
   assert.equal(CVE_TECHNICAL_FILTER.ATTENTION, "Requieren atención");
   assert.equal(CVE_EVALUATION_STATE.NOT_APPLICABLE, "No aplica");
   assert.notEqual(CVE_EVALUATION_STATE.NOT_APPLICABLE,
