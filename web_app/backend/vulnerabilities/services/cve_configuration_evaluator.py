@@ -118,7 +118,12 @@ def evaluate_criterion(criterion, hardware_cpes, installed_software):
         if not names:
             result, reason = INDETERMINATE, "No existe un CPE vigente confirmado del hardware."
         elif not any(_product_match(cpe, name) for name in names):
-            result, reason = EXCLUDED, "El CPE confirmado del hardware corresponde a otro producto."
+            # A family-level NVD CPE may cover a more specific inventoried
+            # variant. A different product string alone cannot disprove scope.
+            result, reason = INDETERMINATE, (
+                "El CPE de plataforma no coincide exactamente; "
+                "no se ha demostrado que sea una variante excluida."
+            )
         elif bounds or cpe[5] not in ("*", "-"):
             result, reason = INDETERMINATE, "La comparación de versión del hardware requiere otra evidencia."
         else:
