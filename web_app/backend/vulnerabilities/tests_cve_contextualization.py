@@ -267,6 +267,9 @@ class SiemensContextualHttpTests(TestCase):
         undone = self.client.post(self.url, payload, format="json")
         self.assertEqual(undone.status_code, 201, undone.data)
         self.assertEqual(undone.data["assessment"]["status"], "PENDING_REVIEW")
+        reopened_summary = self.client.get(self.url).data["assessment_summary"]
+        self.assertEqual(reopened_summary["status"], "IN_REVIEW")
+        self.assertEqual(reopened_summary["confirmed_configurations"], 0)
         self.assertEqual(AssetCveAssessment.objects.count(), 2)
 
     def test_verified_version_range_cannot_be_marked_not_applicable(self):
@@ -306,6 +309,7 @@ class SiemensContextualHttpTests(TestCase):
         stale_config = changed["relevant_configurations"][0]
         self.assertFalse(stale_config["review_supported"])
         self.assertTrue(stale_config["latest_assessment"]["stale"])
+        self.assertEqual(changed["assessment_summary"]["status"], "STALE")
         reopened = self.client.post(self.url, {
             "configuration_index": stale_config["index"],
             "verdict": "UNKNOWN",
@@ -317,6 +321,8 @@ class SiemensContextualHttpTests(TestCase):
         }, format="json")
         self.assertEqual(reopened.status_code, 201, reopened.data)
         self.assertEqual(reopened.data["assessment"]["status"], "PENDING_REVIEW")
+        self.assertEqual(self.client.get(self.url).data["assessment_summary"]["status"],
+                         "IN_REVIEW")
         self.assertEqual(AssetCveAssessment.objects.count(), 2)
 
     def test_version_bounded_review_does_not_accept_stale_product_identity(self):
