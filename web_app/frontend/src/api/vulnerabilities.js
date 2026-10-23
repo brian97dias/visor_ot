@@ -83,4 +83,15 @@ export function startBulkCpeSearch(assetIds) {
   });
 }
 
+/** Single assisted configuration-12 assessment; read-only GET makes no NVD call. */
+export function getExperimentalCveAssessment() {
+  return request("/api/vulnerabilities/assets/2/cve-assessments/CVE-2021-33540/");
+}
 
+/** Append a reviewed assessment; never edits CPEs or inventory relationships. */
+export function createExperimentalCveAssessment(payload) {
+  return request("/api/vulnerabilities/assets/2/cve-assessments/CVE-2021-33540/", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
