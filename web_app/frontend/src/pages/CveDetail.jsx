@@ -31,7 +31,10 @@ function Criterion({ item, depth = 0 }) {
         </div>
         <span className="cve-condition-state"
           data-state={item.state || "UNVERIFIED"}>
-          {item.state === "SATISFIED" ? "CPE confirmado" : "Sin verificar"}
+          {isSoftware
+            ? (["COMPATIBLE", "EXCLUDED"].includes(item.technical_result)
+              ? "Identidad contrastada" : "Identidad por verificar")
+            : item.state === "SATISFIED" ? "CPE confirmado" : "Sin verificar"}
         </span>
       </div>
       <p className="cve-nvd-product">{String(item.criteria || "").split(":")

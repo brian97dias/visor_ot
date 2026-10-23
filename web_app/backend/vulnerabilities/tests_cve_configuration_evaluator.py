@@ -105,6 +105,14 @@ class NvdVersionEvaluatorTests(SimpleTestCase):
             [scenario()], [SIEMENS_HW], installed(cpe=None)
         )["result"], INDETERMINATE)
 
+    def test_family_hardware_cpe_is_not_excluded_on_name_mismatch_alone(self):
+        broad_hw = "cpe:2.3:h:siemens:simatic_s7-1200:-:*:*:*:*:*:*:*"
+        result = evaluate_criterion(
+            {"criteria": broad_hw, "vulnerable": False},
+            [SIEMENS_HW], installed(),
+        )
+        self.assertEqual(result["result"], INDETERMINATE)
+
     def test_platform_vulnerable_false_means_required_platform_not_no_aplica(self):
         result = evaluate_criterion(scenario()["nodes"][1]["cpeMatch"][0],
                                     [SIEMENS_HW], installed())

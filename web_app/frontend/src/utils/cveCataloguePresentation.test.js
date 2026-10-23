@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CVE_SEVERITY, CVE_DISCOVERY_STATE, CVE_EVALUATION_STATE,
-  CVE_EVALUATION_HELP, cvePageCount,
+  CVE_EVALUATION_HELP, CVE_TECHNICAL_STATE, CVE_TECHNICAL_FILTER,
+  cvePageCount,
   cveHardwareCandidates, toggleCveHardwareSelection,
   cveHardwareSelectionValid, isCveDiscoveryActive,
 } from "./cveCataloguePresentation.js";
@@ -51,4 +52,14 @@ test("catalogue statuses explain scoped evaluation rather than NVD fetch", () =>
   assert.equal(CVE_EVALUATION_STATE.STALE, "Revisar evidencia");
   assert.match(CVE_EVALUATION_HELP.APPLIES, /al menos una/i);
   assert.match(CVE_EVALUATION_HELP.NOT_APPLICABLE, /todas/i);
+});
+
+test("technical compatibility has its own labels and an attention filter", () => {
+  assert.equal(CVE_TECHNICAL_STATE.COMPATIBLE, "Compatible con el criterio");
+  assert.equal(CVE_TECHNICAL_STATE.EXCLUDED, "Excluido por criterio técnico");
+  assert.equal(CVE_TECHNICAL_STATE.INDETERMINATE, "Indeterminado");
+  assert.equal(CVE_TECHNICAL_FILTER.ATTENTION, "Requieren atención");
+  assert.equal(CVE_EVALUATION_STATE.NOT_APPLICABLE, "No aplica");
+  assert.notEqual(CVE_EVALUATION_STATE.NOT_APPLICABLE,
+    CVE_TECHNICAL_STATE.EXCLUDED);
 });
