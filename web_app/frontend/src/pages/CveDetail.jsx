@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useOutletContext, useParams } from "react-router-dom";
 import {
   listCveHardware, readCveCatalogue, readGeneralCveAssessment,
@@ -80,8 +80,10 @@ function Criterion({ item, depth = 0 }) {
             </p> : <p className="cve-muted">
               Sin CPE vigente confirmado para esta versión del software.
             </p>}
-          </div>) : <p className="cve-muted">No hay software instalado vigente registrado.
-            Esto no demuestra que la condición no se cumpla.</p>}
+          </div>) : <p className="cve-muted">
+            No se identificó software instalado con un CPE confirmado
+            que corresponda a este criterio NVD. Esto no demuestra su ausencia.
+          </p>}
       </div>}
     </article>;
   }
@@ -124,7 +126,17 @@ function ConfigurationReview({ context, config, onSaved, canDecide }) {
   });
   const selectedId = installId || (installations.length === 1 ?
     String(installations[0].installation_id) : "");
-  const options = assessmentActionOptions(status);
+  const staleDecision = Boolean(last?.stale &&
+    ["APPLIES", "NOT_APPLICABLE"].includes(last.status));
+  const canReopen = staleDecision && canDecide;
+  const canReview = config.review_supported && canDecide;
+  const options = (staleDecision
+    ? [{ key: "UNKNOWN", title: "Reabrir evaluación desactualizada" }]
+    : assessmentActionOptions(status)
+  ).filter(option =>
+    !(config.review_installation_id &&
+      config.technical_result === "COMPATIBLE" &&
+      option.key === "NOT_MATCH"));
   const noSelected = choice !== "UNKNOWN" && !selectedId;
   const invalid = !justification.trim() || noSelected;
 
@@ -142,7 +154,8 @@ function ConfigurationReview({ context, config, onSaved, canDecide }) {
         configuration_fingerprint: config.fingerprint,
         inventory_fingerprint: context.inventory_fingerprint,
         verdict: choice,
-        software_installation_id: selectedId ? Number(selectedId) : null,
+        software_installation_id: choice === "UNKNOWN" ? null :
+          (selectedId ? Number(selectedId) : null),
         inventory_declared_complete: choice === "NOT_MATCH" && complete,
         justification: justification.trim(),
       });
@@ -169,7 +182,12 @@ function ConfigurationReview({ context, config, onSaved, canDecide }) {
     {!config.review_supported && <p className="cpe-warning" role="status">
       {config.review_reason} Esta configuración permanece en revisión;
       no se habilita la confirmación sin una lógica verificable.</p>}
-    {config.review_supported && canDecide && <div className="cve-nvd-actions">
+    {config.review_installation_id && config.technical_result === "COMPATIBLE" &&
+      <p className="cve-muted">
+        El firmware instalado satisface este criterio NVD; no se puede
+        descartar mientras las evidencias sean vigentes.
+      </p>}
+    {(canReview || canReopen) && <div className="cve-nvd-actions">
       {options.map(option => <button key={option.key} type="button"
         className={"cve-nvd-action" + (choice === option.key ? " selected" : "")}
         data-action={option.key}
@@ -179,7 +197,8 @@ function ConfigurationReview({ context, config, onSaved, canDecide }) {
     </div>}
     {!canDecide && <p className="cve-muted">
       El rol actual permite consultar, pero no registrar decisiones.</p>}
-    {choice && config.review_supported && <form className="cve-compact-review"
+    {choice && (canReview || (canReopen && choice === "UNKNOWN")) &&
+      <form className="cve-compact-review"
       onSubmit={submit}>
       {installations.length > 1 && choice !== "UNKNOWN" && <label>
         Instalación que deseas evaluar
