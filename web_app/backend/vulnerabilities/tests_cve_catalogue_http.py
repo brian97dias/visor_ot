@@ -114,6 +114,55 @@ class CveCatalogueHttpTests(TestCase):
         self.assertEqual(self.client.get(self.BASE).status_code, 401)
         self.assertEqual(self.client.get(self.BASE + "CVE-2024-65432/").status_code, 401)
 
+    def test_catalogue_counts_previously_assessed_hardware_without_a_finding(self):
+        from django.utils import timezone
+        existing = Cve.objects.create(
+            cve_id="CVE-2021-33540",
+            fetch_status=Cve.FetchStatus.COMPLETED,
+            retrieved_at=timezone.now(), descriptions=[
+                {"lang": "en", "value": "Original description"},
+                {"lang": "es", "value": "Descripción original en español"},
+            ],
+        )
+        from vulnerabilities.models import AssetCveAssessment
+        AssetCveAssessment.objects.create(
+            hardware=self.hardware, cve=existing,
+            configuration_index=11, configuration_snapshot={},
+            configuration_fingerprint="a" * 64,
+            inventory_fingerprint="b" * 64,
+            status=AssetCveAssessment.Status.APPLIES,
+            justification="Verificación histórica", decided_by=self.user,
+        )
+        listing = self.client.get(self.BASE)
+        self.assertEqual(listing.status_code, 200, listing.data)
+        row = listing.data["results"][0]
+        self.assertEqual(row["selected_assets_count"], 1)
+        self.assertEqual(row["description"], "Descripción original en español")
+        self.assertEqual(row["description_source"], "NVD_ES")
+        related = self.client.get(self.BASE + existing.cve_id + "/hardware/")
+        self.assertEqual(related.status_code, 200, related.data)
+        self.assertEqual(related.data["count"], 1)
+        self.assertTrue(related.data["results"][0]["has_assessment"])
+        self.assertIsNone(related.data["results"][0]["finding_id"])
+
+    def test_assessed_hardware_with_a_finding_is_counted_once(self):
+        from django.utils import timezone
+        self.run_discovery([record()])
+        from vulnerabilities.models import AssetCveAssessment
+        source = Cve.objects.get(cve_id="CVE-2024-65432")
+        AssetCveAssessment.objects.create(
+            hardware=self.hardware, cve=source,
+            configuration_index=0, configuration_snapshot={},
+            configuration_fingerprint="a" * 64,
+            inventory_fingerprint="b" * 64,
+            status=AssetCveAssessment.Status.PENDING_REVIEW,
+            justification="Análisis iniciado", decided_by=self.user,
+        )
+        results = self.client.get(self.BASE)
+        self.assertEqual(results.data["results"][0]["selected_assets_count"], 1)
+        related = self.client.get(self.BASE + source.cve_id + "/hardware/")
+        self.assertEqual(related.data["count"], 1)
+
     def test_not_yet_fetched_record_is_not_presented_as_official(self):
         Cve.objects.create(cve_id="CVE-2024-65432")
         self.assertEqual(self.client.get(self.BASE).data["count"], 0)
