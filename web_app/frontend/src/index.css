@@ -3175,3 +3175,46 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   .cve-catalogue-detail-panel { padding: 15px; }
   .cve-catalogue-dialog { padding: 16px; }
 }
+
+
+/* Unified CVE analysis: readable NVD logic, never raw configuration JSON. */
+.cve-general-analysis .cve-general-hardware-select,
+.cve-general-analysis .cve-general-configuration-selector {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  color: #cbd5e1; margin: 18px 0 22px;
+}
+.cve-general-analysis .cve-general-hardware-select label,
+.cve-general-analysis .cve-general-configuration-selector label {
+  font-size: .87rem; font-weight: 650;
+}
+.cve-general-analysis .cve-general-hardware-select select,
+.cve-general-analysis .cve-general-configuration-selector select,
+.cve-general-analysis .cve-compact-review select {
+  border: 1px solid #475569; background: #0f172a;
+  color: #e2e8f0; border-radius: 7px; font: inherit;
+  padding: 9px 12px; max-width: 100%;
+}
+.cve-general-analysis .cve-general-configuration-selector span {
+  font-size: .8rem; color: #94a3b8;
+}
+.cve-general-dates { display: flex; flex-wrap: wrap; gap: 12px 22px;
+  color: #94a3b8; font-size: .82rem; margin-top: 9px; }
+.cve-nvd-detail .cve-general-dates { margin-bottom: 9px; }
+.cve-general-logic { display: flex; flex-wrap: wrap; gap: 10px;
+  align-items: center; font-size: .85rem; color: #94a3b8; margin: 9px 0 13px; }
+.cve-general-nested { margin-left: 16px; padding-left: 17px;
+  border-left: 2px solid #334155; }
+.cve-general-group .cve-nvd-plus { font-size: 1.15rem; font-weight: 700; }
+.cve-general-criterion { margin-bottom: 0; }
+.cve-general-analysis .cve-compact-review select { display: block; margin-top: 8px; }
+.cve-general-history { border-top: 1px solid #334155; margin-top: 19px;
+  padding-top: 12px; }
+.cve-general-history summary { cursor: pointer; font-size: .9rem;
+  color: #7dd3fc; }
+.cve-general-history .cve-history { margin-top: 16px; }
+.cve-general-analysis .cve-nvd-condition { min-width: 0; }
+@media (max-width: 740px) {
+  .cve-general-nested { margin-left: 6px; padding-left: 9px; }
+  .cve-general-hardware-select select,
+  .cve-general-configuration-selector select { width: 100%; }
+}

@@ -182,7 +182,11 @@ def general_assessment_context(cve_id, hardware_id):
     return {
         "cve_id": cve.cve_id, "hardware_asset_id": hw.pk,
         "hardware_name": hw.asset.name, "inventory_fingerprint": inventory_fp,
-        "installed_software": installed, "confirmed_hardware_cpes": list(confirmed),
+        "installed_software": installed,
+        "confirmed_hardware_cpes": [
+            {"cpe_name": name, "association_id": assoc.pk}
+            for name, assoc in confirmed.items()
+        ],
         "configurations": configs,
     }
 
