@@ -95,3 +95,49 @@ export function createExperimentalCveAssessment(payload) {
     body: JSON.stringify(payload),
   });
 }
+
+
+// Generic CVE discovery: browser requests only enqueue/read completed jobs.
+const CVE_DISCOVERY_BASE = "/api/vulnerabilities/cve-discoveries/";
+
+function cvexQuery(values) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(values || {})) {
+    if (value !== "" && value !== undefined && value !== null) {
+      params.set(key, String(value));
+    }
+  }
+  return params.size ? "?" + params.toString() : "";
+}
+
+export function listCveCatalogue(filters = {}) {
+  return request("/api/vulnerabilities/cves/" + cvexQuery(filters));
+}
+export async function readCveCatalogue(cveId) {
+  const result = await request("/api/vulnerabilities/cves/" +
+    encodeURIComponent(cveId) + "/");
+  return result.cve;
+}
+export function listCveHardware(cveId, page = 1, pageSize = 15) {
+  return request("/api/vulnerabilities/cves/" + encodeURIComponent(cveId) +
+    "/hardware/" + cvexQuery({ page, page_size: pageSize }));
+}
+
+export async function listCveDiscoveryRuns(limit = 20) {
+  const result = await request(CVE_DISCOVERY_BASE + cvexQuery({ limit }));
+  return result.runs;
+}
+export function enqueueCveDiscovery(hardwareIds) {
+  return request(CVE_DISCOVERY_BASE, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ hardware_ids: hardwareIds }),
+  });
+}
+export async function readCveDiscoveryRun(runId) {
+  const result = await request(CVE_DISCOVERY_BASE + runId + "/");
+  return result.run;
+}
+export function listCveDiscoveryFindings(runId, page = 1, pageSize = 20) {
+  return request(CVE_DISCOVERY_BASE + runId + "/findings/" +
+    cvexQuery({ page, page_size: pageSize }));
+}

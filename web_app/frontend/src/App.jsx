@@ -21,6 +21,8 @@ import AssetDetail from "./pages/AssetDetail";
 import AssetCpeDiscovery from "./pages/AssetCpeDiscovery";
 import CpeOverview from "./pages/CpeOverview";
 import CveAnalysis from "./pages/CveAnalysis";
+import CveOverview from "./pages/CveOverview";
+import CveDetail from "./pages/CveDetail";
 import AssetEditor from "./pages/AssetEditor";
 import Interfaces from "./pages/Interfaces";
 import InterfaceDetail from "./pages/InterfaceDetail";
@@ -120,7 +122,9 @@ function App() {
           <Route path="/assets/:assetId/edit" element={<AssetEditor />} />
           <Route path="/assets/:assetId/cpe" element={<AssetCpeDiscovery />} />
           <Route path="/vulnerabilities/cpe" element={<CpeOverview />} />
-          <Route path="/vulnerabilities/cve" element={<CveAnalysis />} />
+          <Route path="/vulnerabilities/cve" element={<CveOverview />} />
+          <Route path="/vulnerabilities/cve/experimental" element={<CveAnalysis />} />
+          <Route path="/vulnerabilities/cve/:cveId" element={<CveDetail />} />
 
         </Route>
 

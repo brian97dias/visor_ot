@@ -145,7 +145,7 @@ export default function CveAnalysis() {
 
   return <section className="page cve-analysis-page cve-nvd-detail">
     <nav className="breadcrumbs" aria-label="Ruta de navegación">
-      <span>Vulnerabilidades</span><span>/</span>
+      <Link to="/vulnerabilities/cve">Análisis CVE</Link><span>/</span>
       <Link to="/vulnerabilities/cpe">Identificación CPE</Link><span>/</span>
       <span>Análisis CVE</span>
     </nav>
