@@ -146,8 +146,7 @@ export default function CveAnalysis() {
   return <section className="page cve-analysis-page cve-nvd-detail">
     <nav className="breadcrumbs" aria-label="Ruta de navegación">
       <Link to="/vulnerabilities/cve">Análisis CVE</Link><span>/</span>
-      <Link to="/vulnerabilities/cpe">Identificación CPE</Link><span>/</span>
-      <span>Análisis CVE</span>
+      <span>{info.cve_id}</span>
     </nav>
     {error && <p className="error-message" role="alert">{error}</p>}
     <SuccessNotice message={notice} onClose={() => setNotice("")} durationMs={30000} />
@@ -173,6 +172,10 @@ export default function CveAnalysis() {
           <p className="cve-nvd-description-heading">Descripción</p>
           <p className="cve-nvd-description">{description.text}</p>
           <p className="cve-nvd-description-label">{description.label}</p>
+          <p className="cve-nvd-meta cve-general-dates">
+            {info.published && <span>Publicado: {new Date(info.published).toLocaleDateString("es-CO")}</span>}
+            {info.last_modified && <span>Actualizado: {new Date(info.last_modified).toLocaleDateString("es-CO")}</span>}
+          </p>
           <p className="cve-nvd-meta">
             Evaluación del hardware <Link to={"/assets/" + info.hardware_asset_id}>
               #{info.hardware_asset_id}</Link> · Configuración {info.configuration_position}

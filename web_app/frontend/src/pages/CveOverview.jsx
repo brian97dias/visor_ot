@@ -217,7 +217,7 @@ export default function CveOverview() {
       <div className="table-container">
         <table className="data-table">
           <thead><tr><th>CVE</th><th>Severidad</th><th>Descripción NVD</th>
-            <th>Hardware relacionados</th><th>Acción</th></tr></thead>
+            <th>Activos seleccionados</th><th>Acción</th></tr></thead>
           <tbody>
             {loading ? <tr><td colSpan="5">Cargando CVE...</td></tr>
             : catalogue.results.length === 0 ? <tr><td colSpan="5">
@@ -232,9 +232,9 @@ export default function CveOverview() {
                 {row.base_score != null && <small className="cve-catalogue-secondary">
                   CVSS {row.base_score}</small>}</td>
               <td><p className="cve-catalogue-description">{row.description || "Sin descripción."}</p></td>
-              <td><strong>{row.hardware_count}</strong>
+              <td><strong>{row.selected_assets_count ?? row.hardware_count}</strong>
                 <small className="cve-catalogue-secondary">
-                  {row.hardware_count === 1 ? "Hallazgo candidato" : "Hallazgos candidatos"}</small>
+                  Hardware vinculado por búsqueda o evaluación</small>
               </td>
               <td><Link className="button-secondary"
                 to={"/vulnerabilities/cve/" + encodeURIComponent(row.cve_id)}>Ver</Link></td>
@@ -288,9 +288,8 @@ export default function CveOverview() {
     </section>
     <p className="cve-overview-disclaimer">
       Un CVE encontrado por CPE es un hallazgo candidato: no significa que afecte
-      automáticamente al hardware. La evaluación asistida de Phoenix Contact
-      permanece disponible por separado.
-      {" "}<Link to="/vulnerabilities/cve/experimental">Ver caso experimental</Link>.
+      automáticamente al hardware. Abre «Ver» para revisar sus condiciones NVD
+      y las evidencias del inventario. Las decisiones siempre requieren verificación.
     </p>
 
     {dialogOpen && <div className="cpe-bulk-overlay">

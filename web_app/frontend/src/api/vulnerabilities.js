@@ -141,3 +141,17 @@ export function listCveDiscoveryFindings(runId, page = 1, pageSize = 20) {
   return request(CVE_DISCOVERY_BASE + runId + "/findings/" +
     cvexQuery({ page, page_size: pageSize }));
 }
+
+
+// Scoped general CVE assessment. The experimental endpoint remains unchanged.
+export function readGeneralCveAssessment(cveId, hardwareId) {
+  return request("/api/vulnerabilities/cves/" + encodeURIComponent(cveId) +
+    "/hardware/" + hardwareId + "/assessment/");
+}
+export function createGeneralCveAssessment(cveId, hardwareId, payload) {
+  return request("/api/vulnerabilities/cves/" + encodeURIComponent(cveId) +
+    "/hardware/" + hardwareId + "/assessment/", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+}
