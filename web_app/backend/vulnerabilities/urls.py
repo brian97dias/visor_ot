@@ -5,10 +5,12 @@ from .views import CpeSearchStartView, CpeSearchLatestView, CpeSearchDetailView,
 from .association_views import AssetCpeListCreateView, AssetCpeDecisionView
 from .bulk_views import CpeBulkSearchView
 from .external_cpe_views import ExternalCpeVerificationListView, ExternalCpeVerificationDetailView
+from .cve_assessment_views import ExperimentalCveAssessmentView
 
 app_name = "vulnerabilities"
 urlpatterns = [
     path("cpe-overview/", CpeOverviewView.as_view(), name="cpe-overview"),
+    path("assets/<int:asset_id>/cve-assessments/<str:cve_id>/", ExperimentalCveAssessmentView.as_view(), name="asset-cve-assessment"),
     path("cpe-searches/bulk/", CpeBulkSearchView.as_view(), name="cpe-search-bulk"),
     path("assets/<int:asset_id>/cpes/", AssetCpeListCreateView.as_view(), name="asset-cpes"),
     path("assets/<int:asset_id>/cpes/<int:association_id>/", AssetCpeDecisionView.as_view(), name="asset-cpe-review"),
