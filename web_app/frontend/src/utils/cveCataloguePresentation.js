@@ -112,3 +112,30 @@ export function cveReviewProgress(summary) {
     Number(summary.reviewed_configurations) || 0));
   return reviewed + " de " + total + " configuraciones con revisión vigente";
 }
+
+/** Choose one main NVD evidence item, retaining all other items for audit. */
+export function groupCveEvidence(rows) {
+  const configs = Array.isArray(rows) ? rows : [];
+  const primary = configs.find(row =>
+    row.latest_assessment?.effective_status === "APPLIES" &&
+    !row.latest_assessment?.stale
+  ) || configs.find(row => row.technical_result === "COMPATIBLE")
+    || configs[0] || null;
+  return { primary, others: configs.filter(row => row !== primary) };
+}
+
+/** A human verdict is for the hardware/CVE, not 96 mandatory reviews. */
+export function cveHumanReviewMessage(summary) {
+  switch (summary?.status) {
+    case "APPLIES":
+      return "Existe al menos una correspondencia vigente confirmada para este hardware.";
+    case "NOT_APPLICABLE":
+      return "Todas las alternativas NVD fueron descartadas con evidencia vigente.";
+    case "STALE":
+      return "La evidencia del inventario o de NVD cambió. Es necesario revisar decisiones anteriores.";
+    case "IN_REVIEW":
+      return "Existe historial de revisión, pero aún no hay una conclusión definitiva.";
+    default:
+      return "Todavía no se ha registrado una decisión del analista para este hardware y CVE.";
+  }
+}

@@ -3296,3 +3296,15 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   color: #cbd5e1; font-size: .85rem; line-height: 1.6; margin: 7px 0;
 }
 .cve-general-review-summary .cpe-warning { color: #fdba74; }
+
+/* The CVE/hardware decision stays visible; supporting NVD alternatives are collapsible. */
+.cve-nvd-other-evidence {
+  border-top: 1px solid #334155; margin-top: 24px; padding-top: 15px;
+}
+.cve-nvd-other-evidence > summary {
+  cursor: pointer; color: #7dd3fc; font-size: .93rem; font-weight: 650;
+}
+.cve-nvd-other-evidence > .cve-muted {
+  font-size: .84rem; line-height: 1.65; margin-top: 12px;
+}
+.cve-nvd-other-evidence .cve-general-relevant-configuration { margin-top: 18px; }

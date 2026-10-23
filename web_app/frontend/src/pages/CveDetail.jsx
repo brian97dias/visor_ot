@@ -8,7 +8,7 @@ import SuccessNotice from "../components/SuccessNotice";
 import CveAnalysis from "./CveAnalysis";
 import {
   CVE_SEVERITY, CVE_TECHNICAL_STATE, CVE_EVALUATION_STATE,
-  selectedCveHardwareId, cveReviewProgress,
+  selectedCveHardwareId, groupCveEvidence, cveHumanReviewMessage,
 } from "../utils/cveCataloguePresentation";
 import {
   localizedTimestamp, contextualCveActionOptions, versionConstraintsText,
@@ -310,6 +310,7 @@ export default function CveDetail() {
   }, [cveId, selectedHardware, isLegacy, revision]);
 
   const configs = context?.relevant_configurations || [];
+  const { primary, others } = groupCveEvidence(configs);
   const source = cve?.description_source;
   const nvdUrl = "https://nvd.nist.gov/vuln/detail/" + encodeURIComponent(cveId);
   if (loading) return <section className="page" aria-busy="true">
@@ -397,39 +398,62 @@ export default function CveDetail() {
                 CVE_EVALUATION_STATE.PENDING_REVIEW}
             </span>
           </div>
-          <p>{cveReviewProgress(context.assessment_summary)}.
-            Las decisiones individuales pertenecen a configuraciones NVD;
-            este estado resume el CVE para el hardware seleccionado.
-          </p>
-          {context.assessment_summary?.status === "APPLIES" &&
-            context.assessment_summary?.pending_configurations > 0 && <p>
-              Existe una correspondencia confirmada en al menos una configuración.
-              Otras alternativas todavía no tienen revisión vigente.
-            </p>}
+          <p>{cveHumanReviewMessage(context.assessment_summary)}</p>
+          <p>Las decisiones se vinculan a la evidencia NVD que las sustenta.
+            El resultado corresponde al CVE y hardware seleccionados;
+            no es necesario tomar una decisión manual por cada alternativa NVD.</p>
           {context.assessment_summary?.stale_configurations > 0 && <p
             className="cpe-warning">
             {context.assessment_summary.stale_configurations} evaluaciones
             requieren nueva revisión porque cambió la evidencia.
           </p>}
         </section>
-        {configs.length ? configs.map(config => <section
-          className="cve-nvd-conditions cve-general-relevant-configuration"
-          key={context.hardware_asset_id + ":" + config.index}>
-          <div className="cve-technical-summary-heading">
-            <h2>Condiciones relevantes · Configuración NVD {config.position}</h2>
-            <span className="cve-technical-tag" data-result={config.technical_result}>
-              {CVE_TECHNICAL_STATE[config.technical_result] ||
-                CVE_TECHNICAL_STATE.INDETERMINATE}
-            </span>
-          </div>
-          <Criterion item={config.tree}/>
-          <ConfigurationReview context={context} config={config}
-            canDecide={canDecide}
-            onSaved={() => {
-              setNotice("Evaluación guardada. El historial se actualizó.");
-              setRevision(n => n + 1);
-            }}/>
-        </section>) : <div className="panel cve-technical-summary">
+        {primary ? <>
+          <section className="cve-nvd-conditions cve-general-relevant-configuration"
+            aria-labelledby="cve-primary-evidence">
+            <div className="cve-technical-summary-heading">
+              <h2 id="cve-primary-evidence">
+                Evidencia principal · Configuración NVD {primary.position}
+              </h2>
+              <span className="cve-technical-tag" data-result={primary.technical_result}>
+                {CVE_TECHNICAL_STATE[primary.technical_result] ||
+                  CVE_TECHNICAL_STATE.INDETERMINATE}
+              </span>
+            </div>
+            <Criterion item={primary.tree}/>
+            <ConfigurationReview context={context} config={primary}
+              canDecide={canDecide}
+              onSaved={() => {
+                setNotice("Evaluación guardada. El historial se actualizó.");
+                setRevision(n => n + 1);
+              }}/>
+          </section>
+          {others.length > 0 && <details className="cve-nvd-other-evidence">
+            <summary>Otras configuraciones pertinentes ({others.length})</summary>
+            <p className="cve-muted">
+              Las alternativas no son CVE adicionales. Se conserva
+              su evidencia y su historial para consulta y auditoría.
+            </p>
+            {others.map(config => <section
+              className="cve-nvd-conditions cve-general-relevant-configuration"
+              key={context.hardware_asset_id + ":" + config.index}>
+              <div className="cve-technical-summary-heading">
+                <h2>Configuración NVD {config.position}</h2>
+                <span className="cve-technical-tag" data-result={config.technical_result}>
+                  {CVE_TECHNICAL_STATE[config.technical_result] ||
+                    CVE_TECHNICAL_STATE.INDETERMINATE}
+                </span>
+              </div>
+              <Criterion item={config.tree}/>
+              <ConfigurationReview context={context} config={config}
+                canDecide={canDecide}
+                onSaved={() => {
+                  setNotice("Evaluación guardada. El historial se actualizó.");
+                  setRevision(n => n + 1);
+                }}/>
+            </section>)}
+          </details>}
+        </> : <div className="panel cve-technical-summary">
           <p>No existen condiciones NVD con correspondencia demostrada
             para los CPE vigentes de este hardware. El resultado permanece
             sujeto a verificación; las configuraciones originales se conservan.</p>

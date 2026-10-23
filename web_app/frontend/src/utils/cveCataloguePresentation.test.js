@@ -8,6 +8,7 @@ import {
   cveHardwareCandidates, toggleCveHardwareSelection,
   cveHardwareSelectionValid, isCveDiscoveryActive,
   preferredCveHardwareId, selectedCveHardwareId, cveReviewProgress,
+  groupCveEvidence, cveHumanReviewMessage,
 } from "./cveCataloguePresentation.js";
 
 test("severity and run state never claim that a candidate CVE applies", () => {
@@ -107,4 +108,31 @@ test("the per-hardware CVE progress includes every NVD alternative", () => {
   assert.equal(cveReviewProgress(null), "Estado de revisión no disponible");
   assert.equal(cveReviewProgress({total_configurations: 3, reviewed_configurations: 40}),
     "3 de 3 configuraciones con revisión vigente");
+});
+
+test("one primary configuration represents the CVE with NVD alternatives available", () => {
+  const unrelated = {index:0,technical_result:"EXCLUDED"};
+  const matched = {index:8,technical_result:"COMPATIBLE"};
+  const unresolved = {index:16,technical_result:"INDETERMINATE"};
+  const grouped = groupCveEvidence([unrelated,unresolved,matched]);
+  assert.equal(grouped.primary.index,8);
+  assert.deepEqual(grouped.others.map(x=>x.index),[0,16]);
+  assert.equal(groupCveEvidence([]).primary,null);
+});
+
+test("current audited positive is primary, stale evidence loses priority", () => {
+  const technical={index:8,technical_result:"COMPATIBLE"};
+  const audited={index:3,technical_result:"INDETERMINATE",
+    latest_assessment:{effective_status:"APPLIES",stale:false}};
+  assert.equal(groupCveEvidence([technical,audited]).primary.index,3);
+  const old={...audited,latest_assessment:{effective_status:"PENDING_REVIEW",stale:true}};
+  assert.equal(groupCveEvidence([technical,old]).primary.index,8);
+});
+
+test("one human verdict does not imply mandatory reviews of 96 configurations", () => {
+  assert.match(cveHumanReviewMessage({status:"PENDING_REVIEW"}),/no se ha registrado/i);
+  assert.match(cveHumanReviewMessage({status:"APPLIES"}),/al menos una/i);
+  assert.match(cveHumanReviewMessage({status:"NOT_APPLICABLE"}),/Todas/i);
+  assert.match(cveHumanReviewMessage({status:"STALE"}),/cambió/i);
+  assert.match(cveHumanReviewMessage({status:"IN_REVIEW"}),/historial/i);
 });
