@@ -215,3 +215,85 @@ def execute_cve_fetch(cve, pacer, fetcher=fetch_cve):
             "finished_at",
         ])
     return cve
+
+
+# --- Generic CVE records recovered by future cpeName discovery jobs ---
+_CVE_ID_PATTERN = __import__("re").compile(r"CVE-[0-9]{4}-[0-9]{4,}\Z")
+
+
+def validated_cve_record(record):
+    """Validate an arbitrary NVD CVE object without asserting applicability.
+
+    The CVE API may return CVE entries that lack analyzed configurations
+    (including rejected or not-yet-analyzed records). Preserve those as
+    official metadata, but do not infer vulnerable products or manufacture
+    match criteria.
+    """
+    if not isinstance(record, dict):
+        raise CveResponseError("NVD no devolvió un registro CVE válido.")
+    identifier = record.get("id")
+    if (not isinstance(identifier, str) or len(identifier) > 20
+            or not _CVE_ID_PATTERN.fullmatch(identifier)):
+        raise CveResponseError("Identificador CVE inválido.")
+    descriptions = record.get("descriptions")
+    metrics = record.get("metrics", {})
+    configurations = record.get("configurations", [])
+    references = record.get("references", [])
+    if (not isinstance(descriptions, list)
+            or not all(isinstance(item, dict) and
+                       isinstance(item.get("lang"), str) and
+                       isinstance(item.get("value"), str)
+                       for item in descriptions)
+            or not isinstance(metrics, dict)
+            or not isinstance(configurations, list)
+            or not isinstance(references, list)):
+        raise CveResponseError("NVD devolvió campos CVE inválidos.")
+    description = next(
+        (item["value"] for item in descriptions if item["lang"] == "en"), None
+    )
+    if description is None:
+        description = next((item["value"] for item in descriptions), "")
+    severity, score = _cvss_summary(metrics)
+    return identifier, {
+        "description": description,
+        "descriptions": descriptions,
+        "nvd_record": record,
+        "published": _timestamp(record.get("published"), "published"),
+        "last_modified": _timestamp(record.get("lastModified"), "lastModified"),
+        "severity": severity,
+        "base_score": score,
+        "metrics": metrics,
+        # No AND/OR flattening. Keep the exact official NVD tree.
+        "configurations": configurations,
+        "references": references,
+    }
+
+
+@transaction.atomic
+def store_official_cve_record(record):
+    """Idempotently upsert one verified NVD record, never create an assessment.
+
+    Called by the future locked worker after a page was verified. Reject
+    previously cached but older official revisions so a delayed page cannot
+    overwrite newer NVD data. No AssetCpe, AssetCveFinding or other inventory
+    objects are created here.
+    """
+    identifier, fields = validated_cve_record(record)
+    cve, created = Cve.objects.select_for_update().get_or_create(
+        cve_id=identifier,
+    )
+    if (not created and cve.fetch_status == Cve.FetchStatus.COMPLETED
+            and cve.last_modified and cve.last_modified > fields["last_modified"]):
+        return cve, False
+    for key, value in fields.items():
+        setattr(cve, key, value)
+    cve.fetch_status = Cve.FetchStatus.COMPLETED
+    cve.fetch_error = ""
+    now = timezone.now()
+    cve.retrieved_at = now
+    cve.finished_at = now
+    cve.save(update_fields=[
+        *fields.keys(), "fetch_status", "fetch_error", "retrieved_at",
+        "finished_at",
+    ])
+    return cve, created
