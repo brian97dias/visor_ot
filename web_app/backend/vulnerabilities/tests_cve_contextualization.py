@@ -174,6 +174,46 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(found[1]["version"], "4.5.2")
         self.assertEqual(found[1]["role"], "MATCHED_INSTALLED_SOFTWARE")
 
+    def test_version_bounded_confirmation_is_scoped_and_audited(self):
+        context = self.client.get(self.url)
+        self.assertEqual(context.status_code, 200, context.data)
+        info = context.data
+        row = info["relevant_configurations"][0]
+        self.assertTrue(row["review_supported"])
+        self.assertEqual(row["review_installation_id"], self.installation.pk)
+        payload = {
+            "configuration_index": 8,
+            "verdict": "CONFIRMED",
+            "software_installation_id": self.installation.pk,
+            "inventory_declared_complete": False,
+            "justification": "CPU y firmware confirmados, versión 4.5.2 < 4.6.0.",
+            "inventory_fingerprint": info["inventory_fingerprint"],
+            "configuration_fingerprint": row["fingerprint"],
+        }
+        created = self.client.post(self.url, payload, format="json")
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertEqual(created.data["assessment"]["status"], "APPLIES")
+        self.assertEqual(AssetCveAssessment.objects.count(), 1)
+        listing = self.client.get("/api/vulnerabilities/cves/?technical=ALL")
+        self.assertEqual(listing.data["results"][0]["evaluation_status"], "APPLIES")
+        payload["verdict"] = "UNKNOWN"
+        payload["software_installation_id"] = None
+        payload["justification"] = "Reabrir análisis sin borrar la decisión previa."
+        undone = self.client.post(self.url, payload, format="json")
+        self.assertEqual(undone.status_code, 201, undone.data)
+        self.assertEqual(undone.data["assessment"]["status"], "PENDING_REVIEW")
+        self.assertEqual(AssetCveAssessment.objects.count(), 2)
+
+    def test_version_bounded_review_does_not_accept_stale_product_identity(self):
+        self.sw.version = "4.6.0"
+        self.sw.save(update_fields=["version"])
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertFalse(
+            response.data["relevant_configurations"][0]["review_supported"]
+        )
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
+
     def test_after_version_change_technical_result_returns_to_verification(self):
         self.sw.version = "4.6.0"
         self.sw.save(update_fields=["version"])
