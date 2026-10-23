@@ -117,8 +117,24 @@ export function proposedFirmwareDecision(data, choice, requestedId, justificatio
   };
 }
 
-export function experimentalDescription(cveId, original) {
-  const source = String(original || "");
+export function experimentalDescription(cveId, original, descriptions = []) {
+  const records = Array.isArray(descriptions) ? descriptions : [];
+  const translated = records.find(entry =>
+    entry && typeof entry.value === "string" && entry.value.trim() &&
+    String(entry.lang || "").toLowerCase() === "es"
+  );
+  const officialEnglish = records.find(entry =>
+    entry && typeof entry.value === "string" && entry.value.trim() &&
+    String(entry.lang || "").toLowerCase() === "en"
+  );
+  const source = (officialEnglish?.value || String(original || "")).trim();
+  if (translated) {
+    return {
+      text: translated.value,
+      label: "Descripción oficial en español · NVD",
+      original: source,
+    };
+  }
   if (cveId === EXPERIMENT_CVE_ID &&
       /^In certain devices of the Phoenix Contact AXL F BK and IL BK product families/i.test(source)) {
     return {
@@ -127,5 +143,25 @@ export function experimentalDescription(cveId, original) {
       original: source,
     };
   }
-  return { text: source, label: "Descripción proporcionada por NVD", original: source };
+  return { text: source, label: "Descripción original de NVD", original: source };
+}
+
+/** Official NVD detail for the selected CVE, not a locally inferred result. */
+export function nvdCveDetailUrl(cveId) {
+  if (!/^CVE-\\d{4}-\\d{4,}$/i.test(String(cveId || ""))) return null;
+  return "https://nvd.nist.gov/vuln/detail/" + encodeURIComponent(cveId);
+}
+
+/** NVD's web search for CVEs by a dictionary CPE name.
+ * Query is an external NVD search, never a VISOR OT applicability claim.
+ */
+export function nvdVulnerabilitiesByCpeUrl(cpeName) {
+  if (typeof cpeName !== "string") return null;
+  const parts = cpeName.split(":");
+  if (parts.length !== 13 || parts[0] !== "cpe" || parts[1] !== "2.3" ||
+      !["h", "o", "a"].includes(parts[2]) ||
+      parts.slice(3, 6).some(value => !value || value === "*")) return null;
+  return "https://nvd.nist.gov/vuln/search/results?" +
+    "form_type=Advanced&results_type=overview&isCpeNameSearch=true&query=" +
+    encodeURIComponent(cpeName);
 }
