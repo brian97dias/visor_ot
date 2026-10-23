@@ -51,3 +51,87 @@ def technical_statuses(cves):
         else:
             result[cve.pk] = INDETERMINATE
     return result
+
+
+def _matched_software(evaluation):
+    """Only link installed software when the NVD criterion matched its CPE."""
+    if evaluation.get("kind") == "CRITERION":
+        if evaluation.get("identity") == "MATCHED" and evaluation.get("software_asset_id"):
+            return {evaluation["software_asset_id"]}
+        return set()
+    result = set()
+    for child in evaluation.get("children", []):
+        result.update(_matched_software(child))
+    return result
+
+
+def related_assets_for_cves(cves):
+    """Concrete inventoried assets evidenced in each hardware/CVE context.
+
+    Hardware is the contextual unit. Software is included only when a
+    criterion's CPE matches its CURRENT confirmed CPE and active installation.
+    An unrelated installed program is never labelled as a matching CVE asset.
+    """
+    items = list(cves)
+    result = {cve.pk: [] for cve in items}
+    if not items:
+        return result
+    ids = [cve.pk for cve in items]
+    related = defaultdict(set)
+    for cve_pk, hw_pk in AssetCveFinding.objects.filter(
+        cve_id__in=ids
+    ).values_list("cve_id", "hardware_id"):
+        related[cve_pk].add(hw_pk)
+    for cve_pk, hw_pk in AssetCveAssessment.objects.filter(
+        cve_id__in=ids
+    ).values_list("cve_id", "hardware_id"):
+        related[cve_pk].add(hw_pk)
+
+    for cve in items:
+        for hw_id in sorted(related[cve.pk]):
+            try:
+                hardware, _, hw_cpes, installed, _ = _context(cve.cve_id, hw_id)
+                analysed = evaluate_configurations(
+                    cve.configurations, list(hw_cpes), installed
+                )
+                matched_sw = set()
+                for config in analysed["configurations"]:
+                    matched_sw.update(_matched_software(config))
+                assets = [{
+                    "asset_id": hw.pk, "asset_type": "HARDWARE",
+                    "name": hardware.asset.name, "version": None,
+                    "role": "HARDWARE_CONTEXT",
+                }]
+                for sw in installed:
+                    if sw["software_asset_id"] in matched_sw:
+                        assets.append({
+                            "asset_id": sw["software_asset_id"],
+                            "asset_type": "SOFTWARE",
+                            "name": sw["software_name"],
+                            "version": sw["version"],
+                            "role": "MATCHED_INSTALLED_SOFTWARE",
+                            "software_type": sw["software_type"],
+                            "installation_id": sw["installation_id"],
+                        })
+                # Installation IDs are distinct; one software asset should
+                # appear only once in the catalogue cell.
+                seen = set()
+                unique = []
+                for row in assets:
+                    if row["asset_id"] not in seen:
+                        unique.append(row)
+                        seen.add(row["asset_id"])
+                result[cve.pk].append({
+                    "hardware_id": hw_id,
+                    "technical_result": analysed["result"],
+                    "assets": unique,
+                })
+            except (Http404, NotFound, ValidationError, ValueError, AttributeError):
+                # Existing candidate relation is retained for audit but
+                # cannot be presented as a verified current match.
+                result[cve.pk].append({
+                    "hardware_id": hw_id,
+                    "technical_result": INDETERMINATE,
+                    "assets": [],
+                })
+    return result
