@@ -96,3 +96,36 @@ export function localizedTimestamp(value) {
   return Number.isNaN(parsed.getTime()) ? "Fecha no disponible"
     : parsed.toLocaleString("es-CO");
 }
+
+/** Phase-3 compact review: select only an actual, current installation. */
+export function selectedFirmwareInstallation(data, requestedId) {
+  const installed = data?.active_firmware_installations || [];
+  if (installed.length === 1) return installed[0];
+  if (requestedId === "" || requestedId == null) return null;
+  return installed.find(item => item.installation_id === Number(requestedId)) || null;
+}
+
+export function proposedFirmwareDecision(data, choice, requestedId, justification,
+  evidenceSource = "INVENTORY", inventoryComplete = false) {
+  const selected = selectedFirmwareInstallation(data, requestedId);
+  return {
+    software_installation_id: selected?.installation_id ?? null,
+    firmware_verdict: choice || "UNKNOWN",
+    evidence_source: evidenceSource,
+    inventory_declared_complete: choice === "NOT_MATCH" && inventoryComplete,
+    justification,
+  };
+}
+
+export function experimentalDescription(cveId, original) {
+  const source = String(original || "");
+  if (cveId === EXPERIMENT_CVE_ID &&
+      /^In certain devices of the Phoenix Contact AXL F BK and IL BK product families/i.test(source)) {
+    return {
+      text: "En determinados dispositivos de las familias Phoenix Contact AXL F BK e IL BK existe un acceso FTP no documentado, protegido por contraseña, al directorio raíz.",
+      label: "Traducción orientativa al español (no oficial de NVD)",
+      original: source,
+    };
+  }
+  return { text: source, label: "Descripción proporcionada por NVD", original: source };
+}
