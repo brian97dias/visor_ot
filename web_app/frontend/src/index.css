@@ -3285,3 +3285,14 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cve-catalogue-asset-context-heading .cve-technical-tag {
   font-size: .7rem; padding: 3px 7px;
 }
+
+
+/* One analyst review summary per hardware/CVE, independent of NVD matching. */
+.cve-general-review-summary {
+  margin: 12px 0 22px; padding: 16px 20px;
+}
+.cve-general-review-summary h2 { font-size: 1rem; }
+.cve-general-review-summary > p {
+  color: #cbd5e1; font-size: .85rem; line-height: 1.6; margin: 7px 0;
+}
+.cve-general-review-summary .cpe-warning { color: #fdba74; }

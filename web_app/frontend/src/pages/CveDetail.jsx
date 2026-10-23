@@ -7,7 +7,8 @@ import {
 import SuccessNotice from "../components/SuccessNotice";
 import CveAnalysis from "./CveAnalysis";
 import {
-  CVE_SEVERITY, CVE_TECHNICAL_STATE, selectedCveHardwareId,
+  CVE_SEVERITY, CVE_TECHNICAL_STATE, CVE_EVALUATION_STATE,
+  selectedCveHardwareId, cveReviewProgress,
 } from "../utils/cveCataloguePresentation";
 import {
   localizedTimestamp, contextualCveActionOptions, versionConstraintsText,
@@ -386,6 +387,31 @@ export default function CveDetail() {
             Una configuración excluida no descarta por sí sola las demás alternativas.
             Una configuración compatible todavía requiere revisar su aplicabilidad real.</p>
         </div>
+        <section className="panel cve-general-review-summary"
+          aria-labelledby="cve-human-review-title">
+          <div className="cve-technical-summary-heading">
+            <h2 id="cve-human-review-title">Evaluación del analista · Este hardware</h2>
+            <span className="cve-catalogue-evaluation-status"
+              data-status={context.assessment_summary?.status || "PENDING_REVIEW"}>
+              {CVE_EVALUATION_STATE[context.assessment_summary?.status] ||
+                CVE_EVALUATION_STATE.PENDING_REVIEW}
+            </span>
+          </div>
+          <p>{cveReviewProgress(context.assessment_summary)}.
+            Las decisiones individuales pertenecen a configuraciones NVD;
+            este estado resume el CVE para el hardware seleccionado.
+          </p>
+          {context.assessment_summary?.status === "APPLIES" &&
+            context.assessment_summary?.pending_configurations > 0 && <p>
+              Existe una correspondencia confirmada en al menos una configuración.
+              Otras alternativas todavía no tienen revisión vigente.
+            </p>}
+          {context.assessment_summary?.stale_configurations > 0 && <p
+            className="cpe-warning">
+            {context.assessment_summary.stale_configurations} evaluaciones
+            requieren nueva revisión porque cambió la evidencia.
+          </p>}
+        </section>
         {configs.length ? configs.map(config => <section
           className="cve-nvd-conditions cve-general-relevant-configuration"
           key={context.hardware_asset_id + ":" + config.index}>

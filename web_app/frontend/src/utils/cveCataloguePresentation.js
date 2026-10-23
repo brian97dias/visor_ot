@@ -98,3 +98,17 @@ export function selectedCveHardwareId(hardware, requestedId) {
     : null;
   return String((found || available[0])?.hardware_id || "");
 }
+
+
+/** Human-review progress is a server-computed projection across every NVD
+ * alternative for the selected hardware, not a generated analyst decision.
+ */
+export function cveReviewProgress(summary) {
+  if (!summary || !Number.isInteger(summary.total_configurations)) {
+    return "Estado de revisión no disponible";
+  }
+  const total = Math.max(0, summary.total_configurations);
+  const reviewed = Math.max(0, Math.min(total,
+    Number(summary.reviewed_configurations) || 0));
+  return reviewed + " de " + total + " configuraciones con revisión vigente";
+}

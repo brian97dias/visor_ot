@@ -7,7 +7,7 @@ import {
   cvePageCount,
   cveHardwareCandidates, toggleCveHardwareSelection,
   cveHardwareSelectionValid, isCveDiscoveryActive,
-  preferredCveHardwareId, selectedCveHardwareId,
+  preferredCveHardwareId, selectedCveHardwareId, cveReviewProgress,
 } from "./cveCataloguePresentation.js";
 
 test("severity and run state never claim that a candidate CVE applies", () => {
@@ -94,4 +94,17 @@ test("CVE hardware deep link accepts only related asset IDs", () => {
   assert.equal(selectedCveHardwareId(rows, "10;DROP TABLE"), "2");
   assert.equal(selectedCveHardwareId(rows, null), "2");
   assert.equal(selectedCveHardwareId([], "10"), "");
+});
+
+
+test("the per-hardware CVE progress includes every NVD alternative", () => {
+  assert.equal(cveReviewProgress({
+    total_configurations: 96, reviewed_configurations: 1,
+  }), "1 de 96 configuraciones con revisión vigente");
+  assert.equal(cveReviewProgress({
+    total_configurations: 96, reviewed_configurations: 0,
+  }), "0 de 96 configuraciones con revisión vigente");
+  assert.equal(cveReviewProgress(null), "Estado de revisión no disponible");
+  assert.equal(cveReviewProgress({total_configurations: 3, reviewed_configurations: 40}),
+    "3 de 3 configuraciones con revisión vigente");
 });
