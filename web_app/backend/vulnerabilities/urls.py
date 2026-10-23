@@ -6,9 +6,16 @@ from .association_views import AssetCpeListCreateView, AssetCpeDecisionView
 from .bulk_views import CpeBulkSearchView
 from .external_cpe_views import ExternalCpeVerificationListView, ExternalCpeVerificationDetailView
 from .cve_assessment_views import ExperimentalCveAssessmentView
+from .cve_discovery_views import (
+    CveDiscoveryListCreateView, CveDiscoveryDetailView,
+    CveDiscoveryFindingListView,
+)
 
 app_name = "vulnerabilities"
 urlpatterns = [
+    path("cve-discoveries/", CveDiscoveryListCreateView.as_view(), name="cve-discovery-list"),
+    path("cve-discoveries/<int:run_id>/", CveDiscoveryDetailView.as_view(), name="cve-discovery-detail"),
+    path("cve-discoveries/<int:run_id>/findings/", CveDiscoveryFindingListView.as_view(), name="cve-discovery-findings"),
     path("cpe-overview/", CpeOverviewView.as_view(), name="cpe-overview"),
     path("assets/<int:asset_id>/cve-assessments/<str:cve_id>/", ExperimentalCveAssessmentView.as_view(), name="asset-cve-assessment"),
     path("cpe-searches/bulk/", CpeBulkSearchView.as_view(), name="cpe-search-bulk"),
