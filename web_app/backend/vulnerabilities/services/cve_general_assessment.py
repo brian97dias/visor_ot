@@ -216,6 +216,16 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         raise ValidationError({"verdict": "La configuración no es verificable mediante este flujo."})
     installed_by_id = {row["installation_id"]: row for row in installed}
     selected = installed_by_id.get(software_installation_id)
+    if selected is not None and supported and verdict != "UNKNOWN":
+        part = supported["software_criterion"].split(":")[2]
+        permitted_types = (
+            ("FIRMWARE", "OS") if part == "o" else ("APPLICATION",)
+        )
+        if selected["software_type"] not in permitted_types:
+            raise ValidationError({
+                "software_installation_id":
+                    "El tipo de software instalado no corresponde al criterio NVD."
+            })
     if software_installation_id is not None and selected is None:
         raise ValidationError({"software_installation_id": "La instalación no está vigente."})
     if verdict != "UNKNOWN" and selected is None:

@@ -152,6 +152,25 @@ class GenericCveAssessmentTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
+    def test_installed_application_cannot_be_confirmed_as_firmware(self):
+        from assets.models import Asset, Software, SoftwareInstallation
+        other_asset = Asset.objects.create(
+            name="Unrelated HMI", asset_type=Asset.AssetType.SOFTWARE,
+            created_by=self.user, updated_by=self.user,
+        )
+        other_sw = Software.objects.create(
+            asset=other_asset, software_type=Software.SoftwareType.APPLICATION,
+            manufacturer="Other", product="Unrelated HMI", version="1.0",
+        )
+        other_install = SoftwareInstallation.objects.create(
+            hardware=self.hw, software=other_sw, registered_by=self.user,
+        )
+        result = self.decision(
+            0, software_installation_id=other_install.pk,
+        )
+        self.assertEqual(result.status_code, 400, result.data)
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
+
     def test_operator_cannot_record_but_can_read(self):
         operator = get_user_model().objects.create_user(
             username="generic-cve-op", role="OPERATOR",

@@ -89,7 +89,11 @@ function ConfigurationReview({ context, config, onSaved, canDecide }) {
   const [complete, setComplete] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const installations = context.installed_software || [];
+  const targetPart = config.software_criterion?.split(":")[2];
+  const installations = (context.installed_software || []).filter(sw =>
+    targetPart === "o" ? ["FIRMWARE", "OS"].includes(sw.software_type)
+      : targetPart === "a" ? sw.software_type === "APPLICATION" : false
+  );
   const selectedId = installId || (installations.length === 1 ?
     String(installations[0].installation_id) : "");
   const options = assessmentActionOptions(status);
@@ -235,7 +239,11 @@ export default function CveDetail() {
     let live = true;
     setContextLoading(true); setError("");
     readGeneralCveAssessment(cveId, Number(selectedHardware))
-      .then(data => { if (live) setContext(data); })
+      .then(data => {
+        if (!live) return;
+        setContext(data);
+        setActiveConfig(data.configurations.find(row => row.review_supported)?.index ?? 0);
+      })
       .catch(err => { if (live) setError(err.message); })
       .finally(() => { if (live) setContextLoading(false); });
     return () => { live = false; };
