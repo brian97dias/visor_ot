@@ -15,6 +15,9 @@ class Cve(models.Model):
     cve_id = models.CharField(max_length=20, unique=True)
     description = models.TextField(blank=True)
     descriptions = models.JSONField(default=list)
+    # Unmodified official CVE object for CWE, tags and metadata not mapped above.
+    # Existing rows start empty until their next successful refresh.
+    nvd_record = models.JSONField(default=dict)
     published = models.DateTimeField(null=True, blank=True)
     last_modified = models.DateTimeField(null=True, blank=True)
     severity = models.CharField(max_length=20, blank=True)

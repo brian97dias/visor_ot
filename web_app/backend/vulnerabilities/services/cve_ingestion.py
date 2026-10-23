@@ -147,6 +147,7 @@ def validated_cve_payload(payload):
     return {
         "description": title,
         "descriptions": descriptions,
+        "nvd_record": record,
         "published": _timestamp(record.get("published"), "published"),
         "last_modified": _timestamp(record.get("lastModified"), "lastModified"),
         "severity": severity,

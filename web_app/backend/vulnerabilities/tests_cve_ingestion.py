@@ -224,6 +224,8 @@ class CveWorkerPersistenceTests(TestCase):
         self.assertIsNotNone(done.retrieved_at)
         self.assertEqual(done.description, "Undocumented password protected FTP access.")
         self.assertEqual(len(done.configurations), 18)
+        self.assertEqual(done.nvd_record,
+                         nvd_fixture()["vulnerabilities"][0]["cve"])
         self.assertEqual(find_experimental_configuration(done.configurations)["position"], 12)
         self.assertEqual(done.severity, "HIGH")
         self.assertEqual(done.base_score, Decimal("7.3"))
