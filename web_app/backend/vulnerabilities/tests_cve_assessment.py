@@ -361,3 +361,25 @@ class ExperimentalCveAssessmentTests(TestCase):
         self.assertEqual(history[0]["status"], "NOT_APPLICABLE")
         self.assertEqual(history[1]["status"], "APPLIES")
         self.assertTrue(all(row["decided_by"] == self.analyst.username for row in history))
+
+    def test_undo_returns_to_pending_without_asserting_not_applicable(self):
+        self.confirm_hardware_cpe()
+        installation = self.link()
+        confirmed = self.post_decision(verdict="CONFIRMED", installation=installation)
+        undone = self.post_decision(
+            verdict="UNKNOWN", installation=installation,
+            justification="Retiro la correspondencia hasta una nueva inspección"
+        )
+        self.assertEqual(confirmed.status_code, 201, confirmed.data)
+        self.assertEqual(undone.status_code, 201, undone.data)
+        self.assertEqual(confirmed.data["assessment"]["status"], "APPLIES")
+        self.assertEqual(undone.data["assessment"]["status"], "PENDING_REVIEW")
+        self.assertEqual(undone.data["assessment"]["criteria_evidence"]["firmware"]["state"],
+                         "UNVERIFIED")
+        current = self.context()
+        self.assertEqual(current["latest_assessment"]["effective_status"], "PENDING_REVIEW")
+        self.assertEqual([record["status"] for record in current["history"][:2]],
+                         ["PENDING_REVIEW", "APPLIES"])
+        self.assertEqual(AssetCveAssessment.objects.count(), 2)
+        self.assertEqual(Cpe.objects.count(), 1)
+        self.assertEqual(AssetCpe.objects.count(), 1)

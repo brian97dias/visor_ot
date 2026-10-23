@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
+import SuccessNotice from "../components/SuccessNotice";
 import {
   createExperimentalCveAssessment, getExperimentalCveAssessment,
 } from "../api/vulnerabilities";
@@ -7,14 +8,9 @@ import {
   CVE_STATUS, EVIDENCE_STATE, EXPERIMENT_CVE_ID,
   currentCriterionEvidence, latestEffectiveStatus, submissionGuard,
   localizedTimestamp, versionConstraintsText, selectedFirmwareInstallation,
-  proposedFirmwareDecision, experimentalDescription,
+  proposedFirmwareDecision, assessmentActionOptions, experimentalDescription,
   nvdCveDetailUrl, nvdCvesApiByCpeNameUrl,
 } from "../utils/cveAssessmentPresentation";
-
-const ACTIONS = [
-  { key: "CONFIRMED", title: "Confirmar correspondencia" },
-  { key: "NOT_MATCH", title: "Descartar correspondencia" },
-];
 
 const severityLabel = {
   CRITICAL: "Crítica", HIGH: "Alta", MEDIUM: "Media", LOW: "Baja",
@@ -54,13 +50,11 @@ export default function CveAnalysis() {
     setChoice("");
     setJustification("");
     setComplete(false);
-    
   }
 
   function chooseDecision(next) {
     if (choice !== next) {
       setJustification("");
-      
     }
     setChoice(next);
     setComplete(false);
@@ -73,14 +67,22 @@ export default function CveAnalysis() {
   const firmware = currentCriterionEvidence(info, "firmware");
   const last = info?.latest_assessment;
   const status = latestEffectiveStatus(info);
+  const actionOptions = assessmentActionOptions(status);
+  const isUndo = choice === "UNKNOWN";
+  const isCurrentPositive = status === "APPLIES";
   const description = experimentalDescription(
     info?.cve_id, info?.description, info?.descriptions
   );
   const versionBounds = versionConstraintsText(
     info?.criteria_evidence?.firmware?.version_constraints
   );
+  // For undo, retain the previously evaluated installation when it is still current.
+  // Unknown without an installation remains valid if the asset was changed/unlinked.
+  const preferredInstallationId = isUndo
+    ? (selectedId || String(last?.software_installation_id || ""))
+    : selectedId;
   const draft = proposedFirmwareDecision(
-    info, choice, selectedId, justification, complete
+    info, choice, preferredInstallationId, justification, complete
   );
   const guard = choice ? submissionGuard(info, draft) : "";
   const hardwareConfirmed = Boolean(info?.hardware_cpe_confirmed);
@@ -109,9 +111,12 @@ export default function CveAnalysis() {
       return;
     }
     clearDecision();
-    setNotice("Evaluación #" + created.assessment.id + ": " +
-      (CVE_STATUS[created.assessment.status] || created.assessment.status) +
-      ". Decisión guardada en el historial.");
+    setNotice(choice === "UNKNOWN"
+      ? "Evaluación #" + created.assessment.id +
+        ": correspondencia deshecha. El CVE queda pendiente de revisión."
+      : "Evaluación #" + created.assessment.id + ": " +
+        (CVE_STATUS[created.assessment.status] || created.assessment.status) +
+        ". Decisión guardada en el historial.");
     try {
       // Read fresh evidence and append-only history after successful POST.
       const updated = await getExperimentalCveAssessment();
@@ -145,7 +150,7 @@ export default function CveAnalysis() {
       <span>Análisis CVE</span>
     </nav>
     {error && <p className="error-message" role="alert">{error}</p>}
-    {notice && <p className="cve-success" role="status">{notice}</p>}
+    <SuccessNotice message={notice} onClose={() => setNotice("")} durationMs={30000} />
 
     <header className="page-header cve-nvd-overview" aria-label="Resumen CVE">
       <span className="page-eyebrow">ANÁLISIS CVE</span>
@@ -248,7 +253,7 @@ export default function CveAnalysis() {
         </div>
 
         <div className="cve-nvd-found">
-          <h4>Encontrado en tu equipo</h4>
+          <h4>Firmware instalado en el hardware #{info.hardware_asset_id}</h4>
           {installations.length === 0 ? <>
             <p className="cve-muted">No hay instalaciones vigentes de firmware registradas.
               No es evidencia de que esta configuración no aplique.</p>
@@ -280,25 +285,49 @@ export default function CveAnalysis() {
           Hasta comprobarlas, el backend conserva la evaluación pendiente.
         </p>}
 
-        {canDecide && <div className="cve-nvd-decision">
-          <p>¿Este firmware instalado corresponde al componente afectado que indica NVD?</p>
-          <div className="cve-nvd-actions">
-            {ACTIONS.map(action => <button type="button" key={action.key}
-              className={"cve-nvd-action" + (choice === action.key ? " selected" : "")}
-              data-action={action.key}
-              aria-pressed={choice === action.key}
-              disabled={saving || !installed}
-              onClick={() => chooseDecision(action.key)}>
-              {action.title}
-            </button>)}
-          </div>
+      </article>
+
+      <div className="panel cve-nvd-decision" aria-labelledby="cve-joint-decision-title">
+        <div className="cve-nvd-joint-title">
+          <h3 id="cve-joint-decision-title">Evaluación conjunta · Hardware + Firmware</h3>
+          <span className="cve-status-label" data-status={status}>{CVE_STATUS[status]}</span>
+        </div>
+        <p>La evaluación corresponde a la configuración {info.configuration_position} de NVD
+          para el hardware <strong>#{info.hardware_asset_id} · {info.hardware_name}</strong>,
+          junto con su firmware instalado. No confirma un CVE solo por el nombre del firmware.</p>
+        <div className="cve-joint-criteria" aria-label="Condiciones de la configuración">
+          <span>Hardware: {hardwareConfirmed ? "CPE confirmado" : "CPE sin verificar"}</span>
+          <span>+</span>
+          <span>Firmware: {EVIDENCE_STATE[firmware?.state] || "Sin verificar"}</span>
+        </div>
+        {last && !last.stale && last.software_installation_id && <p className="cve-muted">
+          Instalación evaluada #{last.software_installation_id}
+          {installations.find(item => item.installation_id === last.software_installation_id)
+            ? " · Firmware instalado en el hardware #" + info.hardware_asset_id : ""}
+        </p>}
+        {isCurrentPositive && <p className="cve-joint-explanation">
+          Esta configuración está confirmada. Puedes deshacer la correspondencia;
+          el historial de la decisión original se conservará.
+        </p>}
+        <div className="cve-nvd-actions">
+          {canDecide && actionOptions.map(action => <button type="button" key={action.key}
+            className={"cve-nvd-action" + (choice === action.key ? " selected" : "")}
+            data-action={action.key}
+            aria-pressed={choice === action.key}
+            disabled={saving || (action.key !== "UNKNOWN" && !installed)}
+            onClick={() => chooseDecision(action.key)}>
+            {action.title}
+          </button>)}
+        </div>
           {choice && <form className="cve-compact-review" onSubmit={save}>
             <label htmlFor="cve-justification">Justificación de la decisión</label>
             <textarea id="cve-justification" maxLength={1000} rows={3}
               value={justification} disabled={saving} required
-              placeholder={choice === "CONFIRMED"
-                ? "Explica por qué el firmware corresponde al criterio de NVD..."
-                : "Explica por qué el firmware no corresponde al criterio de NVD..."}
+              placeholder={choice === "UNKNOWN"
+                ? "Explica por qué deshaces la correspondencia..."
+                : choice === "CONFIRMED"
+                  ? "Explica por qué el firmware corresponde al criterio de NVD..."
+                  : "Explica por qué el firmware no corresponde al criterio de NVD..."}
               onChange={event => setJustification(event.target.value)}/>
             <small>{justification.length}/1000 caracteres</small>
 
@@ -318,16 +347,15 @@ export default function CveAnalysis() {
             <div className="cve-form-actions">
               <button type="submit" className="button-primary"
                 disabled={saving || Boolean(guard)}>{
-                  saving ? "Guardando..." : "Guardar evaluación"}</button>
+                  saving ? "Guardando..." : isUndo ? "Confirmar y deshacer" : "Guardar evaluación"}</button>
               <button type="button" className="button-secondary"
                 disabled={saving} onClick={clearDecision}>Cancelar</button>
             </div>
           </form>}
         </div>}
         {!canDecide && <p className="cve-muted">
-          Este rol puede consultar la evidencia. Solo el analista o
+          Este rol puede consultar la evaluación. Solo el analista o
           administrador puede registrar una decisión.</p>}
-      </article>
     </section>
 
     <details className="panel cve-section cve-history-fold">

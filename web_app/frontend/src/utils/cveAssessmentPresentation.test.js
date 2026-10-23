@@ -6,6 +6,7 @@ import {
   advisoryOutcome, cpePartLabel, versionConstraintsText, localizedTimestamp,
   selectedFirmwareInstallation, proposedFirmwareDecision, experimentalDescription,
   nvdCveDetailUrl, nvdVulnerabilitiesByCpeUrl, nvdCvesApiByCpeNameUrl,
+  assessmentActionOptions,
 } from "./cveAssessmentPresentation.js";
 
 const installment = {
@@ -243,4 +244,19 @@ test("assessment payload excludes evidence source", () => {
     "software_installation_id", "firmware_verdict",
     "inventory_declared_complete", "justification"
   ].sort());
+});
+
+test("confirmed configuration exposes only undo, not another confirmation", () => {
+  assert.deepEqual(assessmentActionOptions("APPLIES").map(item => item.key), ["UNKNOWN"]);
+  assert.deepEqual(assessmentActionOptions("NOT_APPLICABLE").map(item => item.key), ["UNKNOWN"]);
+  assert.deepEqual(assessmentActionOptions("PENDING_REVIEW").map(item => item.key),
+    ["CONFIRMED", "NOT_MATCH"]);
+});
+
+test("undo restores pending review without claiming the vulnerability does not apply", () => {
+  const decision = proposedFirmwareDecision(context(), "UNKNOWN", "", "Se revoca la confirmación");
+  assert.equal(decision.firmware_verdict, "UNKNOWN");
+  assert.equal(decision.inventory_declared_complete, false);
+  assert.equal(submissionGuard(context(), decision), "");
+  assert.equal(advisoryOutcome(context(), decision), "PENDING_REVIEW");
 });

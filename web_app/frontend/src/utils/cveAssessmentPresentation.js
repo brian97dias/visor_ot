@@ -175,3 +175,19 @@ export function nvdCvesApiByCpeNameUrl(cpeName) {
   return "https://services.nvd.nist.gov/rest/json/cves/2.0?cpeName=" +
     encodeURIComponent(cpeName).replace(/%3A/gi, ":");
 }
+
+/** Current evaluation actions, not a second independent firmware/CPE decision.
+ * Undo returns the reviewed configuration to PENDING_REVIEW, never NOT_APPLICABLE.
+ */
+export function assessmentActionOptions(status) {
+  if (status === "APPLIES") {
+    return [{ key: "UNKNOWN", title: "Deshacer correspondencia" }];
+  }
+  if (status === "NOT_APPLICABLE") {
+    return [{ key: "UNKNOWN", title: "Reabrir evaluación" }];
+  }
+  return [
+    { key: "CONFIRMED", title: "Confirmar correspondencia" },
+    { key: "NOT_MATCH", title: "Descartar correspondencia" },
+  ];
+}

@@ -2899,8 +2899,6 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   padding: 18px; border-radius: 8px; overflow-wrap: anywhere; }
 .cve-confirm-step p { font-size: .85rem; color: #cbd5e1; line-height: 1.55; }
 .cve-form-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
-.cve-success { border: 1px solid #166534; background: #092c25;
-  border-radius: 7px; padding: 12px 15px; color: #bbf7d0; }
 .cve-history { margin: 14px 0 0; padding: 0; list-style: none; display: grid; gap: 11px; }
 .cve-history li { border: 1px solid #334155; background: #101b2b;
   padding: 15px 17px; border-radius: 8px; }
@@ -3048,8 +3046,22 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cve-nvd-installed:last-child { border-bottom: 0; }
 .cve-nvd-installed strong { color: #f1f5f9; font-size: .92rem; }
 .cve-nvd-installed p { margin-bottom: 0; font-size: .83rem; }
-.cve-nvd-decision { margin-top: 18px; border-top: 1px solid #334155; padding-top: 18px; }
-.cve-nvd-decision > p { font-size: .91rem; line-height: 1.5; margin: 0 0 13px; }
+.cve-nvd-decision { margin-top: 18px; padding: 22px 24px;
+  border-left: 3px solid #0e7490; background: #111827; }
+.cve-nvd-joint-title { display: flex; flex-wrap: wrap; gap: 12px;
+  align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.cve-nvd-joint-title h3 { margin: 0; color: #f1f5f9; font-size: 1.04rem; }
+.cve-nvd-decision > p { font-size: .91rem; line-height: 1.55;
+  color: #cbd5e1; margin: 0 0 13px; }
+.cve-joint-criteria { display: flex; flex-wrap: wrap; align-items: center;
+  gap: 9px; margin-bottom: 12px; }
+.cve-joint-criteria span { color: #cbd5e1; font-size: .82rem; }
+.cve-joint-criteria span:first-child, .cve-joint-criteria span:last-child {
+  background: #0c1626; border: 1px solid #334155; border-radius: 7px;
+  padding: 8px 12px; }
+.cve-joint-explanation { color: #a7f3d0 !important; }
+.cve-nvd-action[data-action="UNKNOWN"]:hover:not(:disabled) {
+  border-color: #38bdf8; color: #bae6fd; }
 .cve-nvd-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .cve-nvd-action { border: 1px solid #475569; font: inherit; font-size: .89rem;
   font-weight: 680; border-radius: 22px; background: transparent; color: #e2e8f0;
@@ -3068,7 +3080,7 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 @media (max-width: 740px) {
   .cve-nvd-titlebar { flex-direction: column; gap: 10px; }
   .cve-nvd-badges { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 9px; }
-  .cve-nvd-condition { padding: 17px; }
+  .cve-nvd-condition, .cve-nvd-decision { padding: 17px; }
 }
 @media (max-width: 480px) {
   .cve-nvd-detail .cve-nvd-overview { padding: 17px; }

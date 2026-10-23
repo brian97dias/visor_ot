@@ -1,11 +1,11 @@
 import { useEffect } from "react";
 
-function SuccessNotice({ message, onClose }) {
+function SuccessNotice({ message, onClose, durationMs = 6000 }) {
   useEffect(() => {
     if (!message) return undefined;
-    const timeoutId = window.setTimeout(onClose, 6000);
+    const timeoutId = window.setTimeout(onClose, durationMs);
     return () => window.clearTimeout(timeoutId);
-  }, [message, onClose]);
+  }, [message, onClose, durationMs]);
 
   if (!message) return null;
 
