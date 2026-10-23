@@ -68,10 +68,16 @@ def _annotate_tree(tree, technical):
     tree["technical_result"] = technical.get("result", "INDETERMINATE")
     if technical.get("reason"):
         tree["technical_reason"] = technical["reason"]
-    if "installed_version" in technical:
-        tree["technical_installed_version"] = technical["installed_version"]
-    if "software_installation_id" in technical:
-        tree["technical_software_installation_id"] = technical["software_installation_id"]
+    for key in ("installed_version", "software_installation_id",
+                "software_asset_id", "software_name", "identity", "matched_cpe"):
+        if key in technical:
+            tree["technical_" + key] = technical[key]
+    if tree.get("kind") == "CRITERION":
+        chosen = technical.get("software_installation_id")
+        tree["installed_software"] = [
+            row for row in tree.get("installed_software", [])
+            if row["installation_id"] == chosen
+        ] if chosen else []
     for visual, evaluated in zip(tree.get("children", []), technical.get("children", [])):
         _annotate_tree(visual, evaluated)
     return tree
@@ -203,6 +209,35 @@ def _serialize_assessment(item, inventory_fp, config_fp):
     }
 
 
+
+def _matching_criterion_count(technical_tree):
+    if technical_tree.get("kind") == "CRITERION":
+        return int(technical_tree.get("identity") == "MATCHED")
+    return sum(_matching_criterion_count(child)
+               for child in technical_tree.get("children", []))
+
+
+def _relevance_summary(configs, technical_trees):
+    """Select per-asset pertinent alternatives without discarding NVD history.
+
+    MATCHED means an actual confirmed hardware/software CPE was involved;
+    EXCLUDED by version still belongs to that product and stays visible.
+    Unknown configurations without any matched asset are preserved in the
+    original list, but do not dominate the asset's regular evaluation screen.
+    """
+    relevant = []
+    for config, evaluation in zip(configs, technical_trees):
+        matches = _matching_criterion_count(evaluation)
+        if matches:
+            relevant.append((matches, config))
+    priority = {"COMPATIBLE": 0, "INDETERMINATE": 1, "EXCLUDED": 2}
+    relevant.sort(key=lambda row: (
+        priority.get(row[1]["technical_result"], 3),
+        -row[0], row[1]["index"],
+    ))
+    return [row for _, row in relevant]
+
+
 def general_assessment_context(cve_id, hardware_id):
     hw, cve, confirmed, installed, inventory_fp = _context(cve_id, hardware_id)
     technical = evaluate_configurations(
@@ -234,6 +269,7 @@ def general_assessment_context(cve_id, hardware_id):
             "latest_assessment": current,
             "history": [_serialize_assessment(row, inventory_fp, cfg_fp) for row in history],
         })
+    pertinent = _relevance_summary(configs, technical["configurations"])
     return {
         "cve_id": cve.cve_id, "hardware_asset_id": hw.pk,
         "hardware_name": hw.asset.name, "inventory_fingerprint": inventory_fp,
@@ -244,6 +280,9 @@ def general_assessment_context(cve_id, hardware_id):
             for name, assoc in confirmed.items()
         ],
         "configurations": configs,
+        "relevant_configurations": pertinent,
+        "unrelated_configuration_count": len(configs) - len(pertinent),
+        "context_unit": "HARDWARE_CVE",
     }
 
 
