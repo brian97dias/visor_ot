@@ -152,7 +152,7 @@ class CveCatalogueEvaluationStatusTests(TestCase):
         self.assess(excluded, "NOT_MATCH", complete=True)
         self.assess(Cve.objects.get(cve_id="CVE-2026-10004"), "UNKNOWN")
         expected = {"total": 4, "applies": 1, "not_applicable": 1,
-                    "pending_review": 2, "validated": 2}
+                    "pending_review": 2, "validated": 2, "applies_conditional": 0}
         all_rows = self.client.get(self.BASE, {"page": 1, "page_size": 1})
         self.assertEqual(all_rows.status_code, 200, all_rows.data)
         self.assertEqual(all_rows.data["summary"], expected)

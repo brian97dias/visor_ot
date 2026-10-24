@@ -51,7 +51,7 @@ class CveCatalogueHttpTests(TestCase):
         self.assertEqual(reply.data["results"], [])
         self.assertEqual(reply.data["summary"], {
             "total": 0, "applies": 0, "not_applicable": 0,
-            "pending_review": 0, "validated": 0,
+            "pending_review": 0, "validated": 0, "applies_conditional": 0,
         })
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 

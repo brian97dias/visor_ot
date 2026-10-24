@@ -240,7 +240,7 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(row["applicability_source"], "SYSTEM")
         self.assertEqual(response.data["summary"], {
             "total": 1, "applies": 1, "not_applicable": 0,
-            "pending_review": 0, "validated": 1,
+            "pending_review": 0, "validated": 1, "applies_conditional": 0,
         })
         self.assertEqual(row["evaluation_status"], "PENDING_REVIEW")
         self.assertEqual(len(row["related_assets"]), 1)
