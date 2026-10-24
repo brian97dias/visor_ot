@@ -143,6 +143,45 @@ class CveCatalogueEvaluationStatusTests(TestCase):
         self.assertEqual(self.client.get(self.BASE, {"status": "ALL"}).data["count"], 3)
         self.assertEqual(first.cve_id, "CVE-2026-10001")
 
+    def test_summary_counts_all_cves_unaffected_by_status_severity_and_pagination(self):
+        good = self.make_cve("CVE-2026-10001")
+        excluded = self.make_cve("CVE-2026-10002")
+        self.make_cve("CVE-2026-10003")
+        self.make_cve("CVE-2026-10004", configurations=[nvd_and(), nvd_and()])
+        self.assess(good, "CONFIRMED")
+        self.assess(excluded, "NOT_MATCH", complete=True)
+        self.assess(Cve.objects.get(cve_id="CVE-2026-10004"), "UNKNOWN")
+        expected = {"total": 4, "applies": 1, "not_applicable": 1,
+                    "pending_review": 2, "validated": 2}
+        all_rows = self.client.get(self.BASE, {"page": 1, "page_size": 1})
+        self.assertEqual(all_rows.status_code, 200, all_rows.data)
+        self.assertEqual(all_rows.data["summary"], expected)
+        self.assertEqual(all_rows.data["count"], 4)
+        filtered = self.client.get(self.BASE, {
+            "status": "PENDING_REVIEW", "page_size": 1, "q": "CVE-2026",
+        })
+        self.assertEqual(filtered.data["summary"], expected)
+        self.assertEqual(filtered.data["count"], 2)
+        self.assertEqual(len(filtered.data["results"]), 1)
+        applied = self.client.get(self.BASE, {"status": "APPLIES"})
+        self.assertEqual(applied.data["summary"], expected)
+        self.assertEqual(applied.data["count"], 1)
+        self.assertEqual(self.client.get(self.BASE, {
+            "q": "does-not-exist", "severity": "HIGH",
+        }).data["summary"], expected)
+
+    def test_stale_audits_are_in_three_state_pending_filter(self):
+        cve = self.make_cve()
+        self.assess(cve, "CONFIRMED")
+        self.hardware.model = "Changed Hardware Model"
+        self.hardware.save(update_fields=["model"])
+        reply = self.client.get(self.BASE, {"status": "PENDING_REVIEW"})
+        self.assertEqual(reply.status_code, 200, reply.data)
+        self.assertEqual(reply.data["count"], 1)
+        self.assertEqual(reply.data["summary"]["pending_review"], 1)
+        self.assertEqual(reply.data["summary"]["applies"], 0)
+        self.assertEqual(reply.data["results"][0]["applicability_status"], "STALE")
+
     def test_operator_can_filter_but_cannot_create_assessments(self):
         self.make_cve()
         operator = get_user_model().objects.create_user(

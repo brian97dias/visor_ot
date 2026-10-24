@@ -49,6 +49,10 @@ class CveCatalogueHttpTests(TestCase):
         self.assertEqual(reply.status_code, 200)
         self.assertEqual(reply.data["count"], 0)
         self.assertEqual(reply.data["results"], [])
+        self.assertEqual(reply.data["summary"], {
+            "total": 0, "applies": 0, "not_applicable": 0,
+            "pending_review": 0, "validated": 0,
+        })
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
     def test_unique_cve_count_and_candidate_hardware(self):
