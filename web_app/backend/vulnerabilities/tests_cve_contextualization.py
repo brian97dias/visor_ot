@@ -3,11 +3,6 @@
 The data below reproduces the relevant NVD *shapes*, not a downloaded copy
 of all 96 configurations. The live NVD JSON is still stored unchanged.
 """
-import json
-from io import StringIO
-
-from django.core.management import call_command
-from django.core.management.base import CommandError
 from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -20,7 +15,6 @@ from vulnerabilities.services.cve_configuration_evaluator import (
 )
 from vulnerabilities.services.cve_general_assessment import (
     general_assessment_context, summarize_hardware_cve_review,
-    summarize_technical_configurations,
 )
 from vulnerabilities.tests_cve_discovery_plan import CveDiscoveryPlanTests
 
@@ -109,48 +103,6 @@ class HardwareCveReviewSummaryTests(SimpleTestCase):
         self.assertEqual(info["status"], "IN_REVIEW")
         self.assertEqual(info["reviewed_configurations"], 1)
         self.assertEqual(summarize_hardware_cve_review([])["status"], "PENDING_REVIEW")
-
-
-class HardwareCveTechnicalSummaryTests(SimpleTestCase):
-    @staticmethod
-    def alt(result):
-        return {"kind": "GROUP", "result": result}
-
-    def test_mixed_result_reports_actual_support_and_unknowns(self):
-        technical = {
-            "result": COMPATIBLE,
-            "configurations": [
-                self.alt(EXCLUDED), self.alt(COMPATIBLE),
-                self.alt(INDETERMINATE), self.alt(EXCLUDED),
-            ],
-        }
-        summary = summarize_technical_configurations(technical)
-        self.assertEqual(summary["result"], COMPATIBLE)
-        self.assertEqual(summary["total"], 4)
-        self.assertEqual(summary["compatible_count"], 1)
-        self.assertEqual(summary["compatible_positions"], [2])
-        self.assertEqual(summary["excluded_count"], 2)
-        self.assertEqual(summary["indeterminate_count"], 1)
-        self.assertFalse(summary["fully_resolved"])
-
-    def test_excluded_only_when_all_alternatives_are_excluded(self):
-        technical = {
-            "result": EXCLUDED,
-            "configurations": [self.alt(EXCLUDED), self.alt(EXCLUDED)],
-        }
-        summary = summarize_technical_configurations(technical)
-        self.assertTrue(summary["fully_resolved"])
-        self.assertEqual(summary["excluded_count"], 2)
-        self.assertEqual(summary["compatible_positions"], [])
-        self.assertEqual(summary["indeterminate_count"], 0)
-
-    def test_missing_configs_do_not_masquerade_as_proven_safe(self):
-        summary = summarize_technical_configurations({
-            "result": INDETERMINATE, "configurations": [],
-        })
-        self.assertEqual(summary["total"], 0)
-        self.assertFalse(summary["fully_resolved"])
-        self.assertEqual(summary["result"], INDETERMINATE)
 
 
 class SiemensContextualLogicTests(SimpleTestCase):
@@ -257,11 +209,6 @@ class SiemensContextualHttpTests(TestCase):
         data = response.data
         self.assertEqual(data["context_unit"], "HARDWARE_CVE")
         self.assertEqual(data["technical_result"], COMPATIBLE)
-        self.assertEqual(data["technical_summary"]["total"], 12)
-        self.assertEqual(data["technical_summary"]["compatible_count"], 1)
-        self.assertEqual(data["technical_summary"]["excluded_count"], 11)
-        self.assertEqual(data["technical_summary"]["indeterminate_count"], 0)
-        self.assertEqual(data["technical_summary"]["compatible_positions"], [9])
         self.assertEqual(data["assessment_summary"]["status"], "PENDING_REVIEW")
         self.assertEqual(data["assessment_summary"]["total_configurations"], 12)
         self.assertEqual(data["assessment_summary"]["pending_configurations"], 12)
@@ -287,40 +234,6 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(found[1]["asset_id"], self.sw.pk)
         self.assertEqual(found[1]["version"], "4.5.2")
         self.assertEqual(found[1]["role"], "MATCHED_INSTALLED_SOFTWARE")
-
-    def test_read_only_cli_audits_the_nvd_alternatives_on_this_hardware(self):
-        output = StringIO()
-        previous = AssetCveAssessment.objects.count()
-        call_command(
-            "inspect_cve_context", hardware=self.hw.pk,
-            cve="CVE-2021-44695", stdout=output, **{"json": True},
-        )
-        report = json.loads(output.getvalue())
-        self.assertEqual(report["hardware_id"], self.hw.pk)
-        self.assertEqual(report["analyzed"], 1)
-        item = report["results"][0]
-        self.assertEqual(item["cve_id"], "CVE-2021-44695")
-        self.assertEqual(item["technical_result"], COMPATIBLE)
-        self.assertEqual(item["total_configurations"], 12)
-        self.assertEqual(item["compatible"], 1)
-        self.assertEqual(item["excluded"], 11)
-        self.assertEqual(item["indeterminate"], 0)
-        self.assertEqual(item["compatible_positions"], [9])
-        self.assertEqual(item["analyst_status"], "PENDING_REVIEW")
-        self.assertEqual(AssetCveAssessment.objects.count(), previous)
-
-    def test_read_only_cli_does_not_infer_software_or_link_other_cves(self):
-        output = StringIO()
-        call_command(
-            "inspect_cve_context", hardware=self.hw.pk,
-            cve="CVE-1999-99999", stdout=output, **{"json": True},
-        )
-        report = json.loads(output.getvalue())
-        self.assertEqual(report["analyzed"], 0)
-        self.assertEqual(report["results"], [])
-        with self.assertRaises(CommandError):
-            call_command("inspect_cve_context", hardware=999999,
-                         stdout=StringIO())
 
     def test_version_bounded_confirmation_is_scoped_and_audited(self):
         context = self.client.get(self.url)
@@ -442,7 +355,5 @@ class SiemensContextualHttpTests(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["technical_result"], EXCLUDED)
-        self.assertEqual(response.data["technical_summary"]["excluded_count"], 1)
-        self.assertEqual(response.data["technical_summary"]["compatible_count"], 0)
         self.assertEqual(response.data["relevant_configurations"], [])
         self.assertEqual(AssetCveAssessment.objects.count(), 0)

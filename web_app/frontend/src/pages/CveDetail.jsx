@@ -9,7 +9,6 @@ import CveAnalysis from "./CveAnalysis";
 import {
   CVE_SEVERITY, CVE_TECHNICAL_STATE, CVE_EVALUATION_STATE,
   selectedCveHardwareId, groupCveEvidence, cveHumanReviewMessage,
-  cveTechnicalBreakdown,
 } from "../utils/cveCataloguePresentation";
 import {
   localizedTimestamp, contextualCveActionOptions, versionConstraintsText,
@@ -314,7 +313,6 @@ export default function CveDetail() {
 
   const configs = context?.relevant_configurations || [];
   const { primary, others } = groupCveEvidence(configs);
-  const technicalBreakdown = cveTechnicalBreakdown(context?.technical_summary);
   const source = cve?.description_source;
   const nvdUrl = "https://nvd.nist.gov/vuln/detail/" + encodeURIComponent(cveId);
   if (loading) return <section className="page" aria-busy="true">
@@ -371,20 +369,15 @@ export default function CveDetail() {
 
     {contextLoading ? <p className="cve-muted">Cargando condiciones del inventario...</p>
       : context && Number(context.hardware_asset_id) === Number(selectedHardware) && <>
-        <div className="cve-general-context-summary">
-          <p>Evaluación del CVE para el hardware #{context.hardware_asset_id}.
-            {" "}{configs.length} configuraciones con evidencia pertinente,
-            de {context.technical_summary?.total ?? context.configurations?.length ?? 0}
-            {" "}alternativas NVD conservadas.</p>
-          {technicalBreakdown && <div className="cve-technical-breakdown"
-            aria-label="Resumen automático de configuraciones NVD">
-            {technicalBreakdown.map(entry =>
-              <div className="cve-technical-breakdown-entry" key={entry.key}>
-                <strong>{entry.count}</strong>
-                <span>{entry.label}</span>
-              </div>)}
-          </div>}
-        </div>
+        <p className="cve-general-context-summary">
+          Evaluación de este CVE para el hardware #{context.hardware_asset_id}.
+          {" "}{configs.length} configuraciones pertinentes de NVD.
+          {context.unrelated_configuration_count > 0 && <>
+            {" "}{context.unrelated_configuration_count} alternativas sin
+            correspondencia demostrada con el inventario actual se conservan
+            en el registro NVD.
+          </>}
+        </p>
         <div className="panel cve-technical-summary">
           <div className="cve-technical-summary-heading">
             <h2>Resultado técnico del CVE en este hardware</h2>
@@ -393,10 +386,9 @@ export default function CveDetail() {
                 CVE_TECHNICAL_STATE.INDETERMINATE}
             </span>
           </div>
-          <p>Resultado automático a partir de CPE confirmados, versiones y
-            condiciones NVD. Una coincidencia de configuración no constituye
-            por sí sola una decisión del analista; las alternativas pendientes
-            permanecen por verificar.</p>
+          <p>Comparación automática y no una decisión del analista.
+            Una configuración excluida no descarta por sí sola las demás alternativas.
+            Una configuración compatible todavía requiere revisar su aplicabilidad real.</p>
         </div>
         <section className="panel cve-general-review-summary"
           aria-labelledby="cve-human-review-title">

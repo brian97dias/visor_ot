@@ -268,37 +268,6 @@ def _relevance_summary(configs, technical_trees):
     return [row for _, row in relevant]
 
 
-def summarize_technical_configurations(technical):
-    """An evidence inventory for ONE hardware/CVE, never a human verdict.
-
-    NVD alternatives are combined with OR; a technical match needs at least
-    one compatible alternative. Absence of compatible alternatives is only
-    an exclusion if *every* alternative has been demonstrably excluded.
-    Keep the NVD configuration positions for reproducible explanations.
-    """
-    alternatives = technical.get("configurations", [])
-    matches = []
-    exclusions = []
-    unresolved = []
-    for index, alternative in enumerate(alternatives, start=1):
-        state = alternative.get("result", "INDETERMINATE")
-        if state == "COMPATIBLE":
-            matches.append(index)
-        elif state == "EXCLUDED":
-            exclusions.append(index)
-        else:
-            unresolved.append(index)
-    return {
-        "result": technical.get("result", "INDETERMINATE"),
-        "total": len(alternatives),
-        "compatible_count": len(matches),
-        "excluded_count": len(exclusions),
-        "indeterminate_count": len(unresolved),
-        "compatible_positions": matches,
-        "fully_resolved": not unresolved and bool(alternatives),
-    }
-
-
 def summarize_hardware_cve_review(configurations):
     """One conservative human-review summary per (hardware, CVE).
 
@@ -376,7 +345,6 @@ def general_assessment_context(cve_id, hardware_id):
         "hardware_name": hw.asset.name, "inventory_fingerprint": inventory_fp,
         "installed_software": installed,
         "technical_result": technical["result"],
-        "technical_summary": summarize_technical_configurations(technical),
         "assessment_summary": summarize_hardware_cve_review(configs),
         "confirmed_hardware_cpes": [
             {"cpe_name": name, "association_id": assoc.pk}

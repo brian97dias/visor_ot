@@ -8,7 +8,7 @@ import {
   cveHardwareCandidates, toggleCveHardwareSelection,
   cveHardwareSelectionValid, isCveDiscoveryActive,
   preferredCveHardwareId, selectedCveHardwareId, cveReviewProgress,
-  groupCveEvidence, cveHumanReviewMessage, cveTechnicalBreakdown,
+  groupCveEvidence, cveHumanReviewMessage,
 } from "./cveCataloguePresentation.js";
 
 test("severity and run state never claim that a candidate CVE applies", () => {
@@ -135,24 +135,4 @@ test("one human verdict does not imply mandatory reviews of 96 configurations", 
   assert.match(cveHumanReviewMessage({status:"NOT_APPLICABLE"}),/Todas/i);
   assert.match(cveHumanReviewMessage({status:"STALE"}),/cambió/i);
   assert.match(cveHumanReviewMessage({status:"IN_REVIEW"}),/historial/i);
-});
-
-
-test("technical breakdown includes every NVD alternative, distinct from analyst review", () => {
-  const rows = cveTechnicalBreakdown({
-    total: 96, compatible_count: 1, excluded_count: 95,
-    indeterminate_count: 0,
-  });
-  assert.deepEqual(rows.map(row => row.count), [1,95,0]);
-  assert.equal(rows.reduce((total,row) => total+row.count,0), 96);
-  assert.match(rows[1].label,/Excluidas técnicamente/);
-  assert.equal(cveTechnicalBreakdown(null), null);
-});
-
-test("unresolved alternative is not treated as an excluded configuration", () => {
-  const rows = cveTechnicalBreakdown({
-    total: 16, compatible_count: 0, excluded_count: 11,
-    indeterminate_count: 5,
-  });
-  assert.deepEqual(rows.map(row=>row.count), [0,11,5]);
 });
