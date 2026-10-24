@@ -48,7 +48,7 @@ def _automatic_justification(proof, configuration):
             piece += "; rango NVD " + ", ".join(bounds)
         evidence.append(piece)
     return (
-        "VISOR OT confirmó automáticamente la correspondencia de la "
+        "El sistema confirmó automáticamente la correspondencia de la "
         f"configuración NVD {proof['configuration_position']}: "
         + ". ".join(evidence)
         + ". Todas las condiciones seleccionadas de NVD coinciden con "

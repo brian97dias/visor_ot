@@ -26,6 +26,9 @@ class SystemCveAuditTests(TestCase):
         self.assertIn("4.5.2", record.justification)
         self.assertIn("4.6.0", record.justification)
         self.assertIn("CPE confirmado", record.justification)
+        self.assertTrue(record.justification.startswith(
+            "El sistema confirmó automáticamente"
+        ))
         context = first.data["context"]
         latest = context["configurations"][8]["latest_assessment"]
         self.assertEqual(latest["status"], "APPLIES")
