@@ -252,6 +252,7 @@ def _evaluate_group(group, hardware_cpes, installed):
     children = [_evaluate_group(node, hardware_cpes, installed) for node in nodes]
     children.extend(
         {"kind": "CRITERION", "criteria": item.get("criteria"),
+         "vulnerable": item.get("vulnerable"),
          **evaluate_criterion(item, hardware_cpes, installed)}
         for item in matches
         if isinstance(item, dict)
