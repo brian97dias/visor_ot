@@ -8,9 +8,14 @@ Only the latest append-only decision per (hardware, configuration) is effective.
 """
 from collections import defaultdict
 
+from django.http import Http404
+
 from rest_framework.exceptions import NotFound, ValidationError
 
-from vulnerabilities.models import AssetCveAssessment, AssetCveFinding
+from vulnerabilities.models import (
+    AssetCveAssessment, AssetCveFinding, HardwareCveDecision,
+)
+from .hardware_cve_decision import nvd_decision_fingerprint
 from .cve_general_assessment import _context as general_context, _digest
 from .cve_assessment import _context as experimental_context
 from .cve_ingestion import CveResponseError
@@ -55,7 +60,7 @@ def _is_current(record, cve, cache):
                     inventory_fingerprint,
                     {index: _digest(config) for index, config in enumerate(configs)},
                 )
-        except (NotFound, ValidationError, CveResponseError, ValueError, AttributeError):
+        except (Http404, NotFound, ValidationError, CveResponseError, ValueError, AttributeError):
             cache[key] = (None, {})
     inventory_fingerprint, config_fingerprints = cache[key]
     return bool(
@@ -97,16 +102,28 @@ def catalogue_statuses(cves):
         seen.add(key)
         latest[record.cve_id][(record.hardware_id, record.configuration_index)] = record
 
+    # New append-only whole-hardware decisions take precedence over previous
+    # per-configuration reviews for the *same* hardware. The older records
+    # remain untouched and can still be inspected in the legacy history.
+    newest_hardware = defaultdict(dict)
+    for record in HardwareCveDecision.objects.filter(
+        cve_id__in=ids
+    ).order_by("cve_id", "hardware_id", "-decided_at", "-pk"):
+        if record.hardware_id not in newest_hardware[record.cve_id]:
+            newest_hardware[record.cve_id][record.hardware_id] = record
+        hardware_by_cve[record.cve_id].add(record.hardware_id)
+
     cache = {}
     statuses = {}
     for cve in cves:
         hardware_ids = hardware_by_cve[cve.pk]
-        records = latest[cve.pk]
         configurations = cve.configurations
         config_count = len(configurations) if isinstance(configurations, list) else 0
-        if not records:
-            statuses[cve.pk] = PENDING_REVIEW
-            continue
+        newest = newest_hardware[cve.pk]
+        records = {
+            key: record for key, record in latest[cve.pk].items()
+            if key[0] not in newest
+        }
         current = {}
         any_stale = False
         for key, record in records.items():
@@ -114,21 +131,39 @@ def catalogue_statuses(cves):
                 current[key] = record.status
             else:
                 any_stale = True
+        whole = {}
+        fp = nvd_decision_fingerprint(cve)
+        for hw_id, decision in newest.items():
+            key = (cve.pk, hw_id, False)
+            if key not in cache:
+                try:
+                    _, _, _, _, identity_fp = general_context(cve.cve_id, hw_id)
+                    cache[key] = (identity_fp, {})
+                except (Http404, NotFound, ValidationError,
+                        CveResponseError, ValueError, AttributeError):
+                    cache[key] = (None, {})
+            current_fp = cache[key][0]
+            if (current_fp and decision.inventory_fingerprint == current_fp
+                    and decision.nvd_fingerprint == fp):
+                whole[hw_id] = decision.status
+            else:
+                any_stale = True
 
-        if APPLIES in current.values():
-            # At least one validated positive; others might remain pending.
+        if APPLIES in current.values() or APPLIES in whole.values():
             statuses[cve.pk] = APPLIES
-        elif (
-            hardware_ids and config_count > 0 and not any_stale
-            and all(
-                current.get((hw_id, index)) == NOT_APPLICABLE
-                for hw_id in hardware_ids for index in range(config_count)
-            )
-        ):
+        elif (hardware_ids and not any_stale and
+              all(
+                  (whole.get(hw_id) == NOT_APPLICABLE) if hw_id in newest
+                  else (config_count > 0 and all(
+                      current.get((hw_id, index)) == NOT_APPLICABLE
+                      for index in range(config_count)
+                  ))
+                  for hw_id in hardware_ids
+              )):
             statuses[cve.pk] = NOT_APPLICABLE
         elif any_stale:
             statuses[cve.pk] = STALE
-        elif current:
+        elif current or whole:
             statuses[cve.pk] = IN_REVIEW
         else:
             statuses[cve.pk] = PENDING_REVIEW
