@@ -83,6 +83,73 @@ class ConditionalSiemensTests(TestCase):
             "status": "PENDING_REVIEW",
         }).data["count"], 0)
 
+    def _installed_step7_without_confirmed_cpe(self):
+        application = self.fixture.make_software("STEP 7 registrado por el analista")
+        application.software_type = "APPLICATION"
+        application.manufacturer = "Siemens"
+        application.product = "SIMATIC STEP 7"
+        application.version = "17"
+        application.save(update_fields=[
+            "software_type", "manufacturer", "product", "version",
+        ])
+        installation = self.fixture.link(software=application)
+        return application, installation
+
+    def test_manual_software_link_is_conditional_without_cpe_proof(self):
+        software, installation = self._installed_step7_without_confirmed_cpe()
+        context = self.client.get(self.url).data
+        self.assertTrue(context["configurations"][0]["conditional_supported"])
+        self.assertEqual(context["configurations"][0]["candidate_installation_ids"], [])
+        posted = self.client.post(self.url, self.payload(
+            software_installation_id=installation.pk,
+        ), format="json")
+        self.assertEqual(posted.status_code, 201, posted.data)
+        self.assertEqual(posted.data["assessment"]["status"], "APPLIES_CONDITIONAL")
+        record = AssetCveAssessment.objects.get()
+        self.assertEqual(record.software_installation_id, installation.pk)
+        linked = record.criteria_evidence["linked_software"]
+        self.assertEqual(len(linked), 1)
+        self.assertEqual(linked[0]["software_asset_id"], software.pk)
+        self.assertEqual(linked[0]["link_source"], "ANALYST_DISCRETION")
+        self.assertIsNone(linked[0]["matched_cpe"])
+        self.assertFalse(linked[0]["identity_verified"])
+        self.assertFalse(linked[0]["version_verified"])
+        self.assertEqual(self.client.get(self.url).data[
+            "configurations"][0]["latest_assessment"]["software_installation_id"],
+            installation.pk)
+
+    def test_unchecked_software_link_remains_empty_even_when_installed(self):
+        self._installed_step7_without_confirmed_cpe()
+        posted = self.client.post(self.url, self.payload(), format="json")
+        self.assertEqual(posted.status_code, 201, posted.data)
+        record = AssetCveAssessment.objects.get()
+        self.assertIsNone(record.software_installation_id)
+        self.assertEqual(record.criteria_evidence["linked_software"], [])
+
+    def test_discretionary_link_cannot_use_non_installed_software(self):
+        software = self.fixture.make_software("STEP 7 sin instalacion")
+        software.software_type = "APPLICATION"
+        software.save(update_fields=["software_type"])
+        rejected = self.client.post(self.url, self.payload(
+            software_installation_id=999999,
+        ), format="json")
+        self.assertEqual(rejected.status_code, 400, rejected.data)
+        self.assertIn("software_installation_id", rejected.data)
+        self.assertFalse(AssetCveAssessment.objects.exists())
+
+    def test_manual_association_stales_when_software_identity_changes(self):
+        application, installation = self._installed_step7_without_confirmed_cpe()
+        self.assertEqual(self.client.post(self.url, self.payload(
+            software_installation_id=installation.pk,
+        ), format="json").status_code, 201)
+        application.version = "18"
+        application.save(update_fields=["version"])
+        reread = self.client.get(self.url).data
+        self.assertTrue(reread["configurations"][0]["latest_assessment"]["stale"])
+        self.assertNotEqual(
+            reread["applicability"]["status"], "APPLIES_CONDITIONAL"
+        )
+
     def test_unrelated_firmware_cannot_be_linked_to_step7(self):
         refused = self.client.post(self.url, self.payload(
             software_installation_id=self.installation.pk,
