@@ -25,7 +25,7 @@ const STATE = {
 };
 const PLAIN = { h: "Hardware", o: "Firmware / sistema operativo", a: "Software" };
 
-function Criterion({ item, depth = 0 }) {
+function Criterion({ item, depth = 0, selection, onSelect, installId, onInstall, candidates = [], canDecide = false }) {
   if (item.kind === "CRITERION") {
     const isSoftware = ["a", "o"].includes(item.part);
     const identityBadge = nvdCriterionIdentityBadge(item);
@@ -74,6 +74,30 @@ function Criterion({ item, depth = 0 }) {
           item.technical_installed_version
         }</p>}
       </div>
+      {isSoftware && item.vulnerable && onSelect && <div className="cve-nvd-found">
+        <label className="cve-criterion-selection">
+          <input type="checkbox" disabled={!canDecide}
+            checked={selection === (item.match_criteria_id || item.criteria)}
+            onChange={event => onSelect(event.target.checked
+              ? (item.match_criteria_id || item.criteria) : "")}/>
+          He identificado este componente en el entorno OT
+        </label>
+        {selection === (item.match_criteria_id || item.criteria) && <>
+          <p className="cve-muted">Selecciona únicamente una instalación vigente
+            de este hardware. La selección no demuestra por sí sola que se cumpla
+            la versión vulnerable NVD.</p>
+          <select aria-label="Instalación de software verificada" value={installId}
+            onChange={event => onInstall(event.target.value)}>
+            <option value="">Sin instalación verificable vinculada</option>
+            {candidates.filter(sw => item.part === "a"
+              ? sw.software_type === "APPLICATION"
+              : ["FIRMWARE", "OS"].includes(sw.software_type)
+            ).map(sw => <option key={sw.installation_id} value={sw.installation_id}>
+              {sw.software_name} · Versión {sw.version || "desconocida"}
+            </option>)}
+          </select>
+        </>}
+      </div>}
       {isSoftware && <div className="cve-nvd-found">
         <h4>Software instalado en este hardware</h4>
         {item.installed_software?.length ? item.installed_software.map(sw =>
@@ -111,12 +135,12 @@ function Criterion({ item, depth = 0 }) {
       <div key={i}>
         {i > 0 && <div className="cve-nvd-plus" aria-label={"Operador " + operator}>
           {operator}</div>}
-        <Criterion item={child} depth={depth + 1}/>
+        <Criterion item={child} depth={depth + 1} selection={selection} onSelect={onSelect} installId={installId} onInstall={onInstall} candidates={candidates} canDecide={canDecide}/>
       </div>) : <p className="cve-muted">No hay criterios detallados en este grupo.</p>}
     {alternatives.length > 0 && <details className="cve-nvd-other-evidence">
       <summary>Otras alternativas NVD ({alternatives.length})</summary>
       {alternatives.map((child, i) =>
-        <Criterion key={i} item={child} depth={depth + 1}/>)}
+        <Criterion key={i} item={child} depth={depth + 1} selection={selection} onSelect={onSelect} installId={installId} onInstall={onInstall} candidates={candidates} canDecide={canDecide}/>)}
     </details>}
   </div>;
 }
@@ -126,6 +150,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const status = last?.effective_status || "PENDING_REVIEW";
   const [choice, setChoice] = useState("");
   const [installId, setInstallId] = useState("");
+  const [selectedCriterion, setSelectedCriterion] = useState("");
   const [justification, setJustification] = useState("");
   const [complete, setComplete] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -149,18 +174,19 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const canReview = config.review_supported && canDecide;
   const canConditional = config.conditional_supported && canDecide &&
     config.technical_result === "INDETERMINATE";
-  const options = [
-    ...(canReview || canReopen ? contextualCveActionOptions(config, last) : []),
-    ...(canConditional && !last?.stale ? [{
-      key: "CONDITIONAL", title: "Aplica condicionada",
-    }] : []),
-  ];
-  const noSelected = !["UNKNOWN", "CONDITIONAL"].includes(choice) && !selectedId;
+  const checked = Boolean(selectedCriterion);
+  const canConfirm = canReview || canConditional;
+  const confirmationVerdict = canReview && checked && selectedId
+    ? "CONFIRMED" : "CONDITIONAL";
+  const canDiscard = canReview &&
+    contextualCveActionOptions(config, last).some(option => option.key === "NOT_MATCH");
+  const canUndo = canReview || canReopen;
+  const noSelected = choice === "CONFIRMED" && !selectedId;
   const invalid = !justification.trim() || noSelected ||
     (choice === "CONDITIONAL" && justification.trim().length < 20);
 
   function reset() {
-    setChoice(""); setJustification(""); setComplete(false); setError("");
+    setChoice(""); setSelectedCriterion(""); setInstallId(""); setJustification(""); setComplete(false); setError("");
   }
   async function submit(event) {
     event.preventDefault();
@@ -187,7 +213,12 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       setSaving(false);
     }
   }
-  return <div className="panel cve-nvd-decision">
+  return <>
+    <Criterion item={config.tree} selection={selectedCriterion}
+      onSelect={value => { setSelectedCriterion(value); setInstallId(""); setChoice(""); }}
+      installId={installId} onInstall={value => { setInstallId(value); setChoice(""); }}
+      candidates={context.installed_software || []} canDecide={canDecide}/>
+    <div className="panel cve-nvd-decision">
     <div className="cve-nvd-joint-title">
       <h3>{highlight ? "Correspondencia · Configuración NVD " + config.position :
         "Revisión de evidencia adicional · Configuración " + config.position}</h3>
@@ -211,37 +242,33 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         El firmware instalado satisface este criterio NVD; no se puede
         descartar mientras las evidencias sean vigentes.
       </p>}
-    {options.length > 0 && <div className="cve-nvd-actions">
-      {options.map(option => <button key={option.key} type="button"
-        className={"cve-nvd-action" + (choice === option.key ? " selected" : "")}
-        data-action={option.key}
-        aria-pressed={choice === option.key}
-        onClick={() => { setChoice(option.key); setJustification(""); setComplete(false); }}>
-        {option.title}</button>)}
+    {(canConfirm || canDiscard || canUndo) && <div className="cve-nvd-actions">
+      {canConfirm && <button type="button" className={"cve-nvd-action" +
+        (["CONFIRMED", "CONDITIONAL"].includes(choice) ? " selected" : "")}
+        onClick={() => { setChoice(confirmationVerdict); setJustification(""); }}>
+        Confirmar correspondencia</button>}
+      {canDiscard && <button type="button" className={"cve-nvd-action" +
+        (choice === "NOT_MATCH" ? " selected" : "")}
+        onClick={() => { setChoice("NOT_MATCH"); setJustification(""); }}>
+        Descartar correspondencia</button>}
+      {canUndo && last && <button type="button" className="cve-nvd-action"
+        onClick={() => setChoice("UNKNOWN")}>Reabrir evaluación</button>}
     </div>}
+    {choice === "CONDITIONAL" && <p className="cve-muted" role="status">
+      Resultado previsto: Aplica condicionada. La identificación del componente
+      no acredita todavía toda la configuración NVD.
+    </p>}
+    {!canDiscard && canDecide && <p className="cve-muted">
+      El descarte no está habilitado para esta estructura NVD: exige evidencia
+      negativa suficiente de todas las condiciones y alternativas aplicables.
+    </p>}
     {!canDecide && <p className="cve-muted">
       El rol actual permite consultar, pero no registrar decisiones.</p>}
     {choice && (canReview || canConditional ||
       (canReopen && choice === "UNKNOWN")) &&
       <form className="cve-compact-review"
       onSubmit={submit}>
-      {choice === "CONDITIONAL" && <div className="cve-conditional-installations">
-        <p>Vinculación opcional: marca solamente una instalación comprobada
-          que corresponda al componente vulnerable NVD. Si no hay ninguna,
-          deja las casillas sin seleccionar.</p>
-        {conditionalInstallations.length ? conditionalInstallations.map(sw =>
-          <label key={sw.installation_id}>
-            <input type="checkbox"
-              checked={installId === String(sw.installation_id)}
-              onChange={event => setInstallId(event.target.checked ?
-                String(sw.installation_id) : "")}/>
-            {sw.software_name} · Versión {sw.version || "desconocida"}
-          </label>) : <p className="cve-muted">
-          No existe una instalación identificada con el CPE vulnerable
-          correspondiente. No se vinculará software a esta evaluación.
-        </p>}
-      </div>}
-      {installations.length > 1 && !["UNKNOWN", "CONDITIONAL"].includes(choice) && <label>
+      {installations.length > 1 && choice === "NOT_MATCH" && <label>
         Instalación que deseas evaluar
         <select value={installId} onChange={event => setInstallId(event.target.value)}>
           <option value="">Selecciona una instalación</option>
@@ -297,7 +324,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         </li>)}
       </ol> : <p className="cve-muted">No hay decisiones registradas.</p>}
     </details>
-  </div>;
+  </div></>;
 }
 
 export default function CveDetail() {
@@ -482,7 +509,6 @@ export default function CveDetail() {
                   CVE_TECHNICAL_STATE.INDETERMINATE}
               </span>
             </div>
-            <Criterion item={primary.tree}/>
             <ConfigurationReview context={context} config={primary}
               highlight canDecide={canDecide}
               onSaved={() => {
@@ -506,7 +532,6 @@ export default function CveDetail() {
                     CVE_TECHNICAL_STATE.INDETERMINATE}
                 </span>
               </div>
-              <Criterion item={config.tree}/>
               <ConfigurationReview context={context} config={config}
                 canDecide={canDecide}
                 onSaved={() => {
