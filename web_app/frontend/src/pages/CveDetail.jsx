@@ -117,7 +117,7 @@ function Criterion({ item, depth = 0 }) {
       <summary>Otras alternativas NVD ({alternatives.length})</summary>
       {alternatives.map((child, i) =>
         <Criterion key={i} item={child} depth={depth + 1}/>)}
-    </details>
+    </details>}
   </div>;
 }
 

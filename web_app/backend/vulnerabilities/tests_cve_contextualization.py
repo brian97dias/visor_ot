@@ -250,7 +250,8 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(found[0]["asset_id"], self.hw.pk)
         self.assertEqual(found[1]["asset_id"], self.sw.pk)
         self.assertEqual(found[1]["version"], "4.5.2")
-        self.assertEqual(found[1]["role"], "MATCHED_INSTALLED_SOFTWARE")
+        self.assertEqual(found[0]["role"], "PLATFORM")
+        self.assertEqual(found[1]["role"], "VULNERABLE")
 
     def test_version_bounded_confirmation_is_scoped_and_audited(self):
         context = self.client.get(self.url)
