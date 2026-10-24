@@ -91,6 +91,37 @@ def _catalogue_applicability(analyst_status, related_assets):
     )
 
 
+def _summary_bucket(status):
+    """Three user-facing CVE applicability groups, retaining legacy audit states."""
+    return status if status in ("APPLIES", "NOT_APPLICABLE") else "PENDING_REVIEW"
+
+
+def _catalogue_summary():
+    """Global counts, independent of the list's search, filters and pagination.
+
+    Reuse the same conservative effective-applicability logic as the table;
+    counting raw human audit records would double-count system assessments.
+    """
+    cves = list(Cve.objects.filter(fetch_status=Cve.FetchStatus.COMPLETED))
+    summary = {"total": len(cves), "applies": 0, "not_applicable": 0,
+               "pending_review": 0, "validated": 0}
+    if not cves:
+        return summary
+    analyst = catalogue_statuses(cves)
+    related = related_assets_for_cves(cves)
+    for cve in cves:
+        effective = _catalogue_applicability(analyst[cve.pk], related[cve.pk])
+        bucket = _summary_bucket(effective["status"])
+        if bucket == "APPLIES":
+            summary["applies"] += 1
+        elif bucket == "NOT_APPLICABLE":
+            summary["not_applicable"] += 1
+        else:
+            summary["pending_review"] += 1
+    summary["validated"] = summary["applies"] + summary["not_applicable"]
+    return summary
+
+
 def _cve_brief(cve, hardware_count=0, evaluation_status="PENDING_REVIEW",
                technical_result="INDETERMINATE", related_assets=None,
                applicability=None):
@@ -168,6 +199,8 @@ class CveCatalogueView(APIView):
             filtered = [
                 cve for cve in candidates
                 if (selected_status == "ALL" or
+                    (selected_status == "PENDING_REVIEW" and
+                     _summary_bucket(applicability[cve.pk]["status"]) == "PENDING_REVIEW") or
                     applicability[cve.pk]["status"] == selected_status)
                 and (selected_technical == "ALL" or
                      technicals[cve.pk] == selected_technical or
@@ -179,6 +212,7 @@ class CveCatalogueView(APIView):
         counts = _asset_counts(results)
         return Response({
             "count": count, "page": page, "page_size": page_size,
+            "summary": _catalogue_summary(),
             "results": [_cve_brief(
                 cve, counts[cve.pk], statuses[cve.pk], technicals[cve.pk],
                 assets[cve.pk], applicability[cve.pk],
