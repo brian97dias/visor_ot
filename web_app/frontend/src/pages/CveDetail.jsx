@@ -501,7 +501,14 @@ export default function CveDetail() {
                 CVE_APPLICABILITY_SOURCE.NONE}
             </span>
           </div>
-          {context.applicability?.source === "SYSTEM" ?
+          {context.applicability?.source === "ANALYST" ?
+            <p>Conclusión registrada por el analista para este hardware/CVE.
+              La comparación técnica de NVD se conserva de manera independiente
+              {context.technical_result === "COMPATIBLE"
+                ? "; el sistema también identificó una coincidencia técnica."
+                : "."}
+              Consulta la justificación y evidencia en el historial humano.</p>
+            : context.applicability?.source === "SYSTEM" ?
             <div className="cve-general-auto-proof">
               <p>VISOR OT comprobó las condiciones publicadas por NVD
                 con CPE confirmados, instalación y versión vigentes.
@@ -525,26 +532,24 @@ export default function CveDetail() {
               La ausencia de software en el inventario nunca demuestra
               por sí sola que el CVE no aplique.</p>}
         </div>
-        <section className="panel cve-general-review-summary"
-          aria-labelledby="cve-human-review-title">
+        <details className="panel cve-general-review-summary">
+          <summary>Historial anterior · Evaluaciones por configuración NVD</summary>
+          <p>Estas decisiones históricas son independientes de la nueva
+            evaluación humana por hardware/CVE. Se conservan para auditoría.</p>
           <div className="cve-technical-summary-heading">
-            <h2 id="cve-human-review-title">Evaluación del analista · Este hardware</h2>
+            <span>Estado de las revisiones anteriores</span>
             <span className="cve-catalogue-evaluation-status"
               data-status={context.assessment_summary?.status || "PENDING_REVIEW"}>
               {CVE_EVALUATION_STATE[context.assessment_summary?.status] ||
                 CVE_EVALUATION_STATE.PENDING_REVIEW}
             </span>
           </div>
-          <p>{cveHumanReviewMessage(context.assessment_summary)}</p>
-          <p>Las decisiones se vinculan a la evidencia NVD que las sustenta.
-            El resultado corresponde al CVE y hardware seleccionados;
-            no es necesario tomar una decisión manual por cada alternativa NVD.</p>
           {context.assessment_summary?.stale_configurations > 0 && <p
             className="cpe-warning">
-            {context.assessment_summary.stale_configurations} evaluaciones
+            {context.assessment_summary.stale_configurations} decisiones previas
             requieren nueva revisión porque cambió la evidencia.
           </p>}
-        </section>
+        </details>
         <HardwareCveDecisionPanel key={context.cve_id + ":" + context.hardware_asset_id}
           context={context} canDecide={canDecide}
           onSaved={() => {
