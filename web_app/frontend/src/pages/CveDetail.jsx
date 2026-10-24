@@ -5,7 +5,6 @@ import {
   createGeneralCveAssessment, ensureAutomaticCveAssessment,
 } from "../api/vulnerabilities";
 import SuccessNotice from "../components/SuccessNotice";
-import { getAssets } from "../api/assets";
 import CveAnalysis from "./CveAnalysis";
 import {
   CVE_SEVERITY, CVE_TECHNICAL_STATE, CVE_EVALUATION_STATE,
@@ -27,72 +26,8 @@ const STATE = {
 const PLAIN = { h: "Hardware", o: "Firmware / sistema operativo", a: "Software" };
 
 
-/** Active software inventory; only an eligible installation can be linked. */
-function SoftwareInventoryPicker({ part, softwareAssets, installedSoftware, eligibleInstallationIds,
-  selectedAssetId, selectedInstallationId, selectedChoiceKey, onChoose, canDecide }) {
-  const types = part === "a" ? ["APPLICATION"] : ["FIRMWARE", "OS"];
-  const installations = (installedSoftware || []).filter(sw => types.includes(sw.software_type));
-  const installedIds = new Set(installations.map(sw => sw.software_asset_id));
-  const choices = [
-    ...installations.map(sw => ({
-      key: "installation-" + sw.installation_id, id: sw.software_asset_id,
-      installationId: sw.installation_id, name: sw.software_name,
-      version: sw.version, installed: true,
-      eligible: eligibleInstallationIds.includes(sw.installation_id),
-    })),
-    ...(softwareAssets || []).filter(asset => asset.asset_type === "SOFTWARE" &&
-      types.includes(asset.software?.software_type) && !installedIds.has(asset.id))
-      .map(asset => ({
-        key: "asset-" + asset.id, id: asset.id, installationId: null,
-        name: asset.name, version: asset.software?.version, installed: false,
-        eligible: false,
-      })),
-  ];
-  const selected = choices.find(row => row.key === selectedChoiceKey &&
-    row.id === selectedAssetId);
-  return <div className="cve-software-picker-wrapper">
-    <span className="cve-software-picker-label">Software del inventario</span>
-    <details className="cve-software-picker" key={selected?.key || "none"}>
-      <summary>
-        <span>{selected ? selected.name : "Seleccionar activo de software..."}</span>
-        {selected && <span className={"cve-software-status " +
-          (selected.installed ? "is-installed" : "not-installed")}>
-          {selected.installed ? "Instalado" : "Sin instalar"}</span>}
-      </summary>
-      <div className="cve-software-picker-options">
-        {choices.length ? choices.map(row =>
-          <button key={row.key} type="button" disabled={!canDecide}
-            className={"cve-software-option" +
-              (selected?.key === row.key ? " is-selected" : "")}
-            onClick={event => {
-              event.currentTarget.closest("details").open = false;
-              onChoose(row.id, row.eligible ? row.installationId : null, row.key);
-            }}>
-            <span className="cve-software-option-text">
-              <strong>{row.name}</strong>
-              <small>Software #{row.id} · Versión {row.version || "sin registrar"}</small>
-            </span>
-            <span className={"cve-software-status " +
-              (row.installed ? "is-installed" : "not-installed")}>
-              {row.installed ? "Instalado" : "Sin instalar"}</span>
-          </button>
-        ) : <p className="cve-muted">No hay activos de software disponibles de este tipo.</p>}
-      </div>
-    </details>
-    {selected && !selected.eligible && <p className="cve-muted">
-      {selected.installed
-        ? "Este software está instalado, pero no tiene correspondencia CPE vigente suficiente para confirmar este criterio."
-        : "Este software está inventariado, pero no consta instalado en este hardware."}
-      {" "}Puedes mantener la evaluación condicionada; no se creará ninguna instalación.
-    </p>}
-    {selected?.eligible && <p className="cve-muted">
-      Instalación #{selected.installationId} respaldada por evidencia CPE vigente.
-      La evaluación de todas las condiciones NVD sigue siendo obligatoria.
-    </p>}
-  </div>;
-}
-
-function Criterion({ item, depth = 0, selection, onSelect, installId, onInstall, selectedAssetId, selectedChoiceKey, softwareAssets = [], installedSoftware = [], eligibleInstallationIds = [], canDecide = false }) {
+function Criterion({ item, depth = 0, selection, onSelect, installId,
+  installedSoftware = [], canDecide = false }) {
   if (item.kind === "CRITERION") {
     const isSoftware = ["a", "o"].includes(item.part);
     const identityBadge = nvdCriterionIdentityBadge(item);
@@ -142,21 +77,37 @@ function Criterion({ item, depth = 0, selection, onSelect, installId, onInstall,
         }</p>}
       </div>
       {isSoftware && item.vulnerable && onSelect && <div className="cve-nvd-selection">
-        <label className="cve-criterion-selection">
-          <input type="checkbox" disabled={!canDecide}
-            checked={selection === (item.match_criteria_id || item.criteria)}
-            onChange={event => onSelect(event.target.checked
-              ? (item.match_criteria_id || item.criteria) : "")}/>
-          <span>He identificado este componente en el entorno OT</span>
-        </label>
-        {selection === (item.match_criteria_id || item.criteria) && <>
-          <p className="cve-muted">Selecciona el activo del inventario correspondiente.
-            Solo una instalación vigente con CPE pertinente permite vincularlo al CVE.</p>
-          <SoftwareInventoryPicker part={item.part} softwareAssets={softwareAssets}
-            installedSoftware={installedSoftware} eligibleInstallationIds={eligibleInstallationIds}
-            selectedAssetId={selectedAssetId} selectedInstallationId={installId}
-            selectedChoiceKey={selectedChoiceKey} onChoose={onInstall} canDecide={canDecide}/>
-        </>}
+        <p className="cve-muted">
+          Vinculación opcional del CVE con el software registrado en este hardware.
+          Sin marcar, la evaluación puede ser parcial y no se asociará ninguna instalación.
+        </p>
+        {installedSoftware.filter(sw => item.part === "a"
+          ? sw.software_type === "APPLICATION"
+          : ["FIRMWARE", "OS"].includes(sw.software_type)
+        ).map(sw => {
+          const criterionKey = item.match_criteria_id || item.criteria;
+          const isChecked = selection === criterionKey &&
+            installId === String(sw.installation_id);
+          return <label className="cve-criterion-selection cve-software-association"
+            key={sw.installation_id}>
+            <input type="checkbox" disabled={!canDecide} checked={isChecked}
+              onChange={event => onSelect(event.target.checked
+                ? criterionKey : "", event.target.checked
+                ? String(sw.installation_id) : "")}/>
+            <span className="cve-association-name">
+              <strong>{sw.software_name}</strong>
+              <small>Software #{sw.software_asset_id} · Instalación #{sw.installation_id}
+                {" · Versión "}{sw.version || "desconocida"}</small>
+            </span>
+            <span className="cve-software-status is-installed">Instalado</span>
+          </label>;
+        })}
+        {!(installedSoftware || []).some(sw => item.part === "a"
+          ? sw.software_type === "APPLICATION" : ["FIRMWARE", "OS"].includes(sw.software_type)
+        ) && <p className="cve-muted">
+          No se registra software de este tipo instalado en el hardware.
+          La correspondencia parcial no vinculará software.
+        </p>}
       </div>}
     </details>;
   }
@@ -185,23 +136,21 @@ function Criterion({ item, depth = 0, selection, onSelect, installId, onInstall,
       <div key={i}>
         {i > 0 && <div className="cve-nvd-plus" aria-label={"Operador " + operator}>
           {operator}</div>}
-        <Criterion item={child} depth={depth + 1} selection={selection} onSelect={onSelect} installId={installId} onInstall={onInstall} selectedAssetId={selectedAssetId} selectedChoiceKey={selectedChoiceKey} softwareAssets={softwareAssets} installedSoftware={installedSoftware} eligibleInstallationIds={eligibleInstallationIds} canDecide={canDecide}/>
+        <Criterion item={child} depth={depth + 1} selection={selection} onSelect={onSelect} installId={installId} installedSoftware={installedSoftware} canDecide={canDecide}/>
       </div>) : <p className="cve-muted">No hay criterios detallados en este grupo.</p>}
     {otherChoices.length > 0 && <details className="cve-nvd-other-evidence">
       <summary>Otras alternativas NVD ({otherChoices.length})</summary>
       {otherChoices.map((child, i) =>
-        <Criterion key={i} item={child} depth={depth + 1} selection={selection} onSelect={onSelect} installId={installId} onInstall={onInstall} selectedAssetId={selectedAssetId} selectedChoiceKey={selectedChoiceKey} softwareAssets={softwareAssets} installedSoftware={installedSoftware} eligibleInstallationIds={eligibleInstallationIds} canDecide={canDecide}/>)}
+        <Criterion key={i} item={child} depth={depth + 1} selection={selection} onSelect={onSelect} installId={installId} installedSoftware={installedSoftware} canDecide={canDecide}/>)}
     </details>}
   </div>;
 }
 
-function ConfigurationReview({ context, config, softwareAssets, onSaved, canDecide, highlight = false }) {
+function ConfigurationReview({ context, config, onSaved, canDecide, highlight = false }) {
   const last = config.latest_assessment;
   const status = last?.effective_status || "PENDING_REVIEW";
   const [choice, setChoice] = useState("");
   const [installId, setInstallId] = useState("");
-  const [softwareAssetId, setSoftwareAssetId] = useState(null);
-  const [softwareChoiceKey, setSoftwareChoiceKey] = useState("");
   const [selectedCriterion, setSelectedCriterion] = useState("");
   const [justification, setJustification] = useState("");
   const [complete, setComplete] = useState(false);
@@ -225,11 +174,13 @@ function ConfigurationReview({ context, config, softwareAssets, onSaved, canDeci
     config.technical_result === "INDETERMINATE";
   const checked = Boolean(selectedCriterion);
   const canConfirm = canReview || canConditional;
-  const hasVerifiedSoftware = checked && Boolean(installId);
-  const confirmationVerdict = hasVerifiedSoftware && canReview ? "CONFIRMED" : "CONDITIONAL";
-  const partialAvailable = canConditional;
-  const enableConfirm = canDecide && (confirmationVerdict === "CONFIRMED" || partialAvailable);
-  const confirmationLabel = confirmationVerdict === "CONFIRMED"
+  const linkedInstallationId = checked ? installId : "";
+  const eligible = (config.candidate_installation_ids || []).includes(Number(linkedInstallationId)) ||
+    config.review_installation_id === Number(linkedInstallationId);
+  const confirmationVerdict = linkedInstallationId && canReview && eligible
+    ? "CONFIRMED" : "CONDITIONAL";
+  const enableConfirm = canDecide && (confirmationVerdict === "CONFIRMED" || canConditional);
+  const confirmationLabel = linkedInstallationId
     ? "Confirmar correspondencia" : "Correspondencia parcial";
   const canDiscard = canReview &&
     contextualCveActionOptions(config, last).some(option => option.key === "NOT_MATCH");
@@ -239,7 +190,7 @@ function ConfigurationReview({ context, config, softwareAssets, onSaved, canDeci
     (choice === "CONDITIONAL" && justification.trim().length < 20);
 
   function reset() {
-    setChoice(""); setSelectedCriterion(""); setInstallId(""); setSoftwareAssetId(null); setSoftwareChoiceKey("");
+    setChoice(""); setSelectedCriterion(""); setInstallId("");
     setJustification(""); setComplete(false); setError("");
   }
   async function submit(event) {
@@ -254,7 +205,7 @@ function ConfigurationReview({ context, config, softwareAssets, onSaved, canDeci
         inventory_fingerprint: context.inventory_fingerprint,
         verdict: choice,
         software_installation_id: choice === "UNKNOWN" ? null :
-          choice === "CONDITIONAL" ? (installId ? Number(installId) : null) :
+          choice === "CONDITIONAL" ? (linkedInstallationId ? Number(linkedInstallationId) : null) :
           (selectedId ? Number(selectedId) : null),
         inventory_declared_complete: choice === "NOT_MATCH" && complete,
         justification: justification.trim(),
@@ -269,20 +220,10 @@ function ConfigurationReview({ context, config, softwareAssets, onSaved, canDeci
   }
   return <>
     <Criterion item={config.tree} selection={selectedCriterion}
-      onSelect={value => { setSelectedCriterion(value); setInstallId(""); setSoftwareAssetId(null); setSoftwareChoiceKey(""); setChoice(""); }}
-      installId={installId} selectedAssetId={softwareAssetId}
-      selectedChoiceKey={softwareChoiceKey}
-      onInstall={(assetId, installationId, choiceKey) => {
-        setSoftwareAssetId(assetId);
-        setSoftwareChoiceKey(choiceKey);
-        setInstallId(installationId ? String(installationId) : "");
-        setChoice("");
+      onSelect={(criterion, installation) => {
+        setSelectedCriterion(criterion); setInstallId(installation); setChoice("");
       }}
-      softwareAssets={softwareAssets} installedSoftware={context.installed_software || []}
-      eligibleInstallationIds={[
-        ...(config.candidate_installation_ids || []),
-        ...(config.review_installation_id ? [config.review_installation_id] : []),
-      ]}
+      installId={installId} installedSoftware={context.installed_software || []}
       canDecide={canDecide}/>
     <div className="panel cve-nvd-decision">
     <div className="cve-nvd-joint-title">
@@ -407,17 +348,6 @@ export default function CveDetail() {
   const [hardware, setHardware] = useState([]);
   const [selectedHardware, setSelectedHardware] = useState("");
   const [context, setContext] = useState(null);
-  const [softwareAssets, setSoftwareAssets] = useState([]);
-  const [softwareInventoryError, setSoftwareInventoryError] = useState("");
-  useEffect(() => {
-    let mounted = true;
-    getAssets("ACTIVE").then(assets => {
-      if (mounted) setSoftwareAssets((assets || []).filter(a => a.asset_type === "SOFTWARE"));
-    }).catch(error => {
-      if (mounted) setSoftwareInventoryError(error.message);
-    });
-    return () => { mounted = false; };
-  }, []);
   const [loading, setLoading] = useState(true);
   const [contextLoading, setContextLoading] = useState(false);
   const [error, setError] = useState("");
@@ -590,8 +520,7 @@ export default function CveDetail() {
                   CVE_TECHNICAL_STATE.INDETERMINATE}
               </span>
             </div>
-            {softwareInventoryError && <p className="cve-muted" role="status">No se pudo cargar todo el inventario de software: {softwareInventoryError}</p>}
-            <ConfigurationReview context={context} config={primary} softwareAssets={softwareAssets}
+            <ConfigurationReview context={context} config={primary}
               highlight canDecide={canDecide}
               onSaved={() => {
                 setNotice("Evaluación guardada. El historial se actualizó.");
@@ -614,7 +543,7 @@ export default function CveDetail() {
                     CVE_TECHNICAL_STATE.INDETERMINATE}
                 </span>
               </div>
-              <ConfigurationReview context={context} config={config} softwareAssets={softwareAssets}
+              <ConfigurationReview context={context} config={config}
                 canDecide={canDecide}
                 onSaved={() => {
                   setNotice("Evaluación guardada. El historial se actualizó.");
