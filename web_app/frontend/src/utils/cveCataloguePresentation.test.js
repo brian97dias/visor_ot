@@ -10,6 +10,7 @@ import {
   cveHardwareSelectionValid, isCveDiscoveryActive,
   preferredCveHardwareId, selectedCveHardwareId, cveReviewProgress,
   groupCveEvidence, cveHumanReviewMessage,
+  relevantNvdChildren, cveAssetRoleLabel,
   displayCveApplicability, CVE_CATALOGUE_FILTER_STATES,
   nvdCriterionIdentityBadge, cveAuditJustification,
 } from "./cveCataloguePresentation.js";
@@ -179,10 +180,34 @@ test("automatic history reads El sistema without changing a persisted justificat
 
 test("CVE filters show only three applicability choices", () => {
   assert.deepEqual(Object.keys(CVE_CATALOGUE_FILTER_STATES),
-    ["PENDING_REVIEW", "APPLIES", "NOT_APPLICABLE"]);
+    ["PENDING_REVIEW", "APPLIES", "APPLIES_CONDITIONAL", "NOT_APPLICABLE"]);
   for (const status of ["PENDING_REVIEW","IN_REVIEW","STALE",null]) {
     assert.equal(displayCveApplicability(status), "PENDING_REVIEW");
   }
   assert.equal(displayCveApplicability("APPLIES"), "APPLIES");
   assert.equal(displayCveApplicability("NOT_APPLICABLE"), "NOT_APPLICABLE");
+});
+
+
+test("conditioned applicability is a distinct, human-only visible state", () => {
+  assert.equal(displayCveApplicability("APPLIES_CONDITIONAL"), "APPLIES_CONDITIONAL");
+  assert.equal(CVE_CATALOGUE_FILTER_STATES.APPLIES_CONDITIONAL, "Aplica condicionada");
+  assert.equal(cveAssetRoleLabel("PLATFORM"), "Plataforma");
+  assert.equal(cveAssetRoleLabel("VULNERABLE"), "Vulnerable");
+});
+
+test("OR groups show verified platform and preserve every alternative", () => {
+  const alternative = {kind: "CRITERION", technical_identity: "UNKNOWN"};
+  const found = {kind: "CRITERION", technical_identity: "MATCHED",
+    technical_matched_cpe: "cpe:2.3:h:siemens:cpu_1215c:-:*:*:*:*:*:*:*"};
+  const group = relevantNvdChildren({
+    operator: "OR", children: [alternative, found, alternative],
+  });
+  assert.deepEqual(group.visible, [found]);
+  assert.equal(group.alternatives.length, 2);
+  const andGroup = relevantNvdChildren({
+    operator: "AND", children: [alternative, found],
+  });
+  assert.equal(andGroup.visible.length, 2);
+  assert.equal(andGroup.alternatives.length, 0);
 });

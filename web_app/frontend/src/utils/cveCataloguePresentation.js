@@ -12,6 +12,7 @@ export const CVE_EVALUATION_STATE = {
   PENDING_REVIEW: "Por validar",
   IN_REVIEW: "En revisión",
   APPLIES: "Aplica",
+  APPLIES_CONDITIONAL: "Aplica condicionada",
   NOT_APPLICABLE: "No aplica",
   STALE: "Revisar evidencia",
 };
@@ -20,6 +21,7 @@ export const CVE_EVALUATION_HELP = {
   PENDING_REVIEW: "Sin evaluaciones vigentes registradas",
   IN_REVIEW: "Quedan configuraciones o activos por revisar",
   APPLIES: "Existe al menos una correspondencia vigente confirmada",
+  APPLIES_CONDITIONAL: "El analista acepta gestionar el CVE con condiciones pendientes",
   NOT_APPLICABLE: "Todas las configuraciones y activos relacionados están descartados",
   STALE: "Cambió la evidencia desde la última evaluación",
 };
@@ -131,6 +133,8 @@ export function cveHumanReviewMessage(summary) {
       return "Existe al menos una correspondencia vigente confirmada para este hardware.";
     case "NOT_APPLICABLE":
       return "Todas las alternativas NVD fueron descartadas con evidencia vigente.";
+    case "APPLIES_CONDITIONAL":
+      return "El analista decidió gestionar el CVE con condiciones pendientes.";
     case "STALE":
       return "La evidencia del inventario o de NVD cambió. Es necesario revisar decisiones anteriores.";
     case "IN_REVIEW":
@@ -174,10 +178,31 @@ export function cveAuditJustification(justification, source) {
 
 /** Three summary buckets; stale/in-progress audits remain pending, not safe. */
 export function displayCveApplicability(status) {
-  return ["APPLIES","NOT_APPLICABLE"].includes(status) ? status : "PENDING_REVIEW";
+  return ["APPLIES", "APPLIES_CONDITIONAL", "NOT_APPLICABLE"].includes(status)
+    ? status : "PENDING_REVIEW";
 }
 export const CVE_CATALOGUE_FILTER_STATES = {
   PENDING_REVIEW: "Por validar",
   APPLIES: "Aplica",
+  APPLIES_CONDITIONAL: "Aplica condicionada",
   NOT_APPLICABLE: "No aplica",
 };
+
+
+/** Keep full NVD tree for evaluation, surface confirmed OR candidates first. */
+export function relevantNvdChildren(node) {
+  const children = Array.isArray(node?.children) ? node.children : [];
+  if (node?.operator !== "OR" || children.length < 2) {
+    return { visible: children, alternatives: [] };
+  }
+  const matched = item => item?.kind === "CRITERION" ?
+    item.technical_identity === "MATCHED" && Boolean(item.technical_matched_cpe) :
+    (item?.children || []).some(matched);
+  const visible = children.filter(matched);
+  return visible.length ? {
+    visible, alternatives: children.filter(child => !matched(child)),
+  } : {visible: children.slice(0, 1), alternatives: children.slice(1)};
+}
+export const cveAssetRoleLabel = role =>
+  role === "PLATFORM" ? "Plataforma" :
+  role === "VULNERABLE" ? "Vulnerable" : "Relacionado";

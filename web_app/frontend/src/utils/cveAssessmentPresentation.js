@@ -180,6 +180,9 @@ export function nvdCvesApiByCpeNameUrl(cpeName) {
  * Undo returns the reviewed configuration to PENDING_REVIEW, never NOT_APPLICABLE.
  */
 export function assessmentActionOptions(status) {
+  if (status === "APPLIES_CONDITIONAL") {
+    return [{ key: "UNKNOWN", title: "Reabrir evaluación" }];
+  }
   if (status === "APPLIES") {
     return [{ key: "UNKNOWN", title: "Deshacer correspondencia" }];
   }
@@ -198,7 +201,7 @@ export function assessmentActionOptions(status) {
  * reopened when their original product evidence becomes stale.
  */
 export function contextualCveActionOptions(config, last) {
-  if (last?.stale && ["APPLIES", "NOT_APPLICABLE"].includes(last.status)) {
+  if (last?.stale && ["APPLIES", "APPLIES_CONDITIONAL", "NOT_APPLICABLE"].includes(last.status)) {
     return [{ key: "UNKNOWN", title: "Reabrir evaluación desactualizada" }];
   }
   const status = last?.effective_status || "PENDING_REVIEW";
