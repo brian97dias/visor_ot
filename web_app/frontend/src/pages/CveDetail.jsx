@@ -11,6 +11,7 @@ import {
   CVE_APPLICABILITY_SOURCE,
   selectedCveHardwareId, groupCveEvidence,
   nvdCriterionIdentityBadge, cveAuditJustification,
+  relevantNvdChildren,
 } from "../utils/cveCataloguePresentation";
 import {
   localizedTimestamp, contextualCveActionOptions, versionConstraintsText,
@@ -18,6 +19,7 @@ import {
 
 const STATE = {
   APPLIES: "Aplica a esta configuración",
+  APPLIES_CONDITIONAL: "Aplica condicionada",
   NOT_APPLICABLE: "No aplica a esta configuración",
   PENDING_REVIEW: "Pendiente de revisión",
 };
@@ -27,8 +29,9 @@ function Criterion({ item, depth = 0 }) {
   if (item.kind === "CRITERION") {
     const isSoftware = ["a", "o"].includes(item.part);
     const identityBadge = nvdCriterionIdentityBadge(item);
-    return <article className="cve-nvd-condition cve-general-criterion">
-      <div className="cve-nvd-condition-heading">
+    return <details className="cve-nvd-condition cve-general-criterion">
+      <summary className="cve-nvd-condition-summary">
+        <div className="cve-nvd-condition-heading">
         <div className="cve-nvd-condition-tags">
           <h3>{PLAIN[item.part] || "Componente NVD"}</h3>
           <span className={"cve-nvd-category " + (
@@ -41,8 +44,9 @@ function Criterion({ item, depth = 0 }) {
           {identityBadge.label}
         </span>
       </div>
-      <p className="cve-nvd-product">{String(item.criteria || "").split(":")
-        .slice(3, 5).join(" · ").replaceAll("_", " ") || "Criterio NVD"}</p>
+        <p className="cve-nvd-product">{String(item.criteria || "").split(":")
+          .slice(3, 5).join(" · ").replaceAll("_", " ") || "Criterio NVD"}</p>
+      </summary>
       <div className="cve-nvd-criterion">
         <span className="cve-nvd-criterion-label">
           {isSoftware ? "Criterio de software NVD" : "CPE hardware · NVD"}</span>
@@ -89,12 +93,13 @@ function Criterion({ item, depth = 0 }) {
             que corresponda a este criterio NVD. Esto no demuestra su ausencia.
           </p>}
       </div>}
-    </article>;
+    </details>;
   }
   if (item.kind !== "GROUP") {
     return <p className="cpe-warning">NVD contiene una estructura que debe revisarse.</p>;
   }
   const operator = item.operator === "AND" ? "Y" : "O";
+  const { visible, alternatives } = relevantNvdChildren(item);
   return <div className={"cve-general-group " + (depth ? "cve-general-nested" : "")}>
     <div className="cve-general-logic">
       <strong>{operator === "Y" ? "Se requieren todas las condiciones" :
@@ -102,12 +107,17 @@ function Criterion({ item, depth = 0 }) {
       {item.negate && <span className="cpe-warning">
         Negación NVD: el resultado del grupo se invierte (requiere revisión).</span>}
     </div>
-    {item.children?.length ? item.children.map((child, i) =>
+    {visible.length ? visible.map((child, i) =>
       <div key={i}>
         {i > 0 && <div className="cve-nvd-plus" aria-label={"Operador " + operator}>
           {operator}</div>}
         <Criterion item={child} depth={depth + 1}/>
       </div>) : <p className="cve-muted">No hay criterios detallados en este grupo.</p>}
+    {alternatives.length > 0 && <details className="cve-nvd-other-evidence">
+      <summary>Otras alternativas NVD ({alternatives.length})</summary>
+      {alternatives.map((child, i) =>
+        <Criterion key={i} item={child} depth={depth + 1}/>)}
+    </details>
   </div>;
 }
 
@@ -404,7 +414,11 @@ export default function CveDetail() {
                 CVE_APPLICABILITY_SOURCE.NONE}
             </span>
           </div>
-          {context.applicability?.source === "SYSTEM" ? <p>
+          {context.applicability?.status === "APPLIES_CONDITIONAL" ? <p>
+            El analista decidió gestionar este CVE de manera condicionada.
+            La relación con el hardware está acreditada, pero quedan
+            condiciones por verificar. Consulta su justificación en el historial.
+          </p> : context.applicability?.source === "SYSTEM" ? <p>
             Los CPE y la versión instalada satisfacen la configuración NVD
             {context.applicability.automatic_evidence?.configuration_position
               ? " " + context.applicability.automatic_evidence.configuration_position

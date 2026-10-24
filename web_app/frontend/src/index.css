@@ -3334,3 +3334,26 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cve-catalogue-severity[data-severity="LOW"] {
   border-color: #15803d; color: #86efac; background: rgba(22,101,52,.09);
 }
+
+/* NVD criterion cards expand when their entire header is clicked. */
+.cve-nvd-condition.cve-general-criterion { padding: 0; overflow: hidden; }
+.cve-nvd-condition-summary { display: block; cursor: pointer; padding: 18px 22px; }
+.cve-nvd-condition-summary::-webkit-details-marker { display: none; }
+.cve-nvd-condition-summary::after { content: "Ver evidencia ▾"; display: block;
+  margin-top: 8px; font-size: .77rem; color: #7dd3fc; }
+.cve-general-criterion[open] > .cve-nvd-condition-summary::after { content: "Ocultar evidencia ▴"; }
+.cve-general-criterion > .cve-nvd-criterion,
+.cve-general-criterion > .cve-general-constraints,
+.cve-general-criterion > .cve-technical-criterion,
+.cve-general-criterion > .cve-nvd-found {
+  margin: 0 20px 16px;
+}
+.cve-general-criterion > .cve-nvd-criterion { margin-top: 4px; }
+.cve-general-criterion .cve-nvd-product { margin: 7px 0 0; font-size: .94rem; }
+.cve-general-group .cve-nvd-other-evidence { margin-top: 14px; }
+.cve-nvd-other-evidence > summary { cursor: pointer; color: #93c5fd;
+  font-weight: 650; padding: 12px 0; }
+.cve-catalogue-evaluation-status[data-status="APPLIES_CONDITIONAL"],
+.cve-status-label[data-status="APPLIES_CONDITIONAL"] {
+  color: #fde68a; border-color: #b45309; background: #3b2a0a;
+}
