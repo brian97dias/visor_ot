@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 from vulnerabilities.models import AssetCveAssessment, AssetCveFinding, Cve
 from .services.cve_discovery import build_cve_discovery_plan
 from .services.cve_catalogue_status import CATALOGUE_STATES, catalogue_statuses
+from .services.cve_applicability import resolve_applicability
 from .services.cve_technical_status import (
     TECHNICAL_FILTERS, technical_statuses, related_assets_for_cves,
 )
@@ -81,8 +82,18 @@ def _asset_counts(cves):
     return {pk: len(values) for pk, values in counts.items()}
 
 
+def _catalogue_applicability(analyst_status, related_assets):
+    proof = next((item["automatic_evidence"] for item in related_assets
+                  if item.get("automatic_evidence")), None)
+    return resolve_applicability(
+        "COMPATIBLE" if proof else "INDETERMINATE",
+        analyst_status, automatic_evidence=proof,
+    )
+
+
 def _cve_brief(cve, hardware_count=0, evaluation_status="PENDING_REVIEW",
-               technical_result="INDETERMINATE", related_assets=None):
+               technical_result="INDETERMINATE", related_assets=None,
+               applicability=None):
     description, source = _description_es(cve)
     return {
         "cve_id": cve.cve_id,
@@ -97,6 +108,10 @@ def _cve_brief(cve, hardware_count=0, evaluation_status="PENDING_REVIEW",
         "selected_assets_count": hardware_count,
         "related_assets": related_assets if related_assets is not None else [],
         "evaluation_status": evaluation_status,
+        "applicability_status": (applicability or {}).get(
+            "status", "PENDING_REVIEW"
+        ),
+        "applicability_source": (applicability or {}).get("source", "NONE"),
         "technical_result": technical_result,
         # Correlation from NVD CPE is not an asset applicability decision.
         "relationship_kind": "CANDIDATE",
@@ -134,38 +149,39 @@ class CveCatalogueView(APIView):
             results = list(ordered[offset:offset + page_size])
             statuses = catalogue_statuses(results)
             technicals = technical_statuses(results)
+            assets = related_assets_for_cves(results)
+            applicability = {
+                cve.pk: _catalogue_applicability(statuses[cve.pk], assets[cve.pk])
+                for cve in results
+            }
         else:
-            # Derive BOTH states before pagination. Historical analyst
-            # decisions and fresh technical checks are independent.
+            # Effective applicability is derived BEFORE pagination. A missing
+            # installed application never proves a negative CVE result.
             candidates = list(ordered)
-            statuses = (catalogue_statuses(candidates)
-                        if selected_status != "ALL" or selected_technical == "ATTENTION"
-                        else {})
-            technicals = (technical_statuses(candidates)
-                          if selected_technical != "ALL" else {})
+            statuses = catalogue_statuses(candidates)
+            technicals = technical_statuses(candidates)
+            assets = related_assets_for_cves(candidates)
+            applicability = {
+                cve.pk: _catalogue_applicability(statuses[cve.pk], assets[cve.pk])
+                for cve in candidates
+            }
             filtered = [
                 cve for cve in candidates
                 if (selected_status == "ALL" or
-                    statuses[cve.pk] == selected_status)
+                    applicability[cve.pk]["status"] == selected_status)
                 and (selected_technical == "ALL" or
                      technicals[cve.pk] == selected_technical or
                      (selected_technical == "ATTENTION" and
-                      (technicals[cve.pk] != "EXCLUDED" or
-                       statuses[cve.pk] in ("APPLIES", "IN_REVIEW", "STALE"))))
+                      applicability[cve.pk]["status"] != "NOT_APPLICABLE"))
             ]
             count = len(filtered)
             results = filtered[offset:offset + page_size]
-            if selected_status == "ALL":
-                statuses = catalogue_statuses(results)
-            if selected_technical == "ALL":
-                technicals = technical_statuses(results)
         counts = _asset_counts(results)
-        assets = related_assets_for_cves(results)
         return Response({
             "count": count, "page": page, "page_size": page_size,
             "results": [_cve_brief(
                 cve, counts[cve.pk], statuses[cve.pk], technicals[cve.pk],
-                assets[cve.pk],
+                assets[cve.pk], applicability[cve.pk],
             ) for cve in results],
         })
 
@@ -180,12 +196,13 @@ class CveCatalogueDetailView(APIView):
         )
         # The original NVD configuration is kept intact; this endpoint never
         # infers that a hardware is affected from an OR or a platform match.
+        analyst = catalogue_statuses([cve])[cve.pk]
+        related = related_assets_for_cves([cve])[cve.pk]
         return Response({"cve": {
             **_cve_brief(
-                cve, _asset_counts([cve])[cve.pk],
-                catalogue_statuses([cve])[cve.pk],
-                technical_statuses([cve])[cve.pk],
-                related_assets_for_cves([cve])[cve.pk],
+                cve, _asset_counts([cve])[cve.pk], analyst,
+                technical_statuses([cve])[cve.pk], related,
+                _catalogue_applicability(analyst, related),
             ),
             "descriptions": cve.descriptions,
             "metrics": cve.metrics,
