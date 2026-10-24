@@ -1,17 +1,13 @@
 """Phase 2: analyst decisions for the whole hardware/CVE with external evidence."""
 from django.contrib.auth import get_user_model
 from django.test import TestCase
-from rest_framework.test import APIClient
-
 from vulnerabilities.models import AssetCveAssessment, HardwareCveDecision
-from vulnerabilities.tests_cve_contextualization import (
-    CPU_HW, STEP7, SiemensContextualHttpTests,
-)
+from vulnerabilities import tests_cve_contextualization as fixtures
 
 
 class WholeHardwareCveDecisionTests(TestCase):
     def setUp(self):
-        SiemensContextualHttpTests.setUp(self)
+        fixtures.SiemensContextualHttpTests.setUp(self)
         self.decision_url = self.url.replace("/assessment/", "/decision/")
 
     def payload(self, *, verdict="APPLIES", override=False):
@@ -31,10 +27,10 @@ class WholeHardwareCveDecisionTests(TestCase):
     def test_step7_external_evidence_can_confirm_without_plc_installation(self):
         self.cve.configurations = [{"operator": "AND", "nodes": [
             {"operator": "OR", "cpeMatch": [
-                {"criteria": CPU_HW, "vulnerable": False},
+                {"criteria": fixtures.CPU_HW, "vulnerable": False},
             ]},
             {"operator": "OR", "cpeMatch": [
-                {"criteria": STEP7, "vulnerable": True},
+                {"criteria": fixtures.STEP7, "vulnerable": True},
             ]},
         ]}]
         self.cve.save(update_fields=["configurations"])
