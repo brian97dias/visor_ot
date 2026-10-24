@@ -3,6 +3,11 @@
 The data below reproduces the relevant NVD *shapes*, not a downloaded copy
 of all 96 configurations. The live NVD JSON is still stored unchanged.
 """
+import json
+from io import StringIO
+
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -282,6 +287,40 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(found[1]["asset_id"], self.sw.pk)
         self.assertEqual(found[1]["version"], "4.5.2")
         self.assertEqual(found[1]["role"], "MATCHED_INSTALLED_SOFTWARE")
+
+    def test_read_only_cli_audits_the_nvd_alternatives_on_this_hardware(self):
+        output = StringIO()
+        previous = AssetCveAssessment.objects.count()
+        call_command(
+            "inspect_cve_context", hardware=self.hw.pk,
+            cve="CVE-2021-44695", stdout=output, **{"json": True},
+        )
+        report = json.loads(output.getvalue())
+        self.assertEqual(report["hardware_id"], self.hw.pk)
+        self.assertEqual(report["analyzed"], 1)
+        item = report["results"][0]
+        self.assertEqual(item["cve_id"], "CVE-2021-44695")
+        self.assertEqual(item["technical_result"], COMPATIBLE)
+        self.assertEqual(item["total_configurations"], 12)
+        self.assertEqual(item["compatible"], 1)
+        self.assertEqual(item["excluded"], 11)
+        self.assertEqual(item["indeterminate"], 0)
+        self.assertEqual(item["compatible_positions"], [9])
+        self.assertEqual(item["analyst_status"], "PENDING_REVIEW")
+        self.assertEqual(AssetCveAssessment.objects.count(), previous)
+
+    def test_read_only_cli_does_not_infer_software_or_link_other_cves(self):
+        output = StringIO()
+        call_command(
+            "inspect_cve_context", hardware=self.hw.pk,
+            cve="CVE-1999-99999", stdout=output, **{"json": True},
+        )
+        report = json.loads(output.getvalue())
+        self.assertEqual(report["analyzed"], 0)
+        self.assertEqual(report["results"], [])
+        with self.assertRaises(CommandError):
+            call_command("inspect_cve_context", hardware=999999,
+                         stdout=StringIO())
 
     def test_version_bounded_confirmation_is_scoped_and_audited(self):
         context = self.client.get(self.url)
