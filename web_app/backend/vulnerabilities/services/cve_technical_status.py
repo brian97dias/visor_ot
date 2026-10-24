@@ -97,16 +97,18 @@ def _current_linked_installation(cve, hardware, inventory_fp):
         cve=cve, hardware=hardware
     ).order_by("-decided_at", "-pk")
     for row in decisions:
-        if row.inventory_fingerprint != inventory_fp:
-            continue
-        if (row.configuration_index >= len(cve.configurations) or
+        if (row.inventory_fingerprint != inventory_fp or
+                row.configuration_index >= len(cve.configurations) or
                 row.configuration_fingerprint !=
                 _digest(cve.configurations[row.configuration_index])):
+            # Never resurrect an earlier link after a newer stale assessment.
+            return None, None
+        if (isinstance(row.criteria_evidence, dict)
+                and row.criteria_evidence.get("origin") == "SYSTEM"):
             continue
-        if isinstance(row.criteria_evidence, dict) and row.criteria_evidence.get("origin") == "SYSTEM":
-            continue
-        return (None if row.status == "PENDING_REVIEW"
-                else row.software_installation_id), row.configuration_index
+        linked = (row.software_installation_id
+                  if row.status in ("APPLIES", "APPLIES_CONDITIONAL") else None)
+        return linked, row.configuration_index
     return None, None
 
 

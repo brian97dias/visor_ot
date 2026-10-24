@@ -121,6 +121,9 @@ export function groupCveEvidence(rows) {
   const primary = configs.find(row =>
     row.latest_assessment?.effective_status === "APPLIES" &&
     !row.latest_assessment?.stale
+  ) || configs.find(row =>
+    row.latest_assessment?.effective_status === "APPLIES_CONDITIONAL" &&
+    !row.latest_assessment?.stale
   ) || configs.find(row => row.technical_result === "COMPATIBLE")
     || configs[0] || null;
   return { primary, others: configs.filter(row => row !== primary) };

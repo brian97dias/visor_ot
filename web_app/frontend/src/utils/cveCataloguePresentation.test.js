@@ -211,3 +211,10 @@ test("OR groups show verified platform and preserve every alternative", () => {
   assert.equal(andGroup.visible.length, 2);
   assert.equal(andGroup.alternatives.length, 0);
 });
+
+test("audited conditional NVD evidence is primary over unrelated candidates", () => {
+  const pending = {index: 0, technical_result: "INDETERMINATE"};
+  const conditional = {index: 8, technical_result: "INDETERMINATE",
+    latest_assessment: {effective_status: "APPLIES_CONDITIONAL", stale: false}};
+  assert.equal(groupCveEvidence([pending, conditional]).primary.index, 8);
+});
