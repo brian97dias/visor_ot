@@ -242,6 +242,10 @@ def _serialize_assessment(item, inventory_fp, config_fp):
         "decided_by": "VISOR OT" if source == "SYSTEM" else (
             item.decided_by.username if item.decided_by else None
         ),
+        "conditional_evidence": (
+            item.criteria_evidence
+            if item.status == "APPLIES_CONDITIONAL" else None
+        ),
     }
 
 
@@ -337,12 +341,37 @@ def general_assessment_context(cve_id, hardware_id):
         ).select_related("decided_by")[:30])
         current = _serialize_assessment(history[0], inventory_fp, cfg_fp) if history else None
         supported = _simple_and_firmware(config, confirmed, installed)
+        annotated_tree = _annotate_tree(
+            _render_tree(config, confirmed, installed), observation
+        )
+
+        def leaves(node):
+            if node.get("kind") == "CRITERION":
+                yield node
+            for child in node.get("children", []):
+                yield from leaves(child)
+
+        criteria = list(leaves(annotated_tree))
+        conditional_supported = (
+            any(item.get("part") == "h" and
+                item.get("technical_identity") == "MATCHED" and
+                item.get("technical_matched_cpe") for item in criteria)
+            and any(item.get("vulnerable") is True for item in criteria)
+        )
+        candidate_installations = sorted({
+            item.get("technical_software_installation_id")
+            for item in criteria
+            if item.get("vulnerable") is True and
+                item.get("part") in ("a", "o") and
+                item.get("technical_identity") == "MATCHED" and
+                item.get("technical_software_installation_id") is not None
+        })
         configs.append({
             "index": index, "position": index + 1,
             "fingerprint": cfg_fp,
-            "tree": _annotate_tree(
-                _render_tree(config, confirmed, installed), observation
-            ),
+            "tree": annotated_tree,
+            "conditional_supported": bool(conditional_supported),
+            "candidate_installation_ids": candidate_installations,
             "technical_result": observation["result"],
             "review_supported": bool(supported),
             "review_reason": "" if supported else (
@@ -403,6 +432,10 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
         raise ValidationError({"verdict": "El CVE no tiene un hallazgo asociado a este hardware."})
     config = cve.configurations[config_index]
     evaluation = evaluate_configurations([config], list(confirmed), installed)
+    from .cve_applicability import automatic_positive_evidence
+    if automatic_positive_evidence(evaluation):
+        raise ValidationError({"verdict":
+            "Todas las condiciones NVD están verificadas: utiliza Aplica, no Aplica condicionada."})
     annotated = _annotate_tree(
         _render_tree(config, confirmed, installed), evaluation["configurations"][0],
     )
