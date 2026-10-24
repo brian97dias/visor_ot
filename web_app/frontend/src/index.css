@@ -3498,9 +3498,6 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cve-nvd-selection > .cve-muted { margin: 9px 0 0; }
 .cve-nvd-other-branches > summary { font-size: .84rem; padding: 11px 0; }
 .cve-nvd-other-branches > .cve-muted { margin: 0 0 12px; }
-.cve-general-group > div > .cve-general-group {
-  padding-left: 0; margin-left: 0; border-left: 0;
-}
 @media (max-width: 620px) {
   .cve-nvd-condition-summary { padding: 16px 15px 12px; }
   .cve-nvd-selection { padding: 14px 15px; }
