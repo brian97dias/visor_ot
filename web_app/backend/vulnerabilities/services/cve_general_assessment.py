@@ -354,6 +354,7 @@ def general_assessment_context(cve_id, hardware_id):
         criteria = list(leaves(annotated_tree))
         conditional_supported = (
             observation["result"] == "INDETERMINATE"
+            and not _has_nvd_negation(config)
             and any(item.get("part") == "h" and
                 item.get("technical_identity") == "MATCHED" and
                 item.get("technical_matched_cpe") for item in criteria)
@@ -411,6 +412,14 @@ def general_assessment_context(cve_id, hardware_id):
 
 
 
+def _has_nvd_negation(node):
+    if not isinstance(node, dict):
+        return False
+    if node.get("negate") is True:
+        return True
+    return any(_has_nvd_negation(child) for child in node.get("nodes", []) or [])
+
+
 def _matched_criterion_nodes(tree):
     """Return only demonstrated hardware/software product identities."""
     if tree.get("kind") == "CRITERION":
@@ -433,6 +442,9 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
     ):
         raise ValidationError({"verdict": "El CVE no tiene un hallazgo asociado a este hardware."})
     config = cve.configurations[config_index]
+    if _has_nvd_negation(config):
+        raise ValidationError({"verdict":
+            "La configuración NVD contiene una negación; requiere evaluación especializada."})
     evaluation = evaluate_configurations([config], list(confirmed), installed)
     from .cve_applicability import automatic_positive_evidence
     if automatic_positive_evidence(evaluation):

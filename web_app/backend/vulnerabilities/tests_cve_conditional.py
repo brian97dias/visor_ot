@@ -131,3 +131,25 @@ class ConditionalSiemensTests(TestCase):
         self.assertEqual(context["configurations"][0]["candidate_installation_ids"], [])
         self.assertEqual(self.client.post(self.url, self.payload(), format="json").status_code, 400)
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
+
+    def test_negated_nvd_condition_is_not_eligible_for_conditional_decision(self):
+        self.cve.configurations[0]["nodes"][1]["negate"] = True
+        self.cve.save(update_fields=["configurations"])
+        before = self.client.get(self.url).data
+        self.assertFalse(before["configurations"][0]["conditional_supported"])
+        response = self.client.post(self.url, self.payload(), format="json")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
+
+    def test_firmware_outside_nvd_range_cannot_be_conditional(self):
+        self.cve.configurations[0]["nodes"][1]["cpeMatch"] = [{
+            "criteria": fixtures.CPU_FW_CRITERION,
+            "vulnerable": True, "versionEndExcluding": "4.5.2",
+        }]
+        self.cve.save(update_fields=["configurations"])
+        info = self.client.get(self.url).data
+        self.assertEqual(info["configurations"][0]["technical_result"], "EXCLUDED")
+        self.assertFalse(info["configurations"][0]["conditional_supported"])
+        result = self.client.post(self.url, self.payload(), format="json")
+        self.assertEqual(result.status_code, 400, result.data)
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
