@@ -7,7 +7,7 @@ import {
 } from "../api/vulnerabilities";
 import {
   CVE_EVALUATION_STATE, CVE_CATALOGUE_FILTER_STATES,
-  displayCveApplicability,
+  displayCveApplicability, cveAssetRoleLabel,
   CVE_APPLICABILITY_SOURCE,
 
   CVE_SEVERITY, cveHardwareCandidates,
@@ -30,7 +30,7 @@ export default function CveOverview() {
   const [catalogue, setCatalogue] = useState({
     count: 0, results: [], page: 1,
     summary: {total: 0, applies: 0, not_applicable: 0,
-      pending_review: 0, validated: 0},
+      pending_review: 0, validated: 0, applies_conditional: 0},
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -148,6 +148,7 @@ export default function CveOverview() {
         <strong>{catalogue.summary?.validated ?? 0}</strong><span>CVE validados</span>
         <div className="cve-catalogue-stat-breakdown">
           <span>Aplica: <strong>{catalogue.summary?.applies ?? 0}</strong></span>
+          <span>Condicionada: <strong>{catalogue.summary?.applies_conditional ?? 0}</strong></span>
           <span>No aplica: <strong>{catalogue.summary?.not_applicable ?? 0}</strong></span>
         </div>
       </div>
@@ -215,8 +216,10 @@ export default function CveOverview() {
                     </div>
                     {context.assets?.length ? context.assets.map(asset =>
                       <div key={asset.asset_id} className="cve-catalogue-asset-item">
-                        <span>{asset.asset_type === "HARDWARE" ? "Hardware" :
-                          asset.software_type === "FIRMWARE" ? "Firmware" : "Software"}</span>
+                        <span>{asset.asset_type === "HARDWARE"
+                          ? "Hardware · " + cveAssetRoleLabel(asset.role)
+                          : asset.software_type === "FIRMWARE"
+                            ? "Firmware · Vulnerable" : "Software · Vulnerable"}</span>
                         <Link to={"/assets/" + asset.asset_id}
                           title={"Ver ficha técnica de " + asset.name}>
                           {asset.name}

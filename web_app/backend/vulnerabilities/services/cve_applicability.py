@@ -80,10 +80,12 @@ def resolve_applicability(technical_result, analyst_status, *,
     A complete human conclusion has precedence. An incomplete/stale manual
     history never converts an unknown or excluded technical result to safe.
     """
-    if analyst_status in (APPLIES, NOT_APPLICABLE, APPLIES_CONDITIONAL):
+    if analyst_status in (APPLIES, NOT_APPLICABLE):
         return {"status": analyst_status, "source": ANALYST}
     if technical_result == COMPATIBLE and automatic_evidence is not None:
         return {"status": APPLIES, "source": SYSTEM}
+    if analyst_status == APPLIES_CONDITIONAL:
+        return {"status": APPLIES_CONDITIONAL, "source": ANALYST}
     if analyst_status in ("IN_REVIEW", "STALE"):
         return {"status": analyst_status, "source": NONE}
     return {"status": PENDING_REVIEW, "source": NONE}
@@ -111,6 +113,11 @@ def scoped_applicability(technical, analyst_status, *,
         }
     return {
         **state,
+        "hardening_category": (
+            "CONFIRMED" if state["status"] == APPLIES
+            else "CONDITIONAL" if state["status"] == APPLIES_CONDITIONAL
+            else "NONE"
+        ),
         "technical_result": technical.get("result"),
         "automatic_evidence": evidence,
         "evaluated_at": timezone.now(),

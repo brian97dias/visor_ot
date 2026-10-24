@@ -148,6 +148,12 @@ def _cve_brief(cve, hardware_count=0, evaluation_status="PENDING_REVIEW",
             "status", "PENDING_REVIEW"
         ),
         "applicability_source": (applicability or {}).get("source", "NONE"),
+        # Contract for future hardening reporting: no false confirmed counts.
+        "hardening_category": (
+            "CONFIRMED" if (applicability or {}).get("status") == "APPLIES"
+            else "CONDITIONAL" if (applicability or {}).get("status") == "APPLIES_CONDITIONAL"
+            else "NONE"
+        ),
         "technical_result": technical_result,
         # Correlation from NVD CPE is not an asset applicability decision.
         "relationship_kind": "CANDIDATE",
