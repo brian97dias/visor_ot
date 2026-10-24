@@ -139,3 +139,19 @@ export function cveHumanReviewMessage(summary) {
       return "Todavía no se ha registrado una decisión del analista para este hardware y CVE.";
   }
 }
+
+
+/** Read-only, numerical NVD alternative breakdown for one hardware/CVE.
+ * A technical exclusion is never a human "No aplica" decision.
+ */
+export function cveTechnicalBreakdown(summary) {
+  if (!summary || !Number.isInteger(summary.total) || summary.total < 0) {
+    return null;
+  }
+  const count = (name) => Math.max(0, Number(summary[name]) || 0);
+  return [
+    {key: "compatible", count: count("compatible_count"), label: "Coincidencias técnicas"},
+    {key: "excluded", count: count("excluded_count"), label: "Excluidas técnicamente"},
+    {key: "indeterminate", count: count("indeterminate_count"), label: "Por verificar"},
+  ];
+}

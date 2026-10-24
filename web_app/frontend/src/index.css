@@ -3308,3 +3308,16 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   font-size: .84rem; line-height: 1.65; margin-top: 12px;
 }
 .cve-nvd-other-evidence .cve-general-relevant-configuration { margin-top: 18px; }
+
+
+/* Grounded, compact per-hardware NVD evidence counts; never analyst verdicts. */
+.cve-technical-breakdown {
+  display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px;
+  border-top: 1px solid #334155; padding-top: 10px;
+}
+.cve-technical-breakdown-entry {
+  display: flex; gap: 7px; align-items: baseline; font-size: .8rem;
+  color: #94a3b8;
+}
+.cve-technical-breakdown-entry strong { color: #e2e8f0; font-size: .95rem; }
+.cve-general-context-summary p { margin: 0; }
