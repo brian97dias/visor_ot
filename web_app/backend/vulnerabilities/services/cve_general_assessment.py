@@ -479,20 +479,46 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
 
     selected_criteria = []
     if installation_id is not None:
-        selected_criteria = [{
-            "criteria": item["criteria"],
-            "matched_cpe": item.get("technical_matched_cpe"),
-            "installation_id": installation_id,
-            "software_asset_id": item.get("technical_software_asset_id"),
-        } for item in vulnerable
-            if item.get("part") in ("a", "o")
-            and item.get("technical_identity") == "MATCHED"
-            and item.get("technical_result") != "EXCLUDED"
-            and item.get("technical_software_installation_id") == installation_id
-            and item.get("technical_matched_cpe")]
-        if not selected_criteria:
+        # A manual association is not an NVD/CPE confirmation. Only an active
+        # installation on this hardware, of the correct software class, may
+        # be linked. The analyst's assertion remains conditional and audited.
+        installation = next(
+            (row for row in installed if row["installation_id"] == installation_id),
+            None,
+        )
+        if installation is None:
             raise ValidationError({"software_installation_id":
-                "La instalación seleccionada no corresponde a un criterio NVD vulnerable identificado."})
+                "La instalación no está vigente en este hardware."})
+        permitted_parts = {
+            "FIRMWARE": "o", "OS": "o", "APPLICATION": "a",
+        }
+        matching_parts = [
+            item for item in vulnerable
+            if item.get("part") == permitted_parts.get(installation["software_type"])
+            and item.get("technical_result") != "EXCLUDED"
+        ]
+        if not matching_parts:
+            raise ValidationError({"software_installation_id":
+                "La instalación seleccionada no corresponde al tipo de componente "
+                "vulnerable indicado por NVD."})
+        proven = next((
+            item for item in matching_parts
+            if item.get("technical_identity") == "MATCHED"
+            and item.get("technical_software_installation_id") == installation_id
+            and item.get("technical_matched_cpe")
+        ), None)
+        selected = proven or matching_parts[0]
+        selected_criteria = [{
+            "criteria": selected["criteria"],
+            "matched_cpe": selected.get("technical_matched_cpe") if proven else None,
+            "installation_id": installation_id,
+            "software_asset_id": installation["software_asset_id"],
+            "link_source": "CONFIRMED_CPE" if proven else "ANALYST_DISCRETION",
+            "identity_verified": bool(proven),
+            "version_verified": bool(
+                proven and selected.get("technical_result") == "COMPATIBLE"
+            ),
+        }]
     return {
         "origin": "ANALYST", "hardware_roles": hardware_roles,
         "vulnerable_criteria": [{
