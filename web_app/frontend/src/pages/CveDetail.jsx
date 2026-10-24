@@ -130,7 +130,6 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
     return <p className="cpe-warning">NVD contiene una estructura que debe revisarse.</p>;
   }
 
-  const children = Array.isArray(item.children) ? item.children : [];
   const { visible, alternatives } = relevantNvdChildren(item);
   const isOr = item.operator === "OR";
   const hasSelected = node => node?.kind === "CRITERION"
@@ -385,7 +384,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
 
 export default function CveDetail() {
   const { cveId } = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const requestedHardware = searchParams.get("hardware");
   const { user } = useOutletContext();
   const canDecide = ["ADMIN", "ANALYST"].includes(user?.role);
@@ -419,15 +418,6 @@ export default function CveDetail() {
       if (nextId && nextId !== selectedHardware) setSelectedHardware(nextId);
     }
   }, [requestedHardware, hardware, selectedHardware]);
-
-  function changeHardware(id) {
-    setSelectedHardware(id);
-    setContext(null);
-    setNotice("");
-    const next = new URLSearchParams(searchParams);
-    next.set("hardware", id);
-    setSearchParams(next, { replace: true });
-  }
 
   const isLegacy = cveId === "CVE-2021-33540" &&
     Number(selectedHardware) === 2;
@@ -505,30 +495,29 @@ export default function CveDetail() {
       </div>
     </header>
 
-    <div className="cve-general-hardware-select">
-      <label htmlFor="cve-hardware-choice">Hardware a evaluar</label>
-      {hardware.length ? <select id="cve-hardware-choice" value={selectedHardware}
-        onChange={event => changeHardware(event.target.value)}>
-        {hardware.map(row => <option key={row.hardware_id} value={row.hardware_id}>
-          #{row.hardware_id} · {row.hardware_name}</option>)}
-      </select> : <p className="cve-muted">
-        Aún no hay hardware relacionado mediante búsquedas o evaluaciones.
-        Inicia una búsqueda CVE para asociar un equipo y revisar sus condiciones.</p>}
-    </div>
+    {!contextLoading && !context && !hardware.length &&
+      <div className="panel cve-technical-summary">
+        <h2>Sin hardware asociado a este CVE</h2>
+        <p>Abre la identificación de vulnerabilidades desde un activo del inventario
+          para evaluar sus condiciones NVD.</p>
+        <Link to="/vulnerabilities/cve">Volver al análisis CVE</Link>
+      </div>}
 
     {contextLoading ? <p className="cve-muted">Cargando condiciones del inventario...</p>
       : context && Number(context.hardware_asset_id) === Number(selectedHardware) && <>
-        <p className="cve-general-context-summary">
-          Evaluación de este CVE para el hardware #{context.hardware_asset_id}.
-          {" "}Se muestra la configuración NVD más pertinente para este equipo.
-          {others.length > 0 && <>
-            {" "}Las otras {others.length} configuraciones pertinentes permanecen
-            disponibles en una sección desplegable.
-          </>}
-        </p>
-        <div className="panel cve-technical-summary">
+        <div className="panel cve-technical-summary cve-hardware-applicability">
           <div className="cve-technical-summary-heading">
-            <h2>Aplicabilidad del CVE · Este hardware</h2>
+            <div className="cve-evaluated-hardware">
+              <h2>Aplicabilidad del CVE</h2>
+              <div className="cve-evaluated-hardware-identity">
+                <span className="cve-evaluated-hardware-icon" aria-hidden="true">▣</span>
+                <div>
+                  <h3><Link to={"/assets/" + context.hardware_asset_id}>
+                    {context.hardware_name}</Link></h3>
+                  <p>Hardware #{context.hardware_asset_id} · Activo evaluado</p>
+                </div>
+              </div>
+            </div>
             <span className="cve-catalogue-evaluation-status"
               data-status={context.applicability?.status || "PENDING_REVIEW"}>
               {CVE_EVALUATION_STATE[context.applicability?.status] ||
@@ -538,19 +527,25 @@ export default function CveDetail() {
             </span>
           </div>
           {context.applicability?.status === "APPLIES_CONDITIONAL" ? <p>
-            El analista decidió gestionar este CVE de manera condicionada.
-            La relación con el hardware está acreditada, pero quedan
-            condiciones por verificar. Consulta su justificación en el historial.
+            El CVE se gestiona de manera condicionada por decisión del analista.
+            Quedan condiciones NVD pendientes de verificar; la asociación con
+            software, si existe, consta en el historial.
           </p> : context.applicability?.source === "SYSTEM" ? <p>
-            Los CPE y la versión instalada satisfacen la configuración NVD
+            La evidencia CPE y las versiones registradas satisfacen automáticamente
+            las condiciones de la configuración NVD
             {context.applicability.automatic_evidence?.configuration_position
               ? " " + context.applicability.automatic_evidence.configuration_position
-              : ""}. El sistema registra automáticamente el motivo en el
-            historial de esta configuración.
+              : ""}.
+          </p> : context.applicability?.status === "APPLIES" ? <p>
+            Existe una correspondencia confirmada para este hardware con
+            evidencia documentada en el historial.
+          </p> : context.applicability?.status === "NOT_APPLICABLE" ? <p>
+            Las configuraciones pertinentes fueron descartadas con evidencia
+            registrada y vigente. Consulta el historial para revisar las decisiones.
           </p> : <p>
-            No hay confirmación automática con evidencia completa.
-            La ausencia de software en el inventario no demuestra que
-            el CVE no aplique; el análisis permanece por validar.
+            No hay evidencia completa para confirmar el CVE automáticamente.
+            La falta de software inventariado no demuestra su ausencia.
+            Revisa las condiciones NVD antes de decidir.
           </p>}
         </div>
         {primary ? <>
@@ -558,7 +553,7 @@ export default function CveDetail() {
             aria-labelledby="cve-primary-evidence">
             <div className="cve-technical-summary-heading">
               <h2 id="cve-primary-evidence">
-                Evidencia principal · Configuración NVD {primary.position}
+                Condiciones NVD · Configuración {primary.position}
               </h2>
               <span className="cve-technical-tag" data-result={primary.technical_result}>
                 {CVE_TECHNICAL_STATE[primary.technical_result] ||
