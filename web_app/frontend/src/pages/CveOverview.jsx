@@ -7,7 +7,7 @@ import {
 } from "../api/vulnerabilities";
 import SuccessNotice from "../components/SuccessNotice";
 import {
-  CVE_DISCOVERY_STATE, CVE_EVALUATION_STATE, CVE_EVALUATION_HELP,
+  CVE_DISCOVERY_STATE, CVE_EVALUATION_STATE,
   CVE_APPLICABILITY_SOURCE,
   CVE_TECHNICAL_STATE, CVE_TECHNICAL_FILTER, DEFAULT_CVE_TECHNICAL_FILTER,
   CVE_SEVERITY, cveHardwareCandidates,

@@ -27,7 +27,7 @@ export const CVE_EVALUATION_HELP = {
 /** Read-only NVD compatibility; separate from analyst decisions. */
 export const CVE_TECHNICAL_STATE = {
   COMPATIBLE: "Coincidencia técnica",
-  EXCLUDED: "No aplica técnicamente",
+  EXCLUDED: "Condiciones excluidas",
   INDETERMINATE: "Por verificar",
 };
 export const DEFAULT_CVE_TECHNICAL_FILTER = "ATTENTION";
@@ -35,7 +35,7 @@ export const CVE_TECHNICAL_FILTER = {
   ATTENTION: "Requieren atención",
   COMPATIBLE: "Coincidencia técnica",
   INDETERMINATE: "Por verificar",
-  EXCLUDED: "No aplica técnicamente",
+  EXCLUDED: "Condiciones excluidas",
 };
 
 export const CVE_DISCOVERY_STATE = {
