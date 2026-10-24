@@ -342,8 +342,20 @@ def general_assessment_context(cve_id, hardware_id):
         })
     pertinent = _relevance_summary(configs, technical["configurations"])
     analyst = summarize_hardware_cve_review(configs)
+    # Deliberately leave the old per-configuration audit intact; a current
+    # hardware-wide human decision supersedes its aggregate, not its history.
+    from .hardware_cve_decision import hardware_decision_context
+    hardware_review = hardware_decision_context(cve, hw, inventory_fp)
+    latest_review = hardware_review["latest"]
+    if latest_review:
+        human_status = "STALE" if latest_review["stale"] else (
+            "IN_REVIEW" if latest_review["status"] == "PENDING_REVIEW"
+            else latest_review["status"]
+        )
+    else:
+        human_status = analyst["status"]
     applicability = scoped_applicability(
-        technical, analyst["status"], inventory_fingerprint=inventory_fp,
+        technical, human_status, inventory_fingerprint=inventory_fp,
         cve=cve, hardware_id=hw.pk,
     )
     return {
@@ -352,6 +364,7 @@ def general_assessment_context(cve_id, hardware_id):
         "installed_software": installed,
         "technical_result": technical["result"],
         "applicability": applicability,
+        "hardware_review": hardware_review,
         "assessment_summary": analyst,
         "confirmed_hardware_cpes": [
             {"cpe_name": name, "association_id": assoc.pk}
