@@ -3365,3 +3365,152 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cve-nvd-action[data-action="CONDITIONAL"].selected {
   background: #3b2a0a; border-color: #eab308;
 }
+
+
+/* CVE context: inventoried software choices and audit-safe installation badges. */
+.cve-nvd-selection {
+  margin-top: 18px;
+  padding: 15px 16px;
+  border: 1px solid #334155;
+  border-radius: 9px;
+  background: #0d1a2c;
+}
+.cve-criterion-selection {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  color: #e2e8f0;
+  font-size: .9rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.cve-criterion-selection input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: #38bdf8;
+  cursor: pointer;
+}
+.cve-criterion-selection input:disabled { cursor: not-allowed; opacity: .55; }
+.cve-nvd-selection > .cve-muted { margin-top: 12px; }
+.cve-software-picker-wrapper { margin-top: 12px; }
+.cve-software-picker-label {
+  display: block;
+  font-size: .79rem;
+  font-weight: 650;
+  color: #cbd5e1;
+  margin-bottom: 7px;
+}
+.cve-software-picker {
+  border: 1px solid #475569;
+  border-radius: 8px;
+  background: #101d31;
+  color: #e2e8f0;
+  overflow: hidden;
+}
+.cve-software-picker > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 43px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: .88rem;
+  list-style: none;
+}
+.cve-software-picker > summary::-webkit-details-marker { display: none; }
+.cve-software-picker > summary::after {
+  content: "▾";
+  color: #94a3b8;
+  margin-left: auto;
+}
+.cve-software-picker[open] > summary::after { content: "▴"; }
+.cve-software-picker > summary:focus-visible,
+.cve-software-option:focus-visible,
+.cve-criterion-selection:focus-within {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+.cve-software-picker-options {
+  border-top: 1px solid #334155;
+  padding: 5px;
+  display: grid;
+  gap: 2px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.cve-software-option {
+  width: 100%;
+  min-height: 53px;
+  padding: 9px 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  text-align: left;
+  background: transparent;
+  color: #e2e8f0;
+  cursor: pointer;
+  font: inherit;
+}
+.cve-software-option:hover:not(:disabled),
+.cve-software-option.is-selected {
+  background: #1b3049;
+  border-color: #334e6e;
+}
+.cve-software-option:disabled { cursor: not-allowed; opacity: .6; }
+.cve-software-option-text {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  overflow-wrap: anywhere;
+}
+.cve-software-option-text strong { font-size: .85rem; font-weight: 650; }
+.cve-software-option-text small { color: #94a3b8; font-size: .75rem; }
+.cve-software-status {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border: 1px solid #64748b;
+  border-radius: 22px;
+  font-size: .73rem;
+  font-weight: 650;
+  line-height: 1.3;
+  color: #cbd5e1;
+  background: #172134;
+}
+.cve-software-status.is-installed {
+  color: #86efac;
+  border-color: #166534;
+  background: #10291f;
+}
+.cve-software-status.not-installed {
+  color: #fcd34d;
+  border-color: #92400e;
+  background: #2d2214;
+}
+.cve-software-picker-wrapper > .cve-muted {
+  font-size: .79rem;
+  line-height: 1.5;
+  margin: 9px 0 0;
+}
+.cve-nvd-action[data-action="CONDITIONAL"] {
+  border-color: #a16207;
+  background: #382b12;
+  color: #fde68a;
+}
+.cve-nvd-action[data-action="CONDITIONAL"]:hover:not(:disabled) {
+  background: #4a3517;
+}
+@media (max-width: 600px) {
+  .cve-nvd-selection { padding: 13px; }
+  .cve-software-option { align-items: flex-start; }
+  .cve-software-picker > summary { flex-wrap: wrap; }
+}
