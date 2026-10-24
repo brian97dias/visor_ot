@@ -10,6 +10,7 @@ import {
   cveHardwareSelectionValid, isCveDiscoveryActive,
   preferredCveHardwareId, selectedCveHardwareId, cveReviewProgress,
   groupCveEvidence, cveHumanReviewMessage,
+  displayCveApplicability, CVE_CATALOGUE_FILTER_STATES,
   nvdCriterionIdentityBadge, cveAuditJustification,
 } from "./cveCataloguePresentation.js";
 
@@ -174,4 +175,14 @@ test("automatic history reads El sistema without changing a persisted justificat
   assert.equal(cveAuditJustification(old, "SYSTEM"),
     "El sistema confirmó automáticamente la correspondencia de la configuración NVD 9.");
   assert.equal(cveAuditJustification(old, "ANALYST"), old);
+});
+
+test("CVE filters show only three applicability choices", () => {
+  assert.deepEqual(Object.keys(CVE_CATALOGUE_FILTER_STATES),
+    ["PENDING_REVIEW", "APPLIES", "NOT_APPLICABLE"]);
+  for (const status of ["PENDING_REVIEW","IN_REVIEW","STALE",null]) {
+    assert.equal(displayCveApplicability(status), "PENDING_REVIEW");
+  }
+  assert.equal(displayCveApplicability("APPLIES"), "APPLIES");
+  assert.equal(displayCveApplicability("NOT_APPLICABLE"), "NOT_APPLICABLE");
 });

@@ -171,3 +171,13 @@ export function cveAuditJustification(justification, source) {
     ? text.replace(/^VISOR OT confirmó automáticamente/, "El sistema confirmó automáticamente")
     : text;
 }
+
+/** Three summary buckets; stale/in-progress audits remain pending, not safe. */
+export function displayCveApplicability(status) {
+  return ["APPLIES","NOT_APPLICABLE"].includes(status) ? status : "PENDING_REVIEW";
+}
+export const CVE_CATALOGUE_FILTER_STATES = {
+  PENDING_REVIEW: "Por validar",
+  APPLIES: "Aplica",
+  NOT_APPLICABLE: "No aplica",
+};

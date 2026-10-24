@@ -1,38 +1,39 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useOutletContext, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 
 import { getCpeOverview } from "../api/vulnerabilities";
 import {
-  enqueueCveDiscovery, listCveCatalogue, listCveDiscoveryRuns,
+  enqueueCveDiscovery, listCveCatalogue,
 } from "../api/vulnerabilities";
 import SuccessNotice from "../components/SuccessNotice";
 import {
-  CVE_DISCOVERY_STATE, CVE_EVALUATION_STATE,
+  CVE_EVALUATION_STATE, CVE_CATALOGUE_FILTER_STATES,
+  displayCveApplicability,
   CVE_APPLICABILITY_SOURCE,
 
   CVE_SEVERITY, cveHardwareCandidates,
-  cveHardwareSelectionValid, cvePageCount, isCveDiscoveryActive,
+  cveHardwareSelectionValid, cvePageCount,
   preferredCveHardwareId,
   toggleCveHardwareSelection,
 } from "../utils/cveCataloguePresentation";
 import { readCpePage } from "../utils/cpeOverviewUrlState";
 
 const PAGE_SIZE = 15;
-const POLL_MS = 10000;
-const POLL_LIMIT_MS = 5 * 60 * 1000;
-
 export default function CveOverview() {
   const { user } = useOutletContext();
+  const navigate = useNavigate();
   const canSearch = ["ADMIN", "ANALYST"].includes(user?.role);
   const [params, setParams] = useSearchParams();
   const search = params.get("q") || "";
   const severity = params.get("severity") || "ALL";
   const status = params.get("status") || "ALL";
   const requestedPage = readCpePage(params.get("page"));
-  const [catalogue, setCatalogue] = useState({ count: 0, results: [], page: 1 });
-  const [runs, setRuns] = useState([]);
+  const [catalogue, setCatalogue] = useState({
+    count: 0, results: [], page: 1,
+    summary: {total: 0, applies: 0, not_applicable: 0,
+      pending_review: 0, validated: 0},
+  });
   const [loading, setLoading] = useState(true);
-  const [runsLoading, setRunsLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [reload, setReload] = useState(0);
@@ -43,10 +44,7 @@ export default function CveOverview() {
   const [selected, setSelected] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [selectionError, setSelectionError] = useState("");
-  const [pollingPaused, setPollingPaused] = useState(false);
-  const pollStarted = useRef(null);
   const modalFocus = useRef(null);
-  const active = runs.some(run => isCveDiscoveryActive(run.status));
 
   function changeFilter(name, value) {
     const next = new URLSearchParams(params);
@@ -69,41 +67,6 @@ export default function CveOverview() {
     }, search ? 300 : 0);
     return () => { alive = false; window.clearTimeout(timer); };
   }, [search, severity, status, requestedPage, reload]);
-
-  useEffect(() => {
-    let alive = true;
-    listCveDiscoveryRuns()
-      .then(data => { if (alive) setRuns(data); })
-      .catch(err => { if (alive) setError(err.message); })
-      .finally(() => { if (alive) setRunsLoading(false); });
-    return () => { alive = false; };
-  }, []);
-
-  useEffect(() => {
-    if (!active || pollingPaused) {
-      if (!active) pollStarted.current = null;
-      return undefined;
-    }
-    if (pollStarted.current === null) pollStarted.current = Date.now();
-    let alive = true;
-    const timer = window.setInterval(async () => {
-      if (Date.now() - pollStarted.current > POLL_LIMIT_MS) {
-        if (alive) setPollingPaused(true);
-        return;
-      }
-      try {
-        const items = await listCveDiscoveryRuns();
-        if (alive) {
-          setRuns(items);
-          // Refresh CVE catalogue as each page may have produced new candidates.
-          setReload(prev => prev + 1);
-        }
-      } catch (err) {
-        if (alive) setError(err.message);
-      }
-    }, POLL_MS);
-    return () => { alive = false; window.clearInterval(timer); };
-  }, [active, pollingPaused]);
 
   useEffect(() => {
     if (!dialogOpen) return undefined;
@@ -130,17 +93,9 @@ export default function CveOverview() {
     }
   }
 
-  async function refreshAll() {
+  function refreshAll() {
     setError("");
-    setPollingPaused(false);
-    pollStarted.current = Date.now();
-    try {
-      const list = await listCveDiscoveryRuns();
-      setRuns(list);
-      setReload(prev => prev + 1);
-    } catch (err) {
-      setError(err.message);
-    }
+    setReload(prev => prev + 1);
   }
 
   const displayedHardware = useMemo(() => {
@@ -157,12 +112,10 @@ export default function CveOverview() {
     setSubmitting(true);
     try {
       const response = await enqueueCveDiscovery(selected);
-      setNotice((response.reused ? "Se reutilizó" : "Se creó") +
-        " la búsqueda CVE #" + response.run_id + ". El worker NVD la procesará.");
       setDialogOpen(false);
       setSelected([]);
       setHardwareSearch("");
-      await refreshAll();
+      navigate("/vulnerabilities/cve/discoveries/" + response.run_id);
     } catch (err) {
       setSelectionError(err.message);
     } finally {
@@ -188,12 +141,20 @@ export default function CveOverview() {
       durationMs={30000}/>
     {error && <p className="error-message" role="alert">{error}</p>}
 
-    <div className="cve-catalogue-stats">
-      <div className="cpe-overview-stat"><strong>{runs.length}</strong>
-        <span>Búsquedas recientes</span></div>
-      <div className="cpe-overview-stat"><strong>
-        {runs.filter(run => isCveDiscoveryActive(run.status)).length}</strong>
-        <span>En cola o proceso</span></div>
+    <div className="cve-catalogue-stats" aria-label="Resumen de aplicabilidad CVE">
+      <div className="cpe-overview-stat">
+        <strong>{catalogue.summary?.total ?? 0}</strong><span>CVE registrados</span>
+      </div>
+      <div className="cpe-overview-stat">
+        <strong>{catalogue.summary?.pending_review ?? 0}</strong><span>Por validar</span>
+      </div>
+      <div className="cpe-overview-stat cve-catalogue-validated">
+        <strong>{catalogue.summary?.validated ?? 0}</strong><span>Evaluados</span>
+        <div className="cve-catalogue-stat-breakdown">
+          <span>Aplica: <strong>{catalogue.summary?.applies ?? 0}</strong></span>
+          <span>No aplica: <strong>{catalogue.summary?.not_applicable ?? 0}</strong></span>
+        </div>
+      </div>
     </div>
 
     <div className="panel cve-catalogue-panel">
@@ -224,7 +185,7 @@ export default function CveOverview() {
           <select aria-label="Filtrar CVE por estado" value={status}
             onChange={event => changeFilter("status", event.target.value)}>
             <option value="ALL">Todos</option>
-            {Object.entries(CVE_EVALUATION_STATE).map(([code, label]) =>
+            {Object.entries(CVE_CATALOGUE_FILTER_STATES).map(([code, label]) =>
               <option key={code} value={code}>{label}</option>)}
           </select>
         </label>
@@ -275,9 +236,8 @@ export default function CveOverview() {
               </div></td>
               <td>
                 <span className="cve-catalogue-evaluation-status"
-                  data-status={row.applicability_status || "PENDING_REVIEW"}>
-                  {CVE_EVALUATION_STATE[row.applicability_status] ||
-                    CVE_EVALUATION_STATE.PENDING_REVIEW}
+                  data-status={displayCveApplicability(row.applicability_status)}>
+                  {CVE_EVALUATION_STATE[displayCveApplicability(row.applicability_status)]}
                 </span>
                 <small className="cve-catalogue-secondary">
                   {CVE_APPLICABILITY_SOURCE[row.applicability_source] ||
@@ -303,39 +263,6 @@ export default function CveOverview() {
       </div>
     </div>
 
-    <section className="panel cve-catalogue-jobs" aria-labelledby="cve-jobs-title">
-      <div className="panel-header">
-        <div><h2 id="cve-jobs-title">Búsquedas CVE recientes</h2>
-          <p>Seguimiento de trabajos enviados al worker NVD.</p></div>
-        <button type="button" className="button-secondary" onClick={refreshAll}>
-          Actualizar estado
-        </button>
-      </div>
-      {runsLoading ? <p className="cve-catalogue-empty">Cargando trabajos...</p>
-        : runs.length === 0 ? <p className="cve-catalogue-empty">
-          Todavía no hay búsquedas CVE registradas.</p> : <div className="table-container">
-          <table className="data-table">
-            <thead><tr><th>Búsqueda</th><th>Estado</th><th>CPE procesados</th>
-              <th>CVE encontrados</th><th>Acción</th></tr></thead>
-            <tbody>{runs.slice(0, 10).map(run => <tr key={run.run_id}>
-              <td><strong>#{run.run_id}</strong><small className="cve-catalogue-secondary">
-                {run.selected_hardware_ids.length} hardware seleccionados</small></td>
-              <td><span className="cve-catalogue-job-status" data-status={run.status}>
-                {CVE_DISCOVERY_STATE[run.status] || run.status}</span>
-                {run.error_message && <small className="cve-catalogue-job-error">
-                  {run.error_message}</small>}</td>
-              <td>{run.completed_queries} / {run.query_count}</td>
-              <td>{run.retrieved_occurrences} <small className="cve-catalogue-inline-note">
-                coincidencias</small></td>
-              <td><Link className="button-secondary"
-                to={"/vulnerabilities/cve/discoveries/" + run.run_id}>Ver progreso</Link></td>
-            </tr>)}</tbody>
-          </table>
-        </div>}
-      {pollingPaused && active && <p className="cve-catalogue-empty">
-        Actualización automática pausada. Puedes consultar el estado manualmente.
-      </p>}
-    </section>
     <p className="cve-overview-disclaimer">
       Una búsqueda por CPE identifica CVE candidatos. El sistema solo confirma
       automáticamente «Aplica» cuando comprueba las condiciones NVD con evidencia
@@ -389,7 +316,7 @@ export default function CveOverview() {
         {selectionError && <p className="error-message" role="alert">{selectionError}</p>}
         <p className="cve-catalogue-disclaimer">
           El backend validará de nuevo la vigencia de los CPE antes de enviar
-          consultas a NVD. Ningún hallazgo se confirmará automáticamente.
+          consultas a NVD. Solo se confirmarán automáticamente las correspondencias verificadas.
         </p>
         <div className="cpe-bulk-dialog-actions">
           <button type="button" className="button-secondary"
