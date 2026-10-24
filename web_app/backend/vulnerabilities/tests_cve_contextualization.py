@@ -209,6 +209,16 @@ class SiemensContextualHttpTests(TestCase):
         data = response.data
         self.assertEqual(data["context_unit"], "HARDWARE_CVE")
         self.assertEqual(data["technical_result"], COMPATIBLE)
+        self.assertEqual(data["applicability"]["status"], "APPLIES")
+        self.assertEqual(data["applicability"]["source"], "SYSTEM")
+        proof = data["applicability"]["automatic_evidence"]
+        self.assertEqual(proof["configuration_position"], 9)
+        self.assertEqual(proof["configuration_index"], 8)
+        self.assertEqual(proof["hardware_id"], self.hw.pk)
+        self.assertEqual(proof["inventory_fingerprint"], data["inventory_fingerprint"])
+        self.assertEqual(proof["configuration_fingerprint"],
+                         data["configurations"][8]["fingerprint"])
+        self.assertEqual(len(proof["criteria"]), 2)
         self.assertEqual(data["assessment_summary"]["status"], "PENDING_REVIEW")
         self.assertEqual(data["assessment_summary"]["total_configurations"], 12)
         self.assertEqual(data["assessment_summary"]["pending_configurations"], 12)
@@ -226,6 +236,9 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         row = response.data["results"][0]
         self.assertEqual(row["technical_result"], COMPATIBLE)
+        self.assertEqual(row["applicability_status"], "APPLIES")
+        self.assertEqual(row["applicability_source"], "SYSTEM")
+        self.assertEqual(row["evaluation_status"], "PENDING_REVIEW")
         self.assertEqual(len(row["related_assets"]), 1)
         found = row["related_assets"][0]["assets"]
         self.assertEqual([item["asset_type"] for item in found],
@@ -254,7 +267,9 @@ class SiemensContextualHttpTests(TestCase):
         created = self.client.post(self.url, payload, format="json")
         self.assertEqual(created.status_code, 201, created.data)
         self.assertEqual(created.data["assessment"]["status"], "APPLIES")
-        summary = self.client.get(self.url).data["assessment_summary"]
+        current = self.client.get(self.url).data
+        summary = current["assessment_summary"]
+        self.assertEqual(current["applicability"]["source"], "ANALYST")
         self.assertEqual(summary["status"], "APPLIES")
         self.assertEqual(summary["confirmed_configurations"], 1)
         self.assertEqual(summary["pending_configurations"], 11)
@@ -267,7 +282,9 @@ class SiemensContextualHttpTests(TestCase):
         undone = self.client.post(self.url, payload, format="json")
         self.assertEqual(undone.status_code, 201, undone.data)
         self.assertEqual(undone.data["assessment"]["status"], "PENDING_REVIEW")
-        reopened_summary = self.client.get(self.url).data["assessment_summary"]
+        reopened_context = self.client.get(self.url).data
+        reopened_summary = reopened_context["assessment_summary"]
+        self.assertEqual(reopened_context["applicability"]["source"], "SYSTEM")
         self.assertEqual(reopened_summary["status"], "IN_REVIEW")
         self.assertEqual(reopened_summary["confirmed_configurations"], 0)
         self.assertEqual(AssetCveAssessment.objects.count(), 2)
@@ -341,6 +358,9 @@ class SiemensContextualHttpTests(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["technical_result"], INDETERMINATE)
+        self.assertEqual(response.data["applicability"]["status"], "PENDING_REVIEW")
+        self.assertEqual(response.data["applicability"]["source"], "NONE")
+        self.assertIsNone(response.data["applicability"]["automatic_evidence"])
         self.assertEqual(
             response.data["relevant_configurations"][0]["technical_result"],
             INDETERMINATE,
@@ -355,5 +375,60 @@ class SiemensContextualHttpTests(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["technical_result"], EXCLUDED)
+        self.assertEqual(response.data["applicability"]["status"], "PENDING_REVIEW")
+        self.assertEqual(response.data["applicability"]["source"], "NONE")
         self.assertEqual(response.data["relevant_configurations"], [])
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
+
+    def test_status_filters_include_system_positive_before_pagination(self):
+        base = "/api/vulnerabilities/cves/"
+        positive = self.client.get(base, {"status": "APPLIES", "technical": "ALL"})
+        self.assertEqual(positive.status_code, 200, positive.data)
+        self.assertEqual(positive.data["count"], 1)
+        self.assertEqual(positive.data["results"][0]["applicability_source"], "SYSTEM")
+        self.assertEqual(self.client.get(base, {
+            "status": "PENDING_REVIEW", "technical": "ALL"
+        }).data["count"], 0)
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
+
+    def test_version_na_and_external_step7_remain_pending_for_human_review(self):
+        firmware_na = CPU_FW_CRITERION.replace(":*:", ":-:", 1)
+        self.cve.configurations = [
+            nvd_platform_firmware(CPU_HW, firmware_na),
+        ]
+        self.cve.save(update_fields=["configurations"])
+        response = self.client.get(self.url).data
+        self.assertEqual(response["technical_result"], INDETERMINATE)
+        self.assertEqual(response["applicability"]["status"], "PENDING_REVIEW")
+        self.assertEqual(response["applicability"]["source"], "NONE")
+
+        self.cve.configurations = [{
+            "operator": "AND", "nodes": [
+                {"operator": "OR", "cpeMatch": [
+                    {"criteria": CPU_HW, "vulnerable": False},
+                ]},
+                {"operator": "OR", "cpeMatch": [
+                    {"criteria": STEP7, "vulnerable": True},
+                ]},
+            ],
+        }]
+        self.cve.save(update_fields=["configurations"])
+        response = self.client.get(self.url).data
+        self.assertEqual(response["technical_result"], INDETERMINATE)
+        self.assertEqual(response["applicability"]["status"], "PENDING_REVIEW")
+        self.assertEqual(response["applicability"]["source"], "NONE")
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
+
+    def test_out_of_range_firmware_does_not_become_auto_no_aplica(self):
+        self.sw.version = "4.6.0"
+        self.sw.save(update_fields=["version"])
+        self.fixture.confirm(self.sw.asset, CPU_FW.replace(":4.5.2:", ":4.6.0:"))
+        response = self.client.get(self.url).data
+        self.assertEqual(response["technical_result"], EXCLUDED)
+        self.assertEqual(response["applicability"]["status"], "PENDING_REVIEW")
+        self.assertEqual(response["applicability"]["source"], "NONE")
+        catalog = self.client.get("/api/vulnerabilities/cves/", {
+            "status": "NOT_APPLICABLE", "technical": "ALL"
+        })
+        self.assertEqual(catalog.data["count"], 0)
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
