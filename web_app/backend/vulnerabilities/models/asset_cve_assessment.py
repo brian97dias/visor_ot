@@ -6,6 +6,7 @@ from django.db import models
 class AssetCveAssessment(models.Model):
     class Status(models.TextChoices):
         APPLIES = "APPLIES", "Aplica"
+        APPLIES_CONDITIONAL = "APPLIES_CONDITIONAL", "Aplica condicionada"
         PENDING_REVIEW = "PENDING_REVIEW", "Pendiente de revisión"
         NOT_APPLICABLE = "NOT_APPLICABLE", "No aplica"
 
@@ -20,7 +21,7 @@ class AssetCveAssessment(models.Model):
     configuration_index = models.PositiveIntegerField()
     configuration_snapshot = models.JSONField(default=dict)
     configuration_fingerprint = models.CharField(max_length=64)
-    status = models.CharField(max_length=16, choices=Status.choices)
+    status = models.CharField(max_length=24, choices=Status.choices)
     criteria_evidence = models.JSONField(default=dict)
     software_installation = models.ForeignKey(
         "assets.SoftwareInstallation", null=True, blank=True,

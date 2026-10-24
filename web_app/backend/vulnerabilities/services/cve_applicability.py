@@ -11,6 +11,7 @@ from .cve_configuration_evaluator import COMPATIBLE
 PENDING_REVIEW = "PENDING_REVIEW"
 APPLIES = "APPLIES"
 NOT_APPLICABLE = "NOT_APPLICABLE"
+APPLIES_CONDITIONAL = "APPLIES_CONDITIONAL"
 SYSTEM = "SYSTEM"
 ANALYST = "ANALYST"
 NONE = "NONE"
@@ -79,7 +80,7 @@ def resolve_applicability(technical_result, analyst_status, *,
     A complete human conclusion has precedence. An incomplete/stale manual
     history never converts an unknown or excluded technical result to safe.
     """
-    if analyst_status in (APPLIES, NOT_APPLICABLE):
+    if analyst_status in (APPLIES, NOT_APPLICABLE, APPLIES_CONDITIONAL):
         return {"status": analyst_status, "source": ANALYST}
     if technical_result == COMPATIBLE and automatic_evidence is not None:
         return {"status": APPLIES, "source": SYSTEM}

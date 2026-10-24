@@ -13,7 +13,7 @@ from .services.cve_system_audit import ensure_system_cve_assessment
 
 class GeneralCveDecisionSerializer(serializers.Serializer):
     configuration_index = serializers.IntegerField(min_value=0)
-    verdict = serializers.ChoiceField(choices=("CONFIRMED", "NOT_MATCH", "UNKNOWN"))
+    verdict = serializers.ChoiceField(choices=("CONFIRMED", "NOT_MATCH", "UNKNOWN", "CONDITIONAL"))
     software_installation_id = serializers.IntegerField(
         min_value=1, allow_null=True, required=False, default=None,
     )

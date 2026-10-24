@@ -373,6 +373,83 @@ def general_assessment_context(cve_id, hardware_id):
     }
 
 
+
+def _matched_criterion_nodes(tree):
+    """Return only demonstrated hardware/software product identities."""
+    if tree.get("kind") == "CRITERION":
+        if tree.get("technical_identity") == "MATCHED" and tree.get("technical_matched_cpe"):
+            yield tree
+    for child in tree.get("children", []):
+        yield from _matched_criterion_nodes(child)
+
+
+def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
+                          installation_id):
+    """Evidence for a cautious analyst claim: proven hardware context and
+    an identified NVD vulnerable component, not an inferred installation.
+    """
+    from vulnerabilities.models import AssetCveFinding
+
+    if not (
+        AssetCveFinding.objects.filter(hardware=hardware, cve=cve).exists()
+        or AssetCveAssessment.objects.filter(hardware=hardware, cve=cve).exists()
+    ):
+        raise ValidationError({"verdict": "El CVE no tiene un hallazgo asociado a este hardware."})
+    config = cve.configurations[config_index]
+    evaluation = evaluate_configurations([config], list(confirmed), installed)
+    annotated = _annotate_tree(
+        _render_tree(config, confirmed, installed), evaluation["configurations"][0],
+    )
+    matching = list(_matched_criterion_nodes(annotated))
+    hardware_roles = [{
+        "criteria": item["criteria"],
+        "matched_cpe": item["technical_matched_cpe"],
+        "role": "VULNERABLE" if item.get("vulnerable") is True else "PLATFORM",
+    } for item in matching if item.get("part") == "h"]
+    if not hardware_roles:
+        raise ValidationError({"verdict":
+            "No hay identidad CPE del hardware comprobada en esta configuración NVD."})
+
+    def vulnerable_leaves(node):
+        if node.get("kind") == "CRITERION" and node.get("vulnerable") is True:
+            yield node
+        for child in node.get("children", []):
+            yield from vulnerable_leaves(child)
+
+    vulnerable = list(vulnerable_leaves(annotated))
+    if not vulnerable:
+        raise ValidationError({"verdict":
+            "NVD no identifica un componente vulnerable en la configuración seleccionada."})
+
+    selected_criteria = []
+    if installation_id is not None:
+        selected_criteria = [{
+            "criteria": item["criteria"],
+            "matched_cpe": item.get("technical_matched_cpe"),
+            "installation_id": installation_id,
+            "software_asset_id": item.get("technical_software_asset_id"),
+        } for item in vulnerable
+            if item.get("part") in ("a", "o")
+            and item.get("technical_identity") == "MATCHED"
+            and item.get("technical_software_installation_id") == installation_id
+            and item.get("technical_matched_cpe")]
+        if not selected_criteria:
+            raise ValidationError({"software_installation_id":
+                "La instalación seleccionada no corresponde a un criterio NVD vulnerable identificado."})
+    return {
+        "origin": "ANALYST", "hardware_roles": hardware_roles,
+        "vulnerable_criteria": [{
+            "criteria": item["criteria"], "part": item.get("part"),
+            "identity_verified": item.get("technical_identity") == "MATCHED",
+            "matched_cpe": item.get("technical_matched_cpe"),
+            "bounds": item.get("bounds", {}),
+        } for item in vulnerable],
+        "linked_software": selected_criteria,
+        "pending_condition": not bool(selected_criteria),
+        "configuration_result": evaluation["result"],
+    }
+
+
 @transaction.atomic
 def record_general_assessment(cve_id, hardware_id, actor, *,
                               configuration_index, verdict,
@@ -388,13 +465,13 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
     cfg_fp = _digest(config)
     if inventory_fingerprint != actual_fp or configuration_fingerprint != cfg_fp:
         raise ValidationError({"inventory_fingerprint": "La evidencia cambió; recarga la evaluación."})
-    if verdict not in ("CONFIRMED", "NOT_MATCH", "UNKNOWN"):
+    if verdict not in ("CONFIRMED", "NOT_MATCH", "UNKNOWN", "CONDITIONAL"):
         raise ValidationError({"verdict": "Decisión no reconocida."})
     reason = justification.strip()
     if not reason or len(reason) > 1000:
         raise ValidationError({"justification": "Justifica tu decisión (máximo 1000 caracteres)."})
     supported = _simple_and_firmware(config, confirmed, installed)
-    if not supported and verdict != "UNKNOWN":
+    if not supported and verdict not in ("UNKNOWN", "CONDITIONAL"):
         raise ValidationError({"verdict": "La configuración no es verificable mediante este flujo."})
     if (supported and supported["required_installation_id"] is not None
             and verdict == "NOT_MATCH"):
@@ -406,7 +483,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         })
     installed_by_id = {row["installation_id"]: row for row in installed}
     selected = installed_by_id.get(software_installation_id)
-    if selected is not None and supported and verdict != "UNKNOWN":
+    if selected is not None and supported and verdict not in ("UNKNOWN", "CONDITIONAL"):
         part = supported["software_criterion"].split(":")[2]
         permitted_types = (
             ("FIRMWARE", "OS") if part == "o" else ("APPLICATION",)
@@ -418,7 +495,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
             })
     if software_installation_id is not None and selected is None:
         raise ValidationError({"software_installation_id": "La instalación no está vigente."})
-    if verdict != "UNKNOWN" and selected is None:
+    if verdict not in ("UNKNOWN", "CONDITIONAL") and selected is None:
         raise ValidationError({"software_installation_id": "Selecciona software instalado vigente."})
     if (supported and supported["required_installation_id"] is not None
             and verdict != "UNKNOWN"
@@ -427,10 +504,20 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
             "software_installation_id":
                 "Selecciona la instalación concreta verificada contra NVD."
         })
+    conditional_evidence = None
+    if verdict == "CONDITIONAL":
+        if len(reason) < 20:
+            raise ValidationError({"justification":
+                "Justifica las condiciones pendientes (mínimo 20 caracteres)."})
+        conditional_evidence = _conditional_evidence(
+            cve, hw, configuration_index, confirmed, installed, software_installation_id
+        )
     # A negative verdict only settles an AND branch if the inventory was
     # explicitly attested complete and only this installation was in scope.
     status = "PENDING_REVIEW"
-    if supported and verdict == "CONFIRMED" and selected is not None:
+    if verdict == "CONDITIONAL":
+        status = "APPLIES_CONDITIONAL"
+    elif supported and verdict == "CONFIRMED" and selected is not None:
         status = "APPLIES"
     elif (supported and verdict == "NOT_MATCH" and selected is not None
           and inventory_declared_complete and len(installed) == 1):
@@ -441,7 +528,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         configuration_snapshot=config, configuration_fingerprint=cfg_fp,
         inventory_fingerprint=actual_fp, status=status,
         software_installation_id=selected["installation_id"] if selected else None,
-        criteria_evidence={
+        criteria_evidence=conditional_evidence if conditional_evidence is not None else {
             "platform": supported["hardware_criterion"] if supported else None,
             "software": supported["software_criterion"] if supported else None,
             "verdict": verdict, "inventory_declared_complete": inventory_declared_complete,
