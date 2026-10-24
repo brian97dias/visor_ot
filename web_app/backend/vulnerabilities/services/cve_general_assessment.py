@@ -230,13 +230,18 @@ def _serialize_assessment(item, inventory_fp, config_fp):
     if item is None:
         return None
     stale = item.inventory_fingerprint != inventory_fp or item.configuration_fingerprint != config_fp
+    source = ("SYSTEM" if isinstance(item.criteria_evidence, dict)
+              and item.criteria_evidence.get("origin") == "SYSTEM"
+              else "ANALYST")
     return {
-        "id": item.pk, "status": item.status,
+        "id": item.pk, "status": item.status, "source": source,
         "effective_status": "PENDING_REVIEW" if stale else item.status,
         "stale": stale, "justification": item.justification,
         "software_installation_id": item.software_installation_id,
         "decided_at": item.decided_at,
-        "decided_by": item.decided_by.username if item.decided_by else None,
+        "decided_by": "VISOR OT" if source == "SYSTEM" else (
+            item.decided_by.username if item.decided_by else None
+        ),
     }
 
 
@@ -280,10 +285,14 @@ def summarize_hardware_cve_review(configurations):
     effective = [
         row.get("latest_assessment") for row in configurations
     ]
+    # Automated confirmations belong in the same timeline, but are not
+    # falsely reported as HUMAN decisions in the analyst-only summary.
     current = [
         row for row in effective if row and not row.get("stale")
+        and row.get("source") != "SYSTEM"
     ]
-    stale_count = sum(bool(row and row.get("stale")) for row in effective)
+    stale_count = sum(bool(row and row.get("stale")
+                           and row.get("source") != "SYSTEM") for row in effective)
     confirmed = sum(row.get("effective_status") == "APPLIES" for row in current)
     excluded = sum(row.get("effective_status") == "NOT_APPLICABLE" for row in current)
     reviewed = len(current)

@@ -91,6 +91,11 @@ def catalogue_statuses(cves):
     )
     for record in audits:
         hardware_by_cve[record.cve_id].add(record.hardware_id)
+        if (isinstance(record.criteria_evidence, dict)
+                and record.criteria_evidence.get("origin") == "SYSTEM"):
+            # The phase-1 technical proof already supplies SYSTEM status.
+            # Do not present the very same automated row as ANALYST.
+            continue
         key = (record.cve_id, record.hardware_id, record.configuration_index)
         if key in seen:
             continue
