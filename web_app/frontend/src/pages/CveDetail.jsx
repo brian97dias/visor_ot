@@ -124,6 +124,15 @@ function Criterion({ item, depth = 0, selection, onSelect, installId, onInstall,
   }
   const operator = item.operator === "AND" ? "Y" : "O";
   const { visible, alternatives } = relevantNvdChildren(item);
+  // Promote a selected OR alternative for review, without changing NVD's logic.
+  const hasSelected = node => node?.kind === "CRITERION"
+    ? (node.match_criteria_id || node.criteria) === selection
+    : (node?.children || []).some(hasSelected);
+  const promoted = item.operator === "OR" && selection
+    ? alternatives.find(hasSelected) : null;
+  const shown = promoted ? [promoted, ...visible.filter(x => x !== promoted)] : visible;
+  const otherChoices = promoted
+    ? alternatives.filter(x => x !== promoted) : alternatives;
   return <div className={"cve-general-group " + (depth ? "cve-general-nested" : "")}>
     <div className="cve-general-logic">
       <strong>{operator === "Y" ? "Se requieren todas las condiciones" :
@@ -131,15 +140,15 @@ function Criterion({ item, depth = 0, selection, onSelect, installId, onInstall,
       {item.negate && <span className="cpe-warning">
         Negación NVD: el resultado del grupo se invierte (requiere revisión).</span>}
     </div>
-    {visible.length ? visible.map((child, i) =>
+    {shown.length ? shown.map((child, i) =>
       <div key={i}>
         {i > 0 && <div className="cve-nvd-plus" aria-label={"Operador " + operator}>
           {operator}</div>}
         <Criterion item={child} depth={depth + 1} selection={selection} onSelect={onSelect} installId={installId} onInstall={onInstall} candidates={candidates} canDecide={canDecide}/>
       </div>) : <p className="cve-muted">No hay criterios detallados en este grupo.</p>}
-    {alternatives.length > 0 && <details className="cve-nvd-other-evidence">
-      <summary>Otras alternativas NVD ({alternatives.length})</summary>
-      {alternatives.map((child, i) =>
+    {otherChoices.length > 0 && <details className="cve-nvd-other-evidence">
+      <summary>Otras alternativas NVD ({otherChoices.length})</summary>
+      {otherChoices.map((child, i) =>
         <Criterion key={i} item={child} depth={depth + 1} selection={selection} onSelect={onSelect} installId={installId} onInstall={onInstall} candidates={candidates} canDecide={canDecide}/>)}
     </details>}
   </div>;
