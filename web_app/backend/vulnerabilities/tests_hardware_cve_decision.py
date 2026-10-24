@@ -80,6 +80,36 @@ class WholeHardwareCveDecisionTests(TestCase):
         self.assertEqual(HardwareCveDecision.objects.count(), 2)
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
+    def test_new_hardware_decision_supersedes_legacy_config_result_without_deletion(self):
+        context = self.client.get(self.url).data
+        cfg = context["configurations"][8]
+        legacy = self.client.post(self.url, {
+            "configuration_index": 8,
+            "verdict": "CONFIRMED",
+            "software_installation_id": self.installation.pk,
+            "inventory_declared_complete": False,
+            "justification": "Evaluación histórica ligada a una configuración NVD.",
+            "inventory_fingerprint": context["inventory_fingerprint"],
+            "configuration_fingerprint": cfg["fingerprint"],
+        }, format="json")
+        self.assertEqual(legacy.status_code, 201, legacy.data)
+        self.assertEqual(self.client.get(self.url).data["applicability"]["source"], "ANALYST")
+        overriding = self.client.post(
+            self.decision_url, self.payload(verdict="NOT_APPLICABLE", override=True),
+            format="json",
+        )
+        self.assertEqual(overriding.status_code, 201, overriding.data)
+        result = self.client.get(self.url).data
+        self.assertEqual(result["applicability"]["status"], "NOT_APPLICABLE")
+        self.assertEqual(result["applicability"]["source"], "ANALYST")
+        self.assertEqual(result["configurations"][8]["latest_assessment"]["status"],
+                         "APPLIES")
+        self.assertEqual(self.client.get("/api/vulnerabilities/cves/", {
+            "status": "NOT_APPLICABLE", "technical": "ALL",
+        }).data["count"], 1)
+        self.assertEqual(AssetCveAssessment.objects.count(), 1)
+        self.assertEqual(HardwareCveDecision.objects.count(), 1)
+
     def test_inventory_update_invalidates_previous_human_verdict(self):
         self.assertEqual(self.client.post(
             self.decision_url, self.payload(), format="json",
