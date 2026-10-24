@@ -9,7 +9,7 @@ from django.http import Http404
 from rest_framework.exceptions import NotFound, ValidationError
 
 from vulnerabilities.models import AssetCveAssessment, AssetCveFinding
-from .cve_general_assessment import _context
+from .cve_general_assessment import _context, _digest
 from .cve_applicability import automatic_positive_evidence
 from .cve_configuration_evaluator import (
     COMPATIBLE, EXCLUDED, INDETERMINATE, evaluate_configurations,
@@ -66,6 +66,50 @@ def _matched_software(evaluation):
     return result
 
 
+def _hardware_role(analysis, preferred_index=None):
+    """Select role only from a confirmed NVD hardware identity.
+    A role is scoped to one NVD configuration, not to all CVEs.
+    """
+    configs = analysis.get("configurations", [])
+    order = ([preferred_index] if isinstance(preferred_index, int)
+             and 0 <= preferred_index < len(configs) else [])
+    order += [i for i in range(len(configs)) if i not in order]
+
+    def roles(node):
+        if node.get("kind") == "CRITERION":
+            if (node.get("identity") == "MATCHED"
+                    and node.get("matched_cpe")
+                    and str(node.get("criteria", "")).startswith("cpe:2.3:h:")):
+                yield "VULNERABLE" if node.get("vulnerable") is True else "PLATFORM"
+        for child in node.get("children", []):
+            yield from roles(child)
+
+    for index in order:
+        found = set(roles(configs[index]))
+        if len(found) == 1:
+            return next(iter(found))
+    return "HARDWARE_CONTEXT"
+
+
+def _current_linked_installation(cve, hardware, inventory_fp):
+    """Latest current analyst evaluation; never link unrelated installed apps."""
+    decisions = AssetCveAssessment.objects.filter(
+        cve=cve, hardware=hardware
+    ).order_by("-decided_at", "-pk")
+    for row in decisions:
+        if row.inventory_fingerprint != inventory_fp:
+            continue
+        if (row.configuration_index >= len(cve.configurations) or
+                row.configuration_fingerprint !=
+                _digest(cve.configurations[row.configuration_index])):
+            continue
+        if isinstance(row.criteria_evidence, dict) and row.criteria_evidence.get("origin") == "SYSTEM":
+            continue
+        return (None if row.status == "PENDING_REVIEW"
+                else row.software_installation_id), row.configuration_index
+    return None, None
+
+
 def related_assets_for_cves(cves):
     """Concrete inventoried assets evidenced in each hardware/CVE context.
 
@@ -91,27 +135,39 @@ def related_assets_for_cves(cves):
     for cve in items:
         for hw_id in sorted(related[cve.pk]):
             try:
-                hardware, _, hw_cpes, installed, _ = _context(cve.cve_id, hw_id)
+                hardware, _, hw_cpes, installed, inventory_fp = _context(cve.cve_id, hw_id)
                 analysed = evaluate_configurations(
                     cve.configurations, list(hw_cpes), installed
                 )
                 proof = automatic_positive_evidence(analysed)
-                matched_sw = set()
-                for config in analysed["configurations"]:
-                    matched_sw.update(_matched_software(config))
+                chosen_installation, chosen_configuration = _current_linked_installation(
+                    cve, hardware, inventory_fp,
+                )
+                proof_installations = {
+                    row.get("software_installation_id")
+                    for row in (proof or {}).get("criteria", [])
+                    if row.get("vulnerable") and row.get("software_installation_id")
+                }
+                linked = proof_installations | (
+                    {chosen_installation} if chosen_installation else set()
+                )
+                role = _hardware_role(
+                    analysed, chosen_configuration if chosen_configuration is not None
+                    else (proof or {}).get("configuration_index"),
+                )
                 assets = [{
                     "asset_id": hardware.pk, "asset_type": "HARDWARE",
                     "name": hardware.asset.name, "version": None,
-                    "role": "HARDWARE_CONTEXT",
+                    "role": role,
                 }]
                 for sw in installed:
-                    if sw["software_asset_id"] in matched_sw:
+                    if sw["installation_id"] in linked:
                         assets.append({
                             "asset_id": sw["software_asset_id"],
                             "asset_type": "SOFTWARE",
                             "name": sw["software_name"],
                             "version": sw["version"],
-                            "role": "MATCHED_INSTALLED_SOFTWARE",
+                            "role": "VULNERABLE",
                             "software_type": sw["software_type"],
                             "installation_id": sw["installation_id"],
                         })
@@ -127,6 +183,7 @@ def related_assets_for_cves(cves):
                     "hardware_id": hw_id,
                     "technical_result": analysed["result"],
                     "automatic_evidence": proof,
+                    "hardware_role": role,
                     "assets": unique,
                 })
             except (Http404, NotFound, ValidationError, ValueError, AttributeError):
@@ -136,6 +193,7 @@ def related_assets_for_cves(cves):
                     "hardware_id": hw_id,
                     "technical_result": INDETERMINATE,
                     "automatic_evidence": None,
+                    "hardware_role": "HARDWARE_CONTEXT",
                     "assets": [],
                 })
     return result
