@@ -29,7 +29,7 @@ const PLAIN = { h: "Hardware", o: "Firmware / sistema operativo", a: "Software" 
 
 /** Active software inventory; only an eligible installation can be linked. */
 function SoftwareInventoryPicker({ part, softwareAssets, installedSoftware, eligibleInstallationIds,
-  selectedAssetId, selectedInstallationId, onChoose, canDecide }) {
+  selectedAssetId, selectedInstallationId, selectedChoiceKey, onChoose, canDecide }) {
   const types = part === "a" ? ["APPLICATION"] : ["FIRMWARE", "OS"];
   const installations = (installedSoftware || []).filter(sw => types.includes(sw.software_type));
   const installedIds = new Set(installations.map(sw => sw.software_asset_id));
@@ -48,8 +48,8 @@ function SoftwareInventoryPicker({ part, softwareAssets, installedSoftware, elig
         eligible: false,
       })),
   ];
-  const selected = choices.find(row => row.id === selectedAssetId &&
-    String(row.installationId || "") === String(selectedInstallationId || ""));
+  const selected = choices.find(row => row.key === selectedChoiceKey &&
+    row.id === selectedAssetId);
   return <div className="cve-software-picker-wrapper">
     <span className="cve-software-picker-label">Software del inventario</span>
     <details className="cve-software-picker" key={selected?.key || "none"}>
@@ -66,7 +66,7 @@ function SoftwareInventoryPicker({ part, softwareAssets, installedSoftware, elig
               (selected?.key === row.key ? " is-selected" : "")}
             onClick={event => {
               event.currentTarget.closest("details").open = false;
-              onChoose(row.id, row.eligible ? row.installationId : null);
+              onChoose(row.id, row.eligible ? row.installationId : null, row.key);
             }}>
             <span className="cve-software-option-text">
               <strong>{row.name}</strong>
@@ -92,7 +92,7 @@ function SoftwareInventoryPicker({ part, softwareAssets, installedSoftware, elig
   </div>;
 }
 
-function Criterion({ item, depth = 0, selection, onSelect, installId, onInstall, selectedAssetId, softwareAssets = [], installedSoftware = [], eligibleInstallationIds = [], canDecide = false }) {
+function Criterion({ item, depth = 0, selection, onSelect, installId, onInstall, selectedAssetId, selectedChoiceKey, softwareAssets = [], installedSoftware = [], eligibleInstallationIds = [], canDecide = false }) {
   if (item.kind === "CRITERION") {
     const isSoftware = ["a", "o"].includes(item.part);
     const identityBadge = nvdCriterionIdentityBadge(item);
@@ -155,7 +155,7 @@ function Criterion({ item, depth = 0, selection, onSelect, installId, onInstall,
           <SoftwareInventoryPicker part={item.part} softwareAssets={softwareAssets}
             installedSoftware={installedSoftware} eligibleInstallationIds={eligibleInstallationIds}
             selectedAssetId={selectedAssetId} selectedInstallationId={installId}
-            onChoose={onInstall} canDecide={canDecide}/>
+            selectedChoiceKey={selectedChoiceKey} onChoose={onInstall} canDecide={canDecide}/>
         </>}
       </div>}
     </details>;
@@ -185,12 +185,12 @@ function Criterion({ item, depth = 0, selection, onSelect, installId, onInstall,
       <div key={i}>
         {i > 0 && <div className="cve-nvd-plus" aria-label={"Operador " + operator}>
           {operator}</div>}
-        <Criterion item={child} depth={depth + 1} selection={selection} onSelect={onSelect} installId={installId} onInstall={onInstall} selectedAssetId={selectedAssetId} softwareAssets={softwareAssets} installedSoftware={installedSoftware} eligibleInstallationIds={eligibleInstallationIds} canDecide={canDecide}/>
+        <Criterion item={child} depth={depth + 1} selection={selection} onSelect={onSelect} installId={installId} onInstall={onInstall} selectedAssetId={selectedAssetId} selectedChoiceKey={selectedChoiceKey} softwareAssets={softwareAssets} installedSoftware={installedSoftware} eligibleInstallationIds={eligibleInstallationIds} canDecide={canDecide}/>
       </div>) : <p className="cve-muted">No hay criterios detallados en este grupo.</p>}
     {otherChoices.length > 0 && <details className="cve-nvd-other-evidence">
       <summary>Otras alternativas NVD ({otherChoices.length})</summary>
       {otherChoices.map((child, i) =>
-        <Criterion key={i} item={child} depth={depth + 1} selection={selection} onSelect={onSelect} installId={installId} onInstall={onInstall} selectedAssetId={selectedAssetId} softwareAssets={softwareAssets} installedSoftware={installedSoftware} eligibleInstallationIds={eligibleInstallationIds} canDecide={canDecide}/>)}
+        <Criterion key={i} item={child} depth={depth + 1} selection={selection} onSelect={onSelect} installId={installId} onInstall={onInstall} selectedAssetId={selectedAssetId} selectedChoiceKey={selectedChoiceKey} softwareAssets={softwareAssets} installedSoftware={installedSoftware} eligibleInstallationIds={eligibleInstallationIds} canDecide={canDecide}/>)}
     </details>}
   </div>;
 }
@@ -201,6 +201,7 @@ function ConfigurationReview({ context, config, softwareAssets, onSaved, canDeci
   const [choice, setChoice] = useState("");
   const [installId, setInstallId] = useState("");
   const [softwareAssetId, setSoftwareAssetId] = useState(null);
+  const [softwareChoiceKey, setSoftwareChoiceKey] = useState("");
   const [selectedCriterion, setSelectedCriterion] = useState("");
   const [justification, setJustification] = useState("");
   const [complete, setComplete] = useState(false);
@@ -238,7 +239,7 @@ function ConfigurationReview({ context, config, softwareAssets, onSaved, canDeci
     (choice === "CONDITIONAL" && justification.trim().length < 20);
 
   function reset() {
-    setChoice(""); setSelectedCriterion(""); setInstallId(""); setSoftwareAssetId(null);
+    setChoice(""); setSelectedCriterion(""); setInstallId(""); setSoftwareAssetId(null); setSoftwareChoiceKey("");
     setJustification(""); setComplete(false); setError("");
   }
   async function submit(event) {
@@ -268,10 +269,13 @@ function ConfigurationReview({ context, config, softwareAssets, onSaved, canDeci
   }
   return <>
     <Criterion item={config.tree} selection={selectedCriterion}
-      onSelect={value => { setSelectedCriterion(value); setInstallId(""); setSoftwareAssetId(null); setChoice(""); }}
+      onSelect={value => { setSelectedCriterion(value); setInstallId(""); setSoftwareAssetId(null); setSoftwareChoiceKey(""); setChoice(""); }}
       installId={installId} selectedAssetId={softwareAssetId}
-      onInstall={(assetId, installationId) => {
-        setSoftwareAssetId(assetId); setInstallId(installationId ? String(installationId) : "");
+      selectedChoiceKey={softwareChoiceKey}
+      onInstall={(assetId, installationId, choiceKey) => {
+        setSoftwareAssetId(assetId);
+        setSoftwareChoiceKey(choiceKey);
+        setInstallId(installationId ? String(installationId) : "");
         setChoice("");
       }}
       softwareAssets={softwareAssets} installedSoftware={context.installed_software || []}
