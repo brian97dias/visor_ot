@@ -112,6 +112,8 @@ class ConditionalSiemensTests(TestCase):
         self.assertEqual(linked[0]["software_asset_id"], software.pk)
         self.assertEqual(linked[0]["link_source"], "ANALYST_DISCRETION")
         self.assertIsNone(linked[0]["matched_cpe"])
+        self.assertIsNone(linked[0]["criteria"])
+        self.assertEqual(linked[0]["candidate_nvd_criteria"], [fixtures.STEP7])
         self.assertFalse(linked[0]["identity_verified"])
         self.assertFalse(linked[0]["version_verified"])
         self.assertEqual(self.client.get(self.url).data[
