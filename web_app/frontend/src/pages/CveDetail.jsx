@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useOutletContext, useParams, useSearchParams } from "react-router-dom";
 import {
   listCveHardware, readCveCatalogue, readGeneralCveAssessment,
-  createGeneralCveAssessment, createHardwareCveDecision,
+  createGeneralCveAssessment,
 } from "../api/vulnerabilities";
 import SuccessNotice from "../components/SuccessNotice";
 import CveAnalysis from "./CveAnalysis";
@@ -247,117 +247,6 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   </div>;
 }
 
-
-/** One human decision for a CVE on a hardware, without an installation ID. */
-function HardwareCveDecisionPanel({ context, canDecide, onSaved }) {
-  const review = context.hardware_review || {};
-  const latest = review.latest;
-  const [verdict, setVerdict] = useState("PENDING_REVIEW");
-  const [justification, setJustification] = useState("");
-  const [description, setDescription] = useState("");
-  const [reference, setReference] = useState("");
-  const [acknowledge, setAcknowledge] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const positiveMismatch = verdict === "NOT_APPLICABLE" &&
-    context.technical_result === "COMPATIBLE";
-
-  async function submit(event) {
-    event.preventDefault();
-    if (saving || !canDecide) return;
-    setSaving(true); setError("");
-    try {
-      await createHardwareCveDecision(context.cve_id, context.hardware_asset_id, {
-        verdict,
-        justification: justification.trim(),
-        evidence_description: description.trim(),
-        evidence_reference: reference.trim(),
-        inventory_fingerprint: context.inventory_fingerprint,
-        nvd_fingerprint: review.nvd_fingerprint,
-        override_confirmed_match: positiveMismatch && acknowledge,
-      });
-      setJustification(""); setDescription(""); setReference("");
-      setVerdict("PENDING_REVIEW"); setAcknowledge(false);
-      onSaved();
-    } catch (err) {
-      setError("No se guardó la decisión: " + err.message);
-    } finally { setSaving(false); }
-  }
-
-  return <section className="panel cve-general-review-summary"
-    aria-labelledby="cve-hardware-decision-heading">
-    <h2 id="cve-hardware-decision-heading">Decisión humana · Hardware y CVE</h2>
-    <p>El analista evalúa el CVE completo para el hardware #{context.hardware_asset_id}.
-      No es necesario registrar STEP 7 u otro software externo como instalación
-      del PLC. Describe la verificación efectuada y su fuente.</p>
-    {latest && <div className="cve-nvd-joint-title">
-      <strong>Última decisión: {STATE[latest.effective_status] || latest.effective_status}</strong>
-      <span className="cve-muted">{latest.decided_by || "Analista"}
-        {" · "}{localizedTimestamp(latest.decided_at)}</span>
-      {latest.stale && <p className="cpe-warning">
-        La evidencia del inventario o NVD cambió; esta decisión ya no es vigente.</p>}
-    </div>}
-    {canDecide ? <form className="cve-compact-review" onSubmit={submit}>
-      <label>Conclusión para este hardware y CVE
-        <select value={verdict} onChange={event => {
-          setVerdict(event.target.value); setAcknowledge(false);
-        }}>
-          <option value="PENDING_REVIEW">Por validar / Reabrir</option>
-          <option value="APPLIES">Aplica</option>
-          <option value="NOT_APPLICABLE">No aplica</option>
-        </select>
-      </label>
-      <label>Justificación
-        <textarea rows={3} maxLength={2000} required value={justification}
-          onChange={event => setJustification(event.target.value)}
-          placeholder="Explica por qué el CVE aplica o no al hardware, o por qué reabres su evaluación."/>
-      </label>
-      <label>Evidencia comprobada (incluye STEP 7/TIA Portal, si corresponde)
-        <textarea rows={3} maxLength={4000}
-          required={verdict !== "PENDING_REVIEW"}
-          value={description} onChange={event => setDescription(event.target.value)}
-          placeholder="Documentación del fabricante, estación de ingeniería, versión observada, inspección..."/>
-      </label>
-      <label>Referencia externa o documental (opcional)
-        <input type="text" maxLength={500} value={reference}
-          onChange={event => setReference(event.target.value)}
-          placeholder="URL, identificador del informe o documento de verificación"/>
-      </label>
-      {positiveMismatch && <label className="cve-attestation">
-        <input type="checkbox" checked={acknowledge}
-          onChange={event => setAcknowledge(event.target.checked)}/>
-        Reconozco que VISOR OT encontró una coincidencia técnica positiva.
-        La evidencia que aporto justifica mi decisión excepcional de «No aplica».
-      </label>}
-      <div className="cve-form-actions">
-        <button className="button-primary" type="submit"
-          disabled={saving || (positiveMismatch && !acknowledge) ||
-            justification.trim().length < 20 ||
-            (verdict !== "PENDING_REVIEW" && description.trim().length < 10)}>
-          {saving ? "Guardando..." : "Registrar decisión"}
-        </button>
-      </div>
-      {error && <p className="error-message" role="alert">{error}</p>}
-    </form> : <p className="cve-muted">Tu rol es de consulta; solo analistas
-      y administradores pueden registrar decisiones.</p>}
-    <details className="cve-general-history">
-      <summary>Historial por hardware/CVE ({review.history?.length || 0})</summary>
-      {review.history?.length ? <ol className="cve-history">
-        {review.history.map(item => <li key={item.id}>
-          <strong>{STATE[item.status] || item.status}</strong>
-          {item.stale && <span className="cpe-warning"> · Evidencia anterior</span>}
-          <p>{item.decided_by || "Usuario no disponible"} ·
-            {" "}{localizedTimestamp(item.decided_at)}</p>
-          <p>{item.justification}</p>
-          {item.evidence_description && <p>Evidencia: {item.evidence_description}</p>}
-          {item.evidence_reference && <p>Referencia: {item.evidence_reference}</p>}
-        </li>)}
-      </ol> : <p className="cve-muted">Aún no se registraron decisiones humanas
-        para el hardware/CVE completo.</p>}
-    </details>
-  </section>;
-}
-
 export default function CveDetail() {
   const { cveId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -501,14 +390,7 @@ export default function CveDetail() {
                 CVE_APPLICABILITY_SOURCE.NONE}
             </span>
           </div>
-          {context.applicability?.source === "ANALYST" ?
-            <p>Conclusión registrada por el analista para este hardware/CVE.
-              La comparación técnica de NVD se conserva de manera independiente
-              {context.technical_result === "COMPATIBLE"
-                ? "; el sistema también identificó una coincidencia técnica."
-                : "."}
-              Consulta la justificación y evidencia en el historial humano.</p>
-            : context.applicability?.source === "SYSTEM" ?
+          {context.applicability?.source === "SYSTEM" ?
             <div className="cve-general-auto-proof">
               <p>VISOR OT comprobó las condiciones publicadas por NVD
                 con CPE confirmados, instalación y versión vigentes.
@@ -532,30 +414,26 @@ export default function CveDetail() {
               La ausencia de software en el inventario nunca demuestra
               por sí sola que el CVE no aplique.</p>}
         </div>
-        <details className="panel cve-general-review-summary">
-          <summary>Historial anterior · Evaluaciones por configuración NVD</summary>
-          <p>Estas decisiones históricas son independientes de la nueva
-            evaluación humana por hardware/CVE. Se conservan para auditoría.</p>
+        <section className="panel cve-general-review-summary"
+          aria-labelledby="cve-human-review-title">
           <div className="cve-technical-summary-heading">
-            <span>Estado de las revisiones anteriores</span>
+            <h2 id="cve-human-review-title">Evaluación del analista · Este hardware</h2>
             <span className="cve-catalogue-evaluation-status"
               data-status={context.assessment_summary?.status || "PENDING_REVIEW"}>
               {CVE_EVALUATION_STATE[context.assessment_summary?.status] ||
                 CVE_EVALUATION_STATE.PENDING_REVIEW}
             </span>
           </div>
+          <p>{cveHumanReviewMessage(context.assessment_summary)}</p>
+          <p>Las decisiones se vinculan a la evidencia NVD que las sustenta.
+            El resultado corresponde al CVE y hardware seleccionados;
+            no es necesario tomar una decisión manual por cada alternativa NVD.</p>
           {context.assessment_summary?.stale_configurations > 0 && <p
             className="cpe-warning">
-            {context.assessment_summary.stale_configurations} decisiones previas
+            {context.assessment_summary.stale_configurations} evaluaciones
             requieren nueva revisión porque cambió la evidencia.
           </p>}
-        </details>
-        <HardwareCveDecisionPanel key={context.cve_id + ":" + context.hardware_asset_id}
-          context={context} canDecide={canDecide}
-          onSaved={() => {
-            setNotice("Decisión registrada para este hardware y CVE.");
-            setRevision(n => n + 1);
-          }}/>
+        </section>
         {primary ? <>
           <section className="cve-nvd-conditions cve-general-relevant-configuration"
             aria-labelledby="cve-primary-evidence">
@@ -569,15 +447,12 @@ export default function CveDetail() {
               </span>
             </div>
             <Criterion item={primary.tree}/>
-            <details className="cve-general-history">
-              <summary>Evaluación histórica por configuración NVD</summary>
-              <ConfigurationReview context={context} config={primary}
-                canDecide={canDecide}
-                onSaved={() => {
-                  setNotice("Evaluación por configuración actualizada.");
-                  setRevision(n => n + 1);
-                }}/>
-            </details>
+            <ConfigurationReview context={context} config={primary}
+              highlight canDecide={canDecide}
+              onSaved={() => {
+                setNotice("Evaluación guardada. El historial se actualizó.");
+                setRevision(n => n + 1);
+              }}/>
           </section>
           {others.length > 0 && <details className="cve-nvd-other-evidence">
             <summary>Otras configuraciones pertinentes ({others.length})</summary>

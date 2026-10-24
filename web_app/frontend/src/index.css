@@ -3308,18 +3308,3 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   font-size: .84rem; line-height: 1.65; margin-top: 12px;
 }
 .cve-nvd-other-evidence .cve-general-relevant-configuration { margin-top: 18px; }
-
-/* Phase 2: whole-hardware analyst decision is primary; old NVD-row review is optional. */
-.cve-general-review-summary .cve-compact-review {
-  display: grid; gap: 12px; margin-top: 14px;
-}
-.cve-general-review-summary .cve-compact-review label {
-  display: grid; gap: 6px;
-}
-.cve-general-review-summary .cve-compact-review textarea,
-.cve-general-review-summary .cve-compact-review input[type="text"] {
-  max-width: 100%;
-}
-.cve-general-review-summary .cve-compact-review .cve-attestation {
-  display: flex; align-items: flex-start; gap: 9px;
-}
