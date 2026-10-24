@@ -77,6 +77,27 @@ class CveDiscoveryWorkerTests(TestCase):
         self.assertEqual(AssetCveFinding.objects.count(), 3)
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
+    def test_worker_logs_a_proven_firmware_match_once_on_repeated_discovery(self):
+        from vulnerabilities.tests_cve_general_assessment import nvd_and
+        self.fixtures.link()
+        self.fixtures.confirm(self.firmware.asset, SW_CPE)
+        job, _ = self.enqueue()
+        row = record("CVE-2024-65432")
+        row["configurations"] = [nvd_and(HW_CPE, SW_CPE)]
+        fetched = Mock(return_value=page([row], size=2))
+        done = execute_cve_discovery_run(job, Mock(), fetcher=fetched)
+        self.assertEqual(done.status, CveDiscoveryRun.Status.COMPLETED)
+        audits = AssetCveAssessment.objects.all()
+        self.assertEqual(audits.count(), 1)
+        self.assertEqual(audits[0].status, "APPLIES")
+        self.assertEqual(audits[0].criteria_evidence["origin"], "SYSTEM")
+        self.assertIsNone(audits[0].decided_by)
+        # Re-evaluating the same stored CVE cannot duplicate a current audit.
+        from vulnerabilities.services.cve_system_audit import ensure_system_cve_assessment
+        _, created = ensure_system_cve_assessment(row["id"], self.hardware.pk)
+        self.assertFalse(created)
+        self.assertEqual(AssetCveAssessment.objects.count(), 1)
+
     def test_shared_cpe_queries_once_and_finds_two_hardware(self):
         other = self.fixtures.make_hardware("Controller 2")
         previous = AssetCpe.objects.get(asset_id=self.hardware.pk)
