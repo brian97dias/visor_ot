@@ -155,3 +155,13 @@ export function createGeneralCveAssessment(cveId, hardwareId, payload) {
       body: JSON.stringify(payload),
     });
 }
+
+
+/** Append-only analyst decision for a whole hardware/CVE, including external evidence. */
+export function createHardwareCveDecision(cveId, hardwareId, payload) {
+  return request("/api/vulnerabilities/cves/" + encodeURIComponent(cveId) +
+    "/hardware/" + hardwareId + "/decision/", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+}
