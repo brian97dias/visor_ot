@@ -138,15 +138,26 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     return compatibleType && (!config.review_installation_id ||
       sw.installation_id === config.review_installation_id);
   });
+  const conditionalInstallations = (context.installed_software || []).filter(
+    sw => (config.candidate_installation_ids || []).includes(sw.installation_id)
+  );
   const selectedId = installId || (installations.length === 1 ?
     String(installations[0].installation_id) : "");
   const staleDecision = Boolean(last?.stale &&
-    ["APPLIES", "NOT_APPLICABLE"].includes(last.status));
+    ["APPLIES", "APPLIES_CONDITIONAL", "NOT_APPLICABLE"].includes(last.status));
   const canReopen = staleDecision && canDecide;
   const canReview = config.review_supported && canDecide;
-  const options = contextualCveActionOptions(config, last);
-  const noSelected = choice !== "UNKNOWN" && !selectedId;
-  const invalid = !justification.trim() || noSelected;
+  const canConditional = config.conditional_supported && canDecide &&
+    config.technical_result !== "COMPATIBLE";
+  const options = [
+    ...(canReview || canReopen ? contextualCveActionOptions(config, last) : []),
+    ...(canConditional && !last?.stale ? [{
+      key: "CONDITIONAL", title: "Aplica condicionada",
+    }] : []),
+  ];
+  const noSelected = !["UNKNOWN", "CONDITIONAL"].includes(choice) && !selectedId;
+  const invalid = !justification.trim() || noSelected ||
+    (choice === "CONDITIONAL" && justification.trim().length < 20);
 
   function reset() {
     setChoice(""); setJustification(""); setComplete(false); setError("");
@@ -163,6 +174,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         inventory_fingerprint: context.inventory_fingerprint,
         verdict: choice,
         software_installation_id: choice === "UNKNOWN" ? null :
+          choice === "CONDITIONAL" ? (installId ? Number(installId) : null) :
           (selectedId ? Number(selectedId) : null),
         inventory_declared_complete: choice === "NOT_MATCH" && complete,
         justification: justification.trim(),
@@ -190,14 +202,16 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       La evaluación previa conserva su registro histórico, pero la evidencia cambió.
       Se necesita revisar nuevamente.</p>}
     {!config.review_supported && <p className="cpe-warning" role="status">
-      {config.review_reason} Esta configuración permanece en revisión;
-      no se habilita la confirmación sin una lógica verificable.</p>}
+      Esta configuración no permite confirmar automáticamente todas las
+      condiciones NVD. {canConditional
+        ? "El analista puede registrarla como Aplica condicionada, justificando qué falta verificar."
+        : "La revisión permanece pendiente."}</p>}
     {config.review_installation_id && config.technical_result === "COMPATIBLE" &&
       <p className="cve-muted">
         El firmware instalado satisface este criterio NVD; no se puede
         descartar mientras las evidencias sean vigentes.
       </p>}
-    {(canReview || canReopen) && <div className="cve-nvd-actions">
+    {options.length > 0 && <div className="cve-nvd-actions">
       {options.map(option => <button key={option.key} type="button"
         className={"cve-nvd-action" + (choice === option.key ? " selected" : "")}
         data-action={option.key}
@@ -207,10 +221,27 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     </div>}
     {!canDecide && <p className="cve-muted">
       El rol actual permite consultar, pero no registrar decisiones.</p>}
-    {choice && (canReview || (canReopen && choice === "UNKNOWN")) &&
+    {choice && (canReview || canConditional ||
+      (canReopen && choice === "UNKNOWN")) &&
       <form className="cve-compact-review"
       onSubmit={submit}>
-      {installations.length > 1 && choice !== "UNKNOWN" && <label>
+      {choice === "CONDITIONAL" && <div className="cve-conditional-installations">
+        <p>Vinculación opcional: marca solamente una instalación comprobada
+          que corresponda al componente vulnerable NVD. Si no hay ninguna,
+          deja las casillas sin seleccionar.</p>
+        {conditionalInstallations.length ? conditionalInstallations.map(sw =>
+          <label key={sw.installation_id}>
+            <input type="checkbox"
+              checked={installId === String(sw.installation_id)}
+              onChange={event => setInstallId(event.target.checked ?
+                String(sw.installation_id) : "")}/>
+            {sw.software_name} · Versión {sw.version || "desconocida"}
+          </label>) : <p className="cve-muted">
+          No existe una instalación identificada con el CPE vulnerable
+          correspondiente. No se vinculará software a esta evaluación.
+        </p>}
+      </div>}
+      {installations.length > 1 && !["UNKNOWN", "CONDITIONAL"].includes(choice) && <label>
         Instalación que deseas evaluar
         <select value={installId} onChange={event => setInstallId(event.target.value)}>
           <option value="">Selecciona una instalación</option>
@@ -254,6 +285,15 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
             (item.decided_by || "Usuario no disponible")} ·
             {localizedTimestamp(item.decided_at)}</p>
           <p>{cveAuditJustification(item.justification, item.source)}</p>
+          {item.status === "APPLIES_CONDITIONAL" && item.conditional_evidence &&
+            <p className="cve-muted">
+              Componentes vulnerables NVD:
+              {" "}{(item.conditional_evidence.vulnerable_criteria || [])
+                .map(row => row.criteria).join("; ")}
+              {" · "}{item.software_installation_id
+                ? "Instalación vinculada #" + item.software_installation_id
+                : "Sin software vinculado"}
+            </p>}
         </li>)}
       </ol> : <p className="cve-muted">No hay decisiones registradas.</p>}
     </details>

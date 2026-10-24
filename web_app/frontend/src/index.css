@@ -3357,3 +3357,11 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cve-status-label[data-status="APPLIES_CONDITIONAL"] {
   color: #fde68a; border-color: #b45309; background: #3b2a0a;
 }
+
+.cve-conditional-installations { display: grid; gap: 10px; }
+.cve-conditional-installations label { display: flex; align-items: center; gap: 9px; }
+.cve-conditional-installations input { accent-color: #38bdf8; }
+.cve-nvd-action[data-action="CONDITIONAL"] { border-color: #b45309; color: #fde68a; }
+.cve-nvd-action[data-action="CONDITIONAL"].selected {
+  background: #3b2a0a; border-color: #eab308;
+}
