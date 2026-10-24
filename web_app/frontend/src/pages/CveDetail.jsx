@@ -9,7 +9,7 @@ import CveAnalysis from "./CveAnalysis";
 import {
   CVE_SEVERITY, CVE_TECHNICAL_STATE, CVE_EVALUATION_STATE,
   CVE_APPLICABILITY_SOURCE,
-  selectedCveHardwareId, groupCveEvidence, cveHumanReviewMessage,
+  selectedCveHardwareId, groupCveEvidence,
 } from "../utils/cveCataloguePresentation";
 import {
   localizedTimestamp, contextualCveActionOptions, versionConstraintsText,
@@ -167,15 +167,15 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   }
   return <div className="panel cve-nvd-decision">
     <div className="cve-nvd-joint-title">
-      <h3>{highlight ? "Registrar decisión · CVE en este hardware" :
+      <h3>{highlight ? "Correspondencia · Configuración NVD " + config.position :
         "Revisión de evidencia adicional · Configuración " + config.position}</h3>
       <span className="cve-status-label" data-status={status}>
-        {STATE[status] || status}</span>
+        {STATE[status] || status}
+        {last?.source === "SYSTEM" && " · VISOR OT"}</span>
     </div>
-    <p>La decisión se sustenta en la configuración NVD {config.position}
-      para el hardware #{context.hardware_asset_id}. Su efecto en el estado
-      consolidado del CVE depende de las otras alternativas de NVD.
-      El historial se conserva sin modificar decisiones anteriores.</p>
+    <p>La correspondencia se evalúa contra la configuración NVD {config.position}
+      y el hardware #{context.hardware_asset_id}. El historial registra
+      confirmaciones automáticas y decisiones humanas con su justificación.</p>
     {last?.stale && <p className="cpe-warning">
       La evaluación previa conserva su registro histórico, pero la evidencia cambió.
       Se necesita revisar nuevamente.</p>}
@@ -236,6 +236,8 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       {config.history?.length ? <ol className="cve-history">
         {config.history.map(item => <li key={item.id}>
           <strong>{STATE[item.status] || item.status}</strong>
+          <span className="cve-muted"> · {item.source === "SYSTEM"
+            ? "Automático · VISOR OT" : "Analista"}</span>
           {item.stale && <p className="cve-history-warning">
             Registro histórico: evidencia no vigente.</p>}
           <p>{item.decided_by || "Usuario no disponible"} ·
@@ -402,50 +404,18 @@ export default function CveDetail() {
                 CVE_APPLICABILITY_SOURCE.NONE}
             </span>
           </div>
-          {context.applicability?.source === "SYSTEM" ?
-            <div className="cve-general-auto-proof">
-              <p>VISOR OT comprobó las condiciones publicadas por NVD
-                con CPE confirmados, instalación y versión vigentes.
-                No significa que el equipo haya sido explotado.</p>
-              <p>Configuración NVD comprobada: {
-                context.applicability.automatic_evidence?.configuration_position
-              }.</p>
-              {(context.applicability.automatic_evidence?.criteria || []).map(
-                (criterion, index) => <div key={index} className="cve-muted">
-                  <code>{criterion.confirmed_cpe}</code>
-                  {criterion.installed_version &&
-                    <span> · Versión {criterion.installed_version}</span>}
-                  {criterion.software_installation_id &&
-                    <span> · Instalación #{criterion.software_installation_id}</span>}
-                </div>
-              )}
-            </div> :
-            <p>La comparación técnica no proporciona una conclusión positiva
-              automática comprobable para este hardware. Si faltan datos,
-              como STEP 7 u otro software externo, se requiere revisión humana.
-              La ausencia de software en el inventario nunca demuestra
-              por sí sola que el CVE no aplique.</p>}
-        </div>
-        <section className="panel cve-general-review-summary"
-          aria-labelledby="cve-human-review-title">
-          <div className="cve-technical-summary-heading">
-            <h2 id="cve-human-review-title">Evaluación del analista · Este hardware</h2>
-            <span className="cve-catalogue-evaluation-status"
-              data-status={context.assessment_summary?.status || "PENDING_REVIEW"}>
-              {CVE_EVALUATION_STATE[context.assessment_summary?.status] ||
-                CVE_EVALUATION_STATE.PENDING_REVIEW}
-            </span>
-          </div>
-          <p>{cveHumanReviewMessage(context.assessment_summary)}</p>
-          <p>Las decisiones se vinculan a la evidencia NVD que las sustenta.
-            El resultado corresponde al CVE y hardware seleccionados;
-            no es necesario tomar una decisión manual por cada alternativa NVD.</p>
-          {context.assessment_summary?.stale_configurations > 0 && <p
-            className="cpe-warning">
-            {context.assessment_summary.stale_configurations} evaluaciones
-            requieren nueva revisión porque cambió la evidencia.
+          {context.applicability?.source === "SYSTEM" ? <p>
+            Los CPE y la versión instalada satisfacen la configuración NVD
+            {context.applicability.automatic_evidence?.configuration_position
+              ? " " + context.applicability.automatic_evidence.configuration_position
+              : ""}. VISOR OT registra automáticamente el motivo en el
+            historial de esta configuración.
+          </p> : <p>
+            No hay confirmación automática con evidencia completa.
+            La ausencia de software en el inventario no demuestra que
+            el CVE no aplique; el análisis permanece por validar.
           </p>}
-        </section>
+        </div>
         {primary ? <>
           <section className="cve-nvd-conditions cve-general-relevant-configuration"
             aria-labelledby="cve-primary-evidence">
