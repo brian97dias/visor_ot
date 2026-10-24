@@ -10,6 +10,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 
 from vulnerabilities.models import AssetCveAssessment, AssetCveFinding
 from .cve_general_assessment import _context
+from .cve_applicability import automatic_positive_evidence
 from .cve_configuration_evaluator import (
     COMPATIBLE, EXCLUDED, INDETERMINATE, evaluate_configurations,
 )
@@ -94,6 +95,7 @@ def related_assets_for_cves(cves):
                 analysed = evaluate_configurations(
                     cve.configurations, list(hw_cpes), installed
                 )
+                proof = automatic_positive_evidence(analysed)
                 matched_sw = set()
                 for config in analysed["configurations"]:
                     matched_sw.update(_matched_software(config))
@@ -124,6 +126,7 @@ def related_assets_for_cves(cves):
                 result[cve.pk].append({
                     "hardware_id": hw_id,
                     "technical_result": analysed["result"],
+                    "automatic_evidence": proof,
                     "assets": unique,
                 })
             except (Http404, NotFound, ValidationError, ValueError, AttributeError):
@@ -132,6 +135,7 @@ def related_assets_for_cves(cves):
                 result[cve.pk].append({
                     "hardware_id": hw_id,
                     "technical_result": INDETERMINATE,
+                    "automatic_evidence": None,
                     "assets": [],
                 })
     return result
