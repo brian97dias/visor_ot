@@ -238,6 +238,10 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(row["technical_result"], COMPATIBLE)
         self.assertEqual(row["applicability_status"], "APPLIES")
         self.assertEqual(row["applicability_source"], "SYSTEM")
+        self.assertEqual(response.data["summary"], {
+            "total": 1, "applies": 1, "not_applicable": 0,
+            "pending_review": 0, "validated": 1,
+        })
         self.assertEqual(row["evaluation_status"], "PENDING_REVIEW")
         self.assertEqual(len(row["related_assets"]), 1)
         found = row["related_assets"][0]["assets"]
