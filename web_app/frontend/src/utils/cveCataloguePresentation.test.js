@@ -10,7 +10,8 @@ import {
   cveHardwareSelectionValid, isCveDiscoveryActive,
   preferredCveHardwareId, selectedCveHardwareId, cveReviewProgress,
   groupCveEvidence, cveHumanReviewMessage,
-  relevantNvdChildren, cveAssetRoleLabel,
+  relevantNvdChildren, displayNvdGroupBranches, nvdAlternativeGroupLabel,
+  cveAssetRoleLabel,
   displayCveApplicability, CVE_CATALOGUE_FILTER_STATES,
   nvdCriterionIdentityBadge, cveAuditJustification,
 } from "./cveCataloguePresentation.js";
@@ -217,4 +218,51 @@ test("audited conditional NVD evidence is primary over unrelated candidates", ()
   const conditional = {index: 8, technical_result: "INDETERMINATE",
     latest_assessment: {effective_status: "APPLIES_CONDITIONAL", stale: false}};
   assert.equal(groupCveEvidence([pending, conditional]).primary.index, 8);
+});
+
+
+test("CVE OR presentation shows one alternative but retains every NVD branch", () => {
+  const hiddenHardware = {kind: "CRITERION", part: "h", criteria: "hardware-b",
+    technical_identity: "UNKNOWN"};
+  const verifiedHardware = {kind: "CRITERION", part: "h", criteria: "hardware-a",
+    technical_identity: "MATCHED", technical_matched_cpe: "cpe:2.3:h:siemens:cpu:-:*:*:*:*:*:*:*"};
+  const group = {operator: "OR", children: [hiddenHardware, verifiedHardware]};
+  const original = JSON.stringify(group);
+  const initial = displayNvdGroupBranches(group);
+  assert.deepEqual(initial.shown, [verifiedHardware]);
+  assert.deepEqual(initial.hidden, [hiddenHardware]);
+  assert.equal(nvdAlternativeGroupLabel(initial.hidden), "Otras alternativas de hardware NVD");
+  const promoted = displayNvdGroupBranches(group, "hardware-b");
+  assert.deepEqual(promoted.shown, [hiddenHardware]);
+  assert.deepEqual(promoted.hidden, [verifiedHardware]);
+  assert.equal(JSON.stringify(group), original, "NVD original must not be mutated");
+});
+
+test("AND groups keep mandatory criteria visible even with a selected software", () => {
+  const software = {kind: "CRITERION", part: "o", criteria: "firmware"};
+  const hardware = {kind: "CRITERION", part: "h", criteria: "plc"};
+  const andGroup = {operator: "AND", children: [software, hardware]};
+  const result = displayNvdGroupBranches(andGroup, "firmware");
+  assert.deepEqual(result.shown, [software, hardware]);
+  assert.deepEqual(result.hidden, []);
+});
+
+test("NVD alternative group labels distinguish software and mixed criteria", () => {
+  const fw = {kind: "CRITERION", part: "o", criteria: "firmware"};
+  const app = {kind: "CRITERION", part: "a", criteria: "application"};
+  const hw = {kind: "CRITERION", part: "h", criteria: "plc"};
+  const grouped = {kind: "GROUP", children: [fw, app]};
+  assert.equal(nvdAlternativeGroupLabel([grouped]),
+    "Otras alternativas de software NVD");
+  assert.equal(nvdAlternativeGroupLabel([fw, hw]),
+    "Otras alternativas NVD");
+  assert.equal(nvdAlternativeGroupLabel([]), "Otras alternativas NVD");
+});
+
+test("single NVD criterion does not invent an OR alternative", () => {
+  const one = {kind: "CRITERION", part: "o", criteria: "firmware"};
+  const group = {operator: "OR", children: [one]};
+  const result = displayNvdGroupBranches(group);
+  assert.deepEqual(result.shown, [one]);
+  assert.deepEqual(result.hidden, []);
 });
