@@ -15,6 +15,7 @@ from vulnerabilities.services.cve_configuration_evaluator import (
 )
 from vulnerabilities.services.cve_general_assessment import (
     general_assessment_context, summarize_hardware_cve_review,
+    summarize_technical_configurations,
 )
 from vulnerabilities.tests_cve_discovery_plan import CveDiscoveryPlanTests
 
@@ -103,6 +104,48 @@ class HardwareCveReviewSummaryTests(SimpleTestCase):
         self.assertEqual(info["status"], "IN_REVIEW")
         self.assertEqual(info["reviewed_configurations"], 1)
         self.assertEqual(summarize_hardware_cve_review([])["status"], "PENDING_REVIEW")
+
+
+class HardwareCveTechnicalSummaryTests(SimpleTestCase):
+    @staticmethod
+    def alt(result):
+        return {"kind": "GROUP", "result": result}
+
+    def test_mixed_result_reports_actual_support_and_unknowns(self):
+        technical = {
+            "result": COMPATIBLE,
+            "configurations": [
+                self.alt(EXCLUDED), self.alt(COMPATIBLE),
+                self.alt(INDETERMINATE), self.alt(EXCLUDED),
+            ],
+        }
+        summary = summarize_technical_configurations(technical)
+        self.assertEqual(summary["result"], COMPATIBLE)
+        self.assertEqual(summary["total"], 4)
+        self.assertEqual(summary["compatible_count"], 1)
+        self.assertEqual(summary["compatible_positions"], [2])
+        self.assertEqual(summary["excluded_count"], 2)
+        self.assertEqual(summary["indeterminate_count"], 1)
+        self.assertFalse(summary["fully_resolved"])
+
+    def test_excluded_only_when_all_alternatives_are_excluded(self):
+        technical = {
+            "result": EXCLUDED,
+            "configurations": [self.alt(EXCLUDED), self.alt(EXCLUDED)],
+        }
+        summary = summarize_technical_configurations(technical)
+        self.assertTrue(summary["fully_resolved"])
+        self.assertEqual(summary["excluded_count"], 2)
+        self.assertEqual(summary["compatible_positions"], [])
+        self.assertEqual(summary["indeterminate_count"], 0)
+
+    def test_missing_configs_do_not_masquerade_as_proven_safe(self):
+        summary = summarize_technical_configurations({
+            "result": INDETERMINATE, "configurations": [],
+        })
+        self.assertEqual(summary["total"], 0)
+        self.assertFalse(summary["fully_resolved"])
+        self.assertEqual(summary["result"], INDETERMINATE)
 
 
 class SiemensContextualLogicTests(SimpleTestCase):
@@ -209,6 +252,11 @@ class SiemensContextualHttpTests(TestCase):
         data = response.data
         self.assertEqual(data["context_unit"], "HARDWARE_CVE")
         self.assertEqual(data["technical_result"], COMPATIBLE)
+        self.assertEqual(data["technical_summary"]["total"], 12)
+        self.assertEqual(data["technical_summary"]["compatible_count"], 1)
+        self.assertEqual(data["technical_summary"]["excluded_count"], 11)
+        self.assertEqual(data["technical_summary"]["indeterminate_count"], 0)
+        self.assertEqual(data["technical_summary"]["compatible_positions"], [9])
         self.assertEqual(data["assessment_summary"]["status"], "PENDING_REVIEW")
         self.assertEqual(data["assessment_summary"]["total_configurations"], 12)
         self.assertEqual(data["assessment_summary"]["pending_configurations"], 12)
@@ -355,5 +403,7 @@ class SiemensContextualHttpTests(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["technical_result"], EXCLUDED)
+        self.assertEqual(response.data["technical_summary"]["excluded_count"], 1)
+        self.assertEqual(response.data["technical_summary"]["compatible_count"], 0)
         self.assertEqual(response.data["relevant_configurations"], [])
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
