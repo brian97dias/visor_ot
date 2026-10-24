@@ -11,7 +11,7 @@ import {
   CVE_APPLICABILITY_SOURCE,
   selectedCveHardwareId, groupCveEvidence,
   nvdCriterionIdentityBadge, cveAuditJustification,
-  relevantNvdChildren,
+  displayNvdGroupBranches, nvdAlternativeGroupLabel,
 } from "../utils/cveCataloguePresentation";
 import {
   localizedTimestamp, contextualCveActionOptions, versionConstraintsText,
@@ -130,35 +130,8 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
     return <p className="cpe-warning">NVD contiene una estructura que debe revisarse.</p>;
   }
 
-  const { visible, alternatives } = relevantNvdChildren(item);
   const isOr = item.operator === "OR";
-  const hasSelected = node => node?.kind === "CRITERION"
-    ? (node.match_criteria_id || node.criteria) === selection
-    : (node?.children || []).some(hasSelected);
-
-  // The visual selection highlights an OR option; NVD evaluation remains unchanged.
-  const ordered = isOr ? [...visible, ...alternatives] : visible;
-  const focused = isOr
-    ? (ordered.find(hasSelected) || visible[0] || ordered[0])
-    : null;
-  const shown = isOr ? (focused ? [focused] : []) : ordered;
-  const hidden = isOr ? ordered.filter(node => node !== focused) : [];
-
-  const alternativeKind = rows => {
-    const kinds = new Set();
-    const inspect = node => {
-      if (node?.kind === "CRITERION") {
-        kinds.add(node.part === "h" ? "hardware" :
-          ["a", "o"].includes(node.part) ? "software" : "otro");
-      }
-      for (const child of node?.children || []) inspect(child);
-    };
-    rows.forEach(inspect);
-    return kinds.size === 1 && kinds.has("hardware")
-      ? "Otras alternativas de hardware NVD"
-      : kinds.size === 1 && kinds.has("software")
-        ? "Otras alternativas de software NVD" : "Otras alternativas NVD";
-  };
+  const { shown, hidden } = displayNvdGroupBranches(item, selection);
   const renderChild = (child, i) =>
     <Criterion key={(child.match_criteria_id || child.criteria || "grupo") + ":" + i}
       item={child} depth={depth + 1} selection={selection}
@@ -180,7 +153,7 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
         {renderChild(child, i)}
       </div>) : <p className="cve-muted">No hay criterios detallados en este grupo.</p>}
     {hidden.length > 0 && <details className="cve-nvd-other-evidence cve-nvd-other-branches">
-      <summary>{alternativeKind(hidden)} ({hidden.length})</summary>
+      <summary>{nvdAlternativeGroupLabel(hidden)} ({hidden.length})</summary>
       <p className="cve-muted">Opciones del operador O de NVD.
         No implican presencia en el inventario ni aplicabilidad confirmada.</p>
       {hidden.map(renderChild)}
