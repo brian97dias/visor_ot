@@ -95,7 +95,7 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
                 ? criterionKey : "", event.target.checked
                 ? String(sw.installation_id) : "")}/>
             <span className="cve-association-name">
-              <strong>{sw.software_name}</strong>
+              <strong>Asociar este CVE a: {sw.software_name}</strong>
               <small>Software #{sw.software_asset_id} · Instalación #{sw.installation_id}
                 {" · Versión "}{sw.version || "desconocida"}</small>
             </span>
@@ -266,8 +266,10 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         onClick={() => setChoice("UNKNOWN")}>Reabrir evaluación</button>}
     </div>}
     {choice === "CONDITIONAL" && <p className="cve-muted" role="status">
-      Resultado previsto: Aplica condicionada. Se registrarán las condiciones
-      pendientes sin atribuir software no instalado a este hardware.
+      Resultado previsto: Aplica condicionada.
+      {linkedInstallationId
+        ? " La instalación marcada quedará vinculada por decisión del analista, sin atribuirle una confirmación CPE que no existe."
+        : " No se vinculará ningún software. Esto no equivale a descartar el CVE."}
     </p>}
     {!canDiscard && canDecide && <p className="cve-muted">
       El descarte no está habilitado para esta estructura NVD: exige evidencia
