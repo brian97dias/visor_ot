@@ -256,6 +256,8 @@ class NvdVersionIntegrationTests(TestCase):
         row = response.data["results"][0]
         self.assertEqual(row["technical_result"], COMPATIBLE)
         self.assertEqual(row["evaluation_status"], "PENDING_REVIEW")
+        self.assertEqual(row["applicability_status"], "APPLIES")
+        self.assertEqual(row["applicability_source"], "SYSTEM")
         self.assertEqual(self.client.get(base, {"technical": "EXCLUDED"}).data["count"], 0)
         self.assertEqual(self.client.get(base, {"technical": "ATTENTION"}).data["count"], 1)
         self.assertEqual(self.client.get(base, {"technical": "invalid"}).status_code, 400)
@@ -274,5 +276,9 @@ class NvdVersionIntegrationTests(TestCase):
         self.assertEqual(excluded.data["count"], 1)
         self.assertEqual(excluded.data["results"][0]["technical_result"], EXCLUDED)
         self.assertEqual(excluded.data["results"][0]["evaluation_status"], "PENDING_REVIEW")
-        self.assertEqual(self.client.get(base, {"technical": "ATTENTION"}).data["count"], 0)
+        # A negative technical range is NOT a final human No aplica.
+        self.assertEqual(excluded.data["results"][0]["applicability_status"],
+                         "PENDING_REVIEW")
+        self.assertEqual(excluded.data["results"][0]["applicability_source"], "NONE")
+        self.assertEqual(self.client.get(base, {"technical": "ATTENTION"}).data["count"], 1)
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
