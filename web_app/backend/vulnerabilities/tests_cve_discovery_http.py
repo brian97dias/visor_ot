@@ -87,7 +87,7 @@ class CveDiscoveryHttpTests(TestCase):
         self.client.force_authenticate(self.operator)
         self.assertEqual(self.start().status_code, 403)
         self.assertEqual(self.detail(run_id).status_code, 200)
-        self.assertEqual(self.client.get(self.URL).status_code, 200)
+        self.assertEqual(self.client.get(self.URL).status_code, 405)
         self.assertEqual(self.findings(run_id).status_code, 200)
         self.client.force_authenticate(user=None)
         self.assertEqual(self.start().status_code, 401)
@@ -114,18 +114,10 @@ class CveDiscoveryHttpTests(TestCase):
         self.assertEqual(response.data["run"]["eligible_hardware_ids"], [self.hardware.pk])
         self.assertEqual(response.data["run"]["query_count"], 1)
 
-    def test_lists_runs_with_small_summary_and_limit(self):
-        first = self.start().data["run_id"]
-        CveDiscoveryRun.objects.filter(pk=first).update(
-            status=CveDiscoveryRun.Status.COMPLETED
-        )
-        second = self.start().data["run_id"]
-        response = self.client.get(self.URL, {"limit": 1})
-        self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(len(response.data["runs"]), 1)
-        self.assertEqual(response.data["runs"][0]["run_id"], second)
-        self.assertNotIn("queries", response.data["runs"][0])
-        self.assertEqual(self.client.get(self.URL, {"limit": 51}).status_code, 400)
+    def test_recent_search_list_is_removed_but_job_detail_still_works(self):
+        run_id = self.start().data["run_id"]
+        self.assertEqual(self.client.get(self.URL).status_code, 405)
+        self.assertEqual(self.detail(run_id).status_code, 200)
 
     def test_detail_reports_checkpoints_without_exposing_large_id_lists(self):
         rid = self.start().data["run_id"]

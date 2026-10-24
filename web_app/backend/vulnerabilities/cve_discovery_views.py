@@ -28,10 +28,6 @@ class CveDiscoveryStartSerializer(serializers.Serializer):
         return list(dict.fromkeys(identifiers))
 
 
-class CveDiscoveryRunListSerializer(serializers.Serializer):
-    limit = serializers.IntegerField(min_value=1, max_value=50, default=20)
-
-
 class CveFindingQuerySerializer(serializers.Serializer):
     page = serializers.IntegerField(min_value=1, default=1)
     page_size = serializers.IntegerField(min_value=1, max_value=100, default=20)
@@ -85,15 +81,6 @@ def serialize_cve_discovery_run(run, *, detail=False):
 
 class CveDiscoveryListCreateView(APIView):
     permission_classes = [IsAuthenticated, CpeSearchPermission]
-
-    def get(self, request):
-        params = CveDiscoveryRunListSerializer(data=request.query_params)
-        params.is_valid(raise_exception=True)
-        limit = params.validated_data["limit"]
-        runs = CveDiscoveryRun.objects.order_by("-created_at", "-pk")[:limit]
-        return Response({
-            "runs": [serialize_cve_discovery_run(run) for run in runs],
-        })
 
     def post(self, request):
         # DRF serializers otherwise silently ignore unexpected writable fields.
