@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useOutletContext, useParams, useSearchParams } from "react-router-dom";
 import {
   listCveHardware, readCveCatalogue, readGeneralCveAssessment,
-  createGeneralCveAssessment,
+  createGeneralCveAssessment, ensureAutomaticCveAssessment,
 } from "../api/vulnerabilities";
 import SuccessNotice from "../components/SuccessNotice";
 import CveAnalysis from "./CveAnalysis";
@@ -303,14 +303,26 @@ export default function CveDetail() {
     let live = true;
     setContextLoading(true); setError("");
     readGeneralCveAssessment(cveId, Number(selectedHardware))
-      .then(data => {
-        if (!live) return;
-        setContext(data);
+      .then(async data => {
+        // Existing imported CVEs may predate automatic audit logging.
+        // Synchronise their proof once through a POST; never write on GET.
+        if (canDecide && data.applicability?.source === "SYSTEM") {
+          try {
+            const synced = await ensureAutomaticCveAssessment(
+              cveId, Number(selectedHardware)
+            );
+            data = synced.context;
+          } catch (err) {
+            if (live) setError("No se pudo guardar la auditoría automática: " +
+              err.message);
+          }
+        }
+        if (live) setContext(data);
       })
       .catch(err => { if (live) setError(err.message); })
       .finally(() => { if (live) setContextLoading(false); });
     return () => { live = false; };
-  }, [cveId, selectedHardware, isLegacy, revision]);
+  }, [cveId, selectedHardware, isLegacy, revision, canDecide]);
 
   const configs = context?.relevant_configurations || [];
   const { primary, others } = groupCveEvidence(configs);

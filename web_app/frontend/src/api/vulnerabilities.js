@@ -155,3 +155,10 @@ export function createGeneralCveAssessment(cveId, hardwareId, payload) {
       body: JSON.stringify(payload),
     });
 }
+
+
+/** Persist a verified SYSTEM correspondence in the existing NVD audit history. */
+export function ensureAutomaticCveAssessment(cveId, hardwareId) {
+  return request("/api/vulnerabilities/cves/" + encodeURIComponent(cveId) +
+    "/hardware/" + hardwareId + "/assessment/automatic/", { method: "POST" });
+}
