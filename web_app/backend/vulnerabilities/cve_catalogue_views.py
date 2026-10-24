@@ -93,7 +93,9 @@ def _catalogue_applicability(analyst_status, related_assets):
 
 def _summary_bucket(status):
     """Three user-facing CVE applicability groups, retaining legacy audit states."""
-    return status if status in ("APPLIES", "NOT_APPLICABLE") else "PENDING_REVIEW"
+    return status if status in (
+        "APPLIES", "APPLIES_CONDITIONAL", "NOT_APPLICABLE"
+    ) else "PENDING_REVIEW"
 
 
 def _catalogue_summary():
@@ -103,8 +105,8 @@ def _catalogue_summary():
     counting raw human audit records would double-count system assessments.
     """
     cves = list(Cve.objects.filter(fetch_status=Cve.FetchStatus.COMPLETED))
-    summary = {"total": len(cves), "applies": 0, "not_applicable": 0,
-               "pending_review": 0, "validated": 0}
+    summary = {"total": len(cves), "applies": 0, "applies_conditional": 0,
+               "not_applicable": 0, "pending_review": 0, "validated": 0}
     if not cves:
         return summary
     analyst = catalogue_statuses(cves)
@@ -114,11 +116,14 @@ def _catalogue_summary():
         bucket = _summary_bucket(effective["status"])
         if bucket == "APPLIES":
             summary["applies"] += 1
+        elif bucket == "APPLIES_CONDITIONAL":
+            summary["applies_conditional"] += 1
         elif bucket == "NOT_APPLICABLE":
             summary["not_applicable"] += 1
         else:
             summary["pending_review"] += 1
-    summary["validated"] = summary["applies"] + summary["not_applicable"]
+    summary["validated"] = (summary["applies"] + summary["applies_conditional"]
+                            + summary["not_applicable"])
     return summary
 
 

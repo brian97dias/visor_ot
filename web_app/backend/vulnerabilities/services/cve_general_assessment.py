@@ -294,10 +294,15 @@ def summarize_hardware_cve_review(configurations):
     stale_count = sum(bool(row and row.get("stale")
                            and row.get("source") != "SYSTEM") for row in effective)
     confirmed = sum(row.get("effective_status") == "APPLIES" for row in current)
+    conditional = sum(
+        row.get("effective_status") == "APPLIES_CONDITIONAL" for row in current
+    )
     excluded = sum(row.get("effective_status") == "NOT_APPLICABLE" for row in current)
     reviewed = len(current)
     if confirmed:
         status = "APPLIES"
+    elif conditional:
+        status = "APPLIES_CONDITIONAL"
     elif total > 0 and excluded == total and not stale_count:
         status = "NOT_APPLICABLE"
     elif stale_count:
@@ -312,6 +317,7 @@ def summarize_hardware_cve_review(configurations):
         "reviewed_configurations": reviewed,
         "pending_configurations": total - reviewed,
         "confirmed_configurations": confirmed,
+        "conditional_configurations": conditional,
         "excluded_configurations": excluded,
         "stale_configurations": stale_count,
     }

@@ -18,9 +18,12 @@ from .cve_ingestion import CveResponseError
 PENDING_REVIEW = "PENDING_REVIEW"
 IN_REVIEW = "IN_REVIEW"
 APPLIES = "APPLIES"
+APPLIES_CONDITIONAL = "APPLIES_CONDITIONAL"
 NOT_APPLICABLE = "NOT_APPLICABLE"
 STALE = "STALE"
-CATALOGUE_STATES = (PENDING_REVIEW, IN_REVIEW, APPLIES, NOT_APPLICABLE, STALE)
+CATALOGUE_STATES = (
+    PENDING_REVIEW, IN_REVIEW, APPLIES, APPLIES_CONDITIONAL, NOT_APPLICABLE, STALE
+)
 
 
 def _is_current(record, cve, cache):
@@ -121,8 +124,10 @@ def catalogue_statuses(cves):
                 any_stale = True
 
         if APPLIES in current.values():
-            # At least one validated positive; others might remain pending.
+            # A demonstrated positive outranks conditional and other alternatives.
             statuses[cve.pk] = APPLIES
+        elif APPLIES_CONDITIONAL in current.values():
+            statuses[cve.pk] = APPLIES_CONDITIONAL
         elif (
             hardware_ids and config_count > 0 and not any_stale
             and all(
