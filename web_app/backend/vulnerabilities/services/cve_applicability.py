@@ -83,6 +83,8 @@ def resolve_applicability(technical_result, analyst_status, *,
         return {"status": analyst_status, "source": ANALYST}
     if technical_result == COMPATIBLE and automatic_evidence is not None:
         return {"status": APPLIES, "source": SYSTEM}
+    if analyst_status in ("IN_REVIEW", "STALE"):
+        return {"status": analyst_status, "source": NONE}
     return {"status": PENDING_REVIEW, "source": NONE}
 
 
