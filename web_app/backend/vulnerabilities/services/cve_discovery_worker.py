@@ -13,6 +13,7 @@ from django.utils import timezone
 from assets.models import Hardware
 from vulnerabilities.models import AssetCveFinding, CveDiscoveryRun
 from .cve_discovery import build_cve_discovery_plan
+from .cve_system_audit import ensure_system_cve_assessment
 from .cve_ingestion import CveResponseError, validated_cve_record, store_official_cve_record
 from .nvd_client import NvdError
 from .nvd_cve_client import (
@@ -178,6 +179,7 @@ def _store_cve_discovery_page(run_id, query_index, page):
                     )
                 )
                 if created:
+                    ensure_system_cve_assessment(cve.cve_id, hardware_id)
                     continue
                 previous = (
                     finding.sources
@@ -196,6 +198,7 @@ def _store_cve_discovery_page(run_id, query_index, page):
                     "sources", "last_discovery_run", "last_discovered_at",
                     "evidence_fingerprint",
                 ])
+                ensure_system_cve_assessment(cve.cve_id, hardware_id)
 
         entry["expected_total"] = page["total_results"]
         entry["next_start_index"] = page["next_start_index"]
