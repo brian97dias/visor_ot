@@ -3335,13 +3335,22 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   border-color: #15803d; color: #86efac; background: rgba(22,101,52,.09);
 }
 
-/* NVD criterion cards expand when their entire header is clicked. */
+/* CVE criterion cards: installed software stays visible independently of proof. */
 .cve-nvd-condition.cve-general-criterion { padding: 0; overflow: hidden; }
-.cve-nvd-condition-summary { display: block; cursor: pointer; padding: 18px 22px; }
-.cve-nvd-condition-summary::-webkit-details-marker { display: none; }
-.cve-nvd-condition-summary::after { content: "Ver evidencia ▾"; display: block;
-  margin-top: 8px; font-size: .77rem; color: #7dd3fc; }
-.cve-general-criterion[open] > .cve-nvd-condition-summary::after { content: "Ocultar evidencia ▴"; }
+.cve-nvd-condition-summary { display: block; padding: 18px 22px 12px; cursor: default; }
+.cve-nvd-condition-summary::after { content: none; }
+.cve-nvd-proof { border-top: 1px solid #334155; padding: 0 22px; }
+.cve-nvd-proof > summary {
+  cursor: pointer; color: #7dd3fc; font-weight: 650;
+  font-size: .83rem; padding: 14px 0; list-style: revert;
+}
+.cve-nvd-proof > summary:focus-visible {
+  outline: 2px solid #38bdf8; outline-offset: 2px;
+}
+.cve-nvd-proof-content { padding: 0 0 18px; }
+.cve-nvd-proof .cve-nvd-criterion { margin-top: 0; }
+.cve-nvd-proof .cve-technical-criterion { margin-top: 15px; }
+.cve-nvd-proof .cve-general-constraints { margin: 12px 0; }
 .cve-general-criterion > .cve-nvd-criterion,
 .cve-general-criterion > .cve-general-constraints,
 .cve-general-criterion > .cve-technical-criterion,
@@ -3435,4 +3444,67 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cve-general-analysis .cve-compact-review select:focus-visible {
   outline: 2px solid #38bdf8;
   outline-offset: 2px;
+}
+
+
+/* Minimal per-hardware summary: identity and applicability share one panel. */
+.cve-hardware-applicability { margin-top: 18px; }
+.cve-hardware-applicability .cve-technical-summary-heading {
+  align-items: flex-start; gap: 12px; margin-bottom: 14px;
+}
+.cve-evaluated-hardware { display: grid; gap: 13px; min-width: 0; }
+.cve-evaluated-hardware h2 { font-size: 1.06rem; color: #f1f5f9; }
+.cve-evaluated-hardware-identity { display: flex; gap: 13px; align-items: center; }
+.cve-evaluated-hardware-icon {
+  width: 42px; height: 42px; display: inline-flex;
+  justify-content: center; align-items: center;
+  flex-shrink: 0; border-radius: 8px;
+  background: #182c42; color: #7dd3fc;
+  font-size: 1.2rem;
+}
+.cve-evaluated-hardware-identity h3 {
+  font-size: .99rem; margin: 0 0 5px; color: #f8fafc;
+}
+.cve-evaluated-hardware-identity h3 a { color: inherit; text-decoration: none; }
+.cve-evaluated-hardware-identity h3 a:hover { color: #7dd3fc; text-decoration: underline; }
+.cve-evaluated-hardware-identity p { margin: 0; color: #94a3b8; font-size: .8rem; }
+.cve-hardware-applicability > p { margin: 0; line-height: 1.65; }
+
+/* Analytic context: current installation separate from analyst's action. */
+.cve-nvd-selection {
+  margin: 0;
+  padding: 15px 22px 16px;
+  border-top: 1px solid #334155;
+}
+.cve-nvd-association-title {
+  font-size: .84rem; font-weight: 650;
+  color: #cbd5e1; margin: 0 0 11px;
+}
+.cve-installed-software-entry {
+  background: #0f1f33; border: 1px solid #334155;
+  border-radius: 9px; padding: 13px 14px;
+  margin-bottom: 10px;
+}
+.cve-installed-software-meta {
+  display: flex; gap: 12px; align-items: center;
+  justify-content: space-between; flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.cve-criterion-selection.cve-software-association {
+  margin: 0; padding: 12px 0 0; border: 0; border-radius: 0;
+  border-top: 1px solid #334155; background: transparent;
+  font-size: .84rem; font-weight: 600;
+}
+.cve-nvd-selection > .cve-muted { margin: 9px 0 0; }
+.cve-nvd-other-branches > summary { font-size: .84rem; padding: 11px 0; }
+.cve-nvd-other-branches > .cve-muted { margin: 0 0 12px; }
+.cve-general-group > div > .cve-general-group {
+  padding-left: 0; margin-left: 0; border-left: 0;
+}
+@media (max-width: 620px) {
+  .cve-nvd-condition-summary { padding: 16px 15px 12px; }
+  .cve-nvd-selection { padding: 14px 15px; }
+  .cve-nvd-proof { padding: 0 15px; }
+  .cve-evaluated-hardware-identity { align-items: flex-start; }
+  .cve-hardware-applicability .cve-catalogue-evaluation-status { max-width: 100%; }
 }
