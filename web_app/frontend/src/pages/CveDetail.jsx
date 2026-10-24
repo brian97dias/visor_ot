@@ -409,7 +409,7 @@ export default function CveDetail() {
             Los CPE y la versión instalada satisfacen la configuración NVD
             {context.applicability.automatic_evidence?.configuration_position
               ? " " + context.applicability.automatic_evidence.configuration_position
-              : ""}. VISOR OT registra automáticamente el motivo en el
+              : ""}. El sistema registra automáticamente el motivo en el
             historial de esta configuración.
           </p> : <p>
             No hay confirmación automática con evidencia completa.
