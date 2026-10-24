@@ -364,6 +364,7 @@ def general_assessment_context(cve_id, hardware_id):
             if item.get("vulnerable") is True and
                 item.get("part") in ("a", "o") and
                 item.get("technical_identity") == "MATCHED" and
+                item.get("technical_result") != "EXCLUDED" and
                 item.get("technical_software_installation_id") is not None
         })
         configs.append({
@@ -470,6 +471,7 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
         } for item in vulnerable
             if item.get("part") in ("a", "o")
             and item.get("technical_identity") == "MATCHED"
+            and item.get("technical_result") != "EXCLUDED"
             and item.get("technical_software_installation_id") == installation_id
             and item.get("technical_matched_cpe")]
         if not selected_criteria:
@@ -484,7 +486,11 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
             "bounds": item.get("bounds", {}),
         } for item in vulnerable],
         "linked_software": selected_criteria,
-        "pending_condition": not bool(selected_criteria),
+        "pending_condition": evaluation["result"] != "COMPATIBLE",
+        "pending_criteria": [{
+            "criteria": item["criteria"], "reason": item.get("technical_reason"),
+            "result": item.get("technical_result", "INDETERMINATE"),
+        } for item in vulnerable if item.get("technical_result") != "COMPATIBLE"],
         "configuration_result": evaluation["result"],
     }
 
