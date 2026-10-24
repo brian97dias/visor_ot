@@ -17,6 +17,7 @@ from assets.models import Asset, Hardware, SoftwareInstallation
 from vulnerabilities.models import AssetCpe, AssetCveAssessment, Cve
 from .identity import fingerprint, hardware_identity, software_identity
 from .cve_configuration_evaluator import evaluate_configurations
+from .cve_applicability import scoped_applicability
 
 VERSION_KEYS = (
     "versionStartIncluding", "versionStartExcluding",
@@ -340,12 +341,18 @@ def general_assessment_context(cve_id, hardware_id):
             "history": [_serialize_assessment(row, inventory_fp, cfg_fp) for row in history],
         })
     pertinent = _relevance_summary(configs, technical["configurations"])
+    analyst = summarize_hardware_cve_review(configs)
+    applicability = scoped_applicability(
+        technical, analyst["status"], inventory_fingerprint=inventory_fp,
+        cve=cve, hardware_id=hw.pk,
+    )
     return {
         "cve_id": cve.cve_id, "hardware_asset_id": hw.pk,
         "hardware_name": hw.asset.name, "inventory_fingerprint": inventory_fp,
         "installed_software": installed,
         "technical_result": technical["result"],
-        "assessment_summary": summarize_hardware_cve_review(configs),
+        "applicability": applicability,
+        "assessment_summary": analyst,
         "confirmed_hardware_cpes": [
             {"cpe_name": name, "association_id": assoc.pk}
             for name, assoc in confirmed.items()
