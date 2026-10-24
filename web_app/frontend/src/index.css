@@ -3514,3 +3514,18 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   .cve-software-option { align-items: flex-start; }
   .cve-software-picker > summary { flex-wrap: wrap; }
 }
+
+
+/* Existing negative-review selector retains the same dark treatment. */
+.cve-general-analysis .cve-compact-review select {
+  background: #0f172a;
+  color: #e2e8f0;
+  border: 1px solid #475569;
+  border-radius: 7px;
+  padding: 10px 12px;
+  max-width: 100%;
+}
+.cve-general-analysis .cve-compact-review select:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
