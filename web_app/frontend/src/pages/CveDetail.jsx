@@ -96,6 +96,10 @@ function Criterion({ item, depth = 0, selection, onSelect, installId, onInstall,
               {sw.software_name} · Versión {sw.version || "desconocida"}
             </option>)}
           </select>
+          {candidates.length === 0 && <p className="cve-muted">
+            No existe una instalación de software elegible demostrada por CPE.
+            Puedes documentar la condición pendiente sin crear relaciones ficticias.
+          </p>}
         </>}
       </div>}
       {isSoftware && <div className="cve-nvd-found">
@@ -185,8 +189,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     config.technical_result === "INDETERMINATE";
   const checked = Boolean(selectedCriterion);
   const canConfirm = canReview || canConditional;
-  const confirmationVerdict = canReview && checked && selectedId
-    ? "CONFIRMED" : "CONDITIONAL";
+  const confirmationVerdict = canReview ? "CONFIRMED" : "CONDITIONAL";
   const canDiscard = canReview &&
     contextualCveActionOptions(config, last).some(option => option.key === "NOT_MATCH");
   const canUndo = canReview || canReopen;
@@ -226,7 +229,10 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     <Criterion item={config.tree} selection={selectedCriterion}
       onSelect={value => { setSelectedCriterion(value); setInstallId(""); setChoice(""); }}
       installId={installId} onInstall={value => { setInstallId(value); setChoice(""); }}
-      candidates={context.installed_software || []} canDecide={canDecide}/>
+      candidates={(context.installed_software || []).filter(sw =>
+        (config.candidate_installation_ids || []).includes(sw.installation_id) ||
+        (config.review_installation_id === sw.installation_id))}
+      canDecide={canDecide}/>
     <div className="panel cve-nvd-decision">
     <div className="cve-nvd-joint-title">
       <h3>{highlight ? "Correspondencia · Configuración NVD " + config.position :
@@ -252,7 +258,11 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         descartar mientras las evidencias sean vigentes.
       </p>}
     {(canConfirm || canDiscard || canUndo) && <div className="cve-nvd-actions">
-      {canConfirm && <button type="button" className={"cve-nvd-action" +
+      {canConfirm && <button type="button"
+        disabled={canReview && (!checked || !selectedId)}
+        title={canReview && (!checked || !selectedId)
+          ? "Selecciona el componente y su instalación antes de confirmar." : ""}
+        className={"cve-nvd-action" +
         (["CONFIRMED", "CONDITIONAL"].includes(choice) ? " selected" : "")}
         onClick={() => { setChoice(confirmationVerdict); setJustification(""); }}>
         Confirmar correspondencia</button>}
