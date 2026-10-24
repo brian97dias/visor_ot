@@ -206,6 +206,40 @@ export function relevantNvdChildren(node) {
     visible, alternatives: children.filter(child => !matched(child)),
   } : {visible: children.slice(0, 1), alternatives: children.slice(1)};
 }
+/** Presentation-only selection of an OR branch.
+ * Keep every NVD alternative accessible; never change technical evaluation.
+ */
+export function displayNvdGroupBranches(node, selectedCriterion = "") {
+  const { visible, alternatives } = relevantNvdChildren(node);
+  if (node?.operator !== "OR") return { shown: visible, hidden: [] };
+  const ordered = [...visible, ...alternatives];
+  const hasSelected = branch => branch?.kind === "CRITERION"
+    ? (branch.match_criteria_id || branch.criteria) === selectedCriterion
+    : (branch?.children || []).some(hasSelected);
+  const focused = ordered.find(hasSelected) || visible[0] || ordered[0];
+  return {
+    shown: focused ? [focused] : [],
+    hidden: ordered.filter(branch => branch !== focused),
+  };
+}
+
+/** Labels describe NVD criteria, not assets proven to be affected. */
+export function nvdAlternativeGroupLabel(branches) {
+  const kinds = new Set();
+  const inspect = node => {
+    if (node?.kind === "CRITERION") {
+      kinds.add(node.part === "h" ? "hardware" :
+        ["a", "o"].includes(node.part) ? "software" : "otro");
+    }
+    for (const child of node?.children || []) inspect(child);
+  };
+  (branches || []).forEach(inspect);
+  return kinds.size === 1 && kinds.has("hardware")
+    ? "Otras alternativas de hardware NVD"
+    : kinds.size === 1 && kinds.has("software")
+      ? "Otras alternativas de software NVD" : "Otras alternativas NVD";
+}
+
 export const cveAssetRoleLabel = role =>
   role === "PLATFORM" ? "Plataforma" :
   role === "VULNERABLE" ? "Vulnerable" : "Relacionado";
