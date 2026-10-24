@@ -507,16 +507,20 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
             and item.get("technical_software_installation_id") == installation_id
             and item.get("technical_matched_cpe")
         ), None)
-        selected = proven or matching_parts[0]
         selected_criteria = [{
-            "criteria": selected["criteria"],
-            "matched_cpe": selected.get("technical_matched_cpe") if proven else None,
+            # A manual check only links the CVE and the installed asset. It
+            # does NOT designate a proven individual NVD alternative.
+            "criteria": proven["criteria"] if proven else None,
+            "candidate_nvd_criteria": (
+                [] if proven else [item["criteria"] for item in matching_parts]
+            ),
+            "matched_cpe": proven.get("technical_matched_cpe") if proven else None,
             "installation_id": installation_id,
             "software_asset_id": installation["software_asset_id"],
             "link_source": "CONFIRMED_CPE" if proven else "ANALYST_DISCRETION",
             "identity_verified": bool(proven),
             "version_verified": bool(
-                proven and selected.get("technical_result") == "COMPATIBLE"
+                proven and proven.get("technical_result") == "COMPATIBLE"
             ),
         }]
     return {
