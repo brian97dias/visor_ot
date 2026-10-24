@@ -387,11 +387,10 @@ export default function CveDetail() {
       : context && Number(context.hardware_asset_id) === Number(selectedHardware) && <>
         <p className="cve-general-context-summary">
           Evaluación de este CVE para el hardware #{context.hardware_asset_id}.
-          {" "}{configs.length} configuraciones pertinentes de NVD.
-          {context.unrelated_configuration_count > 0 && <>
-            {" "}{context.unrelated_configuration_count} alternativas sin
-            correspondencia demostrada con el inventario actual se conservan
-            en el registro NVD.
+          {" "}Se muestra la configuración NVD más pertinente para este equipo.
+          {others.length > 0 && <>
+            {" "}Las otras {others.length} configuraciones pertinentes permanecen
+            disponibles en una sección desplegable.
           </>}
         </p>
         <div className="panel cve-technical-summary">

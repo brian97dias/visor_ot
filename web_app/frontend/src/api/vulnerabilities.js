@@ -123,10 +123,6 @@ export function listCveHardware(cveId, page = 1, pageSize = 15) {
     "/hardware/" + cvexQuery({ page, page_size: pageSize }));
 }
 
-export async function listCveDiscoveryRuns(limit = 20) {
-  const result = await request(CVE_DISCOVERY_BASE + cvexQuery({ limit }));
-  return result.runs;
-}
 export function enqueueCveDiscovery(hardwareIds) {
   return request(CVE_DISCOVERY_BASE, {
     method: "POST", headers: { "Content-Type": "application/json" },

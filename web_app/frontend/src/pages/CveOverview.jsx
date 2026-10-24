@@ -5,7 +5,6 @@ import { getCpeOverview } from "../api/vulnerabilities";
 import {
   enqueueCveDiscovery, listCveCatalogue,
 } from "../api/vulnerabilities";
-import SuccessNotice from "../components/SuccessNotice";
 import {
   CVE_EVALUATION_STATE, CVE_CATALOGUE_FILTER_STATES,
   displayCveApplicability,
@@ -35,7 +34,6 @@ export default function CveOverview() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [reload, setReload] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [hardware, setHardware] = useState([]);
@@ -137,8 +135,6 @@ export default function CveOverview() {
         onClick={openDialog}>Buscar CVE</button>}
     </header>
 
-    <SuccessNotice message={notice} onClose={() => setNotice("")}
-      durationMs={30000}/>
     {error && <p className="error-message" role="alert">{error}</p>}
 
     <div className="cve-catalogue-stats" aria-label="Resumen de aplicabilidad CVE">

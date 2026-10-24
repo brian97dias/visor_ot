@@ -3308,3 +3308,29 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   font-size: .84rem; line-height: 1.65; margin-top: 12px;
 }
 .cve-nvd-other-evidence .cve-general-relevant-configuration { margin-top: 18px; }
+
+
+/* Three CVE inventory-level counters, with a compact validated breakdown. */
+.cve-catalogue-validated .cve-catalogue-stat-breakdown {
+  display: flex; flex-wrap: wrap; gap: 5px 16px; margin-top: 9px;
+  font-size: .78rem; color: #94a3b8;
+}
+.cve-catalogue-validated .cve-catalogue-stat-breakdown strong {
+  font-size: .84rem; font-weight: 700;
+}
+.cve-catalogue-stat-breakdown span:first-child strong { color: #fca5a5; }
+.cve-catalogue-stat-breakdown span:last-child strong { color: #86efac; }
+
+/* CVSS severity distinction: high is red, medium amber, low green. */
+.cve-catalogue-severity[data-severity="CRITICAL"] {
+  border-color: #be123c; color: #fecdd3; background: rgba(159,18,57,.13);
+}
+.cve-catalogue-severity[data-severity="HIGH"] {
+  border-color: #dc2626; color: #fca5a5; background: rgba(153,27,27,.12);
+}
+.cve-catalogue-severity[data-severity="MEDIUM"] {
+  border-color: #ca8a04; color: #fde68a; background: rgba(161,98,7,.09);
+}
+.cve-catalogue-severity[data-severity="LOW"] {
+  border-color: #15803d; color: #86efac; background: rgba(22,101,52,.09);
+}
