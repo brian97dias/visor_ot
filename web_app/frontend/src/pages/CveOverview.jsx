@@ -145,7 +145,7 @@ export default function CveOverview() {
         <strong>{catalogue.summary?.pending_review ?? 0}</strong><span>Por validar</span>
       </div>
       <div className="cpe-overview-stat cve-catalogue-validated">
-        <strong>{catalogue.summary?.validated ?? 0}</strong><span>Evaluados</span>
+        <strong>{catalogue.summary?.validated ?? 0}</strong><span>CVE validados</span>
         <div className="cve-catalogue-stat-breakdown">
           <span>Aplica: <strong>{catalogue.summary?.applies ?? 0}</strong></span>
           <span>No aplica: <strong>{catalogue.summary?.not_applicable ?? 0}</strong></span>
