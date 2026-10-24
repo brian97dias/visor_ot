@@ -564,12 +564,15 @@ export default function CveDetail() {
               </span>
             </div>
             <Criterion item={primary.tree}/>
-            <ConfigurationReview context={context} config={primary}
-              highlight canDecide={canDecide}
-              onSaved={() => {
-                setNotice("Evaluación guardada. El historial se actualizó.");
-                setRevision(n => n + 1);
-              }}/>
+            <details className="cve-general-history">
+              <summary>Evaluación histórica por configuración NVD</summary>
+              <ConfigurationReview context={context} config={primary}
+                canDecide={canDecide}
+                onSaved={() => {
+                  setNotice("Evaluación por configuración actualizada.");
+                  setRevision(n => n + 1);
+                }}/>
+            </details>
           </section>
           {others.length > 0 && <details className="cve-nvd-other-evidence">
             <summary>Otras configuraciones pertinentes ({others.length})</summary>
