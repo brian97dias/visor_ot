@@ -139,3 +139,11 @@ export function cveHumanReviewMessage(summary) {
       return "Todavía no se ha registrado una decisión del analista para este hardware y CVE.";
   }
 }
+
+
+/** Origin of the current CVE/hardware applicability conclusion. */
+export const CVE_APPLICABILITY_SOURCE = {
+  SYSTEM: "Automático · VISOR OT",
+  ANALYST: "Validado por analista",
+  NONE: "Pendiente de validación",
+};

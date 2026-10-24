@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   CVE_SEVERITY, CVE_DISCOVERY_STATE, CVE_EVALUATION_STATE,
   CVE_EVALUATION_HELP, CVE_TECHNICAL_STATE, CVE_TECHNICAL_FILTER,
+  CVE_APPLICABILITY_SOURCE,
   DEFAULT_CVE_TECHNICAL_FILTER,
   cvePageCount,
   cveHardwareCandidates, toggleCveHardwareSelection,
@@ -135,4 +136,13 @@ test("one human verdict does not imply mandatory reviews of 96 configurations", 
   assert.match(cveHumanReviewMessage({status:"NOT_APPLICABLE"}),/Todas/i);
   assert.match(cveHumanReviewMessage({status:"STALE"}),/cambió/i);
   assert.match(cveHumanReviewMessage({status:"IN_REVIEW"}),/historial/i);
+});
+
+
+test("applicability names the origin without inventing analyst decisions", () => {
+  assert.equal(CVE_APPLICABILITY_SOURCE.SYSTEM, "Automático · VISOR OT");
+  assert.equal(CVE_APPLICABILITY_SOURCE.ANALYST, "Validado por analista");
+  assert.equal(CVE_APPLICABILITY_SOURCE.NONE, "Pendiente de validación");
+  assert.equal(CVE_EVALUATION_STATE.APPLIES, "Aplica");
+  assert.equal(CVE_EVALUATION_STATE.PENDING_REVIEW, "Por validar");
 });

@@ -8,6 +8,7 @@ import SuccessNotice from "../components/SuccessNotice";
 import CveAnalysis from "./CveAnalysis";
 import {
   CVE_SEVERITY, CVE_TECHNICAL_STATE, CVE_EVALUATION_STATE,
+  CVE_APPLICABILITY_SOURCE,
   selectedCveHardwareId, groupCveEvidence, cveHumanReviewMessage,
 } from "../utils/cveCataloguePresentation";
 import {
@@ -380,15 +381,38 @@ export default function CveDetail() {
         </p>
         <div className="panel cve-technical-summary">
           <div className="cve-technical-summary-heading">
-            <h2>Resultado técnico del CVE en este hardware</h2>
-            <span className="cve-technical-tag" data-result={context.technical_result}>
-              {CVE_TECHNICAL_STATE[context.technical_result] ||
-                CVE_TECHNICAL_STATE.INDETERMINATE}
+            <h2>Aplicabilidad del CVE · Este hardware</h2>
+            <span className="cve-catalogue-evaluation-status"
+              data-status={context.applicability?.status || "PENDING_REVIEW"}>
+              {CVE_EVALUATION_STATE[context.applicability?.status] ||
+                CVE_EVALUATION_STATE.PENDING_REVIEW}
+              {" · "}{CVE_APPLICABILITY_SOURCE[context.applicability?.source] ||
+                CVE_APPLICABILITY_SOURCE.NONE}
             </span>
           </div>
-          <p>Comparación automática y no una decisión del analista.
-            Una configuración excluida no descarta por sí sola las demás alternativas.
-            Una configuración compatible todavía requiere revisar su aplicabilidad real.</p>
+          {context.applicability?.source === "SYSTEM" ?
+            <div className="cve-general-auto-proof">
+              <p>VISOR OT comprobó las condiciones publicadas por NVD
+                con CPE confirmados, instalación y versión vigentes.
+                No significa que el equipo haya sido explotado.</p>
+              <p>Configuración NVD comprobada: {
+                context.applicability.automatic_evidence?.configuration_position
+              }.</p>
+              {(context.applicability.automatic_evidence?.criteria || []).map(
+                (criterion, index) => <div key={index} className="cve-muted">
+                  <code>{criterion.confirmed_cpe}</code>
+                  {criterion.installed_version &&
+                    <span> · Versión {criterion.installed_version}</span>}
+                  {criterion.software_installation_id &&
+                    <span> · Instalación #{criterion.software_installation_id}</span>}
+                </div>
+              )}
+            </div> :
+            <p>La comparación técnica no proporciona una conclusión positiva
+              automática comprobable para este hardware. Si faltan datos,
+              como STEP 7 u otro software externo, se requiere revisión humana.
+              La ausencia de software en el inventario nunca demuestra
+              por sí sola que el CVE no aplique.</p>}
         </div>
         <section className="panel cve-general-review-summary"
           aria-labelledby="cve-human-review-title">
