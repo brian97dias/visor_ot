@@ -178,7 +178,7 @@ test("automatic history reads El sistema without changing a persisted justificat
   assert.equal(cveAuditJustification(old, "ANALYST"), old);
 });
 
-test("CVE filters show only three applicability choices", () => {
+test("CVE filters show exactly four applicability choices", () => {
   assert.deepEqual(Object.keys(CVE_CATALOGUE_FILTER_STATES),
     ["PENDING_REVIEW", "APPLIES", "APPLIES_CONDITIONAL", "NOT_APPLICABLE"]);
   for (const status of ["PENDING_REVIEW","IN_REVIEW","STALE",null]) {

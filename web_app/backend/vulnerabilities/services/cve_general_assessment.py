@@ -353,7 +353,8 @@ def general_assessment_context(cve_id, hardware_id):
 
         criteria = list(leaves(annotated_tree))
         conditional_supported = (
-            any(item.get("part") == "h" and
+            observation["result"] == "INDETERMINATE"
+            and any(item.get("part") == "h" and
                 item.get("technical_identity") == "MATCHED" and
                 item.get("technical_matched_cpe") for item in criteria)
             and any(item.get("vulnerable") is True for item in criteria)
@@ -437,6 +438,9 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
     if automatic_positive_evidence(evaluation):
         raise ValidationError({"verdict":
             "Todas las condiciones NVD están verificadas: utiliza Aplica, no Aplica condicionada."})
+    if evaluation["result"] == "EXCLUDED":
+        raise ValidationError({"verdict":
+            "La configuración NVD está técnicamente excluida; no puede declararse aplicable condicionada."})
     annotated = _annotate_tree(
         _render_tree(config, confirmed, installed), evaluation["configurations"][0],
     )

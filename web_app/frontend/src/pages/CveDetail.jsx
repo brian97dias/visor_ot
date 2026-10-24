@@ -148,7 +148,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const canReopen = staleDecision && canDecide;
   const canReview = config.review_supported && canDecide;
   const canConditional = config.conditional_supported && canDecide &&
-    config.technical_result !== "COMPATIBLE";
+    config.technical_result === "INDETERMINATE";
   const options = [
     ...(canReview || canReopen ? contextualCveActionOptions(config, last) : []),
     ...(canConditional && !last?.stale ? [{
