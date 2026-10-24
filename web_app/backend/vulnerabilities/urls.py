@@ -6,7 +6,9 @@ from .association_views import AssetCpeListCreateView, AssetCpeDecisionView
 from .bulk_views import CpeBulkSearchView
 from .external_cpe_views import ExternalCpeVerificationListView, ExternalCpeVerificationDetailView
 from .cve_assessment_views import ExperimentalCveAssessmentView
-from .cve_general_assessment_views import GeneralCveAssessmentView
+from .cve_general_assessment_views import (
+    GeneralCveAssessmentView, AutomaticCveAssessmentView,
+)
 from .cve_catalogue_views import (
     CveCatalogueView, CveCatalogueDetailView, CveCatalogueHardwareView,
 )
@@ -20,6 +22,8 @@ urlpatterns = [
     path("cves/", CveCatalogueView.as_view(), name="cve-catalogue"),
     path("cves/<str:cve_id>/hardware/<int:hardware_id>/assessment/",
          GeneralCveAssessmentView.as_view(), name="cve-general-assessment"),
+    path("cves/<str:cve_id>/hardware/<int:hardware_id>/assessment/automatic/",
+         AutomaticCveAssessmentView.as_view(), name="cve-system-assessment"),
     path("cves/<str:cve_id>/", CveCatalogueDetailView.as_view(), name="cve-catalogue-detail"),
     path("cves/<str:cve_id>/hardware/", CveCatalogueHardwareView.as_view(), name="cve-catalogue-hardware"),
     path("cve-discoveries/", CveDiscoveryListCreateView.as_view(), name="cve-discovery-list"),

@@ -8,6 +8,7 @@ from .views import CpeSearchPermission
 from .services.cve_general_assessment import (
     general_assessment_context, record_general_assessment,
 )
+from .services.cve_system_audit import ensure_system_cve_assessment
 
 
 class GeneralCveDecisionSerializer(serializers.Serializer):
@@ -35,3 +36,20 @@ class GeneralCveAssessmentView(APIView):
             cve_id, hardware_id, request.user, **validator.validated_data,
         )
         return Response({"assessment": assessment}, status=status.HTTP_201_CREATED)
+
+
+class AutomaticCveAssessmentView(APIView):
+    """Idempotent audit synchronization for already persisted NVD results.
+
+    GET of the assessment context remains read-only; explicit POST creates a
+    SYSTEM-origin record only for a verified positive, never an auto-negative.
+    """
+    permission_classes = [IsAuthenticated, CpeSearchPermission]
+
+    def post(self, request, cve_id, hardware_id):
+        record, created = ensure_system_cve_assessment(cve_id, hardware_id)
+        return Response({
+            "created": created,
+            "assessment_id": record.pk if record else None,
+            "context": general_assessment_context(cve_id, hardware_id),
+        })
