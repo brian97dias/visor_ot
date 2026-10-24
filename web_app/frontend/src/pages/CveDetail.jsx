@@ -26,122 +26,165 @@ const STATE = {
 const PLAIN = { h: "Hardware", o: "Firmware / sistema operativo", a: "Software" };
 
 
+/** Human-facing evidence stays visible; the raw NVD proof is opt-in. */
 function Criterion({ item, depth = 0, selection, onSelect, installId,
   installedSoftware = [], canDecide = false }) {
   if (item.kind === "CRITERION") {
     const isSoftware = ["a", "o"].includes(item.part);
     const identityBadge = nvdCriterionIdentityBadge(item);
-    return <details className="cve-nvd-condition cve-general-criterion">
-      <summary className="cve-nvd-condition-summary">
+    const currentInstallations = (installedSoftware || []).filter(sw =>
+      item.part === "a" ? sw.software_type === "APPLICATION" :
+        ["FIRMWARE", "OS"].includes(sw.software_type)
+    );
+    const criterionKey = item.match_criteria_id || item.criteria;
+    return <div className="cve-nvd-condition cve-general-criterion">
+      <div className="cve-nvd-condition-summary">
         <div className="cve-nvd-condition-heading">
-        <div className="cve-nvd-condition-tags">
-          <h3>{PLAIN[item.part] || "Componente NVD"}</h3>
-          <span className={"cve-nvd-category " + (
-            item.vulnerable ? "cve-nvd-vulnerable" : "cve-nvd-platform"
-          )}>{item.vulnerable ? "Componente vulnerable" : "Condición de plataforma"}</span>
+          <div className="cve-nvd-condition-tags">
+            <h3>{PLAIN[item.part] || "Componente NVD"}</h3>
+            <span className={"cve-nvd-category " + (
+              item.vulnerable ? "cve-nvd-vulnerable" : "cve-nvd-platform"
+            )}>{item.vulnerable ? "Componente vulnerable" : "Condición de plataforma"}</span>
+          </div>
+          <span className="cve-condition-state" data-state={identityBadge.state}
+            title="La identidad CPE y la versión NVD se comprueban por separado.">
+            {identityBadge.label}
+          </span>
         </div>
-        <span className="cve-condition-state"
-          data-state={identityBadge.state}
-          title="La identidad del producto se comprueba por CPE; el rango de versión NVD se evalúa por separado.">
-          {identityBadge.label}
-        </span>
-      </div>
         <p className="cve-nvd-product">{String(item.criteria || "").split(":")
           .slice(3, 5).join(" · ").replaceAll("_", " ") || "Criterio NVD"}</p>
-      </summary>
-      <div className="cve-nvd-criterion">
-        <span className="cve-nvd-criterion-label">
-          {isSoftware ? "Criterio de software NVD" : "CPE hardware · NVD"}</span>
-        <code>{item.criteria || "No indicado"}</code>
-        {item.match_criteria_id && <p className="cve-criterion-id">
-          ID criterio NVD: <code>{item.match_criteria_id}</code></p>}
       </div>
-      {versionConstraintsText(item.bounds) && <p className="cve-general-constraints">
-        Restricciones NVD: {versionConstraintsText(item.bounds)}.</p>}
-      <div className="cve-technical-criterion">
-        <span className="cve-technical-tag" data-result={
-          item.technical_result || "INDETERMINATE"
-        }>{CVE_TECHNICAL_STATE[item.technical_result] ||
-          CVE_TECHNICAL_STATE.INDETERMINATE}</span>
-        <p>{item.technical_reason || "No hay evidencia suficiente para resolver el criterio."}</p>
-        {item.technical_matched_cpe && <p>
-          CPE confirmado usado: <code>{item.technical_matched_cpe}</code>
-        </p>}
-        {item.technical_software_asset_id && <p>
-          Software #{item.technical_software_asset_id}
-          {item.technical_software_installation_id &&
-            " · Instalación #" + item.technical_software_installation_id}
-        </p>}
-        {item.technical_installed_version && <p>Versión comprobada: {
-          item.technical_installed_version
-        }</p>}
-      </div>
+
       {isSoftware && item.vulnerable && onSelect && <div className="cve-nvd-selection">
-        <p className="cve-muted">
-          Vinculación opcional del CVE con el software registrado en este hardware.
-          Sin marcar, la evaluación puede ser parcial y no se asociará ninguna instalación.
-        </p>
-        {installedSoftware.filter(sw => item.part === "a"
-          ? sw.software_type === "APPLICATION"
-          : ["FIRMWARE", "OS"].includes(sw.software_type)
-        ).map(sw => {
-          const criterionKey = item.match_criteria_id || item.criteria;
-          const isChecked = selection === criterionKey &&
-            installId === String(sw.installation_id);
-          return <label className="cve-criterion-selection cve-software-association"
-            key={sw.installation_id}>
-            <input type="checkbox" disabled={!canDecide} checked={isChecked}
-              onChange={event => onSelect(event.target.checked
-                ? criterionKey : "", event.target.checked
-                ? String(sw.installation_id) : "")}/>
-            <span className="cve-association-name">
-              <strong>Asociar este CVE a: {sw.software_name}</strong>
-              <small>Software #{sw.software_asset_id} · Instalación #{sw.installation_id}
-                {" · Versión "}{sw.version || "desconocida"}</small>
-            </span>
-            <span className="cve-software-status is-installed">Instalado</span>
-          </label>;
-        })}
-        {!(installedSoftware || []).some(sw => item.part === "a"
-          ? sw.software_type === "APPLICATION" : ["FIRMWARE", "OS"].includes(sw.software_type)
-        ) && <p className="cve-muted">
-          No se registra software de este tipo instalado en el hardware.
-          La correspondencia parcial no vinculará software.
+        {currentInstallations.length ? <>
+          <p className="cve-nvd-association-title">
+            Software registrado como instalado en este hardware
+          </p>
+          {currentInstallations.map(sw => {
+            const isChecked = selection === criterionKey &&
+              installId === String(sw.installation_id);
+            return <div className="cve-installed-software-entry" key={sw.installation_id}>
+              <div className="cve-installed-software-meta">
+                <div className="cve-association-name">
+                  <strong>{sw.software_name}</strong>
+                  <small>Software #{sw.software_asset_id} · Instalación #{sw.installation_id}
+                    {" · Versión "}{sw.version || "desconocida"}</small>
+                </div>
+                <span className="cve-software-status is-installed">Instalado</span>
+              </div>
+              <label className="cve-criterion-selection cve-software-association">
+                <input type="checkbox" disabled={!canDecide} checked={isChecked}
+                  onChange={event => onSelect(
+                    event.target.checked ? criterionKey : "",
+                    event.target.checked ? String(sw.installation_id) : ""
+                  )}/>
+                <span>Asociar este CVE al software instalado</span>
+              </label>
+            </div>;
+          })}
+          <p className="cve-muted">
+            La asociación es una decisión del analista. No confirma por sí sola
+            la versión vulnerable indicada por NVD.
+          </p>
+        </> : <p className="cve-muted">
+          No hay software de este tipo instalado en el inventario de este hardware.
+          Puedes registrar una correspondencia parcial sin asociar software.
         </p>}
       </div>}
-    </details>;
+
+      <details className="cve-nvd-proof">
+        <summary>Ver evidencia técnica NVD</summary>
+        <div className="cve-nvd-proof-content">
+          <div className="cve-nvd-criterion">
+            <span className="cve-nvd-criterion-label">
+              {isSoftware ? "Criterio de software NVD" : "CPE hardware · NVD"}</span>
+            <code>{item.criteria || "No indicado"}</code>
+            {item.match_criteria_id && <p className="cve-criterion-id">
+              ID criterio NVD: <code>{item.match_criteria_id}</code></p>}
+          </div>
+          {versionConstraintsText(item.bounds) && <p className="cve-general-constraints">
+            Restricciones NVD: {versionConstraintsText(item.bounds)}.</p>}
+          <div className="cve-technical-criterion">
+            <span className="cve-technical-tag" data-result={
+              item.technical_result || "INDETERMINATE"
+            }>{CVE_TECHNICAL_STATE[item.technical_result] ||
+              CVE_TECHNICAL_STATE.INDETERMINATE}</span>
+            <p>{item.technical_reason ||
+              "No hay evidencia suficiente para resolver el criterio."}</p>
+            {item.technical_matched_cpe && <p>
+              CPE confirmado usado: <code>{item.technical_matched_cpe}</code>
+            </p>}
+            {item.technical_software_asset_id && <p>
+              Software #{item.technical_software_asset_id}
+              {item.technical_software_installation_id &&
+                " · Instalación #" + item.technical_software_installation_id}
+            </p>}
+            {item.technical_installed_version && <p>
+              Versión comprobada: {item.technical_installed_version}</p>}
+          </div>
+        </div>
+      </details>
+    </div>;
   }
   if (item.kind !== "GROUP") {
     return <p className="cpe-warning">NVD contiene una estructura que debe revisarse.</p>;
   }
-  const operator = item.operator === "AND" ? "Y" : "O";
+
+  const children = Array.isArray(item.children) ? item.children : [];
   const { visible, alternatives } = relevantNvdChildren(item);
-  // Promote a selected OR alternative for review, without changing NVD's logic.
+  const isOr = item.operator === "OR";
   const hasSelected = node => node?.kind === "CRITERION"
     ? (node.match_criteria_id || node.criteria) === selection
     : (node?.children || []).some(hasSelected);
-  const promoted = item.operator === "OR" && selection
-    ? alternatives.find(hasSelected) : null;
-  const shown = promoted ? [promoted, ...visible.filter(x => x !== promoted)] : visible;
-  const otherChoices = promoted
-    ? alternatives.filter(x => x !== promoted) : alternatives;
+
+  // The visual selection highlights an OR option; NVD evaluation remains unchanged.
+  const ordered = isOr ? [...visible, ...alternatives] : visible;
+  const focused = isOr
+    ? (ordered.find(hasSelected) || visible[0] || ordered[0])
+    : null;
+  const shown = isOr ? (focused ? [focused] : []) : ordered;
+  const hidden = isOr ? ordered.filter(node => node !== focused) : [];
+
+  const alternativeKind = rows => {
+    const kinds = new Set();
+    const inspect = node => {
+      if (node?.kind === "CRITERION") {
+        kinds.add(node.part === "h" ? "hardware" :
+          ["a", "o"].includes(node.part) ? "software" : "otro");
+      }
+      for (const child of node?.children || []) inspect(child);
+    };
+    rows.forEach(inspect);
+    return kinds.size === 1 && kinds.has("hardware")
+      ? "Otras alternativas de hardware NVD"
+      : kinds.size === 1 && kinds.has("software")
+        ? "Otras alternativas de software NVD" : "Otras alternativas NVD";
+  };
+  const renderChild = (child, i) =>
+    <Criterion key={(child.match_criteria_id || child.criteria || "grupo") + ":" + i}
+      item={child} depth={depth + 1} selection={selection}
+      onSelect={onSelect} installId={installId}
+      installedSoftware={installedSoftware} canDecide={canDecide}/>;
+
   return <div className={"cve-general-group " + (depth ? "cve-general-nested" : "")}>
-    <div className="cve-general-logic">
-      <strong>{operator === "Y" ? "Se requieren todas las condiciones" :
-        "Se permite cualquiera de las alternativas"}</strong>
-      {item.negate && <span className="cpe-warning">
-        Negación NVD: el resultado del grupo se invierte (requiere revisión).</span>}
-    </div>
+    {!isOr && shown.length > 1 && depth === 0 &&
+      <div className="cve-general-logic">
+        <strong>Se requieren todas las condiciones</strong>
+      </div>}
+    {item.negate && <p className="cpe-warning">
+      Negación NVD: el resultado del grupo se invierte y requiere revisión especializada.
+    </p>}
     {shown.length ? shown.map((child, i) =>
       <div key={i}>
-        {i > 0 && <div className="cve-nvd-plus" aria-label={"Operador " + operator}>
-          {operator}</div>}
-        <Criterion item={child} depth={depth + 1} selection={selection} onSelect={onSelect} installId={installId} installedSoftware={installedSoftware} canDecide={canDecide}/>
+        {i > 0 && <div className="cve-nvd-plus" aria-label={"Operador " +
+          (isOr ? "O" : "Y")}>{isOr ? "O" : "Y"}</div>}
+        {renderChild(child, i)}
       </div>) : <p className="cve-muted">No hay criterios detallados en este grupo.</p>}
-    {otherChoices.length > 0 && <details className="cve-nvd-other-evidence">
-      <summary>Otras alternativas NVD ({otherChoices.length})</summary>
-      {otherChoices.map((child, i) =>
-        <Criterion key={i} item={child} depth={depth + 1} selection={selection} onSelect={onSelect} installId={installId} installedSoftware={installedSoftware} canDecide={canDecide}/>)}
+    {hidden.length > 0 && <details className="cve-nvd-other-evidence cve-nvd-other-branches">
+      <summary>{alternativeKind(hidden)} ({hidden.length})</summary>
+      <p className="cve-muted">Opciones del operador O de NVD.
+        No implican presencia en el inventario ni aplicabilidad confirmada.</p>
+      {hidden.map(renderChild)}
     </details>}
   </div>;
 }
