@@ -143,7 +143,31 @@ export function cveHumanReviewMessage(summary) {
 
 /** Origin of the current CVE/hardware applicability conclusion. */
 export const CVE_APPLICABILITY_SOURCE = {
-  SYSTEM: "Automático · VISOR OT",
+  SYSTEM: "Automático",
   ANALYST: "Validado por analista",
   NONE: "Pendiente de validación",
 };
+
+
+/** Product identity is proven independently of the NVD vulnerable range. */
+export function nvdCriterionIdentityBadge(item) {
+  if (["a", "o"].includes(item?.part)) {
+    return item.technical_identity === "MATCHED" && item.technical_matched_cpe
+      ? { label: "Identidad válida", state: "SATISFIED" }
+      : { label: "Identidad por verificar", state: "UNVERIFIED" };
+  }
+  if (item?.technical_identity === "MATCHED" && item.technical_matched_cpe) {
+    return { label: "CPE confirmado", state: "SATISFIED" };
+  }
+  return item?.state === "SATISFIED"
+    ? { label: "CPE confirmado", state: "SATISFIED" }
+    : { label: "Sin verificar", state: "UNVERIFIED" };
+}
+
+/** Normalize legacy audit wording visually, without rewriting stored history. */
+export function cveAuditJustification(justification, source) {
+  const text = String(justification || "");
+  return source === "SYSTEM"
+    ? text.replace(/^VISOR OT confirmó automáticamente/, "El sistema confirmó automáticamente")
+    : text;
+}

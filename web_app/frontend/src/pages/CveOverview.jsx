@@ -9,7 +9,7 @@ import SuccessNotice from "../components/SuccessNotice";
 import {
   CVE_DISCOVERY_STATE, CVE_EVALUATION_STATE,
   CVE_APPLICABILITY_SOURCE,
-  CVE_TECHNICAL_STATE, CVE_TECHNICAL_FILTER, DEFAULT_CVE_TECHNICAL_FILTER,
+
   CVE_SEVERITY, cveHardwareCandidates,
   cveHardwareSelectionValid, cvePageCount, isCveDiscoveryActive,
   preferredCveHardwareId,
@@ -28,7 +28,6 @@ export default function CveOverview() {
   const search = params.get("q") || "";
   const severity = params.get("severity") || "ALL";
   const status = params.get("status") || "ALL";
-  const technical = params.get("technical") || DEFAULT_CVE_TECHNICAL_FILTER;
   const requestedPage = readCpePage(params.get("page"));
   const [catalogue, setCatalogue] = useState({ count: 0, results: [], page: 1 });
   const [runs, setRuns] = useState([]);
@@ -62,14 +61,14 @@ export default function CveOverview() {
     let alive = true;
     setLoading(true);
     const timer = window.setTimeout(() => {
-      listCveCatalogue({ q: search, severity, status, technical, page: requestedPage,
+      listCveCatalogue({ q: search, severity, status, technical: "ALL", page: requestedPage,
                          page_size: PAGE_SIZE })
         .then(data => { if (alive) setCatalogue(data); })
         .catch(err => { if (alive) setError(err.message); })
         .finally(() => { if (alive) setLoading(false); });
     }, search ? 300 : 0);
     return () => { alive = false; window.clearTimeout(timer); };
-  }, [search, severity, status, technical, requestedPage, reload]);
+  }, [search, severity, status, requestedPage, reload]);
 
   useEffect(() => {
     let alive = true;
@@ -229,15 +228,6 @@ export default function CveOverview() {
               <option key={code} value={code}>{label}</option>)}
           </select>
         </label>
-        <label className="cve-catalogue-control">
-          <span>Resultado técnico</span>
-          <select aria-label="Filtrar por evaluación técnica" value={technical}
-            onChange={event => changeFilter("technical", event.target.value)}>
-            <option value="ALL">Todos</option>
-            {Object.entries(CVE_TECHNICAL_FILTER).map(([code, label]) =>
-              <option key={code} value={code}>{label}</option>)}
-          </select>
-        </label>
         <button type="button" className="button-secondary" onClick={refreshAll}>
           Actualizar
         </button>
@@ -245,10 +235,10 @@ export default function CveOverview() {
       <div className="table-container">
         <table className="data-table">
           <thead><tr><th>CVE</th><th>Severidad</th><th>Descripción NVD</th>
-            <th>Activos relacionados</th><th>Estado</th><th>Resultado técnico</th><th>Acción</th></tr></thead>
+            <th>Activos relacionados</th><th>Aplicabilidad</th><th>Acción</th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan="7">Cargando CVE...</td></tr>
-            : catalogue.results.length === 0 ? <tr><td colSpan="7">
+            {loading ? <tr><td colSpan="6">Cargando CVE...</td></tr>
+            : catalogue.results.length === 0 ? <tr><td colSpan="6">
               No hay CVE recuperados para estos filtros. Inicia una búsqueda
               con hardware que tenga CPE confirmados.
             </td></tr>
@@ -265,11 +255,6 @@ export default function CveOverview() {
                   <div className="cve-catalogue-asset-context" key={context.hardware_id}>
                     <div className="cve-catalogue-asset-context-heading">
                       <span>Hardware #{context.hardware_id}</span>
-                      <span className="cve-technical-tag"
-                        data-result={context.technical_result}>
-                        {CVE_TECHNICAL_STATE[context.technical_result] ||
-                          CVE_TECHNICAL_STATE.INDETERMINATE}
-                      </span>
                     </div>
                     {context.assets?.length ? context.assets.map(asset =>
                       <div key={asset.asset_id} className="cve-catalogue-asset-item">
@@ -297,15 +282,6 @@ export default function CveOverview() {
                 <small className="cve-catalogue-secondary">
                   {CVE_APPLICABILITY_SOURCE[row.applicability_source] ||
                     CVE_APPLICABILITY_SOURCE.NONE}
-                </small>
-              </td>
-              <td>
-                <span className="cve-technical-tag" data-result={row.technical_result}>
-                  {CVE_TECHNICAL_STATE[row.technical_result] ||
-                    CVE_TECHNICAL_STATE.INDETERMINATE}
-                </span>
-                <small className="cve-catalogue-secondary">
-                  Calculado con CPE, instalación y versión vigentes
                 </small>
               </td>
               <td><Link className="button-secondary"
@@ -361,9 +337,10 @@ export default function CveOverview() {
       </p>}
     </section>
     <p className="cve-overview-disclaimer">
-      Un CVE encontrado por CPE es un hallazgo candidato: no significa que afecte
-      automáticamente al hardware. Abre «Ver» para revisar sus condiciones NVD
-      y las evidencias del inventario. Las decisiones siempre requieren verificación.
+      Una búsqueda por CPE identifica CVE candidatos. El sistema solo confirma
+      automáticamente «Aplica» cuando comprueba las condiciones NVD con evidencia
+      vigente; los demás casos requieren revisión. Abre «Ver» para consultar el
+      motivo y el historial.
     </p>
 
     {dialogOpen && <div className="cpe-bulk-overlay">

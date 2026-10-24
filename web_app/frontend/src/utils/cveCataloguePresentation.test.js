@@ -10,6 +10,7 @@ import {
   cveHardwareSelectionValid, isCveDiscoveryActive,
   preferredCveHardwareId, selectedCveHardwareId, cveReviewProgress,
   groupCveEvidence, cveHumanReviewMessage,
+  nvdCriterionIdentityBadge, cveAuditJustification,
 } from "./cveCataloguePresentation.js";
 
 test("severity and run state never claim that a candidate CVE applies", () => {
@@ -140,9 +141,37 @@ test("one human verdict does not imply mandatory reviews of 96 configurations", 
 
 
 test("applicability names the origin without inventing analyst decisions", () => {
-  assert.equal(CVE_APPLICABILITY_SOURCE.SYSTEM, "Automático · VISOR OT");
+  assert.equal(CVE_APPLICABILITY_SOURCE.SYSTEM, "Automático");
   assert.equal(CVE_APPLICABILITY_SOURCE.ANALYST, "Validado por analista");
   assert.equal(CVE_APPLICABILITY_SOURCE.NONE, "Pendiente de validación");
   assert.equal(CVE_EVALUATION_STATE.APPLIES, "Aplica");
   assert.equal(CVE_EVALUATION_STATE.PENDING_REVIEW, "Por validar");
+});
+
+
+test("firmware identity is valid regardless of the separately evaluated NVD version", () => {
+  const criterion = {
+    part: "o", technical_identity: "MATCHED",
+    technical_matched_cpe: "cpe:2.3:o:siemens:simatic_s7-1200_cpu_1215c_firmware:4.5.2:*:*:*:*:*:*:*",
+    technical_result: "EXCLUDED",
+  };
+  assert.deepEqual(nvdCriterionIdentityBadge(criterion),
+    { label: "Identidad válida", state: "SATISFIED" });
+  assert.deepEqual(nvdCriterionIdentityBadge({
+    ...criterion, technical_result: "COMPATIBLE",
+  }), { label: "Identidad válida", state: "SATISFIED" });
+  assert.deepEqual(nvdCriterionIdentityBadge({
+    ...criterion, technical_identity: "UNKNOWN", technical_matched_cpe: null,
+  }), { label: "Identidad por verificar", state: "UNVERIFIED" });
+  assert.deepEqual(nvdCriterionIdentityBadge({
+    part: "h", technical_identity: "MATCHED",
+    technical_matched_cpe: "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*",
+  }), { label: "CPE confirmado", state: "SATISFIED" });
+});
+
+test("automatic history reads El sistema without changing a persisted justification", () => {
+  const old = "VISOR OT confirmó automáticamente la correspondencia de la configuración NVD 9.";
+  assert.equal(cveAuditJustification(old, "SYSTEM"),
+    "El sistema confirmó automáticamente la correspondencia de la configuración NVD 9.");
+  assert.equal(cveAuditJustification(old, "ANALYST"), old);
 });

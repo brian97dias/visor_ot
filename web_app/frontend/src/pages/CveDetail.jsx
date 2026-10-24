@@ -10,6 +10,7 @@ import {
   CVE_SEVERITY, CVE_TECHNICAL_STATE, CVE_EVALUATION_STATE,
   CVE_APPLICABILITY_SOURCE,
   selectedCveHardwareId, groupCveEvidence,
+  nvdCriterionIdentityBadge, cveAuditJustification,
 } from "../utils/cveCataloguePresentation";
 import {
   localizedTimestamp, contextualCveActionOptions, versionConstraintsText,
@@ -25,6 +26,7 @@ const PLAIN = { h: "Hardware", o: "Firmware / sistema operativo", a: "Software" 
 function Criterion({ item, depth = 0 }) {
   if (item.kind === "CRITERION") {
     const isSoftware = ["a", "o"].includes(item.part);
+    const identityBadge = nvdCriterionIdentityBadge(item);
     return <article className="cve-nvd-condition cve-general-criterion">
       <div className="cve-nvd-condition-heading">
         <div className="cve-nvd-condition-tags">
@@ -34,11 +36,9 @@ function Criterion({ item, depth = 0 }) {
           )}>{item.vulnerable ? "Componente vulnerable" : "Condición de plataforma"}</span>
         </div>
         <span className="cve-condition-state"
-          data-state={item.state || "UNVERIFIED"}>
-          {isSoftware
-            ? (["COMPATIBLE", "EXCLUDED"].includes(item.technical_result)
-              ? "Identidad contrastada" : "Identidad por verificar")
-            : item.state === "SATISFIED" ? "CPE confirmado" : "Sin verificar"}
+          data-state={identityBadge.state}
+          title="La identidad del producto se comprueba por CPE; el rango de versión NVD se evalúa por separado.">
+          {identityBadge.label}
         </span>
       </div>
       <p className="cve-nvd-product">{String(item.criteria || "").split(":")
@@ -171,7 +171,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         "Revisión de evidencia adicional · Configuración " + config.position}</h3>
       <span className="cve-status-label" data-status={status}>
         {STATE[status] || status}
-        {last?.source === "SYSTEM" && " · VISOR OT"}</span>
+        {last?.source === "SYSTEM" && " · Automático"}</span>
     </div>
     <p>La correspondencia se evalúa contra la configuración NVD {config.position}
       y el hardware #{context.hardware_asset_id}. El historial registra
@@ -237,12 +237,13 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         {config.history.map(item => <li key={item.id}>
           <strong>{STATE[item.status] || item.status}</strong>
           <span className="cve-muted"> · {item.source === "SYSTEM"
-            ? "Automático · VISOR OT" : "Analista"}</span>
+            ? "Automático" : "Analista"}</span>
           {item.stale && <p className="cve-history-warning">
             Registro histórico: evidencia no vigente.</p>}
-          <p>{item.decided_by || "Usuario no disponible"} ·
+          <p>{item.source === "SYSTEM" ? "El sistema" :
+            (item.decided_by || "Usuario no disponible")} ·
             {localizedTimestamp(item.decided_at)}</p>
-          <p>{item.justification}</p>
+          <p>{cveAuditJustification(item.justification, item.source)}</p>
         </li>)}
       </ol> : <p className="cve-muted">No hay decisiones registradas.</p>}
     </details>
