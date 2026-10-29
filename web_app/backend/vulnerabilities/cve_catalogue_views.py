@@ -83,11 +83,36 @@ def _asset_counts(cves):
 
 
 def _catalogue_applicability(analyst_status, related_assets):
-    proof = next((item["automatic_evidence"] for item in related_assets
-                  if item.get("automatic_evidence")), None)
+    """Aggregate per-hardware evidence, not merely the first positive.
+
+    A global catalogue CVE is NOT_APPLICABLE only if every linked hardware
+    has independently proved all NVD alternatives excluded. An indeterminate
+    hardware remains pending; one positive outranks negatives. Manual
+    decisions still follow resolve_applicability's precedence.
+    """
+    positive = next((row.get("automatic_evidence") for row in related_assets
+                     if row.get("automatic_evidence")), None)
+    negatives = (
+        [row for row in related_assets
+         if row.get("technical_result") == "EXCLUDED"
+         and row.get("automatic_negative_evidence") is not None]
+        if related_assets else []
+    )
+    all_excluded = len(negatives) == len(related_assets) and bool(related_assets)
+    technical = (
+        "COMPATIBLE" if positive else
+        "EXCLUDED" if all_excluded else "INDETERMINATE"
+    )
+    negative_proof = (
+        {"hardware": [{
+            "hardware_id": row["hardware_id"],
+            "evidence": row["automatic_negative_evidence"],
+        } for row in negatives]}
+        if all_excluded else None
+    )
     return resolve_applicability(
-        "COMPATIBLE" if proof else "INDETERMINATE",
-        analyst_status, automatic_evidence=proof,
+        technical, analyst_status, automatic_evidence=positive,
+        automatic_negative=negative_proof,
     )
 
 
