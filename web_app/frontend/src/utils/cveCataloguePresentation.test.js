@@ -10,6 +10,7 @@ import {
   cveHardwareSelectionValid, isCveDiscoveryActive,
   preferredCveHardwareId, selectedCveHardwareId, cveReviewProgress,
   groupCveEvidence, selectCveOperationalGroups, cveHumanReviewMessage,
+  cveApplicabilityExplanation, cveConfigurationHighlights,
   relevantNvdChildren, displayNvdGroupBranches, nvdAlternativeGroupLabel,
   currentCveSoftwareLink, currentCveEvaluatedSoftware,
   allowedCveDecisionTransitions, isSavedCveLinkSelection,
@@ -17,6 +18,62 @@ import {
   displayCveApplicability, CVE_CATALOGUE_FILTER_STATES,
   nvdCriterionIdentityBadge, cveAuditJustification,
 } from "./cveCataloguePresentation.js";
+
+test("compact applicability text distinguishes technical and human conclusions", () => {
+  const summary = (status, source, counts) => cveApplicabilityExplanation({
+    applicability: {status, source},
+    technical_configuration_counts: counts,
+  });
+  assert.match(summary("APPLIES", "SYSTEM"), /CPE/);
+  assert.match(summary("NOT_APPLICABLE", "SYSTEM"), /descartadas/);
+  assert.match(summary("NOT_APPLICABLE", "ANALYST"), /analista/);
+  assert.match(summary("APPLIES_CONDITIONAL", "ANALYST"), /correspondencia parcial/);
+  assert.match(summary("IN_REVIEW", "NONE"), /reabierta/);
+  assert.match(summary("STALE", "NONE"), /inventario cambió/);
+  assert.match(summary("PENDING_REVIEW", "NONE", {
+    EXCLUDED: 19, INDETERMINATE: 29,
+  }), /19 configuración\(es\).*29 alternativa\(s\)/);
+  assert.match(summary("PENDING_REVIEW", "NONE", {
+    EXCLUDED: 0, INDETERMINATE: 2,
+  }), /no existe evidencia suficiente/);
+});
+
+test("compact evidence labels only represent demonstrated CPE and version facts", () => {
+  const config = {
+    technical_result: "EXCLUDED",
+    tree: {
+      kind: "GROUP", operator: "AND", children: [
+        {kind: "CRITERION", part: "h", technical_identity: "MATCHED"},
+        {kind: "CRITERION", part: "o", technical_identity: "MATCHED"},
+      ],
+    },
+    evaluated_software: [{
+      software_installation_id: 5,
+      reason: "FIRMWARE_OR_SOFTWARE_VERSION_EXCLUDED",
+    }],
+  };
+  const original = JSON.stringify(config);
+  assert.deepEqual(cveConfigurationHighlights(config), [
+    {label: "CPE hardware confirmado", kind: "verified"},
+    {label: "CPE software identificado", kind: "verified"},
+    {label: "Versión fuera de rango", kind: "excluded"},
+  ]);
+  assert.equal(JSON.stringify(config), original, "presentational grouping is read-only");
+  const pending = {
+    technical_result: "INDETERMINATE",
+    tree: {kind: "GROUP", children: [
+      {kind: "CRITERION", part: "o", technical_identity: "UNKNOWN"},
+    ]},
+  };
+  assert.deepEqual(cveConfigurationHighlights(pending), [
+    {label: "Evidencia pendiente", kind: "pending"},
+  ]);
+  assert.deepEqual(cveConfigurationHighlights(null), []);
+  assert.deepEqual(cveConfigurationHighlights({
+    technical_result: "EXCLUDED",
+    tree: {kind: "GROUP", children: []},
+  }), []);
+});
 
 test("severity and run state never claim that a candidate CVE applies", () => {
   assert.equal(CVE_SEVERITY.HIGH, "Alta");
