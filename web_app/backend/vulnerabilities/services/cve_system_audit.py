@@ -13,7 +13,9 @@ from .cve_applicability import (
     verified_negative_configurations,
 )
 from .cve_configuration_evaluator import evaluate_configurations
-from .cve_general_assessment import _context, _digest, VERSION_KEYS
+from .cve_general_assessment import (
+    _context, _digest, VERSION_KEYS, _software_snapshot,
+)
 
 VERSION_WORDING = {
     "versionStartIncluding": "desde (incluido)",
@@ -59,7 +61,9 @@ def _automatic_justification(proof, configuration):
     )
 
 
-def _negative_justification(proof):
+def _negative_justification(proof, installed=None):
+    names = {row["installation_id"]: row["software_name"]
+             for row in (installed or [])}
     lines = []
     for condition in proof["excluded_by"]:
         if condition["reason"] == "FIRMWARE_OR_SOFTWARE_VERSION_EXCLUDED":
@@ -70,10 +74,12 @@ def _negative_justification(proof):
             )
             if not limits:
                 limits = "versión exacta exigida por el CPE NVD"
+            installation_id = condition["software_installation_id"]
+            software = names.get(installation_id)
+            label = (f"{software} (software #{condition['software_asset_id']})"
+                     if software else f"Software #{condition['software_asset_id']}")
             lines.append(
-                f"Software instalado #{condition['software_asset_id']}, "
-                f"instalación #{condition['software_installation_id']}, "
-                f"versión {version}; criterio {condition['criterion']}; "
+                f"{label}, versión {version}; criterio {condition['criterion']}; "
                 f"restricción {limits}; {condition['explanation']}"
             )
         else:
@@ -143,6 +149,8 @@ def ensure_system_cve_assessment(cve_id, hardware_id):
                     evaluated.append({
                         "software_installation_id": installation["installation_id"],
                         "software_asset_id": installation["software_asset_id"],
+                        "software_name": installation["software_name"],
+                        "software_type": installation["software_type"],
                         "installed_version": condition["installed_version"],
                         "criterion": condition["criterion"],
                         "confirmed_cpe": condition["confirmed_cpe"],
@@ -158,8 +166,12 @@ def ensure_system_cve_assessment(cve_id, hardware_id):
                 criteria_evidence={
                     "origin": "SYSTEM", "negative_evidence": negative,
                     "evaluated_software": evaluated,
+                    "software_snapshot": [
+                        _software_snapshot(by_installation[item["software_installation_id"]])
+                        for item in evaluated
+                    ],
                 },
-                justification=_negative_justification(negative),
+                justification=_negative_justification(negative, installed),
                 decided_by=None,
             )
             if first is None:
@@ -191,7 +203,13 @@ def ensure_system_cve_assessment(cve_id, hardware_id):
         inventory_fingerprint=inventory_fp,
         software_installation_id=installation_id,
         status=AssetCveAssessment.Status.APPLIES,
-        criteria_evidence={"origin": "SYSTEM", "automatic_evidence": proof},
+        criteria_evidence={
+            "origin": "SYSTEM", "automatic_evidence": proof,
+            "software_snapshot": [
+                _software_snapshot(row) for row in installed
+                if row["installation_id"] == installation_id
+            ],
+        },
         justification=_automatic_justification(proof, configuration),
         decided_by=None,
     )
