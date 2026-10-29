@@ -92,9 +92,16 @@ def _catalogue_applicability(analyst_status, related_assets):
     """
     # Audit lifecycle and CVE applicability are distinct. Preserve STALE
     # explicitly instead of disguising outdated conclusions as PENDING_REVIEW.
-    if analyst_status == "STALE":
-        return {"status": "STALE", "source": "NONE"}
     scoped = [row.get("scoped_applicability") for row in related_assets]
+    # A current hardware-scoped human conclusion supersedes an older legacy
+    # stale review; otherwise the existing STALE filter remains authoritative.
+    if analyst_status == "STALE" and not any(
+        isinstance(row, dict) and row.get("source") == "ANALYST"
+        and row.get("status") in ("APPLIES", "APPLIES_CONDITIONAL",
+                                  "NOT_APPLICABLE")
+        for row in scoped
+    ):
+        return {"status": "STALE", "source": "NONE"}
     if scoped and all(isinstance(row, dict) for row in scoped):
         statuses = [row.get("status") for row in scoped]
         if "APPLIES" in statuses:
