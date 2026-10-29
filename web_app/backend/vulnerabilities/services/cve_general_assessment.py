@@ -997,8 +997,17 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         _manual_firmware_installations(annotated, installed)
         if matched_hardware else []
     )
+    software_proven = any(
+        leaf.get("vulnerable") is True
+        and leaf.get("part") in ("a", "o")
+        and leaf.get("technical_identity") == "MATCHED"
+        and leaf.get("technical_result") == "COMPATIBLE"
+        and leaf.get("technical_software_installation_id") ==
+            software_installation_id
+        for leaf in _flatten_technical_tree(annotated)
+    )
     manual_confirm = (
-        verdict == "CONFIRMED" and not supported
+        verdict == "CONFIRMED" and not software_proven
         and software_installation_id in manual_firmware_ids
         and not _has_nvd_negation(config)
     )
