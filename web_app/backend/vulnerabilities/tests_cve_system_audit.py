@@ -220,6 +220,135 @@ class SystemCveAuditTests(TestCase):
         self.assertEqual(AssetCveAssessment.objects.order_by("-pk").first()
                          .criteria_evidence["software_snapshot"][0], sw)
 
+    def test_hardware_wide_analyst_negative_unlinks_every_automatic_finding(self):
+        """A human no-match is for Hardware-CVE, not just NVD branch #9."""
+        self.client.post(self.sync_url, {}, format="json")
+        before = self.client.get(self.url).data
+        payload = {
+            "configuration_index": 8, "verdict": "NOT_MATCH",
+            "software_installation_id": self.installation.pk,
+            "inventory_declared_complete": False,
+            "technical_override_acknowledged": True,
+            "justification": "Revisado.",
+            "inventory_fingerprint": before["inventory_fingerprint"],
+            "configuration_fingerprint": before["configurations"][8]["fingerprint"],
+        }
+        saved = self.client.post(self.url, payload, format="json")
+        self.assertEqual(saved.status_code, 201, saved.data)
+        record = AssetCveAssessment.objects.order_by("-pk").first()
+        self.assertEqual(record.status, "NOT_APPLICABLE")
+        self.assertIsNone(record.software_installation_id)
+        self.assertEqual(record.criteria_evidence["decision_scope"], "HARDWARE_CVE")
+        self.assertFalse(record.criteria_evidence["inventory_declared_complete"])
+        after = self.client.get(self.url).data
+        self.assertEqual(after["technical_result"], "COMPATIBLE")
+        self.assertEqual(after["applicability"]["status"], "NOT_APPLICABLE")
+        self.assertEqual(after["applicability"]["source"], "ANALYST")
+        self.assertEqual(after["hardware_cve_decision"]["id"], record.pk)
+        listing = self.client.get("/api/vulnerabilities/cves/", {
+            "q": self.cve.cve_id,
+        }).data
+        item = next(row for row in listing["results"]
+                    if row["cve_id"] == self.cve.cve_id)
+        self.assertEqual(item["applicability_status"], "NOT_APPLICABLE")
+        related_software = [
+            row for group in item["related_assets"]
+            for row in group["assets"] if row["asset_type"] == "SOFTWARE"
+        ]
+        self.assertEqual(related_software, [])
+        again = self.client.post(self.sync_url, {}, format="json")
+        self.assertFalse(again.data["created"])
+        self.assertEqual(self.client.get(self.url).data["applicability"]
+                         ["status"], "NOT_APPLICABLE")
+
+    def test_hardware_wide_partial_removes_confirmed_firmware_association(self):
+        self.client.post(self.sync_url, {}, format="json")
+        context = self.client.get(self.url).data
+        payload = {
+            "configuration_index": 8,
+            "configuration_fingerprint": context["configurations"][8]["fingerprint"],
+            "inventory_fingerprint": context["inventory_fingerprint"],
+            "verdict": "CONDITIONAL",
+            # Even if a frontend submits an installation ID, the conditional
+            # state may not persist it as an active vulnerability association.
+            "software_installation_id": self.installation.pk,
+            "technical_override_acknowledged": True,
+            "justification": "Por revisar",
+        }
+        response = self.client.post(self.url, payload, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["assessment"]["status"], "APPLIES_CONDITIONAL")
+        record = AssetCveAssessment.objects.order_by("-pk").first()
+        self.assertIsNone(record.software_installation_id)
+        self.assertEqual(record.criteria_evidence["decision_scope"], "HARDWARE_CVE")
+        after = self.client.get(self.url).data
+        self.assertEqual(after["applicability"]["status"], "APPLIES_CONDITIONAL")
+        self.assertEqual(after["applicability"]["source"], "ANALYST")
+        listing = self.client.get("/api/vulnerabilities/cves/", {
+            "q": self.cve.cve_id,
+        }).data
+        item = next(row for row in listing["results"]
+                    if row["cve_id"] == self.cve.cve_id)
+        self.assertEqual(item["applicability_status"], "APPLIES_CONDITIONAL")
+        self.assertFalse(any(
+            row["asset_type"] == "SOFTWARE"
+            for group in item["related_assets"] for row in group["assets"]
+        ))
+
+    def test_manual_firmware_version_na_can_be_confirmed_by_matching_cpu_model(self):
+        """No confirmed software CPE: the analyst may use documented evidence."""
+        self.cve.configurations = [
+            fixtures.nvd_platform_firmware(
+                fixtures.CPU_HW,
+                "cpe:2.3:o:siemens:simatic_s7-1200_cpu_1215c_firmware:-:*:*:*:*:*:*:*"
+            )
+        ]
+        self.cve.save(update_fields=["configurations"])
+        context = self.client.get(self.url).data
+        config = context["relevant_configurations"][0]
+        self.assertEqual(config["hardware_scope"], "MATCHED")
+        self.assertEqual(config["manual_firmware_installation_ids"],
+                         [self.installation.pk])
+        self.assertTrue(config["manual_confirm_supported"])
+        self.assertEqual(context["applicability"]["status"], "PENDING_REVIEW")
+        payload = {
+            "configuration_index": 0,
+            "configuration_fingerprint": config["fingerprint"],
+            "inventory_fingerprint": context["inventory_fingerprint"],
+            "verdict": "CONFIRMED",
+            "software_installation_id": self.installation.pk,
+            "justification": "SSA",
+        }
+        saved = self.client.post(self.url, payload, format="json")
+        self.assertEqual(saved.status_code, 201, saved.data)
+        self.assertEqual(saved.data["assessment"]["status"], "APPLIES")
+        self.assertEqual(self.client.get(self.url).data["applicability"]["source"],
+                         "ANALYST")
+        record = AssetCveAssessment.objects.get()
+        manual = record.criteria_evidence["manual_identity_evidence"]
+        self.assertFalse(manual["software_cpe_confirmed"])
+        self.assertFalse(manual["version_verified_from_nvd"])
+        self.assertEqual(record.software_installation_id, self.installation.pk)
+
+    def test_manual_firmware_confirmation_rejects_different_cpu_product(self):
+        self.cve.configurations = [fixtures.nvd_platform_firmware(
+            fixtures.CPU_HW,
+            "cpe:2.3:o:siemens:simatic_s7-1500_cpu_1515_firmware:*:*:*:*:*:*:*:*",
+        )]
+        self.cve.save(update_fields=["configurations"])
+        context = self.client.get(self.url).data
+        config = context["relevant_configurations"][0]
+        self.assertEqual(config["manual_firmware_installation_ids"], [])
+        bad = self.client.post(self.url, {
+            "configuration_index": 0, "verdict": "CONFIRMED",
+            "software_installation_id": self.installation.pk,
+            "inventory_fingerprint": context["inventory_fingerprint"],
+            "configuration_fingerprint": config["fingerprint"],
+            "justification": "Producto diferente",
+        }, format="json")
+        self.assertEqual(bad.status_code, 400, bad.data)
+        self.assertIn("verdict", bad.data)
+
     def test_repeating_automatic_sync_never_duplicates(self):
         first = self.client.post(self.sync_url, {}, format="json")
         second = self.client.post(self.sync_url, {}, format="json")
