@@ -45,13 +45,16 @@ function vulnerableSoftwareCriterion(tree) {
 
 function Criterion({ item, depth = 0, selection, onSelect, installId,
   installedSoftware = [], canDecide = false, savedLink = null,
-  pendingUnlink = false, softwareAlternatives = [], onChooseSoftware }) {
+  pendingUnlink = false, softwareAlternatives = [], onChooseSoftware,
+  allowedInstallationIds = null }) {
   if (item.kind === "CRITERION") {
     const isSoftware = ["a", "o"].includes(item.part);
     const identityBadge = nvdCriterionIdentityBadge(item);
     const currentInstallations = (installedSoftware || []).filter(sw =>
-      item.part === "a" ? sw.software_type === "APPLICATION" :
-        ["FIRMWARE", "OS"].includes(sw.software_type)
+      (item.part === "a" ? sw.software_type === "APPLICATION" :
+        ["FIRMWARE", "OS"].includes(sw.software_type)) &&
+      (allowedInstallationIds === null ||
+        allowedInstallationIds.includes(Number(sw.installation_id)))
     );
     const criterionKey = item.match_criteria_id || item.criteria;
     return <div className="cve-nvd-condition cve-general-criterion">
@@ -194,6 +197,7 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
       onSelect={onSelect} installId={installId}
       installedSoftware={installedSoftware} canDecide={canDecide}
       savedLink={savedLink} pendingUnlink={pendingUnlink}
+      allowedInstallationIds={allowedInstallationIds}
       softwareAlternatives={i === firstSoftware ? softwareAlternatives : []}
       onChooseSoftware={onChooseSoftware}/>;
 
@@ -289,8 +293,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const eligible = (config.candidate_installation_ids || []).includes(Number(linkedInstallationId)) ||
     (config.manual_firmware_installation_ids || []).includes(Number(linkedInstallationId)) ||
     config.review_installation_id === Number(linkedInstallationId);
-  const confirmationVerdict = linkedInstallationId &&
-    (eligible || (technicalConflict && config.technical_override_supported))
+  const confirmationVerdict = linkedInstallationId && eligible
     ? "CONFIRMED" : "CONDITIONAL";
   const positiveConflict = config.technical_result === "COMPATIBLE" &&
     ["NOT_MATCH", "CONDITIONAL"].includes(choice);
@@ -377,12 +380,19 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   }
   const allowedChanges = allowedCveDecisionTransitions(currentStatus);
   const showChoices = canDecide && (!lockedDecision || reviewOpen);
+  const allowedInstallationIds = [
+    ...(config.candidate_installation_ids || []),
+    ...(config.manual_firmware_installation_ids || []),
+    ...(config.review_installation_id ? [config.review_installation_id] : []),
+    ...(savedLink?.installationId ? [Number(savedLink.installationId)] : []),
+  ];
   return <>
     <Criterion item={config.tree} selection={selectedCriterion}
       onSelect={updateAssociation}
       installId={installId} installedSoftware={context.installed_software || []}
       canDecide={canDecide && (canConfirm || canReopen || canDiscard)}
       savedLink={savedLink} pendingUnlink={pendingUnlink}
+      allowedInstallationIds={allowedInstallationIds}
       softwareAlternatives={softwareAlternatives}
       onChooseSoftware={onChooseSoftware}/>
     <div className="panel cve-nvd-decision">
