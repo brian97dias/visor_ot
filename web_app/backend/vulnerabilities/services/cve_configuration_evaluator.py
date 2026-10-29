@@ -132,7 +132,9 @@ def _exclusive_siemens_hardware(product):
     # enough to prove device exclusivity on its own.
     if name.startswith("simatic_s7-1500_cpu_"):
         model = name.removeprefix("simatic_s7-1500_cpu_")
-        if model and model.replace("_", "").isalnum():
+        # Explicit numeric CPU model only. Names such as cpu_family,
+        # cpu_series or other generic products must remain UNKNOWN.
+        if re.fullmatch(r"1[5-9][0-9]{2}(?:[-_][a-z0-9]+)*", model):
             return ("s7-1500-cpu", model)
     return None
 
