@@ -362,25 +362,24 @@ class SystemCveAuditTests(TestCase):
         self.assertEqual(listing.data["count"], 1)
         self.assertEqual(listing.data["results"][0]["applicability_source"], "SYSTEM")
 
-    def test_manual_confirmation_is_not_duplicated_or_overridden(self):
+    def test_automatic_positive_cannot_be_manually_reconfirmed(self):
         before = self.client.get(self.url).data
         payload = {
             "configuration_index": 8, "verdict": "CONFIRMED",
             "software_installation_id": self.installation.pk,
-            "inventory_declared_complete": False,
-            "justification": "Confirmación humana independiente de la detección automática.",
+            "justification": "Reconfirmación sin cambio.",
             "inventory_fingerprint": before["inventory_fingerprint"],
             "configuration_fingerprint": before["configurations"][8]["fingerprint"],
         }
         posted = self.client.post(self.url, payload, format="json")
-        self.assertEqual(posted.status_code, 201, posted.data)
+        self.assertEqual(posted.status_code, 400, posted.data)
+        self.assertIn("verdict", posted.data)
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
         sync = self.client.post(self.sync_url, {}, format="json")
         self.assertEqual(sync.status_code, 200, sync.data)
-        self.assertFalse(sync.data["created"])
+        self.assertTrue(sync.data["created"])
         self.assertEqual(AssetCveAssessment.objects.count(), 1)
-        self.assertEqual(sync.data["context"]["applicability"]["source"], "ANALYST")
-        self.assertEqual(sync.data["context"]["configurations"][8]["latest_assessment"]["source"],
-                         "ANALYST")
+        self.assertEqual(sync.data["context"]["applicability"]["source"], "SYSTEM")
 
     def test_manual_reopen_on_current_evidence_is_respected(self):
         self.client.post(self.sync_url, {}, format="json")
