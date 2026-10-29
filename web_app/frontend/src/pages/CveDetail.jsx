@@ -305,7 +305,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     setReviewOpen(true);
     setDraftLink(null);
     setChoice("");
-    setJustification(""); setComplete(false); setOverrideAcknowledged(false); setPlatformAcknowledged(false); setError("");
+    setJustification(""); setComplete(false); setError("");
   }
   function updateAssociation(criterionKey, installationId) {
     if (savedLink && !criterionKey && !installationId) {
