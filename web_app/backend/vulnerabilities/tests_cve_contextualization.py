@@ -240,6 +240,127 @@ class AutomaticNegativeProofTests(SimpleTestCase):
         self.assertIsNone(automatic_negative_evidence(result))
 
 
+class SiemensHardwareIdentityExclusions(SimpleTestCase):
+    """Only confirmed, concrete and mutually exclusive Siemens CPU identities."""
+
+    @staticmethod
+    def hardware(product):
+        return f"cpe:2.3:h:siemens:{product}:-:*:*:*:*:*:*:*"
+
+    def test_distinct_s7_1200_cpu_models_exclude_platform_configuration(self):
+        other = self.hardware("simatic_s7-1200_cpu_1214c")
+        scenario = nvd_platform_firmware(
+            other, CPU_FW_CRITERION, before="4.5.2", after="4.5.0"
+        )
+        evaluated = evaluate_configurations([scenario], [CPU_HW], installed())
+        self.assertEqual(evaluated["result"], EXCLUDED)
+        hardware = evaluated["configurations"][0]["children"][1]["children"][0]
+        self.assertEqual(hardware["identity"], "DISTINCT")
+        self.assertEqual(hardware["result"], EXCLUDED)
+        proof = automatic_negative_evidence(evaluated)
+        self.assertIsNotNone(proof)
+        self.assertEqual(
+            proof["configurations"][0]["excluded_by"][0]["reason"],
+            "FIRMWARE_OR_SOFTWARE_VERSION_EXCLUDED",
+        )
+        # Even with unknown firmware, the *platform* itself excludes the AND.
+        no_firmware = evaluate_configurations([scenario], [CPU_HW], [])
+        self.assertEqual(no_firmware["result"], EXCLUDED)
+        self.assertEqual(
+            automatic_negative_evidence(no_firmware)["configurations"][0]
+            ["excluded_by"][0]["reason"], "DISTINCT_PLATFORM_VERIFIED"
+        )
+
+    def test_explicit_other_cpu_family_is_distinct(self):
+        s7_1500 = self.hardware("simatic_s7-1500_cpu_1515")
+        scenario = nvd_platform_firmware(s7_1500, STEP7)
+        assessed = evaluate_configurations([scenario], [CPU_HW], installed())
+        self.assertEqual(assessed["result"], EXCLUDED)
+        evidence = automatic_negative_evidence(assessed)
+        self.assertEqual(evidence["configurations"][0]["excluded_by"][0]
+                         ["reason"], "DISTINCT_PLATFORM_VERIFIED")
+
+    def test_same_cpu_remains_matched_not_distinct(self):
+        evaluated = evaluate_configurations(
+            [nvd_platform_firmware(CPU_HW, STEP7)], [CPU_HW], installed()
+        )
+        self.assertEqual(evaluated["result"], INDETERMINATE)
+        self.assertIsNone(automatic_negative_evidence(evaluated))
+
+    def test_family_names_and_unknown_variants_never_prove_distinctness(self):
+        family = self.hardware("simatic_s7-1200")
+        unspecified = self.hardware("simatic_s7-1200_cpu_1213c")
+        unrelated_vendor = "cpe:2.3:h:other:simatic_s7-1200_cpu_1214c:-:*:*:*:*:*:*:*"
+        for candidate in (family, unspecified, unrelated_vendor):
+            with self.subTest(candidate=candidate):
+                result = evaluate_configurations(
+                    [nvd_platform_firmware(candidate, STEP7)],
+                    [CPU_HW], installed()
+                )
+                self.assertEqual(result["result"], INDETERMINATE)
+                self.assertIsNone(automatic_negative_evidence(result))
+
+    def test_distinct_vulnerable_hardware_is_still_analyst_only(self):
+        scenario = {"operator": "OR", "cpeMatch": [
+            {"criteria": self.hardware("simatic_s7-1200_cpu_1214c"),
+             "vulnerable": True},
+        ]}
+        evaluated = evaluate_configurations([scenario], [CPU_HW], installed())
+        self.assertEqual(evaluated["result"], EXCLUDED)
+        self.assertIsNone(automatic_negative_evidence(evaluated))
+
+
+class CveCatalogueNegativeAggregationTests(SimpleTestCase):
+    """A catalogue CVE spans every related hardware, not just the first."""
+
+    @staticmethod
+    def row(hardware_id, technical, *, positive=None, negative=None):
+        return {
+            "hardware_id": hardware_id,
+            "technical_result": technical,
+            "automatic_evidence": positive,
+            "automatic_negative_evidence": negative,
+        }
+
+    def test_one_verified_exclusion_is_visible_in_status_and_counts(self):
+        from vulnerabilities.cve_catalogue_views import _catalogue_applicability
+        actual = _catalogue_applicability("PENDING_REVIEW", [
+            self.row(10, EXCLUDED, negative={"configurations": [{"configuration_index": 0}]}),
+        ])
+        self.assertEqual(actual["status"], "NOT_APPLICABLE")
+        self.assertEqual(actual["source"], "SYSTEM")
+
+    def test_other_unknown_hardware_prevents_global_not_aplicable(self):
+        from vulnerabilities.cve_catalogue_views import _catalogue_applicability
+        actual = _catalogue_applicability("PENDING_REVIEW", [
+            self.row(10, EXCLUDED, negative={"configurations": [{"configuration_index": 0}]}),
+            self.row(11, INDETERMINATE),
+        ])
+        self.assertEqual(actual["status"], "PENDING_REVIEW")
+
+    def test_all_hardware_need_verified_exclusion(self):
+        from vulnerabilities.cve_catalogue_views import _catalogue_applicability
+        a = self.row(10, EXCLUDED, negative={"configurations": [1]})
+        b = self.row(11, EXCLUDED, negative={"configurations": [2]})
+        self.assertEqual(_catalogue_applicability("PENDING_REVIEW", [a,b])["status"],
+                         "NOT_APPLICABLE")
+        self.assertEqual(_catalogue_applicability("PENDING_REVIEW", [
+            a, self.row(11, EXCLUDED)
+        ])["status"], "PENDING_REVIEW")
+
+    def test_positive_on_any_hardware_wins_over_other_negative(self):
+        from vulnerabilities.cve_catalogue_views import _catalogue_applicability
+        a = self.row(10, EXCLUDED, negative={"configurations": [1]})
+        b = self.row(11, COMPATIBLE, positive={"configuration_index": 0})
+        self.assertEqual(_catalogue_applicability("PENDING_REVIEW", [a,b])["status"],
+                         "APPLIES")
+
+    def test_catalogue_without_linked_hardware_cannot_autodiscard(self):
+        from vulnerabilities.cve_catalogue_views import _catalogue_applicability
+        self.assertEqual(_catalogue_applicability("PENDING_REVIEW", [])["status"],
+                         "PENDING_REVIEW")
+
+
 class SiemensContextualHttpTests(TestCase):
     def setUp(self):
         fixture = CveDiscoveryPlanTests(
