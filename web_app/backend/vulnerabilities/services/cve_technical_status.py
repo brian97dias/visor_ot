@@ -104,7 +104,7 @@ def _current_linked_installation(cve, hardware, inventory_fp):
                 row.configuration_fingerprint !=
                 _digest(cve.configurations[row.configuration_index])):
             # Never resurrect an earlier link after a newer stale assessment.
-            return None, None
+            return None, None, None
         if (isinstance(row.criteria_evidence, dict)
                 and row.criteria_evidence.get("origin") == "SYSTEM"):
             continue
