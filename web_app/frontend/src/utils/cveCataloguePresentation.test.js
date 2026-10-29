@@ -11,7 +11,8 @@ import {
   preferredCveHardwareId, selectedCveHardwareId, cveReviewProgress,
   groupCveEvidence, selectCveOperationalGroups, cveHumanReviewMessage,
   cveApplicabilityExplanation, cveConfigurationHighlights,
-  relevantNvdChildren, displayNvdGroupBranches, nvdAlternativeGroupLabel,
+  relevantNvdChildren, displayNvdGroupBranches, operationalNvdGroupBranches,
+  nvdAlternativeGroupLabel,
   currentCveSoftwareLink, currentCveEvaluatedSoftware,
   allowedCveDecisionTransitions, isSavedCveLinkSelection,
   cveHistoryDecisionDescription, cveHistorySoftwareLabel,
@@ -19,6 +20,34 @@ import {
   displayCveApplicability, CVE_CATALOGUE_FILTER_STATES,
   nvdCriterionIdentityBadge, cveAuditJustification,
 } from "./cveCataloguePresentation.js";
+
+test("nested NVD hardware OR shows only confirmed CPU without dropping software OR", () => {
+  const hardware = model => ({
+    kind: "CRITERION", part: "h",
+    criteria: "cpe:2.3:h:siemens:simatic_s7-1200_cpu_" + model + ":-:*:*:*:*:*:*:*",
+    technical_identity: model === "1215c" ? "MATCHED" : "DISTINCT",
+    technical_matched_cpe: model === "1215c" ? "cpe:verified:cpu1215c" : null,
+  });
+  const seventy = ["1212c", "1214fc", "1215c", ...Array.from(
+    {length: 67}, (_, i) => "other" + i,
+  )].map(hardware);
+  const direct = {kind:"GROUP",operator:"OR",children:seventy};
+  assert.deepEqual(
+    operationalNvdGroupBranches(direct).shown.map(row => row.criteria),
+    [seventy[2].criteria],
+  );
+  assert.equal(operationalNvdGroupBranches(direct).hidden.length, 0);
+  const wrapped = {kind:"GROUP",operator:"OR",children:seventy.map(row => ({
+    kind:"GROUP", operator:"OR", children:[row],
+  }))};
+  assert.equal(operationalNvdGroupBranches(wrapped).shown.length, 1);
+  assert.deepEqual(operationalNvdGroupBranches(wrapped).hidden, []);
+  const software = {kind:"GROUP",operator:"OR",children:[
+    {kind:"CRITERION",part:"a",criteria:"cpe:simatic_step7"},
+    {kind:"CRITERION",part:"a",criteria:"cpe:step7_v17"},
+  ]};
+  assert.equal(operationalNvdGroupBranches(software).hidden.length, 1);
+});
 
 test("compact applicability text distinguishes technical and human conclusions", () => {
   const summary = (status, source, counts) => cveApplicabilityExplanation({
