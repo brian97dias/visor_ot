@@ -28,9 +28,21 @@ const PLAIN = { h: "Hardware", o: "Firmware / sistema operativo", a: "Software" 
 
 
 /** Human-facing evidence stays visible; the raw NVD proof is opt-in. */
+function vulnerableSoftwareCriterion(tree) {
+  if (tree?.kind === "CRITERION" &&
+      tree.vulnerable === true && ["o", "a"].includes(tree.part)) {
+    return tree;
+  }
+  for (const child of tree?.children || []) {
+    const found = vulnerableSoftwareCriterion(child);
+    if (found) return found;
+  }
+  return null;
+}
+
 function Criterion({ item, depth = 0, selection, onSelect, installId,
   installedSoftware = [], canDecide = false, savedLink = null,
-  pendingUnlink = false }) {
+  pendingUnlink = false, softwareAlternatives = [], onChooseSoftware }) {
   if (item.kind === "CRITERION") {
     const isSoftware = ["a", "o"].includes(item.part);
     const identityBadge = nvdCriterionIdentityBadge(item);
@@ -136,6 +148,31 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
           </div>
         </div>
       </details>
+      {softwareAlternatives.length > 0 && <details className="cve-nvd-other-evidence cve-nvd-software-choices">
+        <summary>Otras alternativas de software para este hardware
+          {" (" + softwareAlternatives.length + ")"}</summary>
+        <div className="cve-nvd-other-scroll" role="region" tabIndex={0}
+          aria-label="Alternativas NVD del software para el hardware confirmado">
+          <p className="cve-muted">Selecciona el criterio de software que deseas evaluar.
+            Esta selección no confirma una vulnerabilidad ni genera historial
+            hasta que se registre una decisión.</p>
+          {softwareAlternatives.map(config => {
+            const software = vulnerableSoftwareCriterion(config.tree);
+            const product = String(software?.criteria || "").split(":")
+              .slice(3, 5).join(" · ").replaceAll("_", " ");
+            return <button key={config.index} type="button"
+              className="cve-nvd-software-choice"
+              onClick={() => onChooseSoftware(config.index)}>
+              <span><strong>{product || "Software NVD por verificar"}</strong>
+                <small>Configuración NVD {config.position}</small></span>
+              <span className="cve-technical-tag"
+                data-result={config.technical_result}>
+                {CVE_TECHNICAL_STATE[config.technical_result] ||
+                  CVE_TECHNICAL_STATE.INDETERMINATE}</span>
+            </button>;
+          })}
+        </div>
+      </details>}
     </div>;
   }
   if (item.kind !== "GROUP") {
@@ -144,12 +181,15 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
 
   const isOr = item.operator === "OR";
   const { shown, hidden } = displayNvdGroupBranches(item, selection);
+  const firstSoftware = shown.findIndex(child => Boolean(vulnerableSoftwareCriterion(child)));
   const renderChild = (child, i) =>
     <Criterion key={(child.match_criteria_id || child.criteria || "grupo") + ":" + i}
       item={child} depth={depth + 1} selection={selection}
       onSelect={onSelect} installId={installId}
       installedSoftware={installedSoftware} canDecide={canDecide}
-      savedLink={savedLink} pendingUnlink={pendingUnlink}/>;
+      savedLink={savedLink} pendingUnlink={pendingUnlink}
+      softwareAlternatives={i === firstSoftware ? softwareAlternatives : []}
+      onChooseSoftware={onChooseSoftware}/>;
 
   return <div className={"cve-general-group " + (depth ? "cve-general-nested" : "")}>
     {!isOr && shown.length > 1 && depth === 0 &&
@@ -177,7 +217,8 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
   </div>;
 }
 
-function ConfigurationReview({ context, config, onSaved, canDecide, highlight = false }) {
+function ConfigurationReview({ context, config, onSaved, canDecide, highlight = false,
+  softwareAlternatives = [], onChooseSoftware }) {
   const last = config.latest_assessment;
   const status = last?.effective_status || "PENDING_REVIEW";
   const savedLink = currentCveSoftwareLink(config, context);
@@ -311,7 +352,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       onSelect={updateAssociation}
       installId={installId} installedSoftware={context.installed_software || []}
       canDecide={canDecide && (canConfirm || canReopen || canDiscard)}
-      savedLink={savedLink} pendingUnlink={pendingUnlink}/>
+      savedLink={savedLink} pendingUnlink={pendingUnlink}
+      softwareAlternatives={softwareAlternatives}
+      onChooseSoftware={onChooseSoftware}/>
     <div className="panel cve-nvd-decision">
     <div className="cve-nvd-joint-title">
       <h3>{highlight ? "Correspondencia · Configuración NVD " + config.position :
@@ -516,6 +559,11 @@ export default function CveDetail() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [revision, setRevision] = useState(0);
+  const [chosenConfiguration, setChosenConfiguration] = useState(null);
+
+  useEffect(() => {
+    setChosenConfiguration(null);
+  }, [cveId, selectedHardware]);
 
   useEffect(() => {
     let active = true;
@@ -570,8 +618,17 @@ export default function CveDetail() {
   }, [cveId, selectedHardware, isLegacy, revision, canDecide]);
 
   const configs = context?.relevant_configurations || [];
+  const hardwareSoftware = context?.hardware_software_configurations || [];
+  const reviewPool = hardwareSoftware.length ? hardwareSoftware : configs;
   const candidates = context?.candidate_configurations || [];
-  const { primary, others } = groupCveEvidence(configs);
+  const unverifiedPlatforms = context?.unverified_platform_configurations || [];
+  const { primary: suggestedPrimary } = groupCveEvidence(reviewPool);
+  const primary = reviewPool.find(row => row.index === chosenConfiguration) ||
+    suggestedPrimary;
+  const others = reviewPool.filter(row => row.index !== primary?.index);
+  const independentConfigs = hardwareSoftware.length
+    ? configs.filter(row => !hardwareSoftware.some(hw => hw.index === row.index))
+    : [];
   const source = cve?.description_source;
   const nvdUrl = "https://nvd.nist.gov/vuln/detail/" + encodeURIComponent(cveId);
   if (loading) return <section className="page" aria-busy="true">
@@ -695,36 +752,26 @@ export default function CveDetail() {
                   CVE_TECHNICAL_STATE.INDETERMINATE}
               </span>
             </div>
-            <ConfigurationReview context={context} config={primary}
+            <ConfigurationReview key={primary.index}
+              context={context} config={primary}
               highlight canDecide={canDecide}
+              softwareAlternatives={hardwareSoftware.length ? others : []}
+              onChooseSoftware={setChosenConfiguration}
               onSaved={() => {
                 setNotice("Evaluación guardada. El historial se actualizó.");
                 setRevision(n => n + 1);
               }}/>
           </section>
-          {others.length > 0 && <details className="cve-nvd-other-evidence">
-            <summary>Otras configuraciones pertinentes ({others.length})</summary>
-            <p className="cve-muted">
-              Las alternativas no son CVE adicionales. Se conserva
-              su evidencia y su historial para consulta y auditoría.
-            </p>
-            {others.map(config => <section
-              className="cve-nvd-conditions cve-general-relevant-configuration"
-              key={context.hardware_asset_id + ":" + config.index}>
-              <div className="cve-technical-summary-heading">
-                <h2>Configuración NVD {config.position}</h2>
-                <span className="cve-technical-tag" data-result={config.technical_result}>
-                  {CVE_TECHNICAL_STATE[config.technical_result] ||
-                    CVE_TECHNICAL_STATE.INDETERMINATE}
-                </span>
-              </div>
-              <ConfigurationReview context={context} config={config}
-                canDecide={canDecide}
-                onSaved={() => {
-                  setNotice("Evaluación guardada. El historial se actualizó.");
-                  setRevision(n => n + 1);
-                }}/>
-            </section>)}
+          {independentConfigs.length > 0 && <details className="cve-nvd-other-evidence">
+            <summary>Otras condiciones sin hardware confirmado
+              {" (" + independentConfigs.length + ")"}</summary>
+            <p className="cve-muted">Estos criterios no constituyen alternativas
+              de firmware para la CPU seleccionada. Se conservan por contener
+              software potencialmente pertinente o decisiones previas.</p>
+            {independentConfigs.map(config => <CandidateReview
+              key={context.hardware_asset_id + ":independent:" + config.index}
+              context={context} config={config} canDecide={canDecide}
+              onSaved={() => setRevision(n => n + 1)}/>)}
           </details>}
         </> : <div className="panel cve-technical-summary">
           {context.technical_result === "EXCLUDED"
@@ -738,7 +785,7 @@ export default function CveDetail() {
         
         </div>}
         {candidates.length > 0 && <details className="cve-nvd-other-evidence cve-pending-alternatives">
-          <summary>Otras configuraciones pendientes de verificar ({candidates.length})</summary>
+          <summary>Software sin condición de hardware explícita ({candidates.length})</summary>
           <p className="cve-muted">
             Estas configuraciones permanecen indeterminadas. No encontrar un
             software en el inventario no prueba su ausencia ni permite excluir
@@ -755,6 +802,22 @@ export default function CveDetail() {
               }}/>)}
           </div>
         </details>}
+        {unverifiedPlatforms.length > 0 &&
+          <details className="cve-nvd-other-evidence cve-platform-uncertainties">
+            <summary>Plataformas NVD sin identidad comprobada
+              {" (" + unverifiedPlatforms.length + ")"}</summary>
+            <p className="cve-muted">Estas configuraciones no son alternativas
+              de software para el hardware confirmado. No se descartan sin
+              evidencia; su estado técnico permanece pendiente.</p>
+            <div className="cve-nvd-other-scroll" role="region" tabIndex={0}>
+              {unverifiedPlatforms.map(config => <details key={config.index}
+                className="cve-pending-configuration">
+                <summary>Configuración NVD {config.position}</summary>
+                <Criterion item={config.tree}
+                  installedSoftware={context.installed_software || []}/>
+              </details>)}
+            </div>
+          </details>}
       </>}
   </section>;
 }
