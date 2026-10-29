@@ -563,7 +563,7 @@ export default function CveDetail() {
 
   useEffect(() => {
     setChosenConfiguration(null);
-  }, [cveId, selectedHardware]);
+  }, [cveId, selectedHardware, context?.inventory_fingerprint]);
 
   useEffect(() => {
     let active = true;
