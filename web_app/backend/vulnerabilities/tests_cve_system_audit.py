@@ -38,6 +38,94 @@ class SystemCveAuditTests(TestCase):
         self.assertEqual(context["applicability"]["source"], "SYSTEM")
         self.assertFalse(context["automatic_audit_pending"])
 
+    def test_system_negative_records_evaluated_firmware_without_vulnerability_link(self):
+        self._set_negative_siemens_range()
+        before = self.client.get(self.url).data
+        self.assertEqual(before["configurations"][0]["evaluated_software"][0]
+                         ["software_installation_id"], self.installation.pk)
+        self.client.post(self.sync_url, {}, format="json")
+        record = AssetCveAssessment.objects.get(configuration_index=0)
+        self.assertEqual(record.status, "NOT_APPLICABLE")
+        self.assertIsNone(record.software_installation_id)
+        evidence = record.criteria_evidence["evaluated_software"][0]
+        self.assertEqual(evidence["software_installation_id"], self.installation.pk)
+        current = self.client.get(self.url).data["configurations"][0]
+        self.assertEqual(current["latest_assessment"]["evaluated_software"][0]
+                         ["software_installation_id"], self.installation.pk)
+
+    def test_automatic_negative_cannot_be_reconfirmed_but_can_be_reversed(self):
+        self._set_negative_siemens_range()
+        self.client.post(self.sync_url, {}, format="json")
+        context = self.client.get(self.url).data
+        data = {
+            "configuration_index": 0,
+            "configuration_fingerprint": context["configurations"][0]["fingerprint"],
+            "inventory_fingerprint": context["inventory_fingerprint"],
+            "verdict": "NOT_MATCH",
+            "software_installation_id": self.installation.pk,
+            "inventory_declared_complete": True,
+            "justification": "La versión 4.5.2 está fuera del intervalo vulnerable confirmado.",
+        }
+        refused = self.client.post(self.url, data, format="json")
+        self.assertEqual(refused.status_code, 400, refused.data)
+        self.assertEqual(AssetCveAssessment.objects.count(), 2)
+        data.update({
+            "verdict": "CONDITIONAL", "software_installation_id": None,
+            "technical_override_acknowledged": True,
+            "justification": (
+                "Se mantiene una correspondencia parcial por investigación "
+                "humana de evidencia adicional fuera de los criterios NVD."
+            ),
+        })
+        changed = self.client.post(self.url, data, format="json")
+        self.assertEqual(changed.status_code, 201, changed.data)
+        self.assertEqual(changed.data["assessment"]["status"], "APPLIES_CONDITIONAL")
+        self.assertEqual(AssetCveAssessment.objects.count(), 3)
+        latest = self.client.get(self.url).data
+        self.assertEqual(latest["technical_result"], "EXCLUDED")
+        self.assertEqual(latest["applicability"]["status"], "APPLIES_CONDITIONAL")
+        self.assertEqual(latest["applicability"]["source"], "ANALYST")
+        self.assertEqual(latest["configurations"][0]["latest_assessment"]
+                         ["software_installation_id"], None)
+        duplicate = self.client.post(self.url, data, format="json")
+        self.assertEqual(duplicate.status_code, 400, duplicate.data)
+        self.assertEqual(AssetCveAssessment.objects.count(), 3)
+
+    def test_automatic_positive_may_be_negated_only_with_explicit_acknowledgement(self):
+        self.client.post(self.sync_url, {}, format="json")
+        context = self.client.get(self.url).data
+        base = {
+            "configuration_index": 8,
+            "configuration_fingerprint": context["configurations"][8]["fingerprint"],
+            "inventory_fingerprint": context["inventory_fingerprint"],
+            "software_installation_id": self.installation.pk,
+            "justification": (
+                "El analista ha verificado las condiciones del entorno y cuenta "
+                "con evidencia externa para descartar esta configuración."
+            ),
+        }
+        reaffirm = self.client.post(self.url, {**base, "verdict": "CONFIRMED"}, format="json")
+        self.assertEqual(reaffirm.status_code, 400, reaffirm.data)
+        unack = self.client.post(self.url, {
+            **base, "verdict": "NOT_MATCH", "inventory_declared_complete": True,
+        }, format="json")
+        self.assertEqual(unack.status_code, 400, unack.data)
+        updated = self.client.post(self.url, {
+            **base, "verdict": "NOT_MATCH", "inventory_declared_complete": True,
+            "technical_override_acknowledged": True,
+        }, format="json")
+        self.assertEqual(updated.status_code, 201, updated.data)
+        self.assertEqual(updated.data["assessment"]["status"], "NOT_APPLICABLE")
+        record = AssetCveAssessment.objects.order_by("-decided_at", "-pk").first()
+        self.assertIsNone(record.software_installation_id)
+        self.assertTrue(record.criteria_evidence["technical_override"]["acknowledged"])
+        self.assertEqual(record.criteria_evidence["evaluated_software"][0]
+                         ["software_installation_id"], self.installation.pk)
+        # The verifiable NVD result was not mutated by the human decision.
+        after = self.client.get(self.url).data
+        self.assertEqual(after["technical_result"], "COMPATIBLE")
+        self.assertEqual(after["configurations"][8]["latest_assessment"]["source"], "ANALYST")
+
     def test_repeating_automatic_sync_never_duplicates(self):
         first = self.client.post(self.sync_url, {}, format="json")
         second = self.client.post(self.sync_url, {}, format="json")
