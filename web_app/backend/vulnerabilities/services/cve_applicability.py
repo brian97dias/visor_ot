@@ -183,8 +183,34 @@ def automatic_negative_evidence(technical):
 
 
 
+def latest_hardware_cve_decision(cve, hardware, inventory_fingerprint):
+    """Latest explicit asset-wide human verdict; never reinterpret a NVD leaf.
+
+    A decision becomes stale if the inventory OR any NVD configuration
+    changes. Per-configuration legacy audits remain readable independently.
+    """
+    from vulnerabilities.models import AssetCveAssessment
+    from .cve_general_assessment import _digest
+    for row in AssetCveAssessment.objects.filter(
+        hardware=hardware, cve=cve,
+    ).order_by("-decided_at", "-pk"):
+        evidence = row.criteria_evidence if isinstance(row.criteria_evidence, dict) else {}
+        if evidence.get("decision_scope") != "HARDWARE_CVE":
+            continue
+        valid = (
+            row.inventory_fingerprint == inventory_fingerprint
+            and evidence.get("nvd_fingerprint") == _digest(cve.configurations)
+            and 0 <= row.configuration_index < len(cve.configurations)
+            and row.configuration_fingerprint ==
+                _digest(cve.configurations[row.configuration_index])
+        )
+        return row, valid
+    return None, False
+
+
 def project_configuration_decisions(technical, human_statuses, *,
-                                    stale_human_evidence=False):
+                                    stale_human_evidence=False,
+                                    global_decision=None):
     """Project ONE hardware/CVE from its NVD alternatives and current audits.
 
     NVD compatibility remains independent from human audit history. The latest
@@ -193,6 +219,13 @@ def project_configuration_decisions(technical, human_statuses, *,
     remains a SYSTEM finding even after UNKNOWN. Stale human evidence is
     neither a current positive nor a safe negative.
     """
+    # The analyst's latest asset-level decision governs the operative
+    # Hardware-CVE relationship, not just one of the NVD OR alternatives.
+    # Raw technical evidence is deliberately returned unchanged elsewhere.
+    if global_decision in (APPLIES, APPLIES_CONDITIONAL, NOT_APPLICABLE):
+        return {"status": global_decision, "source": ANALYST}
+    if global_decision == PENDING_REVIEW:
+        return {"status": "IN_REVIEW", "source": NONE}
     configs = technical.get("configurations", [])
     excluded = {
         item["configuration_index"]
