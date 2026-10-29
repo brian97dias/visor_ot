@@ -3585,3 +3585,28 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   margin: 8px 0 0; color: #cbd5e1;
   font-size: .79rem;
 }
+
+
+/* Other NVD configurations are read-only candidates until evidence is proven. */
+.cve-pending-alternatives { margin-top: 18px; }
+.cve-pending-alternatives > .cve-muted { margin: 10px 0 14px; }
+.cve-pending-configuration {
+  border: 1px solid #334155;
+  border-radius: 8px;
+  margin: 8px 0;
+  background: #101a2c;
+  overflow: hidden;
+}
+.cve-pending-configuration > summary {
+  padding: 12px 14px;
+  cursor: pointer;
+  font-size: .83rem;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+.cve-pending-configuration > summary:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: -2px;
+}
+.cve-pending-configuration-content { padding: 0 13px 13px; }
+.cve-pending-configuration-content > .cve-muted { margin: 12px 0 0; }
