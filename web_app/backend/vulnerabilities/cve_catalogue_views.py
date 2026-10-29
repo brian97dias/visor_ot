@@ -206,7 +206,13 @@ def _cve_brief(cve, hardware_count=0, evaluation_status="PENDING_REVIEW",
         "hardware_count": hardware_count,
         "selected_assets_count": hardware_count,
         "related_assets": related_assets if related_assets is not None else [],
-        "evaluation_status": evaluation_status,
+        # A current analyst Hardware-CVE verdict governs BOTH badges in the
+        # catalogue. Per-configuration legacy progress must not contradict it.
+        "evaluation_status": (
+            applicability["status"]
+            if (applicability or {}).get("source") == "ANALYST"
+            else evaluation_status
+        ),
         "applicability_status": (applicability or {}).get(
             "status", "PENDING_REVIEW"
         ),
