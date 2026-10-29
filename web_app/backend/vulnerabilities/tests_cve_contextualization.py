@@ -454,7 +454,7 @@ class SiemensContextualHttpTests(TestCase):
         )
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
-    def test_plcsim_only_exclusion_does_not_mutate_human_decisions(self):
+    def test_plcsim_only_exclusion_is_read_only_system_no_aplica(self):
         self.cve.configurations = [
             nvd_platform_firmware(PLCSIM_HW, PLCSIM_FW, before="5.0")
         ]
@@ -462,9 +462,11 @@ class SiemensContextualHttpTests(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["technical_result"], EXCLUDED)
-        self.assertEqual(response.data["applicability"]["status"], "PENDING_REVIEW")
-        self.assertEqual(response.data["applicability"]["source"], "NONE")
+        self.assertEqual(response.data["applicability"]["status"], "NOT_APPLICABLE")
+        self.assertEqual(response.data["applicability"]["source"], "SYSTEM")
         self.assertEqual(response.data["relevant_configurations"], [])
+        self.assertTrue(response.data["automatic_audit_pending"])
+        # GET evaluates NVD but does not append audit records.
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
     def test_status_filters_include_system_positive_before_pagination(self):
@@ -506,16 +508,17 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(response["applicability"]["source"], "NONE")
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
-    def test_out_of_range_firmware_does_not_become_auto_no_aplica(self):
+    def test_out_of_range_firmware_with_all_alternatives_excluded_is_auto_no_aplica(self):
         self.sw.version = "4.6.0"
         self.sw.save(update_fields=["version"])
         self.fixture.confirm(self.sw.asset, CPU_FW.replace(":4.5.2:", ":4.6.0:"))
         response = self.client.get(self.url).data
         self.assertEqual(response["technical_result"], EXCLUDED)
-        self.assertEqual(response["applicability"]["status"], "PENDING_REVIEW")
-        self.assertEqual(response["applicability"]["source"], "NONE")
+        self.assertEqual(response["applicability"]["status"], "NOT_APPLICABLE")
+        self.assertEqual(response["applicability"]["source"], "SYSTEM")
+        self.assertTrue(response["automatic_audit_pending"])
         catalog = self.client.get("/api/vulnerabilities/cves/", {
             "status": "NOT_APPLICABLE", "technical": "ALL"
         })
-        self.assertEqual(catalog.data["count"], 0)
+        self.assertEqual(catalog.data["count"], 1)
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
