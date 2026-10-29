@@ -39,10 +39,11 @@ class GeneralCveAssessmentView(APIView):
 
 
 class AutomaticCveAssessmentView(APIView):
-    """Idempotent audit synchronization for already persisted NVD results.
+    """Idempotent audit synchronization for verified NVD conclusions.
 
-    GET of the assessment context remains read-only; explicit POST creates a
-    SYSTEM-origin record only for a verified positive, never an auto-negative.
+    GET of the assessment context remains read-only; explicit POST records
+    proven positive correspondences or scoped, evidence-backed exclusions.
+    A negative configuration does not dismiss other CVE alternatives.
     """
     permission_classes = [IsAuthenticated, CpeSearchPermission]
 
