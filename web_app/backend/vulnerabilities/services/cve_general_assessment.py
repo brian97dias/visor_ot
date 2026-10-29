@@ -933,11 +933,6 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
     conflicting_negative = verdict == "NOT_MATCH" and result == "COMPATIBLE"
     conflicting_positive = verdict == "CONDITIONAL" and result == "COMPATIBLE"
     override = excluded and verdict in ("CONFIRMED", "CONDITIONAL")
-    if (override or conflicting_negative or conflicting_positive) and not technical_override_acknowledged:
-        raise ValidationError({"technical_override_acknowledged":
-            "Esta decisión es distinta del resultado técnico NVD. "
-            "Registra una revisión justificada para continuar."})
-
     from .cve_applicability import latest_hardware_cve_decision
     global_previous, global_current = latest_hardware_cve_decision(
         cve, hw, actual_fp,
@@ -956,6 +951,26 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
     global_scope = matched_hardware and (
         verdict != "UNKNOWN" or global_previous is not None
     )
+    from .cve_applicability import (
+        automatic_positive_evidence, automatic_negative_evidence,
+    )
+    whole = evaluate_configurations(
+        cve.configurations, list(confirmed), installed,
+    ) if global_scope else None
+    global_positive_conflict = bool(
+        global_scope and verdict in ("NOT_MATCH", "CONDITIONAL")
+        and automatic_positive_evidence(whole) is not None
+    )
+    global_negative_conflict = bool(
+        global_scope and verdict in ("CONFIRMED", "CONDITIONAL")
+        and automatic_negative_evidence(whole) is not None
+    )
+    if (override or conflicting_negative or conflicting_positive
+            or global_positive_conflict or global_negative_conflict
+            ) and not technical_override_acknowledged:
+        raise ValidationError({"technical_override_acknowledged":
+            "Esta decisión es distinta del resultado técnico NVD. "
+            "Registra una revisión justificada para continuar."})
     # Reaffirming a CURRENT persisted decision changes no state and may not
     # manufacture a new analyst audit record. A mere UI opening never writes.
     latest = AssetCveAssessment.objects.filter(
@@ -971,12 +986,6 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         raise ValidationError({"verdict":
             "La evaluación Hardware–CVE ya tiene este estado vigente."})
     if global_scope and global_previous is None:
-        from .cve_applicability import (
-            automatic_positive_evidence, automatic_negative_evidence,
-        )
-        whole = evaluate_configurations(
-            cve.configurations, list(confirmed), installed,
-        )
         auto_state = (
             "APPLIES" if automatic_positive_evidence(whole) is not None
             else "NOT_APPLICABLE"
@@ -1073,7 +1082,8 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
             platform_unverified_acknowledged=platform_unverified_acknowledged,
             allow_verified_positive=conflicting_positive,
         )
-        if override or conflicting_positive:
+        if (override or conflicting_positive
+                or global_positive_conflict or global_negative_conflict):
             conditional_evidence["technical_override"] = {
                 "acknowledged": True,
                 "technical_result": result,
@@ -1108,7 +1118,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
             "technical_override": {
                 "acknowledged": True, "technical_result": result,
                 "analyst_verdict": verdict,
-            } if conflicting_negative else None,
+            } if (conflicting_negative or global_positive_conflict) else None,
         }
     if conditional_evidence is None:
         conditional_evidence = {
