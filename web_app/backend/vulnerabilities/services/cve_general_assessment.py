@@ -365,42 +365,44 @@ def _hardware_scope(criterion_nodes):
 
 
 def _manual_firmware_installations(annotated_tree, installed):
-    """Conservative candidates for human confirmation without a software CPE.
+    """Strict product correspondence, even when the firmware CPE is absent.
 
-    The vulnerable firmware CPE must describe the SAME verified hardware
-    model, and the installed firmware name must contain that explicit model.
-    Merely sharing FIRMWARE type or a version is not sufficient.
+    Require a MATCHED hardware CPE, the SAME vendor and firmware product
+    in the NVD branch, and a current installed firmware whose declared
+    manufacturer/product identify that exact hardware model. Similar types
+    or version numbers are never sufficient. Product normalization only
+    ignores punctuation/casing (CPE separators vs inventory spelling).
     """
     import re
 
+    def normalized(value):
+        return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
+
     leaves = list(_flatten_technical_tree(annotated_tree))
-    hardware_products = []
-    firmware_products = []
+    confirmed_hardware = set()
+    vulnerable_firmware = set()
     for item in leaves:
         fields = str(item.get("criteria") or "").split(":")
-        if len(fields) != 13 or fields[3] != "siemens":
+        if len(fields) != 13:
             continue
+        vendor, product = normalized(fields[3]), normalized(fields[4])
         if (item.get("part") == "h"
                 and item.get("technical_identity") == "MATCHED"):
-            hardware_products.append(fields[4])
-        if (item.get("part") == "o" and item.get("vulnerable") is True
-                and fields[4].endswith("_firmware")):
-            firmware_products.append(fields[4])
-    models = set()
-    for product in hardware_products:
-        if product + "_firmware" not in firmware_products:
-            continue
-        match = re.search(r"_cpu_([0-9]{4}[a-z]{0,3})$", product)
-        if match:
-            models.add(match.group(1))
-    return sorted({
-        row["installation_id"]
-        for row in installed
-        if row["software_type"] == "FIRMWARE"
-        and any(model in re.sub(r"[^a-z0-9]", "", row["software_name"].lower())
-                for model in models)
-    })
+            confirmed_hardware.add((vendor, product))
+        if (item.get("part") == "o" and item.get("vulnerable") is True):
+            vulnerable_firmware.add((vendor, product))
 
+    eligible_products = {
+        (vendor, product + "firmware")
+        for vendor, product in confirmed_hardware
+        if (vendor, product + "firmware") in vulnerable_firmware
+    }
+    return sorted({
+        row["installation_id"] for row in installed
+        if row["software_type"] == "FIRMWARE"
+        and (normalized(row.get("manufacturer")),
+             normalized(row.get("product"))) in eligible_products
+    })
 
 def _relevance_summary(configs, technical_trees):
     """Select only evidence pertaining to this inventory context.
