@@ -152,6 +152,9 @@ class SystemCveAuditTests(TestCase):
             ["installed_version"], "4.5.2"
         )
         self.assertIn("antes de (excluido) 4.5.2", decisions[0].justification)
+        history = first.data["context"]["configurations"][0]["history"][0]
+        self.assertEqual(history["source"], "SYSTEM")
+        self.assertEqual(history["negative_evidence"]["excluded_by"][0]["installed_version"], "4.5.2")
         second = self.client.post(self.sync_url, {}, format="json")
         self.assertFalse(second.data["created"])
         self.assertEqual(AssetCveAssessment.objects.count(), 2)
