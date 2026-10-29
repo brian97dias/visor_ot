@@ -12,6 +12,7 @@ from vulnerabilities.models import AssetCveAssessment, AssetCveFinding
 from .cve_general_assessment import _context, _digest
 from .cve_applicability import (
     automatic_positive_evidence, automatic_negative_evidence,
+    verified_negative_configurations,
 )
 from .cve_configuration_evaluator import (
     COMPATIBLE, EXCLUDED, INDETERMINATE, evaluate_configurations,
@@ -114,6 +115,61 @@ def _current_linked_installation(cve, hardware, inventory_fp):
     return None, None, None
 
 
+def _scoped_status_with_current_audits(cve, hardware, inventory_fp, analysed):
+    """Read-only per-hardware NVD alternatives plus latest CURRENT human edits.
+
+    Never convert a negative review of one configuration into a dismissal of
+    the entire CVE while any other configuration remains unknown.
+    """
+    newest = {}
+    for row in AssetCveAssessment.objects.filter(
+        hardware=hardware, cve=cve,
+    ).order_by("-decided_at", "-pk"):
+        newest.setdefault(row.configuration_index, row)
+    current = {}
+    for index, row in newest.items():
+        if (index < len(cve.configurations)
+                and row.inventory_fingerprint == inventory_fp
+                and row.configuration_fingerprint == _digest(cve.configurations[index])
+                and not (isinstance(row.criteria_evidence, dict)
+                    and row.criteria_evidence.get("origin") == "SYSTEM")):
+            current[index] = row.status
+    if not current:
+        positive = automatic_positive_evidence(analysed)
+        negative = automatic_negative_evidence(analysed)
+        if positive:
+            return {"status": "APPLIES", "source": "SYSTEM"}
+        if negative:
+            return {"status": "NOT_APPLICABLE", "source": "SYSTEM"}
+        return {"status": "PENDING_REVIEW", "source": "NONE"}
+    excluded = {row["configuration_index"]
+                for row in verified_negative_configurations(analysed)}
+    states = []
+    for index, alternative in enumerate(analysed["configurations"]):
+        if index in current:
+            states.append((current[index], "ANALYST"))
+        elif index in excluded:
+            states.append(("NOT_APPLICABLE", "SYSTEM"))
+        elif automatic_positive_evidence({
+            "result": alternative["result"], "configurations": [alternative],
+        }):
+            states.append(("APPLIES", "SYSTEM"))
+        else:
+            states.append(("PENDING_REVIEW", "NONE"))
+    if any(state == "APPLIES" for state, _ in states):
+        status = "APPLIES"
+    elif any(state == "APPLIES_CONDITIONAL" for state, _ in states):
+        status = "APPLIES_CONDITIONAL"
+    elif states and all(state == "NOT_APPLICABLE" for state, _ in states):
+        status = "NOT_APPLICABLE"
+    else:
+        status = "PENDING_REVIEW"
+    source = ("ANALYST" if any(state == status and who == "ANALYST"
+                             for state, who in states)
+              else "SYSTEM" if status != "PENDING_REVIEW" else "NONE")
+    return {"status": status, "source": source}
+
+
 def related_assets_for_cves(cves):
     """Concrete inventoried assets evidenced in each hardware/CVE context.
 
@@ -145,6 +201,9 @@ def related_assets_for_cves(cves):
                 )
                 proof = automatic_positive_evidence(analysed)
                 negative = automatic_negative_evidence(analysed)
+                scoped_status = _scoped_status_with_current_audits(
+                    cve, hardware, inventory_fp, analysed,
+                )
                 chosen_installation, chosen_configuration, human_status = _current_linked_installation(
                     cve, hardware, inventory_fp,
                 )
@@ -196,6 +255,7 @@ def related_assets_for_cves(cves):
                     "technical_result": analysed["result"],
                     "automatic_evidence": proof,
                     "automatic_negative_evidence": negative,
+                    "scoped_applicability": scoped_status,
                     "hardware_role": role,
                     "assets": unique,
                 })
@@ -207,6 +267,9 @@ def related_assets_for_cves(cves):
                     "technical_result": INDETERMINATE,
                     "automatic_evidence": None,
                     "automatic_negative_evidence": None,
+                    "scoped_applicability": {
+                        "status": "PENDING_REVIEW", "source": "NONE",
+                    },
                     "hardware_role": "HARDWARE_CONTEXT",
                     "assets": [],
                 })
