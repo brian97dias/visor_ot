@@ -251,6 +251,11 @@ def _serialize_assessment(item, inventory_fp, config_fp):
             if source == "SYSTEM" and item.status == "NOT_APPLICABLE"
             and isinstance(item.criteria_evidence, dict) else None
         ),
+        "technical_override": (
+            item.criteria_evidence.get("technical_override")
+            if source == "ANALYST"
+            and isinstance(item.criteria_evidence, dict) else None
+        ),
     }
 
 
