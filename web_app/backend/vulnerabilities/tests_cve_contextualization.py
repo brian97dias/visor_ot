@@ -291,7 +291,8 @@ class SiemensHardwareIdentityExclusions(SimpleTestCase):
         family = self.hardware("simatic_s7-1200")
         unspecified = self.hardware("simatic_s7-1200_cpu_1213c")
         unrelated_vendor = "cpe:2.3:h:other:simatic_s7-1200_cpu_1214c:-:*:*:*:*:*:*:*"
-        for candidate in (family, unspecified, unrelated_vendor):
+        generic_s7_1500 = self.hardware("simatic_s7-1500_cpu_family")
+        for candidate in (family, unspecified, unrelated_vendor, generic_s7_1500):
             with self.subTest(candidate=candidate):
                 result = evaluate_configurations(
                     [nvd_platform_firmware(candidate, STEP7)],
