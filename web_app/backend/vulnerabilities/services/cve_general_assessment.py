@@ -267,6 +267,31 @@ def _matching_criterion_count(technical_tree):
                for child in technical_tree.get("children", []))
 
 
+def _flatten_technical_tree(tree):
+    if tree.get("kind") == "CRITERION":
+        yield tree
+    for child in tree.get("children", []):
+        yield from _flatten_technical_tree(child)
+
+
+def _hardware_scope(criterion_nodes):
+    """UI scope for ONE physical hardware, never a replacement for NVD logic.
+
+    A missing platform condition is UNSCOPED, not incompatible. UNKNOWN
+    hardware identities require separate inspection; they are not software
+    candidates for a hardware that has already been confirmed.
+    """
+    hardware = [item for item in criterion_nodes if item.get("part") == "h"]
+    if not hardware:
+        return "UNSCOPED"
+    identities = {item.get("technical_identity") for item in hardware}
+    if "MATCHED" in identities:
+        return "MATCHED"
+    if identities == {"DISTINCT"}:
+        return "DISTINCT"
+    return "UNVERIFIED"
+
+
 def _relevance_summary(configs, technical_trees):
     """Select per-asset pertinent alternatives without discarding NVD history.
 
@@ -362,6 +387,7 @@ def general_assessment_context(cve_id, hardware_id):
                 yield from leaves(child)
 
         criteria = list(leaves(annotated_tree))
+        hardware_scope = _hardware_scope(criteria)
         hardware_matched = any(
             item.get("part") == "h"
             and item.get("technical_identity") == "MATCHED"
@@ -379,7 +405,7 @@ def general_assessment_context(cve_id, hardware_id):
         )
         manual_platform_review = (
             observation["result"] == "INDETERMINATE"
-            and not hardware_matched
+            and hardware_scope == "UNSCOPED"
             and bool(vulnerable_software_types)
             and software_type_present
         )
@@ -402,6 +428,7 @@ def general_assessment_context(cve_id, hardware_id):
             "index": index, "position": index + 1,
             "fingerprint": cfg_fp,
             "tree": annotated_tree,
+            "hardware_scope": hardware_scope,
             "conditional_supported": bool(conditional_supported),
             "manual_platform_review_required": bool(
                 conditional_supported and manual_platform_review
@@ -424,13 +451,33 @@ def general_assessment_context(cve_id, hardware_id):
         })
     pertinent = _relevance_summary(configs, technical["configurations"])
     pertinent_indexes = {row["index"] for row in pertinent}
-    # Unresolved alternatives are not technically excluded just because the
-    # primary view does not display them. Surface every unresolved alternative
-    # for inspection without silently attributing an NVD software CPE to an
-    # installation or permitting an unproved automatic verdict.
+    # Only configurations whose platform is actually matched by the confirmed
+    # hardware can offer firmware/software alternatives for THIS controller.
+    # A different CPU is never a firmware candidate based on its software TYPE.
+    hardware_software = [
+        row for row in pertinent
+        if row["hardware_scope"] == "MATCHED"
+        and any(
+            leaf.get("kind") == "CRITERION"
+            and leaf.get("vulnerable") is True
+            and leaf.get("part") in ("o", "a")
+            for leaf in _flatten_technical_tree(row["tree"])
+        )
+    ]
+    # Unscoped applications can remain relevant to an asset, but do not
+    # implicitly belong to the firmware of a particular controller.
     candidates = [
         row for row in configs
         if row["technical_result"] == "INDETERMINATE"
+        and row["hardware_scope"] == "UNSCOPED"
+        and row["index"] not in pertinent_indexes
+    ]
+    # Ambiguous hardware CPEs remain visible in an audit-only group. They
+    # cannot be offered for manual software association by model similarity.
+    unverified_platforms = [
+        row for row in configs
+        if row["technical_result"] == "INDETERMINATE"
+        and row["hardware_scope"] == "UNVERIFIED"
         and row["index"] not in pertinent_indexes
     ]
     analyst = summarize_hardware_cve_review(configs)
@@ -482,6 +529,8 @@ def general_assessment_context(cve_id, hardware_id):
         "configurations": configs,
         "relevant_configurations": pertinent,
         "candidate_configurations": candidates,
+        "hardware_software_configurations": hardware_software,
+        "unverified_platform_configurations": unverified_platforms,
         "unrelated_configuration_count": len(configs) - len(pertinent),
         "context_unit": "HARDWARE_CVE",
     }
