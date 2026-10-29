@@ -483,12 +483,17 @@ export function operationalNvdGroupBranches(node, selectedCriterion = "") {
   if (node?.operator !== "OR") return result;
   const children = node?.children || [];
   if (!children.length) return result;
-  const exclusivelyHardware = children.every(child =>
-    child?.kind === "CRITERION" && child.part === "h");
-  if (!exclusivelyHardware) return result;
-  const matched = children.filter(child =>
-    child.technical_identity === "MATCHED" &&
-    Boolean(child.technical_matched_cpe));
+  const leaves = branch => branch?.kind === "CRITERION"
+    ? [branch] : (branch?.children || []).flatMap(leaves);
+  const onlyHardware = children.every(branch => {
+    const criteria = leaves(branch);
+    return criteria.length > 0 && criteria.every(criterion =>
+      criterion.part === "h");
+  });
+  if (!onlyHardware) return result;
+  const matched = children.filter(branch => leaves(branch).some(criterion =>
+    criterion.technical_identity === "MATCHED" &&
+    Boolean(criterion.technical_matched_cpe)));
   return matched.length ? {shown: matched, hidden: []} : result;
 }
 
