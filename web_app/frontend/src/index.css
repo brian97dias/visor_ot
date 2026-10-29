@@ -3597,14 +3597,14 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   background: #101a2c;
   overflow: hidden;
 }
-.cve-pending-configuration > summary {
-  padding: 12px 14px;
-  cursor: pointer;
-  font-size: .83rem;
-  font-weight: 600;
-  color: #cbd5e1;
+.cve-pending-configuration-trigger {
+  display: flex; justify-content: space-between; align-items: center;
+  width: 100%; text-align: left; background: transparent; border: 0;
+  padding: 12px 14px; cursor: pointer; font: inherit;
+  font-size: .83rem; font-weight: 600; color: #cbd5e1;
 }
-.cve-pending-configuration > summary:focus-visible {
+.cve-pending-configuration-trigger:hover { background: #1a2a3f; }
+.cve-pending-configuration-trigger:focus-visible {
   outline: 2px solid #38bdf8;
   outline-offset: -2px;
 }
