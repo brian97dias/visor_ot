@@ -43,6 +43,79 @@ def nvd_platform_firmware(hardware, firmware, *, before=None, after=None):
     ]}
 
 
+def nvd_2021_37205_configurations():
+    """Reconstruct the 48 original NVD branches for regression testing.
+
+    Device CPE identifiers, ordering, version windows and the standalone
+    Software Controller branch are taken from the saved NVD 2.0 response.
+    The supplied data remains the source of truth, not a list of UI options.
+    """
+    products = [
+        "simatic_drive_controller_cpu_1504d_tf",
+        "simatic_drive_controller_cpu_1507d_tf",
+        "simatic_et_200sp_open_controller_cpu_1515sp_pc2",
+        "simatic_s7-plcsim_advanced",
+        "tim_1531_irc",
+        None,  # A software-only branch without a hardware CPE.
+        *["simatic_s7-1200_cpu_" + model for model in (
+            "1211c", "1212c", "1212fc", "1214fc",
+            "1214c", "1215fc", "1215c", "1217c",
+        )],
+        *["simatic_s7-1500_cpu_" + model for model in (
+            "1510sp-1", "1510sp", "1511-1", "1511c-1", "1511f-1",
+            "1511t-1", "1511tf-1", "1512c-1", "1512sp-1",
+            "1512spf-1", "1513-1", "1513f-1", "1513r-1",
+        )],
+        "simatic_s7-1500_cpu_cpu_1513prof-2",
+        "simatic_s7-1500_cpu_cpu_1513pro-2",
+        *["simatic_s7-1500_cpu_" + model for model in (
+            "1515-2", "1515f-2", "1515r-2", "1515t-2",
+            "1515tf-2", "1516pro_f", "1516pro-2",
+            "1516-3", "1516f-3", "1516t-3", "1516tf-3",
+            "1517-3", "1517f-3", "1517tf-3",
+            "1518-4", "1518f-4", "1518hf-4",
+            "1518t-4", "1518tf-4",
+        )],
+    ]
+    assert len(products) == 48
+    cases = []
+    for position, product in enumerate(products, start=1):
+        if product is None:
+            cases.append({"nodes": [{"operator": "OR", "cpeMatch": [{
+                "vulnerable": True,
+                "criteria": ("cpe:2.3:a:siemens:"
+                    "simatic_s7-1500_software_controller:*:*:*:*:*:*:*:*"),
+            }]}]})
+            continue
+        firmware = {"vulnerable": True, "criteria":
+            "cpe:2.3:o:siemens:" + product + "_firmware:*:*:*:*:*:*:*:*"}
+        if position in (1, 2):
+            firmware["versionEndExcluding"] = "2.9.4"
+        elif position == 4:
+            firmware["versionEndExcluding"] = "4.0"
+        elif position == 5:
+            firmware["versionStartIncluding"] = "2.2"
+        elif 7 <= position <= 14:
+            firmware["versionStartIncluding"] = "4.5.0"
+            firmware["versionEndExcluding"] = "4.5.2"
+        elif position >= 15:
+            firmware["versionStartIncluding"] = "2.9.2"
+            firmware["versionEndExcluding"] = "2.9.4"
+        alternatives = [firmware]
+        if position == 4:
+            alternatives.append({"vulnerable": True,
+                "criteria": firmware["criteria"]})
+        cases.append({"operator": "AND", "nodes": [
+            {"operator": "OR", "cpeMatch": alternatives},
+            {"operator": "OR", "cpeMatch": [{
+                "vulnerable": False,
+                "criteria": ("cpe:2.3:h:siemens:" +
+                    product + ":-:*:*:*:*:*:*:*"),
+            }]},
+        ]})
+    return cases
+
+
 def installed(version="4.5.2", *, confirmed=True):
     return [{
         "installation_id": 5, "software_asset_id": 25,
@@ -511,6 +584,33 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(criterion["technical_software_asset_id"], self.sw.pk)
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
+
+    def test_48_nvd_branches_are_excluded_for_confirmed_cpu_1215c_452(self):
+        self.cve.configurations = nvd_2021_37205_configurations()
+        self.cve.save(update_fields=["configurations"])
+        result = self.client.get(self.url)
+        self.assertEqual(result.status_code, 200, result.data)
+        data = result.data
+        self.assertEqual(len(data["configurations"]), 48)
+        self.assertEqual(data["technical_result"], EXCLUDED)
+        self.assertEqual(data["applicability"]["status"], "NOT_APPLICABLE")
+        self.assertEqual(data["applicability"]["source"], "SYSTEM")
+        self.assertEqual(data["technical_configuration_counts"], {
+            "COMPATIBLE": 0, "EXCLUDED": 48, "INDETERMINATE": 0,
+        })
+        self.assertEqual(
+            [row["position"] for row in data["hardware_software_configurations"]],
+            [13],
+        )
+        self.assertEqual(data["candidate_configurations"], [])
+        self.assertEqual(data["unverified_platform_configurations"], [])
+        self.assertEqual(data["configurations"][12]["hardware_scope"], "MATCHED")
+        self.assertEqual(data["configurations"][27]["hardware_scope"], "DISTINCT")
+        self.assertEqual(data["configurations"][28]["hardware_scope"], "DISTINCT")
+        self.assertEqual(data["configurations"][34]["hardware_scope"], "DISTINCT")
+        self.assertEqual(data["configurations"][35]["hardware_scope"], "DISTINCT")
+        self.assertEqual(data["configurations"][45]["hardware_scope"], "DISTINCT")
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
     def test_unverified_other_hardware_is_auditable_not_a_firmware_candidate(self):
         ambiguous_hw = (
