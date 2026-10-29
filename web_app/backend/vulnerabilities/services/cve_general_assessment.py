@@ -589,10 +589,19 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
         "role": "VULNERABLE" if item.get("vulnerable") is True else "PLATFORM",
     } for item in matching if item.get("part") == "h"]
     if not hardware_roles:
+        # Unverified OTHER hardware is not a software candidate for this
+        # controller. The analyst may only make an unscoped manual link when
+        # NVD has no explicit hardware condition at all.
+        all_criteria = list(_flatten_technical_tree(annotated))
+        if any(item.get("part") == "h" for item in all_criteria):
+            raise ValidationError({"verdict":
+                "La plataforma de esta configuración no corresponde a un "
+                "CPE de hardware confirmado. Verifica primero la identidad "
+                "del hardware; no enlaces firmware de otra CPU."})
         if not platform_unverified_acknowledged or installation_id is None:
             raise ValidationError({"platform_unverified_acknowledged":
-                "Esta alternativa carece de plataforma CPE confirmada; "
-                "selecciona una instalación y reconoce expresamente la incertidumbre."})
+                "NVD no especifica una plataforma de hardware; selecciona "
+                "una instalación y reconoce expresamente la incertidumbre."})
 
     def vulnerable_leaves(node):
         if node.get("kind") == "CRITERION" and node.get("vulnerable") is True:
