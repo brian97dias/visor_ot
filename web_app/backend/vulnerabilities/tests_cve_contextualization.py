@@ -19,6 +19,7 @@ from vulnerabilities.services.cve_applicability import (
 )
 from vulnerabilities.services.cve_general_assessment import (
     general_assessment_context, summarize_hardware_cve_review,
+    _manual_firmware_installations,
 )
 from vulnerabilities.tests_cve_discovery_plan import CveDiscoveryPlanTests
 
@@ -223,6 +224,50 @@ class CveScopedProjectionTests(SimpleTestCase):
         self.assertEqual(project_configuration_decisions(
             self.negative, {}, stale_human_evidence=True,
         ), {"status": "STALE", "source": "NONE"})
+
+
+class ManualFirmwareProductIdentityTests(SimpleTestCase):
+    def test_firmware_model_correspondence_is_not_a_type_only_match(self):
+        def leaf(part, cpe, *, matched=False):
+            return {
+                "kind": "CRITERION", "part": part, "criteria": cpe,
+                "technical_identity": "MATCHED" if matched else "UNKNOWN",
+                "vulnerable": part == "o",
+            }
+
+        cases = [
+            (
+                "cpe:2.3:h:phoenixcontact:il_pn_bk-pac:-:*:*:*:*:*:*:*",
+                "cpe:2.3:o:phoenixcontact:il_pn_bk-pac_firmware:2.0:*:*:*:*:*:*:*",
+                "Phoenix Contact", "IL PN BK-PAC Firmware",
+            ),
+            (
+                CPU_HW, CPU_FW_CRITERION,
+                "Siemens", "SIMATIC S7-1200 CPU 1215C Firmware",
+            ),
+        ]
+        for hardware_cpe, software_cpe, manufacturer, product in cases:
+            tree = {
+                "kind": "GROUP", "children": [
+                    leaf("h", hardware_cpe, matched=True),
+                    leaf("o", software_cpe),
+                ],
+            }
+            installation = {
+                "installation_id": 5,
+                "software_type": "FIRMWARE",
+                "manufacturer": manufacturer,
+                "product": product,
+            }
+            self.assertEqual(
+                _manual_firmware_installations(tree, [installation]), [5],
+            )
+            self.assertEqual(_manual_firmware_installations(tree, [{
+                **installation, "product": "Different CPU Firmware",
+            }]), [])
+            self.assertEqual(_manual_firmware_installations(tree, [{
+                **installation, "manufacturer": "Different Vendor",
+            }]), [])
 
 
 class SiemensContextualLogicTests(SimpleTestCase):
