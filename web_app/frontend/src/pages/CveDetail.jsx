@@ -282,18 +282,10 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     ? "CONFIRMED" : "CONDITIONAL";
   const positiveConflict = config.technical_result === "COMPATIBLE" &&
     ["NOT_MATCH", "CONDITIONAL"].includes(choice);
-  const enableConfirm = canDecide && (confirmationVerdict === "CONFIRMED" || canConditional);
-  const confirmationLabel = unverifiedPlatform
-    ? "Correspondencia condicionada"
-    : linkedInstallationId ? "Confirmar correspondencia" : "Correspondencia parcial";
   const canDiscard = canDecide &&
     ["MATCHED", "UNSCOPED"].includes(config.hardware_scope) &&
     config.technical_result !== "EXCLUDED" &&
     (canReview || canConditional || config.technical_result === "COMPATIBLE");
-  const canUndo = canReopen;
-  const unchangedLink = isSavedCveLinkSelection(
-    savedLink, selectedCriterion, installId,
-  );
   const noSelected = choice === "CONFIRMED" && !selectedId;
   const invalid = !justification.trim() || noSelected ||
     (choice === "NOT_MATCH" && (!complete || justification.trim().length < 20)) ||
