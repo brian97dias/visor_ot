@@ -10,7 +10,9 @@ from rest_framework.exceptions import NotFound, ValidationError
 
 from vulnerabilities.models import AssetCveAssessment, AssetCveFinding
 from .cve_general_assessment import _context, _digest
-from .cve_applicability import automatic_positive_evidence
+from .cve_applicability import (
+    automatic_positive_evidence, automatic_negative_evidence,
+)
 from .cve_configuration_evaluator import (
     COMPATIBLE, EXCLUDED, INDETERMINATE, evaluate_configurations,
 )
@@ -142,6 +144,7 @@ def related_assets_for_cves(cves):
                     cve.configurations, list(hw_cpes), installed
                 )
                 proof = automatic_positive_evidence(analysed)
+                negative = automatic_negative_evidence(analysed)
                 chosen_installation, chosen_configuration = _current_linked_installation(
                     cve, hardware, inventory_fp,
                 )
@@ -185,6 +188,7 @@ def related_assets_for_cves(cves):
                     "hardware_id": hw_id,
                     "technical_result": analysed["result"],
                     "automatic_evidence": proof,
+                    "automatic_negative_evidence": negative,
                     "hardware_role": role,
                     "assets": unique,
                 })
@@ -195,6 +199,7 @@ def related_assets_for_cves(cves):
                     "hardware_id": hw_id,
                     "technical_result": INDETERMINATE,
                     "automatic_evidence": None,
+                    "automatic_negative_evidence": None,
                     "hardware_role": "HARDWARE_CONTEXT",
                     "assets": [],
                 })
