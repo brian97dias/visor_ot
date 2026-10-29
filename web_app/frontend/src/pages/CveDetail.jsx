@@ -532,6 +532,7 @@ export default function CveDetail() {
   }, [cveId, selectedHardware, isLegacy, revision, canDecide]);
 
   const configs = context?.relevant_configurations || [];
+  const candidates = context?.candidate_configurations || [];
   const { primary, others } = groupCveEvidence(configs);
   const source = cve?.description_source;
   const nvdUrl = "https://nvd.nist.gov/vuln/detail/" + encodeURIComponent(cveId);
@@ -698,6 +699,33 @@ export default function CveDetail() {
                 permanece por verificar; las configuraciones originales se conservan.</p>}
         
         </div>}
+        {candidates.length > 0 && <details className="cve-nvd-other-evidence cve-pending-alternatives">
+          <summary>Otras configuraciones pendientes de verificar ({candidates.length})</summary>
+          <p className="cve-muted">
+            Estas configuraciones permanecen indeterminadas. No encontrar un
+            software en el inventario no prueba su ausencia ni permite excluir
+            automáticamente el CVE. Consulta sus criterios antes de decidir.
+          </p>
+          <div className="cve-nvd-other-scroll" tabIndex={0} role="region"
+            aria-label="Configuraciones NVD pendientes de verificar">
+            {candidates.map(config => <details className="cve-pending-configuration"
+              key={context.hardware_asset_id + ":candidate:" + config.index}>
+              <summary>Configuración NVD {config.position}
+                {" · "}Pendiente de evidencia
+              </summary>
+              <div className="cve-pending-configuration-content">
+                <Criterion item={config.tree}
+                  installedSoftware={context.installed_software || []}
+                  canDecide={false}/>
+                <p className="cve-muted">
+                  Este criterio no tiene una coincidencia confirmada con el
+                  activo evaluado. Su estado técnico sigue pendiente; la
+                  ausencia de una coincidencia no equivale a «No aplica».
+                </p>
+              </div>
+            </details>)}
+          </div>
+        </details>}
       </>}
   </section>;
 }
