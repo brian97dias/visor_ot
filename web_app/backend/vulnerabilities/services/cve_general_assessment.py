@@ -527,61 +527,37 @@ def general_assessment_context(cve_id, hardware_id):
         technical, analyst["status"], inventory_fingerprint=inventory_fp,
         cve=cve, hardware_id=hw.pk,
     )
-    # An analyst decision replaces the SYSTEM conclusion only for its exact
-    # NVD configuration. The other AND/OR alternatives retain their verified
-    # technical conclusions. No manual negative dismisses unknown branches.
+    # One shared projection is used by both detail and catalogue. NVD's
+    # technical result is never rewritten by the analyst's decision.
+    from .cve_applicability import project_configuration_decisions
     current_human = {
-        row["index"]: row["latest_assessment"]
+        row["index"]: row["latest_assessment"]["status"]
         for row in configs
         if row.get("latest_assessment")
         and not row["latest_assessment"]["stale"]
         and row["latest_assessment"]["source"] == "ANALYST"
     }
-    if current_human:
-        from .cve_applicability import (
-            automatic_positive_evidence as _positive,
-            verified_negative_configurations as _negatives,
+    has_stale_human = any(
+        row.get("latest_assessment")
+        and row["latest_assessment"]["stale"]
+        and row["latest_assessment"]["source"] == "ANALYST"
+        for row in configs
+    )
+    if current_human or has_stale_human:
+        projected = project_configuration_decisions(
+            technical, current_human,
+            stale_human_evidence=has_stale_human,
         )
-        proven_excluded = {
-            row["configuration_index"] for row in _negatives(technical)
-        }
-        alternatives = []
-        for row in configs:
-            manual = current_human.get(row["index"])
-            if manual:
-                alternatives.append((manual["status"], "ANALYST"))
-            elif row["index"] in proven_excluded:
-                alternatives.append(("NOT_APPLICABLE", "SYSTEM"))
-            else:
-                observation = technical["configurations"][row["index"]]
-                proof = _positive({
-                    "result": observation["result"], "configurations": [observation],
-                })
-                alternatives.append(
-                    ("APPLIES", "SYSTEM") if proof else ("PENDING_REVIEW", "NONE")
-                )
-        if any(state == "APPLIES" for state, _ in alternatives):
-            status = "APPLIES"
-        elif any(state == "APPLIES_CONDITIONAL" for state, _ in alternatives):
-            status = "APPLIES_CONDITIONAL"
-        elif alternatives and all(state == "NOT_APPLICABLE" for state, _ in alternatives):
-            status = "NOT_APPLICABLE"
-        else:
-            status = "PENDING_REVIEW"
-        source = ("ANALYST" if any(
-            state == status and origin == "ANALYST"
-            for state, origin in alternatives
-        ) else "SYSTEM" if status != "PENDING_REVIEW" else "NONE")
         applicability.update({
-            "status": status, "source": source,
+            **projected,
             "hardening_category": (
-                "CONFIRMED" if status == "APPLIES"
-                else "CONDITIONAL" if status == "APPLIES_CONDITIONAL"
+                "CONFIRMED" if projected["status"] == "APPLIES"
+                else "CONDITIONAL" if projected["status"] == "APPLIES_CONDITIONAL"
                 else "NONE"
             ),
             "automatic_evidence": (
-                applicability.get("automatic_evidence") if source == "SYSTEM"
-                else None
+                applicability.get("automatic_evidence")
+                if projected["source"] == "SYSTEM" else None
             ),
         })
     # Only a POST may append audit rows. GET advertises whether a proved
