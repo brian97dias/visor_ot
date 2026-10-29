@@ -11,7 +11,7 @@ import {
   CVE_APPLICABILITY_SOURCE,
   selectedCveHardwareId, groupCveEvidence,
   nvdCriterionIdentityBadge, currentCveSoftwareLink,
-  isSavedCveLinkSelection, cveAuditJustification,
+  currentCveEvaluatedSoftware, isSavedCveLinkSelection, cveAuditJustification,
   displayNvdGroupBranches, nvdAlternativeGroupLabel,
 } from "../utils/cveCataloguePresentation";
 import {
@@ -221,9 +221,12 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   softwareAlternatives = [], onChooseSoftware }) {
   const last = config.latest_assessment;
   const status = last?.effective_status || "PENDING_REVIEW";
-  const savedLink = currentCveSoftwareLink(config, context);
+  const savedPositive = currentCveSoftwareLink(config, context);
+  const evaluatedLink = currentCveEvaluatedSoftware(config, context);
+  const savedLink = savedPositive || evaluatedLink;
   // null means no edit; an empty draft overrides the persisted check only locally.
   const [draftLink, setDraftLink] = useState(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [choice, setChoice] = useState("");
   const [justification, setJustification] = useState("");
   const [complete, setComplete] = useState(false);
@@ -235,7 +238,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const currentLink = draftLink === null ? savedLink : draftLink;
   const installId = currentLink?.installationId || "";
   const selectedCriterion = currentLink?.criterionKey || "";
-  const pendingUnlink = choice === "UNKNOWN" && Boolean(savedLink) &&
+  const pendingUnlink = choice === "CONDITIONAL" && Boolean(savedLink) &&
     draftLink !== null && !draftLink.installationId;
 
   useEffect(() => {
@@ -255,33 +258,43 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   });
   const selectedId = installId || (installations.length === 1 && choice === "NOT_MATCH"
     ? String(installations[0].installation_id) : "");
-  const canReopen = canDecide && Boolean(last &&
-    ["APPLIES", "APPLIES_CONDITIONAL", "NOT_APPLICABLE"].includes(last.status));
+  const currentStatus = last && !last.stale ? last.effective_status : null;
+  const lockedDecision = Boolean(currentStatus &&
+    ["APPLIES", "APPLIES_CONDITIONAL", "NOT_APPLICABLE"].includes(currentStatus));
+  const canReopen = canDecide && lockedDecision;
   const canReview = config.review_supported && canDecide;
   const canConditional = config.conditional_supported && canDecide &&
     ["INDETERMINATE", "EXCLUDED"].includes(config.technical_result);
   const technicalConflict = config.technical_result === "EXCLUDED";
   const unverifiedPlatform = Boolean(config.manual_platform_review_required);
   const checked = Boolean(selectedCriterion);
-  const canConfirm = canReview || canConditional;
+  const canConfirm = canReview || canConditional ||
+    (reviewOpen && config.technical_result === "COMPATIBLE");
   const linkedInstallationId = checked ? installId : "";
   const eligible = (config.candidate_installation_ids || []).includes(Number(linkedInstallationId)) ||
     config.review_installation_id === Number(linkedInstallationId);
   const confirmationVerdict = linkedInstallationId &&
     ((canReview && eligible) || (technicalConflict && config.technical_override_supported))
     ? "CONFIRMED" : "CONDITIONAL";
+  const positiveConflict = config.technical_result === "COMPATIBLE" &&
+    ["NOT_MATCH", "CONDITIONAL"].includes(choice);
   const enableConfirm = canDecide && (confirmationVerdict === "CONFIRMED" || canConditional);
   const confirmationLabel = unverifiedPlatform
     ? "Correspondencia condicionada"
     : linkedInstallationId ? "Confirmar correspondencia" : "Correspondencia parcial";
-  const canDiscard = canReview &&
-    contextualCveActionOptions(config, last).some(option => option.key === "NOT_MATCH");
+  const canDiscard = canDecide &&
+    ["MATCHED", "UNSCOPED"].includes(config.hardware_scope) &&
+    config.technical_result !== "EXCLUDED" &&
+    (canReview || canConditional || config.technical_result === "COMPATIBLE");
   const canUndo = canReopen;
   const unchangedLink = isSavedCveLinkSelection(
     savedLink, selectedCriterion, installId,
   );
   const noSelected = choice === "CONFIRMED" && !selectedId;
   const invalid = !justification.trim() || noSelected ||
+    (choice === "NOT_MATCH" && (!complete || justification.trim().length < 20)) ||
+    (positiveConflict &&
+      (!overrideAcknowledged || justification.trim().length < 20)) ||
     (choice === "CONDITIONAL" && justification.trim().length < 20) ||
     (technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice) &&
       (!overrideAcknowledged || justification.trim().length < 20)) ||
@@ -289,17 +302,23 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       (!platformAcknowledged || !linkedInstallationId || justification.trim().length < 20));
 
   function reset() {
-    setChoice(""); setDraftLink(null);
+    setChoice(""); setDraftLink(null); setReviewOpen(false);
     setJustification(""); setComplete(false); setOverrideAcknowledged(false); setPlatformAcknowledged(false); setError("");
   }
   function beginReopen() {
-    setDraftLink({ criterionKey: "", installationId: "" });
-    setChoice("UNKNOWN");
+    setReviewOpen(true);
+    setDraftLink(null);
+    setChoice("");
     setJustification(""); setComplete(false); setOverrideAcknowledged(false); setPlatformAcknowledged(false); setError("");
   }
   function updateAssociation(criterionKey, installationId) {
     if (savedLink && !criterionKey && !installationId) {
-      beginReopen();
+      setReviewOpen(true);
+      setDraftLink({ criterionKey: "", installationId: "" });
+      setChoice("CONDITIONAL");
+      setJustification(""); setComplete(false);
+      setOverrideAcknowledged(false); setPlatformAcknowledged(false);
+      setError("");
       return;
     }
     if (isSavedCveLinkSelection(savedLink, criterionKey, installationId)) {
@@ -309,6 +328,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       return;
     }
     setDraftLink({ criterionKey, installationId });
+    setReviewOpen(true);
     setChoice(""); setJustification(""); setOverrideAcknowledged(false); setPlatformAcknowledged(false); setError("");
   }
   async function submit(event) {
@@ -326,8 +346,10 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
           choice === "CONDITIONAL" ? (linkedInstallationId ? Number(linkedInstallationId) : null) :
           (selectedId ? Number(selectedId) : null),
         inventory_declared_complete: choice === "NOT_MATCH" && complete,
-        technical_override_acknowledged: technicalConflict &&
-          ["CONFIRMED", "CONDITIONAL"].includes(choice) && overrideAcknowledged,
+        technical_override_acknowledged: (
+          (technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice)) ||
+          positiveConflict
+        ) && overrideAcknowledged,
         platform_unverified_acknowledged: unverifiedPlatform &&
           choice === "CONDITIONAL" && platformAcknowledged,
         justification: justification.trim(),
@@ -347,6 +369,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       setSaving(false);
     }
   }
+  const showChoices = canDecide && (!lockedDecision || reviewOpen);
   return <>
     <Criterion item={config.tree} selection={selectedCriterion}
       onSelect={updateAssociation}
