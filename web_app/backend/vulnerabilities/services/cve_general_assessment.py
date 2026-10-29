@@ -992,6 +992,12 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         raise ValidationError({"verdict":
             "La evaluación ya tiene este estado vigente. No se registran reconfirmaciones."})
 
+    if (software_installation_id is not None and not any(
+        row["installation_id"] == software_installation_id
+        for row in installed
+    )):
+        raise ValidationError({"software_installation_id":
+            "La instalación no está vigente en este hardware."})
     supported = _simple_and_firmware(config, confirmed, installed)
     manual_firmware_ids = (
         _manual_firmware_installations(annotated, installed)
