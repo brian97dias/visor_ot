@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useOutletContext, useParams, useSearchParams } from "react-router-dom";
 import {
   listCveHardware, readCveCatalogue, readGeneralCveAssessment,
@@ -10,7 +10,7 @@ import {
   CVE_SEVERITY, CVE_TECHNICAL_STATE, CVE_EVALUATION_STATE,
   CVE_APPLICABILITY_SOURCE,
   selectedCveHardwareId, groupCveEvidence,
-  nvdCriterionIdentityBadge, cveAuditJustification,
+  nvdCriterionIdentityBadge, currentCveSoftwareLink, cveAuditJustification,
   displayNvdGroupBranches, nvdAlternativeGroupLabel,
 } from "../utils/cveCataloguePresentation";
 import {
@@ -28,7 +28,8 @@ const PLAIN = { h: "Hardware", o: "Firmware / sistema operativo", a: "Software" 
 
 /** Human-facing evidence stays visible; the raw NVD proof is opt-in. */
 function Criterion({ item, depth = 0, selection, onSelect, installId,
-  installedSoftware = [], canDecide = false }) {
+  installedSoftware = [], canDecide = false, savedLink = null,
+  pendingUnlink = false }) {
   if (item.kind === "CRITERION") {
     const isSoftware = ["a", "o"].includes(item.part);
     const identityBadge = nvdCriterionIdentityBadge(item);
@@ -63,6 +64,8 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
           {currentInstallations.map(sw => {
             const isChecked = selection === criterionKey &&
               installId === String(sw.installation_id);
+            const persisted = isChecked && savedLink?.installationId ===
+              String(sw.installation_id) && savedLink.criterionKey === criterionKey;
             return <div className="cve-installed-software-entry" key={sw.installation_id}>
               <div className="cve-installed-software-meta">
                 <div className="cve-association-name">
@@ -78,13 +81,21 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
                     event.target.checked ? criterionKey : "",
                     event.target.checked ? String(sw.installation_id) : ""
                   )}/>
-                <span>Asociar este CVE al software instalado</span>
+                <span>{persisted
+                  ? savedLink.source === "SYSTEM"
+                    ? "CVE asociado automáticamente · Desmarcar para reabrir la evaluación"
+                    : "CVE asociado por el analista · Desmarcar para reabrir la evaluación"
+                  : "Asociar este CVE al software instalado"}</span>
               </label>
             </div>;
           })}
+          {pendingUnlink && <p className="cve-cancel-pending" role="status">
+            Asociación pendiente de retirar. Justifica el cambio en el panel
+            de evaluación y confirma; si cancelas, se mantendrá el registro anterior.
+          </p>}
           <p className="cve-muted">
-            La asociación es una decisión del analista. No confirma por sí sola
-            la versión vulnerable indicada por NVD.
+            Una asociación manual no confirma por sí sola la versión vulnerable.
+            Desmarcar una asociación guardada requiere justificación y confirmación.
           </p>
         </> : <p className="cve-muted">
           No hay software de este tipo instalado en el inventario de este hardware.
@@ -136,7 +147,8 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
     <Criterion key={(child.match_criteria_id || child.criteria || "grupo") + ":" + i}
       item={child} depth={depth + 1} selection={selection}
       onSelect={onSelect} installId={installId}
-      installedSoftware={installedSoftware} canDecide={canDecide}/>;
+      installedSoftware={installedSoftware} canDecide={canDecide}
+      savedLink={savedLink} pendingUnlink={pendingUnlink}/>;
 
   return <div className={"cve-general-group " + (depth ? "cve-general-nested" : "")}>
     {!isOr && shown.length > 1 && depth === 0 &&
@@ -164,13 +176,28 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
 function ConfigurationReview({ context, config, onSaved, canDecide, highlight = false }) {
   const last = config.latest_assessment;
   const status = last?.effective_status || "PENDING_REVIEW";
+  const savedLink = currentCveSoftwareLink(config, context);
+  // null means no edit; an empty draft overrides the persisted check only locally.
+  const [draftLink, setDraftLink] = useState(null);
   const [choice, setChoice] = useState("");
-  const [installId, setInstallId] = useState("");
-  const [selectedCriterion, setSelectedCriterion] = useState("");
   const [justification, setJustification] = useState("");
   const [complete, setComplete] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const justificationRef = useRef(null);
+  const currentLink = draftLink === null ? savedLink : draftLink;
+  const installId = currentLink?.installationId || "";
+  const selectedCriterion = currentLink?.criterionKey || "";
+  const pendingUnlink = choice === "UNKNOWN" && Boolean(savedLink) &&
+    draftLink !== null && !draftLink.installationId;
+
+  useEffect(() => {
+    if (pendingUnlink && justificationRef.current) {
+      justificationRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+      justificationRef.current.focus({ preventScroll: true });
+    }
+  }, [pendingUnlink]);
+
   const targetPart = config.software_criterion?.split(":")[2];
   const installations = (context.installed_software || []).filter(sw => {
     const compatibleType = targetPart === "o"
@@ -181,9 +208,8 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   });
   const selectedId = installId || (installations.length === 1 && choice === "NOT_MATCH"
     ? String(installations[0].installation_id) : "");
-  const staleDecision = Boolean(last?.stale &&
+  const canReopen = canDecide && Boolean(last &&
     ["APPLIES", "APPLIES_CONDITIONAL", "NOT_APPLICABLE"].includes(last.status));
-  const canReopen = staleDecision && canDecide;
   const canReview = config.review_supported && canDecide;
   const canConditional = config.conditional_supported && canDecide &&
     config.technical_result === "INDETERMINATE";
@@ -199,14 +225,27 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     ? "Confirmar correspondencia" : "Correspondencia parcial";
   const canDiscard = canReview &&
     contextualCveActionOptions(config, last).some(option => option.key === "NOT_MATCH");
-  const canUndo = canReview || canReopen;
+  const canUndo = canReopen;
   const noSelected = choice === "CONFIRMED" && !selectedId;
   const invalid = !justification.trim() || noSelected ||
     (choice === "CONDITIONAL" && justification.trim().length < 20);
 
   function reset() {
-    setChoice(""); setSelectedCriterion(""); setInstallId("");
+    setChoice(""); setDraftLink(null);
     setJustification(""); setComplete(false); setError("");
+  }
+  function beginReopen() {
+    setDraftLink({ criterionKey: "", installationId: "" });
+    setChoice("UNKNOWN");
+    setJustification(""); setComplete(false); setError("");
+  }
+  function updateAssociation(criterionKey, installationId) {
+    if (savedLink && !criterionKey && !installationId) {
+      beginReopen();
+      return;
+    }
+    setDraftLink({ criterionKey, installationId });
+    setChoice(""); setJustification(""); setError("");
   }
   async function submit(event) {
     event.preventDefault();
@@ -225,7 +264,14 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         inventory_declared_complete: choice === "NOT_MATCH" && complete,
         justification: justification.trim(),
       });
-      reset();
+      if (choice === "UNKNOWN") {
+        // Keep the pending removal visually unchecked until refreshed context arrives.
+        setDraftLink({ criterionKey: "", installationId: "" });
+        setChoice("");
+        setJustification(""); setError("");
+      } else {
+        reset();
+      }
       onSaved();
     } catch (err) {
       setError("No se registró la evaluación: " + err.message);
@@ -235,11 +281,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   }
   return <>
     <Criterion item={config.tree} selection={selectedCriterion}
-      onSelect={(criterion, installation) => {
-        setSelectedCriterion(criterion); setInstallId(installation); setChoice("");
-      }}
+      onSelect={updateAssociation}
       installId={installId} installedSoftware={context.installed_software || []}
-      canDecide={canDecide}/>
+      canDecide={canDecide} savedLink={savedLink} pendingUnlink={pendingUnlink}/>
     <div className="panel cve-nvd-decision">
     <div className="cve-nvd-joint-title">
       <h3>{highlight ? "Correspondencia · Configuración NVD " + config.position :
@@ -264,8 +308,14 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         El firmware instalado satisface este criterio NVD; no se puede
         descartar mientras las evidencias sean vigentes.
       </p>}
+    {pendingUnlink && <div className="cve-pending-reopen" role="status">
+      <strong>Reapertura pendiente de confirmar</strong>
+      <p>El CVE seguirá asociado hasta que registres la justificación y
+        confirmes la reapertura. Cancelar conservará la evaluación anterior.</p>
+    </div>}
     {(canConfirm || canDiscard || canUndo) && <div className="cve-nvd-actions">
-      {canConfirm && <button type="button"
+      {canConfirm && !pendingUnlink && !(savedLink && draftLink === null) &&
+        <button type="button"
         disabled={!enableConfirm}
         title={!enableConfirm ? "No hay evidencia suficiente para registrar una evaluación condicionada." : ""}
         data-action={confirmationVerdict}
@@ -273,12 +323,12 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         (["CONFIRMED", "CONDITIONAL"].includes(choice) ? " selected" : "")}
         onClick={() => { setChoice(confirmationVerdict); setJustification(""); }}>
         {confirmationLabel}</button>}
-      {canDiscard && <button type="button" className={"cve-nvd-action" +
+      {canDiscard && !pendingUnlink && <button type="button" className={"cve-nvd-action" +
         (choice === "NOT_MATCH" ? " selected" : "")}
         onClick={() => { setChoice("NOT_MATCH"); setJustification(""); }}>
         Descartar correspondencia</button>}
-      {canUndo && last && <button type="button" className="cve-nvd-action"
-        onClick={() => setChoice("UNKNOWN")}>Reabrir evaluación</button>}
+      {canUndo && last && !pendingUnlink && <button type="button"
+        className="cve-nvd-action" onClick={beginReopen}>Reabrir evaluación</button>}
     </div>}
     {choice === "CONDITIONAL" && <p className="cve-muted" role="status">
       Resultado previsto: Aplica condicionada.
@@ -306,9 +356,13 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         </select>
       </label>}
       <label>Justificación de la decisión
-        <textarea rows={3} required maxLength={1000} value={justification}
+        <textarea ref={justificationRef} rows={3} required maxLength={1000}
+          aria-invalid={pendingUnlink && !justification.trim()}
+          value={justification}
           onChange={event => setJustification(event.target.value)}
-          placeholder="Describe las evidencias que sustentan la correspondencia..."/>
+          placeholder={choice === "UNKNOWN"
+            ? "Explica por qué deseas retirar esta asociación y reabrir la evaluación..."
+            : "Describe las evidencias que sustentan la correspondencia..."}/>
       </label>
       {choice === "NOT_MATCH" && <div className="cve-attestation">
         <label><input type="checkbox" checked={complete}
@@ -483,7 +537,6 @@ export default function CveDetail() {
             <div className="cve-evaluated-hardware">
               <h2>Aplicabilidad del CVE</h2>
               <div className="cve-evaluated-hardware-identity">
-                <span className="cve-evaluated-hardware-icon" aria-hidden="true">▣</span>
                 <div>
                   <h3><Link to={"/assets/" + context.hardware_asset_id}>
                     {context.hardware_name}</Link></h3>
