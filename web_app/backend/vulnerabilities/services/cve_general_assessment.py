@@ -953,7 +953,9 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         leaf.get("part") == "h" and leaf.get("technical_identity") == "MATCHED"
         for leaf in _flatten_technical_tree(annotated)
     )
-    global_scope = matched_hardware and verdict != "UNKNOWN"
+    global_scope = matched_hardware and (
+        verdict != "UNKNOWN" or global_previous is not None
+    )
     # Reaffirming a CURRENT persisted decision changes no state and may not
     # manufacture a new analyst audit record. A mere UI opening never writes.
     latest = AssetCveAssessment.objects.filter(
@@ -968,6 +970,22 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
     if (global_scope and global_current and global_previous.status == target):
         raise ValidationError({"verdict":
             "La evaluación Hardware–CVE ya tiene este estado vigente."})
+    if global_scope and global_previous is None:
+        from .cve_applicability import (
+            automatic_positive_evidence, automatic_negative_evidence,
+        )
+        whole = evaluate_configurations(
+            cve.configurations, list(confirmed), installed,
+        )
+        auto_state = (
+            "APPLIES" if automatic_positive_evidence(whole) is not None
+            else "NOT_APPLICABLE"
+            if automatic_negative_evidence(whole) is not None
+            else "PENDING_REVIEW"
+        )
+        if auto_state == target:
+            raise ValidationError({"verdict":
+                "El sistema ya tiene esta conclusión vigente para el hardware."})
     if (not global_scope and latest and latest.inventory_fingerprint == actual_fp
             and latest.configuration_fingerprint == cfg_fp
             and latest.status == target):
