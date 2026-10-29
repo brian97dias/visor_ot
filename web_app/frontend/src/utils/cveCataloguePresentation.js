@@ -237,6 +237,46 @@ export function currentCveSoftwareLink(config, context) {
   };
 }
 
+/** Installation USED to evaluate a negative CVE conclusion.
+ * This is evidence, not a positive vulnerability/CVE association. It does not
+ * turn NOT_APPLICABLE into an affected-software hardening finding.
+ */
+export function currentCveEvaluatedSoftware(config, context) {
+  if (!config || !context) return null;
+  const last = config.latest_assessment;
+  if (last?.stale || (last && last.effective_status !== "NOT_APPLICABLE")) {
+    return null;
+  }
+  if (last && last.source !== "SYSTEM" && last.source !== "ANALYST") return null;
+  if (!last && config.technical_result !== "EXCLUDED") return null;
+  const candidates = last?.evaluated_software?.length
+    ? last.evaluated_software : (last?.source === "ANALYST" ? [] :
+      config.evaluated_software || []);
+  const proof = candidates.find(item =>
+    (context.installed_software || []).some(sw =>
+      Number(sw.installation_id) === Number(item.software_installation_id))
+  );
+  if (!proof) return null;
+  const all = [];
+  function walk(node) {
+    if (node?.kind === "CRITERION" && node.vulnerable === true &&
+        ["a", "o"].includes(node.part)) all.push(node);
+    for (const child of node?.children || []) walk(child);
+  }
+  walk(config.tree);
+  const criterion = all.find(item => item.criteria === proof.criterion) ||
+    all.find(item => Number(item.technical_software_installation_id) ===
+      Number(proof.software_installation_id));
+  if (!criterion) return null;
+  return {
+    installationId: String(proof.software_installation_id),
+    criterionKey: criterion.match_criteria_id || criterion.criteria,
+    source: last?.source || "SYSTEM",
+    evidenceOnly: true,
+  };
+}
+
+
 /** The persisted association is to an installation, not a display-only
  * NVD criterion. Switching between OR criteria for that SAME installation
  * must not manufacture an A -> A audit decision.
