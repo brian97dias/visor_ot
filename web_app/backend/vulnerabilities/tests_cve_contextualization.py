@@ -614,9 +614,12 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(data["unverified_platform_configurations"], [])
 
     def test_48_nvd_branches_are_excluded_for_confirmed_cpu_1215c_452(self):
+        self.cve.cve_id = "CVE-2021-37205"
         self.cve.configurations = nvd_2021_37205_configurations()
-        self.cve.save(update_fields=["configurations"])
-        result = self.client.get(self.url)
+        self.cve.save(update_fields=["cve_id", "configurations"])
+        url = ("/api/vulnerabilities/cves/CVE-2021-37205/hardware/" +
+               str(self.hw.pk) + "/assessment/")
+        result = self.client.get(url)
         self.assertEqual(result.status_code, 200, result.data)
         data = result.data
         self.assertEqual(len(data["configurations"]), 48)
