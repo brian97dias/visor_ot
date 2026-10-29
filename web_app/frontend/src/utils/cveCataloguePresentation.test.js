@@ -378,7 +378,7 @@ test("operational detail hides unrelated hardware even with automatic history", 
   }).reviewPool, []);
 });
 
-test("operational detail preserves matched standalone software, not foreign CPU", () => {
+test("hardware detail hides unscoped software even when it is present in NVD", () => {
   const standalone = {
     index: 0, hardware_scope: "UNSCOPED", technical_result: "COMPATIBLE",
   };
@@ -393,10 +393,10 @@ test("operational detail preserves matched standalone software, not foreign CPU"
     hardware_software_configurations: [platform],
   });
   assert.deepEqual(value.reviewPool.map(row => row.index), [1]);
-  assert.deepEqual(value.independentConfigs.map(row => row.index), [0]);
+  assert.deepEqual(value.independentConfigs, []);
   assert.deepEqual(selectCveOperationalGroups({
     relevant_configurations: [standalone, foreign],
-  }).reviewPool.map(row => row.index), [0]);
+  }).reviewPool, []);
 });
 
 test("audit timeline highlights software name and historic version, not installation IDs", () => {
