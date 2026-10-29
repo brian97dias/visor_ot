@@ -284,7 +284,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     ["NOT_MATCH", "CONDITIONAL"].includes(choice);
   const canDiscard = canDecide &&
     ["MATCHED", "UNSCOPED"].includes(config.hardware_scope) &&
-    config.technical_result !== "EXCLUDED" &&
+    (config.technical_result !== "EXCLUDED" ||
+      (last?.source === "ANALYST" && !last?.stale &&
+        ["APPLIES", "APPLIES_CONDITIONAL"].includes(last.status))) &&
     (canReview || canConditional || config.technical_result === "COMPATIBLE");
   const noSelected = choice === "CONFIRMED" && !selectedId;
   const invalid = !justification.trim() || noSelected ||
