@@ -15,7 +15,7 @@ import {
   currentCveEvaluatedSoftware, allowedCveDecisionTransitions,
   cveHistoryDecisionDescription, cveHistorySoftwareLabel,
   isSavedCveLinkSelection, cveAuditJustification,
-  displayNvdGroupBranches, nvdAlternativeGroupLabel,
+  operationalNvdGroupBranches, nvdAlternativeGroupLabel,
 } from "../utils/cveCataloguePresentation";
 import {
   localizedTimestamp, versionConstraintsText,
@@ -189,7 +189,7 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
   }
 
   const isOr = item.operator === "OR";
-  const { shown, hidden } = displayNvdGroupBranches(item, selection);
+  const { shown, hidden } = operationalNvdGroupBranches(item, selection);
   const firstSoftware = shown.findIndex(child => Boolean(vulnerableSoftwareCriterion(child)));
   const renderChild = (child, i) =>
     <Criterion key={(child.match_criteria_id || child.criteria || "grupo") + ":" + i}
@@ -549,15 +549,15 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
             Evidencia histórica: el inventario o las condiciones NVD cambiaron.
           </p>}
           {(item.justification || item.conditional_evidence) &&
-            <details className="cve-nvd-history-detail">
-              <summary>Ver fundamento y evidencia de la decisión</summary>
+            <div className="cve-nvd-history-detail">
+              <p className="cve-history-evidence-label">Fundamento y evidencia de la decisión</p>
               <p>{cveAuditJustification(item.justification, item.source)}</p>
               {item.status === "APPLIES_CONDITIONAL" && item.conditional_evidence &&
                 <p>Condiciones NVD relacionadas:
                   {" "}{(item.conditional_evidence.vulnerable_criteria || [])
                     .map(row => row.criteria).join("; ") || "Sin criterios adicionales"}
                 </p>}
-            </details>}
+            </div>}
         </li>)}
       </ol> : <p className="cve-muted">No hay decisiones registradas.</p>}
     </details>
