@@ -295,8 +295,10 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     config.review_installation_id === Number(linkedInstallationId);
   const confirmationVerdict = linkedInstallationId && eligible
     ? "CONFIRMED" : "CONDITIONAL";
-  const positiveConflict = config.technical_result === "COMPATIBLE" &&
-    ["NOT_MATCH", "CONDITIONAL"].includes(choice);
+  const positiveConflict = (
+    config.technical_result === "COMPATIBLE" ||
+    (context?.technical_result === "COMPATIBLE")
+  ) && ["NOT_MATCH", "CONDITIONAL"].includes(choice);
   const canDiscard = canDecide &&
     ["MATCHED", "UNSCOPED"].includes(config.hardware_scope) &&
     (config.technical_result !== "EXCLUDED" ||
@@ -355,7 +357,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         inventory_declared_complete: false,
         technical_override_acknowledged: (
           (technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice)) ||
-          positiveConflict
+          positiveConflict ||
+          (context?.technical_result === "EXCLUDED" &&
+            ["CONFIRMED", "CONDITIONAL"].includes(choice))
         ),
         // The informed Save action + mandatory justification is the single
         // explicit analyst confirmation. No redundant acknowledgement checkbox.
