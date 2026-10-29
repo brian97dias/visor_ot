@@ -295,6 +295,12 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     <p>La correspondencia se evalúa contra la configuración NVD {config.position}
       y el hardware #{context.hardware_asset_id}. El historial registra
       confirmaciones automáticas y decisiones humanas con su justificación.</p>
+    {last?.source === "ANALYST" && last.status === "PENDING_REVIEW" &&
+      !last.stale && <p className="cve-muted" role="status">
+        Evaluación reabierta por el analista: ya no hay una vinculación de software
+        confirmada en esta decisión. La evidencia técnica NVD sigue evaluándose
+        de forma independiente y puede continuar indicando coincidencia.
+      </p>}
     {last?.stale && <p className="cpe-warning">
       La evaluación previa conserva su registro histórico, pero la evidencia cambió.
       Se necesita revisar nuevamente.</p>}
@@ -348,7 +354,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       onSubmit={submit}>
       {installations.length > 1 && choice === "NOT_MATCH" && <label>
         Instalación que deseas evaluar
-        <select value={installId} onChange={event => setInstallId(event.target.value)}>
+        <select value={installId} onChange={event => setDraftLink({
+          criterionKey: "", installationId: event.target.value,
+        })}>
           <option value="">Selecciona una instalación</option>
           {installations.map(sw => <option key={sw.installation_id}
             value={sw.installation_id}>
