@@ -225,17 +225,27 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
 
 function ConfigurationReview({ context, config, onSaved, canDecide, highlight = false,
   softwareAlternatives = [], onChooseSoftware }) {
-  const last = config.latest_assessment;
+  const globalDecision = context?.hardware_cve_decision;
+  const last = globalDecision || config.latest_assessment;
   const status = last?.effective_status || "PENDING_REVIEW";
-  const savedPositive = currentCveSoftwareLink(config, context);
-  const evaluatedLink = currentCveEvaluatedSoftware(config, context);
+  const firmwareCriterion = vulnerableSoftwareCriterion(config.tree);
+  const manuallyLinked = globalDecision && !globalDecision.stale &&
+    globalDecision.status === "APPLIES" &&
+    globalDecision.software_installation_id && firmwareCriterion ? {
+      installationId: String(globalDecision.software_installation_id),
+      criterionKey: firmwareCriterion.match_criteria_id || firmwareCriterion.criteria,
+      source: "ANALYST",
+    } : null;
+  const savedPositive = globalDecision
+    ? manuallyLinked : currentCveSoftwareLink(config, context);
+  const evaluatedLink = globalDecision
+    ? null : currentCveEvaluatedSoftware(config, context);
   const savedLink = savedPositive || evaluatedLink;
   // null means no edit; an empty draft overrides the persisted check only locally.
   const [draftLink, setDraftLink] = useState(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [choice, setChoice] = useState("");
   const [justification, setJustification] = useState("");
-  const [complete, setComplete] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const justificationRef = useRef(null);
@@ -273,12 +283,14 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const unverifiedPlatform = Boolean(config.manual_platform_review_required);
   const checked = Boolean(selectedCriterion);
   const canConfirm = canReview || canConditional ||
+    config.manual_confirm_supported ||
     (reviewOpen && config.technical_result === "COMPATIBLE");
   const linkedInstallationId = checked ? installId : "";
   const eligible = (config.candidate_installation_ids || []).includes(Number(linkedInstallationId)) ||
+    (config.manual_firmware_installation_ids || []).includes(Number(linkedInstallationId)) ||
     config.review_installation_id === Number(linkedInstallationId);
   const confirmationVerdict = linkedInstallationId &&
-    ((canReview && eligible) || (technicalConflict && config.technical_override_supported))
+    (eligible || (technicalConflict && config.technical_override_supported))
     ? "CONFIRMED" : "CONDITIONAL";
   const positiveConflict = config.technical_result === "COMPATIBLE" &&
     ["NOT_MATCH", "CONDITIONAL"].includes(choice);
@@ -289,18 +301,14 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         ["APPLIES", "APPLIES_CONDITIONAL"].includes(last.status))) &&
     (canReview || canConditional || config.technical_result === "COMPATIBLE");
   const noSelected = choice === "CONFIRMED" && !selectedId;
+  // A non-empty explanation is required, but its quality cannot be judged
+  // by character count. The backend still verifies hardware/software scope.
   const invalid = !justification.trim() || noSelected ||
-    (choice === "NOT_MATCH" && (!complete || justification.trim().length < 20)) ||
-    (positiveConflict && justification.trim().length < 20) ||
-    (choice === "CONDITIONAL" && justification.trim().length < 20) ||
-    (technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice) &&
-      justification.trim().length < 20) ||
-    (unverifiedPlatform && choice === "CONDITIONAL" &&
-      (!linkedInstallationId || justification.trim().length < 20));
+    (unverifiedPlatform && choice === "CONDITIONAL" && !linkedInstallationId);
 
   function reset() {
     setChoice(""); setDraftLink(null); setReviewOpen(false);
-    setJustification(""); setComplete(false); setError("");
+    setJustification(""); setError("");
   }
   function beginReopen() {
     setReviewOpen(true);
@@ -313,7 +321,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       setReviewOpen(true);
       setDraftLink({ criterionKey: "", installationId: "" });
       setChoice("CONDITIONAL");
-      setJustification(""); setComplete(false);
+      setJustification("");
       setError("");
       return;
     }
@@ -339,9 +347,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         inventory_fingerprint: context.inventory_fingerprint,
         verdict: choice,
         software_installation_id: choice === "UNKNOWN" ? null :
-          choice === "CONDITIONAL" ? (linkedInstallationId ? Number(linkedInstallationId) : null) :
-          (selectedId ? Number(selectedId) : null),
-        inventory_declared_complete: choice === "NOT_MATCH" && complete,
+          choice === "CONDITIONAL" && config.hardware_scope === "MATCHED"
+            ? null : (selectedId ? Number(selectedId) : null),
+        inventory_declared_complete: false,
         technical_override_acknowledged: (
           (technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice)) ||
           positiveConflict
@@ -476,14 +484,10 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
                 ? "Describe la comprobación que permite descartar esta configuración..."
                 : "Explica las evidencias de la correspondencia..."}/>
       </label>
-      {choice === "NOT_MATCH" && <div className="cve-attestation">
-        <label><input type="checkbox" checked={complete}
-          onChange={event => setComplete(event.target.checked)}/>
-          He revisado la integridad del inventario y dispongo de evidencia
-          suficiente para descartar esta configuración NVD.</label>
-        <p>Describe qué verificaste. La ausencia de una aplicación en
-          el inventario no constituye por sí sola evidencia negativa.</p>
-      </div>}
+      {choice === "NOT_MATCH" && <p className="cve-review-note">
+        La decisión se aplicará al CVE de este hardware y se conservará
+        la justificación. La evidencia NVD original no se modifica.
+      </p>}
       <div className="cve-form-actions">
         <button type="submit" className="button-primary"
           disabled={saving || invalid}>{saving ? "Guardando..." :
@@ -634,10 +638,9 @@ export default function CveDetail() {
     return () => { live = false; };
   }, [cveId, selectedHardware, isLegacy, revision, canDecide]);
 
-  const { reviewPool, hardwareSoftware, independentConfigs } =
+  const { reviewPool, hardwareSoftware } =
     selectCveOperationalGroups(context);
-  const candidates = context?.candidate_configurations || [];
-  const unverifiedPlatforms = context?.unverified_platform_configurations || [];
+
   const { primary: suggestedPrimary } = groupCveEvidence(reviewPool);
   const primary = reviewPool.find(row => row.index === chosenConfiguration) ||
     suggestedPrimary;
@@ -751,18 +754,6 @@ export default function CveDetail() {
                 setRevision(n => n + 1);
               }}/>
           </section>
-          {independentConfigs.length > 0 && <details className="cve-nvd-other-evidence">
-            <summary>Software independiente pertinente
-              {" (" + independentConfigs.length + ")"}</summary>
-            <p className="cve-muted">Estas condiciones NVD no exigen una
-              plataforma de hardware concreta, pero existe una identidad
-              de software coincidente en el inventario. No son alternativas
-              de firmware de otra CPU.</p>
-            {independentConfigs.map(config => <CandidateReview
-              key={context.hardware_asset_id + ":independent:" + config.index}
-              context={context} config={config} canDecide={canDecide}
-              onSaved={() => setRevision(n => n + 1)}/>)}
-          </details>}
         </> : <div className="panel cve-technical-summary">
           {context.technical_result === "EXCLUDED"
             ? <p>Las configuraciones NVD de este CVE quedan excluidas
@@ -774,34 +765,6 @@ export default function CveDetail() {
                 permanece por verificar; las configuraciones originales se conservan.</p>}
         
         </div>}
-        {candidates.length > 0 && <details className="cve-nvd-other-evidence cve-pending-alternatives">
-          <summary>Software sin condición de hardware explícita ({candidates.length})</summary>
-          <p className="cve-muted">
-            Estas configuraciones permanecen indeterminadas. No encontrar un
-            software en el inventario no prueba su ausencia ni permite excluir
-            automáticamente el CVE. Consulta sus criterios antes de decidir.
-          </p>
-          <div className="cve-nvd-other-scroll" tabIndex={0} role="region"
-            aria-label="Configuraciones NVD pendientes de verificar">
-            {candidates.map(config => <CandidateReview
-              key={context.hardware_asset_id + ":candidate:" + config.index}
-              context={context} config={config} canDecide={canDecide}
-              onSaved={() => {
-                setNotice("Evaluación guardada. El historial se actualizó.");
-                setRevision(n => n + 1);
-              }}/>)}
-          </div>
-        </details>}
-        {unverifiedPlatforms.length > 0 &&
-          <div className="cve-technical-summary" role="status">
-            <p className="cve-muted">
-              {unverifiedPlatforms.length} configuración(es) NVD tienen
-              una plataforma cuya identidad no se ha podido comprobar.
-              Permanecen pendientes en la evaluación global; no son
-              alternativas para vincular software del hardware seleccionado.
-              Sus criterios originales se conservan para auditoría.
-            </p>
-          </div>}
       </>}
   </section>;
 }
