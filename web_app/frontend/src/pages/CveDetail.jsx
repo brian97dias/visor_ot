@@ -120,8 +120,9 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
               : "La vinculación manual no confirma por sí sola la versión vulnerable."}
           </p>
         </> : <p className="cve-muted">
-          No hay software de este tipo instalado en el inventario de este hardware.
-          Puedes registrar una correspondencia parcial sin asociar software.
+          No hay una instalación identificada como correspondiente a este criterio NVD
+          en el hardware seleccionado. Puedes registrar una correspondencia parcial
+          sin vincular software.
         </p>}
       </div>}
 
