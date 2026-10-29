@@ -15,6 +15,7 @@ from vulnerabilities.services.cve_configuration_evaluator import (
 )
 from vulnerabilities.services.cve_applicability import (
     automatic_negative_evidence, verified_negative_configurations,
+    project_configuration_decisions,
 )
 from vulnerabilities.services.cve_general_assessment import (
     general_assessment_context, summarize_hardware_cve_review,
@@ -179,6 +180,49 @@ class HardwareCveReviewSummaryTests(SimpleTestCase):
         self.assertEqual(info["status"], "IN_REVIEW")
         self.assertEqual(info["reviewed_configurations"], 1)
         self.assertEqual(summarize_hardware_cve_review([])["status"], "PENDING_REVIEW")
+
+
+class CveScopedProjectionTests(SimpleTestCase):
+    """The catalog and hardware detail must preserve the same state contract."""
+
+    def setUp(self):
+        self.positive = evaluate_configurations(
+            [nvd_platform_firmware(
+                CPU_HW, CPU_FW_CRITERION, before="4.6.0",
+            )], [CPU_HW], installed(),
+        )
+        self.negative = evaluate_configurations(
+            [nvd_platform_firmware(
+                CPU_HW, CPU_FW_CRITERION,
+                before="4.5.2", after="4.5.0",
+            )], [CPU_HW], installed(),
+        )
+
+    def test_unknown_reopening_retains_system_positive_evidence(self):
+        self.assertEqual(project_configuration_decisions(
+            self.positive, {0: "PENDING_REVIEW"},
+        ), {"status": "APPLIES", "source": "SYSTEM"})
+
+    def test_reopening_proved_exclusion_does_not_restore_no_aplica(self):
+        self.assertEqual(project_configuration_decisions(
+            self.negative, {0: "PENDING_REVIEW"},
+        ), {"status": "IN_REVIEW", "source": "NONE"})
+
+    def test_current_human_negative_and_conditional_override_their_branch(self):
+        self.assertEqual(project_configuration_decisions(
+            self.positive, {0: "NOT_APPLICABLE"},
+        ), {"status": "NOT_APPLICABLE", "source": "ANALYST"})
+        self.assertEqual(project_configuration_decisions(
+            self.positive, {0: "APPLIES_CONDITIONAL"},
+        ), {"status": "APPLIES_CONDITIONAL", "source": "ANALYST"})
+
+    def test_stale_human_verdict_is_neither_current_positive_nor_negative(self):
+        self.assertEqual(project_configuration_decisions(
+            self.positive, {}, stale_human_evidence=True,
+        ), {"status": "STALE", "source": "NONE"})
+        self.assertEqual(project_configuration_decisions(
+            self.negative, {}, stale_human_evidence=True,
+        ), {"status": "STALE", "source": "NONE"})
 
 
 class SiemensContextualLogicTests(SimpleTestCase):
