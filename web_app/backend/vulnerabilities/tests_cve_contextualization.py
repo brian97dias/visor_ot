@@ -300,6 +300,42 @@ class SiemensHardwareIdentityExclusions(SimpleTestCase):
                     "DISTINCT_PLATFORM_VERIFIED",
                 )
 
+
+    def test_s7_1500_cpu_suffix_variants_are_distinct_platforms(self):
+        for model in ("1510sp-1", "1511c-1", "1511f-1", "1511t-1",
+                      "1511tf-1", "1512sp-1", "1512spf-1"):
+            with self.subTest(model=model):
+                other = self.hardware("simatic_s7-1500_cpu_" + model)
+                scenario = nvd_platform_firmware(other, STEP7)
+                result = evaluate_configurations([scenario], [CPU_HW], installed())
+                self.assertEqual(result["result"], EXCLUDED)
+                proof = automatic_negative_evidence(result)
+                self.assertIsNotNone(proof)
+                self.assertEqual(proof["configurations"][0]["excluded_by"][0]
+                                 ["reason"], "DISTINCT_PLATFORM_VERIFIED")
+
+    def test_pc_only_s7_1500_software_controller_is_platform_distinct(self):
+        sw_cpe = "cpe:2.3:a:siemens:simatic_s7-1500_software_controller:*:*:*:*:*:*:*:*"
+        scenario = {"operator": "OR", "cpeMatch": [
+            {"criteria": sw_cpe, "vulnerable": True},
+        ]}
+        result = evaluate_configurations([scenario], [CPU_HW], installed())
+        self.assertEqual(result["result"], EXCLUDED)
+        proof = automatic_negative_evidence(result)
+        self.assertIsNotNone(proof)
+        self.assertEqual(proof["configurations"][0]["excluded_by"][0]
+                         ["reason"], "SOFTWARE_PLATFORM_DISTINCT")
+        unknown = evaluate_configurations([scenario], [], installed())
+        self.assertEqual(unknown["result"], INDETERMINATE)
+        self.assertIsNone(automatic_negative_evidence(unknown))
+        other_app = {"operator": "OR", "cpeMatch": [
+            {"criteria": STEP7, "vulnerable": True},
+        ]}
+        self.assertEqual(
+            evaluate_configurations([other_app], [CPU_HW], installed())["result"],
+            INDETERMINATE,
+        )
+
     def test_same_cpu_remains_matched_not_distinct(self):
         evaluated = evaluate_configurations(
             [nvd_platform_firmware(CPU_HW, STEP7)], [CPU_HW], installed()
