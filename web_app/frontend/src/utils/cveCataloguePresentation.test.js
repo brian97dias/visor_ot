@@ -11,7 +11,7 @@ import {
   preferredCveHardwareId, selectedCveHardwareId, cveReviewProgress,
   groupCveEvidence, cveHumanReviewMessage,
   relevantNvdChildren, displayNvdGroupBranches, nvdAlternativeGroupLabel,
-  currentCveSoftwareLink,
+  currentCveSoftwareLink, isSavedCveLinkSelection,
   cveAssetRoleLabel,
   displayCveApplicability, CVE_CATALOGUE_FILTER_STATES,
   nvdCriterionIdentityBadge, cveAuditJustification,
@@ -336,4 +336,15 @@ test("automatic NVD proof can display a current link before audit is synchronize
     installationId:"2", criterionKey:"nvd-fw",source:"SYSTEM",
   });
   assert.equal(currentCveSoftwareLink({...config,index:4},context),null);
+});
+
+test("rechecking a saved CVE software link is an unchanged draft", () => {
+  const automatic = {
+    installationId:"5", criterionKey:"nvd-firmware", source:"SYSTEM",
+  };
+  assert.equal(isSavedCveLinkSelection(automatic,"nvd-firmware","5"),true);
+  assert.equal(isSavedCveLinkSelection(automatic,"nvd-firmware",5),true);
+  assert.equal(isSavedCveLinkSelection(automatic,"nvd-firmware",""),false);
+  assert.equal(isSavedCveLinkSelection(automatic,"different-criterion","5"),false);
+  assert.equal(isSavedCveLinkSelection(null,"nvd-firmware","5"),false);
 });
