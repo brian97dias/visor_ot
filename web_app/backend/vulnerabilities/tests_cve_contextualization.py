@@ -843,7 +843,7 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(reopened_summary["confirmed_configurations"], 0)
         self.assertEqual(AssetCveAssessment.objects.count(), 2)
 
-    def test_verified_version_range_cannot_be_marked_not_applicable(self):
+    def test_verified_positive_requires_documented_technical_override_for_no_match(self):
         context = self.client.get(self.url).data
         config = context["relevant_configurations"][0]
         self.assertEqual(config["technical_result"], COMPATIBLE)
@@ -858,7 +858,7 @@ class SiemensContextualHttpTests(TestCase):
             "configuration_fingerprint": config["fingerprint"],
         }, format="json")
         self.assertEqual(response.status_code, 400, response.data)
-        self.assertIn("verdict", response.data)
+        self.assertIn("technical_override_acknowledged", response.data)
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
     def test_stale_positive_can_be_reopened_without_current_matching_cpe(self):
