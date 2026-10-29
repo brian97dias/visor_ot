@@ -11,6 +11,7 @@ import {
   preferredCveHardwareId, selectedCveHardwareId, cveReviewProgress,
   groupCveEvidence, cveHumanReviewMessage,
   relevantNvdChildren, displayNvdGroupBranches, nvdAlternativeGroupLabel,
+  currentCveSoftwareLink,
   cveAssetRoleLabel,
   displayCveApplicability, CVE_CATALOGUE_FILTER_STATES,
   nvdCriterionIdentityBadge, cveAuditJustification,
@@ -152,24 +153,27 @@ test("applicability names the origin without inventing analyst decisions", () =>
 });
 
 
-test("firmware identity is valid regardless of the separately evaluated NVD version", () => {
-  const criterion = {
+test("a matched CPE product does not imply the NVD vulnerable version applies", () => {
+  const fw = {
     part: "o", technical_identity: "MATCHED",
     technical_matched_cpe: "cpe:2.3:o:siemens:simatic_s7-1200_cpu_1215c_firmware:4.5.2:*:*:*:*:*:*:*",
-    technical_result: "EXCLUDED",
+    technical_result: "INDETERMINATE",
   };
-  assert.deepEqual(nvdCriterionIdentityBadge(criterion),
-    { label: "Identidad válida", state: "SATISFIED" });
+  assert.deepEqual(nvdCriterionIdentityBadge(fw),
+    {label:"Versión por verificar",state:"UNVERIFIED"});
   assert.deepEqual(nvdCriterionIdentityBadge({
-    ...criterion, technical_result: "COMPATIBLE",
-  }), { label: "Identidad válida", state: "SATISFIED" });
+    ...fw, technical_result:"COMPATIBLE",
+  }), {label:"Coincidencia técnica",state:"SATISFIED"});
   assert.deepEqual(nvdCriterionIdentityBadge({
-    ...criterion, technical_identity: "UNKNOWN", technical_matched_cpe: null,
-  }), { label: "Identidad por verificar", state: "UNVERIFIED" });
+    ...fw, technical_result:"EXCLUDED",
+  }), {label:"Versión fuera de rango",state:"NOT_SATISFIED"});
   assert.deepEqual(nvdCriterionIdentityBadge({
-    part: "h", technical_identity: "MATCHED",
-    technical_matched_cpe: "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*",
-  }), { label: "CPE confirmado", state: "SATISFIED" });
+    ...fw, technical_identity:"UNKNOWN", technical_matched_cpe:null,
+  }), {label:"Producto por verificar",state:"UNVERIFIED"});
+  assert.deepEqual(nvdCriterionIdentityBadge({
+    part:"h", technical_identity:"MATCHED",
+    technical_matched_cpe:"cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*",
+  }), {label:"CPE confirmado",state:"SATISFIED"});
 });
 
 test("automatic history reads El sistema without changing a persisted justification", () => {
@@ -265,4 +269,71 @@ test("single NVD criterion does not invent an OR alternative", () => {
   const result = displayNvdGroupBranches(group);
   assert.deepEqual(result.shown, [one]);
   assert.deepEqual(result.hidden, []);
+});
+
+test("saved SYSTEM software association is visible without a new analyst action", () => {
+  const criterion = {
+    kind:"CRITERION", vulnerable:true, part:"o", criteria:"cpe:nvd:firmware",
+    match_criteria_id:"nvd-fw", technical_software_installation_id:5,
+  };
+  const config = {
+    index:8, tree:{kind:"GROUP", children:[criterion]},
+    latest_assessment:{
+      status:"APPLIES", effective_status:"APPLIES", source:"SYSTEM",
+      stale:false, software_installation_id:5,
+    },
+  };
+  const context = {
+    installed_software:[{installation_id:5, software_type:"FIRMWARE"}],
+    applicability:{source:"SYSTEM"},
+  };
+  assert.deepEqual(currentCveSoftwareLink(config,context), {
+    installationId:"5", criterionKey:"nvd-fw", source:"SYSTEM",
+  });
+  assert.equal(currentCveSoftwareLink({...config,
+    latest_assessment:{...config.latest_assessment, stale:true}},context),null);
+});
+
+test("analyst conditional link is checked only when saved and current", () => {
+  const criterion = {kind:"CRITERION", vulnerable:true, part:"a",
+    criteria:"cpe:nvd:step7", match_criteria_id:"nvd-step7"};
+  const config = {index:0, tree:{kind:"GROUP", children:[criterion]},
+    latest_assessment:{
+      status:"APPLIES_CONDITIONAL", effective_status:"APPLIES_CONDITIONAL",
+      source:"ANALYST", stale:false, software_installation_id:17,
+      conditional_evidence:{linked_software:[{criteria:null,
+        candidate_nvd_criteria:["cpe:nvd:step7"]}]},
+    }};
+  const context = {installed_software:[
+    {installation_id:17, software_type:"APPLICATION"},
+  ]};
+  assert.deepEqual(currentCveSoftwareLink(config,context),{
+    installationId:"17", criterionKey:"nvd-step7", source:"ANALYST",
+  });
+  assert.equal(currentCveSoftwareLink({...config, latest_assessment:{
+    status:"PENDING_REVIEW", effective_status:"PENDING_REVIEW",
+    source:"ANALYST", software_installation_id:null, stale:false,
+  }},context),null, "reopening suppresses previously saved check");
+  assert.equal(currentCveSoftwareLink({...config, latest_assessment:{
+    ...config.latest_assessment, software_installation_id:null,
+  }},context),null, "an unlinked partial assessment does not check software");
+});
+
+test("automatic NVD proof can display a current link before audit is synchronized", () => {
+  const config = {index:3, tree:{kind:"GROUP", children:[
+    {kind:"CRITERION", part:"o", vulnerable:true,
+      criteria:"cpe:nvd:fw",match_criteria_id:"nvd-fw"},
+  ]}, latest_assessment:null};
+  const context = {installed_software:[
+    {installation_id:2, software_type:"FIRMWARE"},
+  ], applicability:{source:"SYSTEM", automatic_evidence:{
+    configuration_index:3, criteria:[
+      {vulnerable:false, software_installation_id:null},
+      {vulnerable:true, software_installation_id:2},
+    ],
+  }}};
+  assert.deepEqual(currentCveSoftwareLink(config,context),{
+    installationId:"2", criterionKey:"nvd-fw",source:"SYSTEM",
+  });
+  assert.equal(currentCveSoftwareLink({...config,index:4},context),null);
 });
