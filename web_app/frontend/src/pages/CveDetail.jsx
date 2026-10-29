@@ -380,8 +380,8 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       onChooseSoftware={onChooseSoftware}/>
     <div className="panel cve-nvd-decision">
     <div className="cve-nvd-joint-title">
-      <h3>{highlight ? "Evaluación · Configuración NVD " + config.position :
-        "Evaluación adicional · Configuración NVD " + config.position}</h3>
+      <h3>{highlight ? "Correspondencia del CVE" :
+        "Correspondencia · Configuración " + config.position}</h3>
       <span className="cve-status-label" data-status={status}>
         {STATE[status] || status}
         {last?.source === "SYSTEM" && " · Automático"}</span>
