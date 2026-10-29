@@ -14,6 +14,7 @@ class SystemCveAuditTests(TestCase):
         before = self.client.get(self.url)
         self.assertEqual(before.status_code, 200, before.data)
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
+        self.assertTrue(before.data["automatic_audit_pending"])
         first = self.client.post(self.sync_url, {}, format="json")
         self.assertEqual(first.status_code, 200, first.data)
         self.assertTrue(first.data["created"])
@@ -35,6 +36,7 @@ class SystemCveAuditTests(TestCase):
         self.assertEqual(latest["source"], "SYSTEM")
         self.assertEqual(latest["decided_by"], "VISOR OT")
         self.assertEqual(context["applicability"]["source"], "SYSTEM")
+        self.assertFalse(context["automatic_audit_pending"])
 
     def test_repeating_automatic_sync_never_duplicates(self):
         first = self.client.post(self.sync_url, {}, format="json")
@@ -137,11 +139,13 @@ class SystemCveAuditTests(TestCase):
         self.assertEqual(context["technical_result"], "EXCLUDED")
         self.assertEqual(context["applicability"]["status"], "NOT_APPLICABLE")
         self.assertEqual(context["applicability"]["source"], "SYSTEM")
+        self.assertTrue(context["automatic_audit_pending"])
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
         first = self.client.post(self.sync_url, {}, format="json")
         self.assertEqual(first.status_code, 200, first.data)
         self.assertTrue(first.data["created"])
         self.assertEqual(AssetCveAssessment.objects.count(), 2)
+        self.assertFalse(first.data["context"]["automatic_audit_pending"])
         decisions = list(AssetCveAssessment.objects.order_by("configuration_index"))
         self.assertTrue(all(item.status == "NOT_APPLICABLE" for item in decisions))
         self.assertTrue(all(item.decided_by_id is None for item in decisions))
@@ -164,6 +168,7 @@ class SystemCveAuditTests(TestCase):
         before = self.client.get(self.url).data
         self.assertEqual(before["technical_result"], "INDETERMINATE")
         self.assertEqual(before["applicability"]["status"], "PENDING_REVIEW")
+        self.assertTrue(before["automatic_audit_pending"])
         result = self.client.post(self.sync_url, {}, format="json")
         self.assertTrue(result.data["created"])
         self.assertEqual(AssetCveAssessment.objects.count(), 1)
@@ -172,6 +177,7 @@ class SystemCveAuditTests(TestCase):
         self.assertEqual(row.status, "NOT_APPLICABLE")
         self.assertEqual(result.data["context"]["applicability"]["status"],
                          "PENDING_REVIEW")
+        self.assertFalse(result.data["context"]["automatic_audit_pending"])
 
     def test_manual_reopening_negative_evidence_prevents_system_overwrite(self):
         self._set_negative_siemens_range()
