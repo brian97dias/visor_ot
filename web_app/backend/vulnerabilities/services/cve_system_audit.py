@@ -9,7 +9,8 @@ from django.db import transaction
 
 from vulnerabilities.models import AssetCveAssessment
 from .cve_applicability import (
-    automatic_positive_evidence, verified_negative_configurations,
+    automatic_positive_evidence, automatic_negative_evidence,
+    verified_negative_configurations,
 )
 from .cve_configuration_evaluator import evaluate_configurations
 from .cve_general_assessment import _context, _digest, VERSION_KEYS
@@ -107,6 +108,15 @@ def ensure_system_cve_assessment(cve_id, hardware_id):
     proof = automatic_positive_evidence(technical)
     if proof is None:
         negatives = verified_negative_configurations(technical)
+        global_exclusion = automatic_negative_evidence(technical) is not None
+        if not global_exclusion:
+            # Document directly verified vulnerable-version exclusions without
+            # flooding the timeline with unrelated platform-only alternatives.
+            negatives = [
+                row for row in negatives
+                if any(condition["reason"] == "FIRMWARE_OR_SOFTWARE_VERSION_EXCLUDED"
+                       for condition in row["excluded_by"])
+            ]
         first = None
         created_any = False
         for negative in negatives:
