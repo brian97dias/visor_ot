@@ -156,12 +156,19 @@ export const CVE_APPLICABILITY_SOURCE = {
 };
 
 
-/** Product identity is proven independently of the NVD vulnerable range. */
+/** Explain product identity separately from verified vulnerable versions. */
 export function nvdCriterionIdentityBadge(item) {
   if (["a", "o"].includes(item?.part)) {
-    return item.technical_identity === "MATCHED" && item.technical_matched_cpe
-      ? { label: "Identidad válida", state: "SATISFIED" }
-      : { label: "Identidad por verificar", state: "UNVERIFIED" };
+    if (item.technical_identity === "MATCHED" && item.technical_matched_cpe) {
+      if (item.technical_result === "COMPATIBLE") {
+        return { label: "Coincidencia técnica", state: "SATISFIED" };
+      }
+      if (item.technical_result === "EXCLUDED") {
+        return { label: "Versión fuera de rango", state: "NOT_SATISFIED" };
+      }
+      return { label: "Versión por verificar", state: "UNVERIFIED" };
+    }
+    return { label: "Producto por verificar", state: "UNVERIFIED" };
   }
   if (item?.technical_identity === "MATCHED" && item.technical_matched_cpe) {
     return { label: "CPE confirmado", state: "SATISFIED" };
@@ -169,6 +176,58 @@ export function nvdCriterionIdentityBadge(item) {
   return item?.state === "SATISFIED"
     ? { label: "CPE confirmado", state: "SATISFIED" }
     : { label: "Sin verificar", state: "UNVERIFIED" };
+}
+
+/** A saved positive links one installed software to a hardware/CVE.
+ * A current human reopening suppresses the previous automatic display.
+ * No state is written by projecting the evidence into a checkbox.
+ */
+export function currentCveSoftwareLink(config, context) {
+  if (!config || !context) return null;
+  const last = config.latest_assessment;
+  const currentPositive = last && !last.stale &&
+    ["APPLIES", "APPLIES_CONDITIONAL"].includes(last.effective_status);
+  const proof = !last && context.applicability?.source === "SYSTEM" &&
+    context.applicability.automatic_evidence?.configuration_index === config.index
+    ? context.applicability.automatic_evidence : null;
+  const provedInstallation = proof?.criteria?.find(row =>
+    row.vulnerable === true && row.software_installation_id)?.software_installation_id;
+  const installationId = currentPositive
+    ? last.software_installation_id : provedInstallation;
+  if (installationId == null) return null;
+  const sw = (context.installed_software || []).find(row =>
+    Number(row.installation_id) === Number(installationId));
+  if (!sw) return null;
+
+  const part = sw.software_type === "APPLICATION" ? "a" :
+    ["FIRMWARE", "OS"].includes(sw.software_type) ? "o" : null;
+  if (!part) return null;
+  const leaves = [];
+  function visit(node) {
+    if (node?.kind === "CRITERION") {
+      if (node.vulnerable === true && node.part === part) leaves.push(node);
+    } else {
+      for (const child of node?.children || []) visit(child);
+    }
+  }
+  visit(config.tree);
+  if (!leaves.length) return null;
+
+  // When present, prefer the NVD criterion actually evaluated for the
+  // installed version. A discretionary link may have no proven criterion.
+  const evidence = last?.conditional_evidence?.linked_software?.[0];
+  const criterion = leaves.find(row =>
+    row.technical_software_installation_id != null &&
+    Number(row.technical_software_installation_id) === Number(installationId)
+  ) || leaves.find(row => evidence?.criteria && row.criteria === evidence.criteria)
+    || leaves.find(row => (evidence?.candidate_nvd_criteria || []).includes(row.criteria))
+    || leaves[0];
+
+  return {
+    installationId: String(installationId),
+    criterionKey: criterion.match_criteria_id || criterion.criteria,
+    source: currentPositive ? last.source : "SYSTEM",
+  };
 }
 
 /** Normalize legacy audit wording visually, without rewriting stored history. */
