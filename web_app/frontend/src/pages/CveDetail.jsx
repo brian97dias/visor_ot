@@ -187,6 +187,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const [justification, setJustification] = useState("");
   const [complete, setComplete] = useState(false);
   const [overrideAcknowledged, setOverrideAcknowledged] = useState(false);
+  const [platformAcknowledged, setPlatformAcknowledged] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const justificationRef = useRef(null);
@@ -219,6 +220,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const canConditional = config.conditional_supported && canDecide &&
     ["INDETERMINATE", "EXCLUDED"].includes(config.technical_result);
   const technicalConflict = config.technical_result === "EXCLUDED";
+  const unverifiedPlatform = Boolean(config.manual_platform_review_required);
   const checked = Boolean(selectedCriterion);
   const canConfirm = canReview || canConditional;
   const linkedInstallationId = checked ? installId : "";
@@ -228,8 +230,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     ((canReview && eligible) || (technicalConflict && config.technical_override_supported))
     ? "CONFIRMED" : "CONDITIONAL";
   const enableConfirm = canDecide && (confirmationVerdict === "CONFIRMED" || canConditional);
-  const confirmationLabel = linkedInstallationId
-    ? "Confirmar correspondencia" : "Correspondencia parcial";
+  const confirmationLabel = unverifiedPlatform
+    ? "Correspondencia condicionada"
+    : linkedInstallationId ? "Confirmar correspondencia" : "Correspondencia parcial";
   const canDiscard = canReview &&
     contextualCveActionOptions(config, last).some(option => option.key === "NOT_MATCH");
   const canUndo = canReopen;
@@ -240,16 +243,18 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const invalid = !justification.trim() || noSelected ||
     (choice === "CONDITIONAL" && justification.trim().length < 20) ||
     (technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice) &&
-      (!overrideAcknowledged || justification.trim().length < 20));
+      (!overrideAcknowledged || justification.trim().length < 20)) ||
+    (unverifiedPlatform && choice === "CONDITIONAL" &&
+      (!platformAcknowledged || !linkedInstallationId || justification.trim().length < 20));
 
   function reset() {
     setChoice(""); setDraftLink(null);
-    setJustification(""); setComplete(false); setOverrideAcknowledged(false); setError("");
+    setJustification(""); setComplete(false); setOverrideAcknowledged(false); setPlatformAcknowledged(false); setError("");
   }
   function beginReopen() {
     setDraftLink({ criterionKey: "", installationId: "" });
     setChoice("UNKNOWN");
-    setJustification(""); setComplete(false); setOverrideAcknowledged(false); setError("");
+    setJustification(""); setComplete(false); setOverrideAcknowledged(false); setPlatformAcknowledged(false); setError("");
   }
   function updateAssociation(criterionKey, installationId) {
     if (savedLink && !criterionKey && !installationId) {
@@ -263,7 +268,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       return;
     }
     setDraftLink({ criterionKey, installationId });
-    setChoice(""); setJustification(""); setOverrideAcknowledged(false); setError("");
+    setChoice(""); setJustification(""); setOverrideAcknowledged(false); setPlatformAcknowledged(false); setError("");
   }
   async function submit(event) {
     event.preventDefault();
@@ -282,6 +287,8 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         inventory_declared_complete: choice === "NOT_MATCH" && complete,
         technical_override_acknowledged: technicalConflict &&
           ["CONFIRMED", "CONDITIONAL"].includes(choice) && overrideAcknowledged,
+        platform_unverified_acknowledged: unverifiedPlatform &&
+          choice === "CONDITIONAL" && platformAcknowledged,
         justification: justification.trim(),
       });
       if (choice === "UNKNOWN") {
@@ -337,6 +344,12 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       condiciones NVD. {canConditional
         ? "El analista puede registrarla como Aplica condicionada, justificando qué falta verificar."
         : "La revisión permanece pendiente."}</p>}
+    {unverifiedPlatform && <div className="cve-technical-discrepancy" role="status">
+      Esta configuración no tiene plataforma de hardware CPE confirmada.
+      Si identificas una instalación pertinente, puedes asociarla de manera
+      condicionada con reconocimiento explícito y justificación del analista.
+      Esto no constituye una coincidencia técnica NVD.
+    </div>}
     {config.review_installation_id && config.technical_result === "COMPATIBLE" &&
       <p className="cve-muted">
         El firmware instalado satisface este criterio NVD; no se puede
@@ -401,6 +414,16 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
             Reconozco que la versión o plataforma quedó excluida técnicamente
             por NVD y que esta es una decisión manual discrepante.</label>
           <p>La decisión no modifica los criterios ni la evaluación técnica NVD.</p>
+        </div>}
+      {unverifiedPlatform && choice === "CONDITIONAL" &&
+        <div className="cve-override-attestation">
+          <label><input type="checkbox" checked={platformAcknowledged}
+            onChange={event => setPlatformAcknowledged(event.target.checked)}/>
+            Reconozco que esta configuración NVD no tiene una plataforma
+            CPE confirmada en el hardware y solicito una vinculación
+            discrecional de la instalación seleccionada.</label>
+          <p>Se conservará el estado técnico pendiente y quedará registrada
+            la asociación manual con su justificación.</p>
         </div>}
       <label>Justificación de la decisión
         <textarea ref={justificationRef} rows={3} required maxLength={1000}
