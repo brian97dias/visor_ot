@@ -1,12 +1,12 @@
 """Conservative, read-only applicability for a hardware/CVE pair.
 
-A current AND/OR NVD match is automatically applicable only if the complete
-positive branch is supported by *confirmed current* product CPEs. Nothing in
-this module creates an analyst assessment or auto-declares NOT_APPLICABLE.
+A complete positive branch may be automatically applicable. Negative proof
+requires an explicit verified version exclusion or a narrowly verified distinct
+hardware platform for every applicable NVD alternative. This module is read-only.
 """
 from django.utils import timezone
 
-from .cve_configuration_evaluator import COMPATIBLE
+from .cve_configuration_evaluator import COMPATIBLE, EXCLUDED
 
 PENDING_REVIEW = "PENDING_REVIEW"
 APPLIES = "APPLIES"
@@ -73,8 +73,108 @@ def automatic_positive_evidence(technical):
     return None
 
 
+def _negative_proof(node):
+    """Return demonstrated exclusions, not inferred absence or partial evidence.
+
+    For AND, one proved-false condition invalidates the branch. For OR, *all*
+    alternatives must be demonstrably false. Negated/unsupported structures
+    remain unknown. We deliberately do not auto-exclude vulnerable hardware
+    products merely by observing a different or missing model.
+    """
+    if not isinstance(node, dict) or node.get("result") != EXCLUDED:
+        return None
+    if node.get("kind") == "CRITERION":
+        part = node.get("part")
+        cpe = node.get("criteria")
+        if not isinstance(cpe, str):
+            return None
+        if (part in ("a", "o") and node.get("vulnerable") is True
+                and node.get("identity") == "MATCHED"
+                and node.get("matched_cpe")
+                and node.get("software_asset_id")
+                and node.get("software_installation_id")
+                and node.get("installed_version")):
+            fields = cpe.split(":")
+            if len(fields) != 13:
+                return None
+            bounds = node.get("version_constraints") or {}
+            if not bounds and fields[5] in ("*", "-"):
+                return None  # No verified version boundary excludes this software.
+            return [{
+                "reason": "FIRMWARE_OR_SOFTWARE_VERSION_EXCLUDED",
+                "criterion": cpe,
+                "confirmed_cpe": node["matched_cpe"],
+                "software_asset_id": node["software_asset_id"],
+                "software_installation_id": node["software_installation_id"],
+                "installed_version": node["installed_version"],
+                "version_constraints": bounds,
+                "explanation": node.get("reason", ""),
+            }]
+        if (part == "h" and node.get("vulnerable") is False
+                and node.get("identity") == "DISTINCT"
+                and node.get("distinct_confirmed_cpes")):
+            # DISTINCT is emitted solely by the evaluator's explicit
+            # independently verified product-line separation rule.
+            return [{
+                "reason": "DISTINCT_PLATFORM_VERIFIED",
+                "criterion": cpe,
+                "confirmed_hardware_cpes": node["distinct_confirmed_cpes"],
+                "explanation": node.get("reason", ""),
+            }]
+        return None
+    if (node.get("kind") != "GROUP" or node.get("negate")
+            or node.get("operator") not in ("AND", "OR")):
+        return None
+    children = node.get("children")
+    if not isinstance(children, list) or not children:
+        return None
+    if node["operator"] == "AND":
+        # Every proof is independently enough to falsify an AND branch.
+        for child in children:
+            proof = _negative_proof(child)
+            if proof:
+                return proof
+        return None
+    excluded = []
+    for child in children:
+        proof = _negative_proof(child)
+        if not proof:
+            return None
+        excluded.extend(proof)
+    return excluded
+
+
+def verified_negative_configurations(technical):
+    """Scoped negative evidence, even when another configuration is unknown."""
+    if not isinstance(technical, dict):
+        return []
+    result = []
+    for index, config in enumerate(technical.get("configurations", [])):
+        proof = _negative_proof(config)
+        if proof:
+            result.append({
+                "configuration_index": index,
+                "configuration_position": index + 1,
+                "excluded_by": proof,
+            })
+    return result
+
+
+def automatic_negative_evidence(technical):
+    """Global NOT_APPLICABLE requires proof for *every* NVD configuration."""
+    if not isinstance(technical, dict) or technical.get("result") != EXCLUDED:
+        return None
+    configs = technical.get("configurations")
+    if not isinstance(configs, list) or not configs:
+        return None
+    negatives = verified_negative_configurations(technical)
+    if len(negatives) != len(configs):
+        return None
+    return {"configurations": negatives}
+
+
 def resolve_applicability(technical_result, analyst_status, *,
-                          automatic_evidence=None):
+                          automatic_evidence=None, automatic_negative=None):
     """Separate a system conclusion from append-only human decisions.
 
     A complete human conclusion has precedence. An incomplete/stale manual
@@ -88,6 +188,8 @@ def resolve_applicability(technical_result, analyst_status, *,
         return {"status": APPLIES_CONDITIONAL, "source": ANALYST}
     if analyst_status in ("IN_REVIEW", "STALE"):
         return {"status": analyst_status, "source": NONE}
+    if technical_result == EXCLUDED and automatic_negative is not None:
+        return {"status": NOT_APPLICABLE, "source": SYSTEM}
     return {"status": PENDING_REVIEW, "source": NONE}
 
 
@@ -97,20 +199,32 @@ def scoped_applicability(technical, analyst_status, *,
     records. The official NVD record and CPE identity data remain unchanged.
     """
     proof = automatic_positive_evidence(technical)
+    negative = automatic_negative_evidence(technical)
     state = resolve_applicability(technical.get("result"), analyst_status,
-                                  automatic_evidence=proof)
+                                  automatic_evidence=proof,
+                                  automatic_negative=negative)
     evidence = None
     if state["source"] == SYSTEM:
         from .cve_general_assessment import _digest
-        configuration = cve.configurations[proof["configuration_index"]]
-        evidence = {
-            **proof,
-            "hardware_id": hardware_id,
-            "inventory_fingerprint": inventory_fingerprint,
-            "configuration_fingerprint": _digest(configuration),
-            "nvd_last_modified": cve.last_modified,
-            "nvd_retrieved_at": cve.retrieved_at,
-        }
+        if state["status"] == APPLIES:
+            configuration = cve.configurations[proof["configuration_index"]]
+            evidence = {
+                **proof, "hardware_id": hardware_id,
+                "inventory_fingerprint": inventory_fingerprint,
+                "configuration_fingerprint": _digest(configuration),
+                "nvd_last_modified": cve.last_modified,
+                "nvd_retrieved_at": cve.retrieved_at,
+            }
+        else:
+            evidence = {
+                **negative, "hardware_id": hardware_id,
+                "inventory_fingerprint": inventory_fingerprint,
+                "configuration_fingerprints": [
+                    _digest(config) for config in cve.configurations
+                ],
+                "nvd_last_modified": cve.last_modified,
+                "nvd_retrieved_at": cve.retrieved_at,
+            }
     return {
         **state,
         "hardening_category": (
