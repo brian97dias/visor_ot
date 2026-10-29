@@ -230,9 +230,12 @@ export function currentCveSoftwareLink(config, context) {
   };
 }
 
-/** A draft equal to the saved link must never create a new analyst decision. */
+/** The persisted association is to an installation, not a display-only
+ * NVD criterion. Switching between OR criteria for that SAME installation
+ * must not manufacture an A -> A audit decision.
+ */
 export function isSavedCveLinkSelection(saved, criterionKey, installationId) {
-  return Boolean(saved) && saved.criterionKey === criterionKey &&
+  return Boolean(saved) && Boolean(criterionKey) &&
     saved.installationId === String(installationId);
 }
 
