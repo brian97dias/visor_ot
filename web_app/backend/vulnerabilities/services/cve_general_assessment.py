@@ -246,6 +246,11 @@ def _serialize_assessment(item, inventory_fp, config_fp):
             item.criteria_evidence
             if item.status == "APPLIES_CONDITIONAL" else None
         ),
+        "negative_evidence": (
+            item.criteria_evidence.get("negative_evidence")
+            if source == "SYSTEM" and item.status == "NOT_APPLICABLE"
+            and isinstance(item.criteria_evidence, dict) else None
+        ),
     }
 
 
