@@ -179,11 +179,15 @@ class GenericCveAssessmentTests(TestCase):
         self.assertEqual(self.client.get(self.url).status_code, 200)
         self.assertEqual(self.client.post(self.url, {}).status_code, 403)
 
-    def test_negative_requires_single_installed_software_and_complete_inventory(self):
-        partial = self.decision(0, verdict="NOT_MATCH")
-        self.assertEqual(partial.status_code, 201)
-        self.assertEqual(partial.data["assessment"]["status"], "PENDING_REVIEW")
-        full = self.decision(0, verdict="NOT_MATCH",
-                             inventory_declared_complete=True)
-        self.assertEqual(full.status_code, 201)
-        self.assertEqual(full.data["assessment"]["status"], "NOT_APPLICABLE")
+    def test_hardware_wide_negative_does_not_falsely_attest_inventory_completeness(self):
+        negative = self.decision(0, verdict="NOT_MATCH")
+        self.assertEqual(negative.status_code, 201, negative.data)
+        self.assertEqual(negative.data["assessment"]["status"], "NOT_APPLICABLE")
+        record = AssetCveAssessment.objects.get()
+        self.assertEqual(record.criteria_evidence["decision_scope"], "HARDWARE_CVE")
+        self.assertFalse(record.criteria_evidence["inventory_declared_complete"])
+        self.assertIsNone(record.software_installation_id)
+        repeat = self.decision(0, verdict="NOT_MATCH",
+                               inventory_declared_complete=True)
+        self.assertEqual(repeat.status_code, 400, repeat.data)
+        self.assertEqual(AssetCveAssessment.objects.count(), 1)
