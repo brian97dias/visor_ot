@@ -402,6 +402,16 @@ def general_assessment_context(cve_id, hardware_id):
             "history": [_serialize_assessment(row, inventory_fp, cfg_fp) for row in history],
         })
     pertinent = _relevance_summary(configs, technical["configurations"])
+    pertinent_indexes = {row["index"] for row in pertinent}
+    # Unresolved alternatives are not technically excluded just because the
+    # primary view does not display them. Surface every unresolved alternative
+    # for inspection without silently attributing an NVD software CPE to an
+    # installation or permitting an unproved automatic verdict.
+    candidates = [
+        row for row in configs
+        if row["technical_result"] == "INDETERMINATE"
+        and row["index"] not in pertinent_indexes
+    ]
     analyst = summarize_hardware_cve_review(configs)
     applicability = scoped_applicability(
         technical, analyst["status"], inventory_fingerprint=inventory_fp,
@@ -450,6 +460,7 @@ def general_assessment_context(cve_id, hardware_id):
         ],
         "configurations": configs,
         "relevant_configurations": pertinent,
+        "candidate_configurations": candidates,
         "unrelated_configuration_count": len(configs) - len(pertinent),
         "context_unit": "HARDWARE_CVE",
     }
