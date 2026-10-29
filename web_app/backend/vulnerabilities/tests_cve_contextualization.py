@@ -585,6 +585,34 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
 
+    def test_primary_software_identity_precedes_unknown_software_on_same_hardware(self):
+        verified_firmware = nvd_platform_firmware(
+            CPU_HW, CPU_FW_CRITERION, after="4.5.0", before="4.5.2"
+        )
+        unknown_firmware = nvd_platform_firmware(
+            CPU_HW,
+            "cpe:2.3:o:siemens:alternate_cpu_1215c_firmware:*:*:*:*:*:*:*:*",
+            before="8.0",
+        )
+        self.cve.configurations = [unknown_firmware, verified_firmware]
+        self.cve.save(update_fields=["configurations"])
+        data = self.client.get(self.url).data
+        self.assertEqual(data["technical_result"], INDETERMINATE)
+        self.assertEqual(
+            [row["position"] for row in data["hardware_software_configurations"]],
+            [2, 1],
+        )
+        self.assertEqual(
+            [row["technical_result"] for row in data["hardware_software_configurations"]],
+            [EXCLUDED, INDETERMINATE],
+        )
+        self.assertEqual(
+            [row["hardware_scope"] for row in data["hardware_software_configurations"]],
+            ["MATCHED", "MATCHED"],
+        )
+        self.assertEqual(data["candidate_configurations"], [])
+        self.assertEqual(data["unverified_platform_configurations"], [])
+
     def test_48_nvd_branches_are_excluded_for_confirmed_cpu_1215c_452(self):
         self.cve.configurations = nvd_2021_37205_configurations()
         self.cve.save(update_fields=["configurations"])
