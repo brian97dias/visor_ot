@@ -3732,3 +3732,11 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   margin: 9px 0;
   overflow-wrap: anywhere;
 }
+
+/* History is one disclosure: opening the timeline reveals rationale directly. */
+.cve-general-history .cve-history-evidence-label {
+  margin: 12px 0 4px;
+  color: #93c5fd;
+  font-weight: 600;
+  font-size: .8rem;
+}
