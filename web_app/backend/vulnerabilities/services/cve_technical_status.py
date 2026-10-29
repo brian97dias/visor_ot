@@ -117,7 +117,17 @@ def _current_linked_installation(cve, hardware, inventory_fp):
 
 def _scoped_status_with_current_audits(cve, hardware, inventory_fp, analysed):
     """Reuse detail's scoped analyst/technical projection for the catalogue."""
-    from .cve_applicability import project_configuration_decisions
+    from .cve_applicability import (
+        project_configuration_decisions, latest_hardware_cve_decision,
+    )
+    global_record, global_current = latest_hardware_cve_decision(
+        cve, hardware, inventory_fp,
+    )
+    if global_record is not None:
+        return project_configuration_decisions(
+            analysed, {}, stale_human_evidence=not global_current,
+            global_decision=global_record.status if global_current else None,
+        )
 
     newest = {}
     for row in AssetCveAssessment.objects.filter(
@@ -179,18 +189,33 @@ def related_assets_for_cves(cves):
                 scoped_status = _scoped_status_with_current_audits(
                     cve, hardware, inventory_fp, analysed,
                 )
+                from .cve_applicability import latest_hardware_cve_decision
+                global_record, global_current = latest_hardware_cve_decision(
+                    cve, hardware, inventory_fp,
+                )
                 chosen_installation, chosen_configuration, human_status = _current_linked_installation(
                     cve, hardware, inventory_fp,
                 )
+                if global_record is not None:
+                    chosen_configuration = global_record.configuration_index
+                    human_status = global_record.status if global_current else "STALE"
+                    chosen_installation = (
+                        global_record.software_installation_id
+                        if global_current and global_record.status == "APPLIES"
+                        else None
+                    )
                 proof_installations = {
                     row.get("software_installation_id")
                     for row in (proof or {}).get("criteria", [])
                     if row.get("vulnerable") and row.get("software_installation_id")
                 }
-                # A current human negative or conditional decision on the
-                # same NVD branch must not resurrect a technical positive as
-                # a "VULNERABLE" asset in the catalogue or hardening.
-                if (chosen_configuration == (proof or {}).get("configuration_index")
+                # A hardware-wide human decision changes the active
+                # Hardware-CVE relation and ALL associated software findings.
+                # A historic SYSTEM positive is still in the NVD evidence,
+                # but is not an operative vulnerable-software association.
+                if global_record is not None:
+                    proof_installations = set()
+                elif (chosen_configuration == (proof or {}).get("configuration_index")
                         and human_status in ("NOT_APPLICABLE", "APPLIES_CONDITIONAL",
                                              "PENDING_REVIEW")):
                     proof_installations = set()
