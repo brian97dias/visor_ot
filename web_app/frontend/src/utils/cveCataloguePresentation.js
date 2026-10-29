@@ -267,7 +267,8 @@ export function cveHistorySoftwareLabel(item) {
     return {
       key: String(row.software_installation_id || row.software_asset_id || product),
       label: product + version,
-      detail: row.software_asset_id ? "Software #" + row.software_asset_id : "",
+      detail: row.software_asset_id && row.software_name
+        ? "Software #" + row.software_asset_id : "",
     };
   });
 }
