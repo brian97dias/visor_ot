@@ -226,7 +226,71 @@ def _context(cve_id, hardware_id, *, lock=False):
     return hardware, cve, confirmed_cpes, installed, inventory_fp
 
 
-def _serialize_assessment(item, inventory_fp, config_fp):
+def _software_snapshot(installation):
+    """Immutable display evidence for an installed component at decision time.
+
+    The FK on a negative audit stays NULL: evaluated is not vulnerable.
+    """
+    if installation is None:
+        return None
+    return {
+        "software_installation_id": installation["installation_id"],
+        "software_asset_id": installation["software_asset_id"],
+        "software_name": installation["software_name"],
+        "software_type": installation["software_type"],
+        "installed_version": installation.get("version"),
+    }
+
+
+def _assessment_software_display(item, inventory_fp, config_fp, installed):
+    """Return historical snapshots, with a conservative legacy fallback.
+
+    Current inventory names must never be presented as historical versions
+    after the inventory or NVD fingerprint has changed.
+    """
+    evidence = item.criteria_evidence if isinstance(item.criteria_evidence, dict) else {}
+    recorded = evidence.get("software_snapshot") or []
+    if isinstance(recorded, list) and recorded:
+        return recorded
+    stale = (item.inventory_fingerprint != inventory_fp or
+             item.configuration_fingerprint != config_fp)
+    current = {row["installation_id"]: row for row in (installed or [])}
+    candidates = []
+    if item.software_installation_id:
+        candidates.append({"software_installation_id": item.software_installation_id})
+    candidates.extend(evidence.get("evaluated_software") or [])
+    for proof in (evidence.get("automatic_evidence") or {}).get("criteria", []):
+        if proof.get("software_installation_id"):
+            candidates.append(proof)
+    for proof in (evidence.get("negative_evidence") or {}).get("excluded_by", []):
+        if proof.get("software_installation_id"):
+            candidates.append(proof)
+    for proof in evidence.get("linked_software") or []:
+        if proof.get("installation_id"):
+            candidates.append({"software_installation_id": proof["installation_id"]})
+    displayed = []
+    seen = set()
+    for proof in candidates:
+        installation_id = proof.get("software_installation_id")
+        if not installation_id or installation_id in seen:
+            continue
+        seen.add(installation_id)
+        live = current.get(installation_id) if not stale else None
+        displayed.append({
+            "software_installation_id": installation_id,
+            "software_asset_id": proof.get("software_asset_id") or (
+                live["software_asset_id"] if live else None),
+            "software_name": proof.get("software_name") or (
+                live["software_name"] if live else None),
+            "software_type": proof.get("software_type") or (
+                live["software_type"] if live else None),
+            "installed_version": proof.get("installed_version") or (
+                live.get("version") if live else None),
+        })
+    return displayed
+
+
+def _serialize_assessment(item, inventory_fp, config_fp, installed=None):
     if item is None:
         return None
     stale = item.inventory_fingerprint != inventory_fp or item.configuration_fingerprint != config_fp
@@ -238,6 +302,9 @@ def _serialize_assessment(item, inventory_fp, config_fp):
         "effective_status": "PENDING_REVIEW" if stale else item.status,
         "stale": stale, "justification": item.justification,
         "software_installation_id": item.software_installation_id,
+        "software_display": _assessment_software_display(
+            item, inventory_fp, config_fp, installed,
+        ),
         "decided_at": item.decided_at,
         "decided_by": "VISOR OT" if source == "SYSTEM" else (
             item.decided_by.username if item.decided_by else None
@@ -392,7 +459,7 @@ def general_assessment_context(cve_id, hardware_id):
         history = list(AssetCveAssessment.objects.filter(
             cve=cve, hardware=hw, configuration_index=index,
         ).select_related("decided_by")[:30])
-        current = _serialize_assessment(history[0], inventory_fp, cfg_fp) if history else None
+        current = _serialize_assessment(history[0], inventory_fp, cfg_fp, installed) if history else None
         supported = _simple_and_firmware(config, confirmed, installed)
         annotated_tree = _annotate_tree(
             _render_tree(config, confirmed, installed), observation
@@ -489,7 +556,7 @@ def general_assessment_context(cve_id, hardware_id):
             "software_criterion": supported["software_criterion"] if supported else None,
             "review_installation_id": supported["required_installation_id"] if supported else None,
             "latest_assessment": current,
-            "history": [_serialize_assessment(row, inventory_fp, cfg_fp) for row in history],
+            "history": [_serialize_assessment(row, inventory_fp, cfg_fp, installed) for row in history],
         })
     pertinent = _relevance_summary(configs, technical["configurations"])
     pertinent_indexes = {row["index"] for row in pertinent}
@@ -910,6 +977,18 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
                 "analyst_verdict": verdict,
             } if conflicting_negative else None,
         }
+    if conditional_evidence is None:
+        conditional_evidence = {
+            "platform": supported["hardware_criterion"] if supported else None,
+            "software": supported["software_criterion"] if supported else None,
+            "verdict": verdict,
+            "inventory_declared_complete": inventory_declared_complete,
+        }
+    # Snapshot the actual inventory values before a later firmware update or
+    # unlink; this display evidence never changes the NVD technical result.
+    snapshot = _software_snapshot(selected)
+    if snapshot:
+        conditional_evidence["software_snapshot"] = [snapshot]
     record = AssetCveAssessment.objects.create(
         hardware=hw, cve=cve,
         configuration_index=configuration_index,
@@ -919,11 +998,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
             selected["installation_id"] if selected and
             status in ("APPLIES", "APPLIES_CONDITIONAL") else None
         ),
-        criteria_evidence=conditional_evidence if conditional_evidence is not None else {
-            "platform": supported["hardware_criterion"] if supported else None,
-            "software": supported["software_criterion"] if supported else None,
-            "verdict": verdict, "inventory_declared_complete": inventory_declared_complete,
-        },
+        criteria_evidence=conditional_evidence,
         justification=reason, decided_by=actor,
     )
-    return _serialize_assessment(record, actual_fp, cfg_fp)
+    return _serialize_assessment(record, actual_fp, cfg_fp, installed)
