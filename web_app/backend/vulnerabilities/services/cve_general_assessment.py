@@ -298,17 +298,20 @@ def _hardware_scope(criterion_nodes):
 
 
 def _relevance_summary(configs, technical_trees):
-    """Select per-asset pertinent alternatives without discarding NVD history.
+    """Select only evidence pertaining to this inventory context.
 
-    MATCHED means an actual confirmed hardware/software CPE was involved;
-    EXCLUDED by version still belongs to that product and stays visible.
-    Unknown configurations without any matched asset are preserved in the
-    original list, but do not dominate the asset's regular evaluation screen.
+    A historical decision is *not* evidence that another NVD hardware
+    platform belongs to the selected asset. Hardware-matched branches stay
+    relevant even when their installed firmware version is excluded. A
+    software-only branch is relevant here only with a demonstrated software
+    identity match; unresolved software-only branches are separately offered
+    for review. The entire NVD expression remains evaluated independently.
     """
     relevant = []
     for config, evaluation in zip(configs, technical_trees):
         matches = _matching_criterion_count(evaluation)
-        if matches or config.get("history"):
+        scope = config["hardware_scope"]
+        if scope == "MATCHED" or (scope == "UNSCOPED" and matches > 0):
             relevant.append((matches, config))
     priority = {"COMPATIBLE": 0, "INDETERMINATE": 1, "EXCLUDED": 2}
     # A confirmed product identity (including a firmware whose version is
