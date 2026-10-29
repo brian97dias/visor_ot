@@ -110,6 +110,15 @@ def _negative_proof(node):
                 "version_constraints": bounds,
                 "explanation": node.get("reason", ""),
             }]
+        if (part == "a" and node.get("vulnerable") is True
+                and node.get("identity") == "PLATFORM_DISTINCT"
+                and node.get("distinct_confirmed_cpes")):
+            return [{
+                "reason": "SOFTWARE_PLATFORM_DISTINCT",
+                "criterion": cpe,
+                "confirmed_hardware_cpes": node["distinct_confirmed_cpes"],
+                "explanation": node.get("reason", ""),
+            }]
         if (part == "h" and node.get("vulnerable") is False
                 and node.get("identity") == "DISTINCT"
                 and node.get("distinct_confirmed_cpes")):
