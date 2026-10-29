@@ -791,24 +791,22 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         # Manual non-correspondence is scoped to this NVD configuration, never
         # inferred solely from a missing software entry and never an automatic
         # global dismissal. Require a verified platform or unscoped criterion.
-        from .cve_configuration_evaluator import _parse_cpe
-        parts = [
-            _parse_cpe(item.get("criteria", ""))
-            for item in _flatten_technical_tree(_render_tree(config, confirmed, installed))
+        # An unknown, explicitly different hardware platform cannot be
+        # dismissed manually in the software-only evaluation for this asset.
+        observed = evaluate_configurations([config], list(confirmed), installed)
+        tree = _annotate_tree(
+            _render_tree(config, confirmed, installed),
+            observed["configurations"][0],
+        )
+        hardware_criteria = [
+            item for item in _flatten_technical_tree(tree)
+            if item.get("part") == "h"
         ]
-        if (any(part and part[2] == "h" for part in parts)
-                and not any(part and part[2] == "h"
-                            and item in confirmed for part, item in [])):
-            # Check the actual NVD hardware predicates with the evaluator,
-            # rather than comparing arbitrary names.
-            observed = evaluate_configurations([config], list(confirmed), installed)
-            tree = _annotate_tree(_render_tree(config, confirmed, installed),
-                                  observed["configurations"][0])
-            hw_items = [item for item in _flatten_technical_tree(tree)
-                        if item.get("part") == "h"]
-            if not any(item.get("technical_identity") == "MATCHED" for item in hw_items):
-                raise ValidationError({"verdict":
-                    "No se ha confirmado la plataforma de hardware NVD para este activo."})
+        if hardware_criteria and not any(
+                item.get("technical_identity") == "MATCHED"
+                for item in hardware_criteria):
+            raise ValidationError({"verdict":
+                "No se ha confirmado la plataforma de hardware NVD para este activo."})
     installed_by_id = {row["installation_id"]: row for row in installed}
     selected = installed_by_id.get(software_installation_id)
     if software_installation_id is not None and selected is None:
