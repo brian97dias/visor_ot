@@ -150,6 +150,13 @@ def _exclusive_siemens_hardware(product):
     }:
         # SIPLUS/SIMATIC prefixes may name the same TIM device family.
         return ("tim-1531-irc", "1531-irc")
+    # NVD contains two explicit CPU product IDs with a duplicated "cpu_"
+    # token. Preserve the exact CPE spelling rather than fuzzy normalization.
+    if name in {
+        "simatic_s7-1500_cpu_cpu_1513prof-2",
+        "simatic_s7-1500_cpu_cpu_1513pro-2",
+    }:
+        return ("s7-1500-cpu", name.removeprefix("simatic_s7-1500_cpu_cpu_"))
     # Explicit S7-1500 CPU model; an S7-1500 family/umbrella name is NOT
     # enough to prove device exclusivity on its own.
     if name.startswith("simatic_s7-1500_cpu_"):
