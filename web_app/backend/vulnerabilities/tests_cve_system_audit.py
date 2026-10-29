@@ -179,6 +179,36 @@ class SystemCveAuditTests(TestCase):
                          "PENDING_REVIEW")
         self.assertFalse(result.data["context"]["automatic_audit_pending"])
 
+    def test_manual_override_of_negative_is_not_replaced_by_system(self):
+        self._set_negative_siemens_range()
+        before = self.client.get(self.url).data
+        self.assertTrue(before["configurations"][0]["technical_override_supported"])
+        payload = {
+            "configuration_index": 0, "verdict": "CONFIRMED",
+            "software_installation_id": self.installation.pk,
+            "technical_override_acknowledged": True,
+            "justification": (
+                "Se registra una asociación manual preventiva y documentada "
+                "aunque la versión esté excluida de la configuración NVD."
+            ),
+            "inventory_fingerprint": before["inventory_fingerprint"],
+            "configuration_fingerprint": before["configurations"][0]["fingerprint"],
+        }
+        saved = self.client.post(self.url, payload, format="json")
+        self.assertEqual(saved.status_code, 201, saved.data)
+        self.assertEqual(saved.data["assessment"]["status"], "APPLIES")
+        sync = self.client.post(self.sync_url, {}, format="json")
+        self.assertEqual(sync.status_code, 200, sync.data)
+        decision = AssetCveAssessment.objects.filter(
+            configuration_index=0
+        ).order_by("-decided_at", "-pk").first()
+        self.assertEqual(decision.status, "APPLIES")
+        self.assertIsNotNone(decision.decided_by_id)
+        self.assertTrue(decision.criteria_evidence["technical_override"]["acknowledged"])
+        self.assertEqual(sync.data["context"]["technical_result"], "EXCLUDED")
+        self.assertEqual(sync.data["context"]["applicability"]["status"], "APPLIES")
+        self.assertEqual(sync.data["context"]["applicability"]["source"], "ANALYST")
+
     def test_manual_reopening_negative_evidence_prevents_system_overwrite(self):
         self._set_negative_siemens_range()
         self.client.post(self.sync_url, {}, format="json")
