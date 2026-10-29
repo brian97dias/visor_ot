@@ -230,6 +230,12 @@ export function currentCveSoftwareLink(config, context) {
   };
 }
 
+/** A draft equal to the saved link must never create a new analyst decision. */
+export function isSavedCveLinkSelection(saved, criterionKey, installationId) {
+  return Boolean(saved) && saved.criterionKey === criterionKey &&
+    saved.installationId === String(installationId);
+}
+
 /** Normalize legacy audit wording visually, without rewriting stored history. */
 export function cveAuditJustification(justification, source) {
   const text = String(justification || "");
