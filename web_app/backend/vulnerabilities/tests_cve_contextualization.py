@@ -783,7 +783,7 @@ class SiemensContextualHttpTests(TestCase):
         self.assertIn("verdict", rejected.data)
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
-    def test_software_without_nvd_hardware_can_be_linked_conditionally(self):
+    def test_unscoped_software_cannot_be_linked_without_matching_installation_cpe(self):
         unknown_fw = (
             "cpe:2.3:o:siemens:unknown_unscoped_firmware:*:*:*:*:*:*:*:*"
         )
@@ -816,13 +816,10 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(rejected.status_code, 400, rejected.data)
         self.assertIn("platform_unverified_acknowledged", rejected.data)
         payload["platform_unverified_acknowledged"] = True
-        approved = self.client.post(self.url, payload, format="json")
-        self.assertEqual(approved.status_code, 201, approved.data)
-        self.assertEqual(approved.data["assessment"]["status"], "APPLIES_CONDITIONAL")
-        record = AssetCveAssessment.objects.get()
-        self.assertEqual(record.software_installation_id, self.installation.pk)
-        self.assertTrue(record.criteria_evidence["platform_unverified"]["acknowledged"])
-        self.assertIsNone(record.criteria_evidence["linked_software"][0]["matched_cpe"])
+        rejected_identity = self.client.post(self.url, payload, format="json")
+        self.assertEqual(rejected_identity.status_code, 400, rejected_identity.data)
+        self.assertIn("software_installation_id", rejected_identity.data)
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
     def test_catalogue_contains_named_hardware_and_only_corresponding_firmware(self):
         response = self.client.get("/api/vulnerabilities/cves/")
