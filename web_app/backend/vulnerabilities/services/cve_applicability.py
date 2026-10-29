@@ -215,14 +215,20 @@ def project_configuration_decisions(technical, human_statuses, *,
         else:
             states.append((PENDING_REVIEW, NONE))
 
+    # An outdated human review must not be silently shown as a current
+    # automatic verdict merely because a CPE still matches the same NVD
+    # branch. Other independently current human conclusions may still win.
+    if stale_human_evidence and not any(
+        state in (APPLIES, APPLIES_CONDITIONAL) and origin == ANALYST
+        for state, origin in states
+    ):
+        return {"status": "STALE", "source": NONE}
     for wanted in (APPLIES, APPLIES_CONDITIONAL):
         if any(state == wanted for state, _ in states):
             origin = (ANALYST if any(
                 state == wanted and source == ANALYST for state, source in states
             ) else SYSTEM)
             return {"status": wanted, "source": origin}
-    if stale_human_evidence:
-        return {"status": "STALE", "source": NONE}
     if any(state == "IN_REVIEW" for state, _ in states):
         return {"status": "IN_REVIEW", "source": NONE}
     if states and all(state == NOT_APPLICABLE for state, _ in states):
