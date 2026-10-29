@@ -3610,3 +3610,22 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 }
 .cve-pending-configuration-content { padding: 0 13px 13px; }
 .cve-pending-configuration-content > .cve-muted { margin: 12px 0 0; }
+
+/* The per-hardware NVD software choice belongs inside its software card. */
+.cve-nvd-software-choices { margin: 14px 0 0; }
+.cve-nvd-software-choices > summary { cursor: pointer; color: #7dd3fc; }
+.cve-nvd-software-choice {
+  display: flex; width: 100%; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 12px 14px; border: 1px solid #334155;
+  background: #101a2c; color: #e2e8f0; border-radius: 8px;
+  font: inherit; text-align: left; cursor: pointer; margin: 7px 0;
+}
+.cve-nvd-software-choice:hover, .cve-nvd-software-choice:focus-visible {
+  border-color: #38bdf8; background: #14283e;
+}
+.cve-nvd-software-choice:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.cve-nvd-software-choice strong { display: block; font-size: .88rem; }
+.cve-nvd-software-choice small { display: block; font-size: .76rem; color: #94a3b8; margin-top: 4px; }
+@media (max-width: 720px) {
+  .cve-nvd-software-choice { align-items: flex-start; flex-direction: column; }
+}
