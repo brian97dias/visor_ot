@@ -9,7 +9,7 @@ import {
   cveHardwareCandidates, toggleCveHardwareSelection,
   cveHardwareSelectionValid, isCveDiscoveryActive,
   preferredCveHardwareId, selectedCveHardwareId, cveReviewProgress,
-  groupCveEvidence, cveHumanReviewMessage,
+  groupCveEvidence, selectCveOperationalGroups, cveHumanReviewMessage,
   relevantNvdChildren, displayNvdGroupBranches, nvdAlternativeGroupLabel,
   currentCveSoftwareLink, currentCveEvaluatedSoftware,
   allowedCveDecisionTransitions, isSavedCveLinkSelection,
@@ -292,6 +292,53 @@ test("an automatic or analyst verdict can be reopened only into other states", (
     ["CONFIRMED", "NOT_MATCH"]);
   assert.deepEqual(allowedCveDecisionTransitions("PENDING_REVIEW"),
     ["CONFIRMED", "CONDITIONAL", "NOT_MATCH"]);
+});
+
+test("operational detail hides unrelated hardware even with automatic history", () => {
+  const otherCpu = Array.from({length: 47}, (_, index) => ({
+    index, position: index + 1, hardware_scope: "DISTINCT",
+    technical_result: "EXCLUDED",
+    history: [{status: "NOT_APPLICABLE", source: "SYSTEM"}],
+  }));
+  const main = {
+    index: 47, position: 13, hardware_scope: "MATCHED",
+    technical_result: "EXCLUDED", history: [{status: "NOT_APPLICABLE"}],
+  };
+  const context = {
+    relevant_configurations: [...otherCpu, main],
+    hardware_software_configurations: [main],
+    configurations: [...otherCpu, main],
+  };
+  const result = selectCveOperationalGroups(context);
+  assert.deepEqual(result.reviewPool.map(row => row.position), [13]);
+  assert.deepEqual(result.hardwareSoftware.map(row => row.position), [13]);
+  assert.deepEqual(result.independentConfigs, []);
+  assert.equal(context.configurations.length, 48);
+  assert.deepEqual(selectCveOperationalGroups({
+    relevant_configurations: otherCpu,
+    hardware_software_configurations: [],
+  }).reviewPool, []);
+});
+
+test("operational detail preserves matched standalone software, not foreign CPU", () => {
+  const standalone = {
+    index: 0, hardware_scope: "UNSCOPED", technical_result: "COMPATIBLE",
+  };
+  const platform = {
+    index: 1, hardware_scope: "MATCHED", technical_result: "INDETERMINATE",
+  };
+  const foreign = {
+    index: 2, hardware_scope: "DISTINCT", technical_result: "EXCLUDED",
+  };
+  const value = selectCveOperationalGroups({
+    relevant_configurations: [platform, standalone, foreign],
+    hardware_software_configurations: [platform],
+  });
+  assert.deepEqual(value.reviewPool.map(row => row.index), [1]);
+  assert.deepEqual(value.independentConfigs.map(row => row.index), [0]);
+  assert.deepEqual(selectCveOperationalGroups({
+    relevant_configurations: [standalone, foreign],
+  }).reviewPool.map(row => row.index), [0]);
 });
 
 test("negative system decision marks evaluated firmware but never a positive link", () => {
