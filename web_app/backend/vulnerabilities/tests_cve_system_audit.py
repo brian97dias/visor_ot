@@ -35,6 +35,9 @@ class SystemCveAuditTests(TestCase):
         self.assertEqual(latest["status"], "APPLIES")
         self.assertEqual(latest["source"], "SYSTEM")
         self.assertEqual(latest["decided_by"], "VISOR OT")
+        self.assertEqual(latest["software_display"][0]["software_name"],
+                         self.sw.asset.name)
+        self.assertEqual(latest["software_display"][0]["installed_version"], "4.5.2")
         self.assertEqual(context["applicability"]["source"], "SYSTEM")
         self.assertFalse(context["automatic_audit_pending"])
 
