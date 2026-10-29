@@ -9,7 +9,7 @@ import CveAnalysis from "./CveAnalysis";
 import {
   CVE_SEVERITY, CVE_TECHNICAL_STATE, CVE_EVALUATION_STATE,
   CVE_APPLICABILITY_SOURCE,
-  selectedCveHardwareId, groupCveEvidence,
+  selectedCveHardwareId, groupCveEvidence, selectCveOperationalGroups,
   nvdCriterionIdentityBadge, currentCveSoftwareLink,
   currentCveEvaluatedSoftware, allowedCveDecisionTransitions,
   isSavedCveLinkSelection, cveAuditJustification,
@@ -646,22 +646,14 @@ export default function CveDetail() {
     return () => { live = false; };
   }, [cveId, selectedHardware, isLegacy, revision, canDecide]);
 
-  const configs = context?.relevant_configurations || [];
-  const hardwareSoftware = context?.hardware_software_configurations || [];
-  // Never fall back to every historical NVD configuration. Only matched
-  // platforms or demonstrated standalone software are operational evidence.
-  const reviewPool = hardwareSoftware.length ? hardwareSoftware :
-    configs.filter(row => ["MATCHED", "UNSCOPED"].includes(row.hardware_scope));
+  const { reviewPool, hardwareSoftware, independentConfigs } =
+    selectCveOperationalGroups(context);
   const candidates = context?.candidate_configurations || [];
   const unverifiedPlatforms = context?.unverified_platform_configurations || [];
   const { primary: suggestedPrimary } = groupCveEvidence(reviewPool);
   const primary = reviewPool.find(row => row.index === chosenConfiguration) ||
     suggestedPrimary;
   const others = reviewPool.filter(row => row.index !== primary?.index);
-  const independentConfigs = hardwareSoftware.length
-    ? configs.filter(row => row.hardware_scope === "UNSCOPED" &&
-      !hardwareSoftware.some(hw => hw.index === row.index))
-    : [];
   const source = cve?.description_source;
   const nvdUrl = "https://nvd.nist.gov/vuln/detail/" + encodeURIComponent(cveId);
   if (loading) return <section className="page" aria-busy="true">
