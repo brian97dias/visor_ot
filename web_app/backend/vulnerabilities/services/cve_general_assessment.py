@@ -595,7 +595,8 @@ def _matched_criterion_nodes(tree):
 
 def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
                           installation_id, *, allow_excluded=False,
-                          platform_unverified_acknowledged=False):
+                          platform_unverified_acknowledged=False,
+                          allow_verified_positive=False):
     """Evidence for a cautious analyst claim: proven hardware context and
     an identified NVD vulnerable component, not an inferred installation.
     """
@@ -612,7 +613,7 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
             "La configuración NVD contiene una negación; requiere evaluación especializada."})
     evaluation = evaluate_configurations([config], list(confirmed), installed)
     from .cve_applicability import automatic_positive_evidence
-    if automatic_positive_evidence(evaluation):
+    if automatic_positive_evidence(evaluation) and not allow_verified_positive:
         raise ValidationError({"verdict":
             "Todas las condiciones NVD están verificadas: utiliza Aplica, no Aplica condicionada."})
     if evaluation["result"] == "EXCLUDED" and not allow_excluded:
@@ -751,46 +752,81 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
     if not reason or len(reason) > 1000:
         raise ValidationError({"justification": "Justifica tu decisión (máximo 1000 caracteres)."})
     technical = evaluate_configurations([config], list(confirmed), installed)
-    excluded = technical["result"] == "EXCLUDED"
+    result = technical["result"]
+    excluded = result == "EXCLUDED"
+    conflicting_negative = verdict == "NOT_MATCH" and result == "COMPATIBLE"
+    conflicting_positive = verdict == "CONDITIONAL" and result == "COMPATIBLE"
     override = excluded and verdict in ("CONFIRMED", "CONDITIONAL")
-    if override and not technical_override_acknowledged:
+    if (override or conflicting_negative or conflicting_positive) and not technical_override_acknowledged:
         raise ValidationError({"technical_override_acknowledged":
-            "Reconoce expresamente que la decisión contradice la exclusión técnica."})
+            "Reconoce expresamente que tu decisión contradice la conclusión técnica NVD."})
+
+    # Reaffirming a CURRENT persisted decision changes no state and may not
+    # manufacture a new analyst audit record. A mere UI opening never writes.
+    latest = AssetCveAssessment.objects.filter(
+        hardware=hw, cve=cve, configuration_index=configuration_index,
+    ).order_by("-decided_at", "-pk").first()
+    target = {
+        "CONFIRMED": "APPLIES", "CONDITIONAL": "APPLIES_CONDITIONAL",
+        "NOT_MATCH": "NOT_APPLICABLE" if inventory_declared_complete else "PENDING_REVIEW",
+        "UNKNOWN": "PENDING_REVIEW",
+    }[verdict]
+    if (latest and latest.inventory_fingerprint == actual_fp
+            and latest.configuration_fingerprint == cfg_fp
+            and latest.status == target):
+        raise ValidationError({"verdict":
+            "La evaluación ya tiene este estado vigente. No se registran reconfirmaciones."})
+
     supported = _simple_and_firmware(config, confirmed, installed)
-    if not supported and verdict not in ("UNKNOWN", "CONDITIONAL") and not (
-            override and verdict == "CONFIRMED"):
-        raise ValidationError({"verdict": "La configuración no es verificable mediante este flujo."})
-    if (supported and supported["required_installation_id"] is not None
-            and verdict == "NOT_MATCH"):
-        # A validated installed version currently satisfies this NVD AND.
-        # Contradicting evidence cannot be converted into NOT_APPLICABLE.
-        raise ValidationError({
-            "verdict": "El firmware y la versión cumplen esta configuración NVD. "
-                       "No es válido descartarla con la evidencia vigente."
-        })
+    if not supported and verdict == "CONFIRMED" and not override:
+        raise ValidationError({"verdict":
+            "La configuración no permite una confirmación positiva sin evidencia comprobada."})
+    if verdict == "NOT_MATCH":
+        if _has_nvd_negation(config):
+            raise ValidationError({"verdict":
+                "Esta configuración contiene negaciones NVD y requiere revisión especializada."})
+        if inventory_declared_complete and len(reason) < 20:
+            raise ValidationError({"justification":
+                "Documenta la evidencia negativa y el alcance revisado (mínimo 20 caracteres)."})
+        # Manual non-correspondence is scoped to this NVD configuration, never
+        # inferred solely from a missing software entry and never an automatic
+        # global dismissal. Require a verified platform or unscoped criterion.
+        from .cve_configuration_evaluator import _parse_cpe
+        parts = [
+            _parse_cpe(item.get("criteria", ""))
+            for item in _flatten_technical_tree(_render_tree(config, confirmed, installed))
+        ]
+        if (any(part and part[2] == "h" for part in parts)
+                and not any(part and part[2] == "h"
+                            and item in confirmed for part, item in [])):
+            # Check the actual NVD hardware predicates with the evaluator,
+            # rather than comparing arbitrary names.
+            observed = evaluate_configurations([config], list(confirmed), installed)
+            tree = _annotate_tree(_render_tree(config, confirmed, installed),
+                                  observed["configurations"][0])
+            hw_items = [item for item in _flatten_technical_tree(tree)
+                        if item.get("part") == "h"]
+            if not any(item.get("technical_identity") == "MATCHED" for item in hw_items):
+                raise ValidationError({"verdict":
+                    "No se ha confirmado la plataforma de hardware NVD para este activo."})
     installed_by_id = {row["installation_id"]: row for row in installed}
     selected = installed_by_id.get(software_installation_id)
-    if selected is not None and supported and verdict not in ("UNKNOWN", "CONDITIONAL"):
-        part = supported["software_criterion"].split(":")[2]
-        permitted_types = (
-            ("FIRMWARE", "OS") if part == "o" else ("APPLICATION",)
-        )
-        if selected["software_type"] not in permitted_types:
-            raise ValidationError({
-                "software_installation_id":
-                    "El tipo de software instalado no corresponde al criterio NVD."
-            })
     if software_installation_id is not None and selected is None:
         raise ValidationError({"software_installation_id": "La instalación no está vigente."})
-    if verdict not in ("UNKNOWN", "CONDITIONAL") and selected is None:
-        raise ValidationError({"software_installation_id": "Selecciona software instalado vigente."})
+    if selected is not None and supported and verdict == "CONFIRMED":
+        part = supported["software_criterion"].split(":")[2]
+        permitted = ("FIRMWARE", "OS") if part == "o" else ("APPLICATION",)
+        if selected["software_type"] not in permitted:
+            raise ValidationError({"software_installation_id":
+                "El tipo de software instalado no corresponde al criterio NVD."})
+    if verdict == "CONFIRMED" and selected is None:
+        raise ValidationError({"software_installation_id":
+            "Selecciona una instalación de software vigente."})
     if (supported and supported["required_installation_id"] is not None
-            and verdict != "UNKNOWN"
+            and verdict == "CONFIRMED"
             and software_installation_id != supported["required_installation_id"]):
-        raise ValidationError({
-            "software_installation_id":
-                "Selecciona la instalación concreta verificada contra NVD."
-        })
+        raise ValidationError({"software_installation_id":
+            "Selecciona la instalación concreta verificada contra NVD."})
     conditional_evidence = None
     if verdict == "CONDITIONAL" or override:
         if len(reason) < 20:
@@ -803,11 +839,12 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
             cve, hw, configuration_index, confirmed, installed,
             software_installation_id, allow_excluded=override,
             platform_unverified_acknowledged=platform_unverified_acknowledged,
+            allow_verified_positive=conflicting_positive,
         )
-        if override:
+        if override or conflicting_positive:
             conditional_evidence["technical_override"] = {
                 "acknowledged": True,
-                "technical_result": "EXCLUDED",
+                "technical_result": result,
                 "analyst_verdict": verdict,
                 "reason": technical["configurations"][0].get("reason", ""),
                 "configuration_fingerprint": cfg_fp,
@@ -819,15 +856,35 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         status = "APPLIES_CONDITIONAL"
     elif (supported or override) and verdict == "CONFIRMED" and selected is not None:
         status = "APPLIES"
-    elif (supported and verdict == "NOT_MATCH" and selected is not None
-          and inventory_declared_complete and len(installed) == 1):
+    elif verdict == "NOT_MATCH" and inventory_declared_complete:
         status = "NOT_APPLICABLE"
+    if verdict == "NOT_MATCH":
+        # The negative assessment has an evaluated installation, NOT a
+        # vulnerable software association. Keep its FK null by design.
+        conditional_evidence = {
+            "origin": "ANALYST", "verdict": "NOT_MATCH",
+            "inventory_declared_complete": inventory_declared_complete,
+            "evaluated_software": [{
+                "software_installation_id": selected["installation_id"],
+                "software_asset_id": selected["software_asset_id"],
+                "installed_version": selected.get("version"),
+            }] if selected else [],
+            "negative_scope": "NVD_CONFIGURATION",
+            "technical_result": result,
+            "technical_override": {
+                "acknowledged": True, "technical_result": result,
+                "analyst_verdict": verdict,
+            } if conflicting_negative else None,
+        }
     record = AssetCveAssessment.objects.create(
         hardware=hw, cve=cve,
         configuration_index=configuration_index,
         configuration_snapshot=config, configuration_fingerprint=cfg_fp,
         inventory_fingerprint=actual_fp, status=status,
-        software_installation_id=selected["installation_id"] if selected else None,
+        software_installation_id=(
+            selected["installation_id"] if selected and
+            status in ("APPLIES", "APPLIES_CONDITIONAL") else None
+        ),
         criteria_evidence=conditional_evidence if conditional_evidence is not None else {
             "platform": supported["hardware_criterion"] if supported else None,
             "software": supported["software_criterion"] if supported else None,
