@@ -237,6 +237,42 @@ export function currentCveSoftwareLink(config, context) {
   };
 }
 
+/** The timeline foregrounds the decision, not raw CPE IDs. Raw NVD
+ * criteria remain available in a separate evidence disclosure.
+ */
+export function cveHistoryDecisionDescription(item) {
+  const evidence = item?.negative_evidence?.excluded_by || [];
+  if (item?.source === "SYSTEM" && item?.status === "NOT_APPLICABLE") {
+    if (evidence.some(row => row.reason === "FIRMWARE_OR_SOFTWARE_VERSION_EXCLUDED")) {
+      return "La versión evaluada está fuera del intervalo vulnerable NVD.";
+    }
+    if (evidence.some(row => ["DISTINCT_PLATFORM_VERIFIED",
+      "SOFTWARE_PLATFORM_DISTINCT"].includes(row.reason))) {
+      return "El producto o la plataforma NVD es diferente del hardware confirmado.";
+    }
+  }
+  if (item?.source === "SYSTEM" && item?.status === "APPLIES") {
+    return "Los CPE y las versiones comprobadas cumplen los criterios NVD.";
+  }
+  return String(item?.justification || "").trim();
+}
+
+export function cveHistorySoftwareLabel(item) {
+  const records = Array.isArray(item?.software_display) ? item.software_display : [];
+  return records.map(row => {
+    const product = row.software_name || (row.software_asset_id
+      ? "Software #" + row.software_asset_id : "Software instalado");
+    const version = row.installed_version
+      ? " · Versión " + row.installed_version : "";
+    return {
+      key: String(row.software_installation_id || row.software_asset_id || product),
+      label: product + version,
+      detail: row.software_asset_id ? "Software #" + row.software_asset_id : "",
+    };
+  });
+}
+
+
 /** Reopening must propose a DIFFERENT state, never reaffirm a verdict. */
 export function allowedCveDecisionTransitions(currentStatus) {
   const actions = ["CONFIRMED", "CONDITIONAL", "NOT_MATCH"];
