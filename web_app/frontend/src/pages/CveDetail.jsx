@@ -426,25 +426,31 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       <p>El CVE seguirá asociado hasta que registres la justificación y
         confirmes la reapertura. Cancelar conservará la evaluación anterior.</p>
     </div>}
-    {(canConfirm || canDiscard || canUndo) && <div className="cve-nvd-actions">
-      {canConfirm && !pendingUnlink && !unchangedLink &&
-        <button type="button"
-        disabled={!enableConfirm}
-        title={!enableConfirm ? "No hay evidencia suficiente para registrar una evaluación condicionada." : ""}
-        data-action={confirmationVerdict}
-        className={"cve-nvd-action" +
-        (["CONFIRMED", "CONDITIONAL"].includes(choice) ? " selected" : "")}
-        onClick={() => {
-          setChoice(confirmationVerdict); setJustification("");
-          setOverrideAcknowledged(false); setPlatformAcknowledged(false);
-        }}>
-        {confirmationLabel}</button>}
-      {canDiscard && !pendingUnlink && <button type="button" className={"cve-nvd-action" +
-        (choice === "NOT_MATCH" ? " selected" : "")}
-        onClick={() => { setChoice("NOT_MATCH"); setJustification(""); }}>
-        Descartar correspondencia</button>}
-      {canUndo && last && !pendingUnlink && <button type="button"
-        className="cve-nvd-action" onClick={beginReopen}>Reabrir evaluación</button>}
+    {(canReopen || showChoices) && <div className="cve-nvd-actions">
+      {canReopen && !reviewOpen && <button type="button"
+        className="cve-nvd-action" onClick={beginReopen}>
+        Reabrir evaluación</button>}
+      {showChoices && <>
+        {canConfirm && currentStatus !== "APPLIES" &&
+          confirmationVerdict === "CONFIRMED" && <button type="button"
+          className={"cve-nvd-action" + (choice === "CONFIRMED" ? " selected" : "")}
+          onClick={() => { setChoice("CONFIRMED"); setReviewOpen(true); setJustification(""); }}>
+          Confirmar correspondencia</button>}
+        {currentStatus !== "APPLIES_CONDITIONAL" &&
+          (canConditional || canConfirm || canReopen) && <button type="button"
+          className={"cve-nvd-action" + (choice === "CONDITIONAL" ? " selected" : "")}
+          onClick={() => {
+            setChoice("CONDITIONAL"); setReviewOpen(true); setJustification("");
+            if (savedLink && !draftLink) setDraftLink({criterionKey:"", installationId:""});
+          }}>
+          Correspondencia parcial</button>}
+        {canDiscard && currentStatus !== "NOT_APPLICABLE" &&
+          <button type="button" className={"cve-nvd-action" +
+          (choice === "NOT_MATCH" ? " selected" : "")}
+          onClick={() => {
+            setChoice("NOT_MATCH"); setReviewOpen(true); setJustification("");
+          }}>No corresponde</button>}
+      </>}
     </div>}
     {choice === "CONDITIONAL" && <p className="cve-muted" role="status">
       Resultado previsto: Aplica condicionada.
@@ -452,14 +458,13 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         ? " La instalación marcada quedará vinculada por decisión del analista, sin atribuirle una confirmación CPE que no existe."
         : " No se vinculará ningún software. Esto no equivale a descartar el CVE."}
     </p>}
-    {!canDiscard && canDecide && <p className="cve-muted">
-      El descarte no está habilitado para esta estructura NVD: exige evidencia
-      negativa suficiente de todas las condiciones y alternativas aplicables.
+    {!canDiscard && canDecide && !lockedDecision && <p className="cve-muted">
+      La no correspondencia requiere un contexto verificable de hardware
+      o software y evidencia negativa justificada.
     </p>}
     {!canDecide && <p className="cve-muted">
       El rol actual permite consultar, pero no registrar decisiones.</p>}
-    {choice && (canReview || canConditional ||
-      (canReopen && choice === "UNKNOWN")) &&
+    {choice && showChoices &&
       <form className="cve-compact-review"
       onSubmit={submit}>
       {installations.length > 1 && choice === "NOT_MATCH" && <label>
@@ -473,12 +478,13 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
             {sw.software_name} · Instalación #{sw.installation_id}</option>)}
         </select>
       </label>}
-      {technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice) &&
+      {(technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice) ||
+        positiveConflict) &&
         <div className="cve-override-attestation">
           <label><input type="checkbox" checked={overrideAcknowledged}
             onChange={event => setOverrideAcknowledged(event.target.checked)}/>
-            Reconozco que la versión o plataforma quedó excluida técnicamente
-            por NVD y que esta es una decisión manual discrepante.</label>
+            Reconozco que esta decisión contradice el resultado técnico
+            vigente de NVD y que debo justificar expresamente mi discrepancia.</label>
           <p>La decisión no modifica los criterios ni la evaluación técnica NVD.</p>
         </div>}
       {unverifiedPlatform && choice === "CONDITIONAL" &&
@@ -503,17 +509,17 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       {choice === "NOT_MATCH" && <div className="cve-attestation">
         <label><input type="checkbox" checked={complete}
           onChange={event => setComplete(event.target.checked)}/>
-          He comprobado que el inventario del software instalado está completo.</label>
-        {installations.length !== 1 && <p>
-          Hay varias instalaciones o ninguna registrada; no puede declararse
-          «No aplica» con una única comprobación.</p>}
+          He revisado la integridad del inventario y dispongo de evidencia
+          suficiente para descartar esta configuración NVD.</label>
+        <p>Describe qué verificaste. La ausencia de una aplicación en
+          el inventario no constituye por sí sola evidencia negativa.</p>
       </div>}
       <div className="cve-form-actions">
         <button type="submit" className="button-primary"
           disabled={saving || invalid}>{saving ? "Guardando..." :
-          choice === "UNKNOWN" ? "Confirmar y deshacer" :
-          technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice)
-            ? "Registrar decisión discrepante" : "Guardar evaluación"}</button>
+          (technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice) ||
+            positiveConflict) ? "Registrar decisión discrepante" :
+            choice === "NOT_MATCH" ? "Registrar No corresponde" : "Guardar evaluación"}</button>
         <button type="button" className="button-secondary" disabled={saving}
           onClick={reset}>Cancelar</button>
       </div>
