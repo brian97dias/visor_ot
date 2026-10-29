@@ -336,6 +336,26 @@ class SiemensHardwareIdentityExclusions(SimpleTestCase):
             INDETERMINATE,
         )
 
+
+    def test_explicit_application_cpe_conflict_is_not_auto_excluded(self):
+        sw_cpe = "cpe:2.3:a:siemens:simatic_s7-1500_software_controller:*:*:*:*:*:*:*:*"
+        installed_app = [{
+            "installation_id": 22, "software_asset_id": 55,
+            "software_name": "S7-1500 Software Controller",
+            "software_type": "APPLICATION", "version": "1.0",
+            "confirmed_cpes": [sw_cpe.replace(
+                ":*:*:*:*:*:*:*:*", ":1.0:*:*:*:*:*:*:*",
+            )],
+        }]
+        configuration = {"operator": "OR", "cpeMatch": [
+            {"criteria": sw_cpe, "vulnerable": True},
+        ]}
+        result = evaluate_configurations(
+            [configuration], [CPU_HW], installed_app,
+        )
+        self.assertEqual(result["result"], COMPATIBLE)
+        self.assertIsNone(automatic_negative_evidence(result))
+
     def test_same_cpu_remains_matched_not_distinct(self):
         evaluated = evaluate_configurations(
             [nvd_platform_firmware(CPU_HW, STEP7)], [CPU_HW], installed()
