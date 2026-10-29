@@ -262,16 +262,20 @@ export function cveApplicabilityExplanation(context) {
   if (status === "NOT_APPLICABLE") return origin === "SYSTEM"
     ? "Las alternativas NVD quedaron descartadas con evidencia técnica para este hardware."
     : "El analista registró una conclusión de no aplicabilidad. La justificación está en el historial.";
-  if (status === "APPLIES_CONDITIONAL") return
-    "El analista registró una correspondencia parcial. Quedan condiciones por verificar.";
-  if (status === "IN_REVIEW") return
-    "La evaluación está reabierta. La decisión anterior y la evidencia NVD siguen disponibles en el historial.";
-  if (status === "STALE") return
-    "El inventario cambió y la evaluación anterior necesita revisarse.";
+  if (status === "APPLIES_CONDITIONAL") {
+    return "El analista registró una correspondencia parcial. Quedan condiciones por verificar.";
+  }
+  if (status === "IN_REVIEW") {
+    return "La evaluación está reabierta. La decisión anterior y la evidencia NVD siguen disponibles en el historial.";
+  }
+  if (status === "STALE") {
+    return "El inventario cambió y la evaluación anterior necesita revisarse.";
+  }
   const excluded = Number(counts.EXCLUDED) || 0;
   const pending = Number(counts.INDETERMINATE) || 0;
-  if (excluded > 0 && pending > 0) return
-    `${excluded} configuración(es) descartada(s); ${pending} alternativa(s) aún sin resolver.`;
+  if (excluded > 0 && pending > 0) {
+    return `${excluded} configuración(es) descartada(s); ${pending} alternativa(s) aún sin resolver.`;
+  }
   return "Todavía no existe evidencia suficiente para confirmar o descartar este CVE.";
 }
 
