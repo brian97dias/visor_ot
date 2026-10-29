@@ -176,6 +176,17 @@ test("a matched CPE product does not imply the NVD vulnerable version applies", 
   }), {label:"CPE confirmado",state:"SATISFIED"});
 });
 
+test("platform mismatch badges explain proven software and hardware exclusions", () => {
+  assert.deepEqual(nvdCriterionIdentityBadge({
+    part: "a", technical_identity: "PLATFORM_DISTINCT",
+    technical_result: "EXCLUDED",
+  }), {label:"Plataforma incompatible", state:"NOT_SATISFIED"});
+  assert.deepEqual(nvdCriterionIdentityBadge({
+    part: "h", technical_identity: "DISTINCT",
+    technical_result: "EXCLUDED",
+  }), {label:"Plataforma distinta", state:"NOT_SATISFIED"});
+});
+
 test("automatic history reads El sistema without changing a persisted justification", () => {
   const old = "VISOR OT confirmó automáticamente la correspondencia de la configuración NVD 9.";
   assert.equal(cveAuditJustification(old, "SYSTEM"),
