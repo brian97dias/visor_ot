@@ -125,6 +125,19 @@ class SystemCveAuditTests(TestCase):
         after = self.client.get(self.url).data
         self.assertEqual(after["technical_result"], "COMPATIBLE")
         self.assertEqual(after["configurations"][8]["latest_assessment"]["source"], "ANALYST")
+        catalogue = self.client.get("/api/vulnerabilities/cves/", {
+            "q": self.cve.cve_id,
+        })
+        self.assertEqual(catalogue.status_code, 200, catalogue.data)
+        item = next(row for row in catalogue.data["results"]
+                    if row["cve_id"] == self.cve.cve_id)
+        self.assertEqual(item["applicability_status"], after["applicability"]["status"])
+        self.assertEqual(item["applicability_source"], after["applicability"]["source"])
+        linked_assets = [
+            asset for related in item["related_assets"]
+            for asset in related["assets"] if asset["asset_type"] == "SOFTWARE"
+        ]
+        self.assertFalse(linked_assets)
 
     def test_repeating_automatic_sync_never_duplicates(self):
         first = self.client.post(self.sync_url, {}, format="json")
