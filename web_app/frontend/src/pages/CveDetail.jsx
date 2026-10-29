@@ -310,7 +310,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     <Criterion item={config.tree} selection={selectedCriterion}
       onSelect={updateAssociation}
       installId={installId} installedSoftware={context.installed_software || []}
-      canDecide={canDecide}
+      canDecide={canDecide && (canConfirm || canReopen || canDiscard)}
       savedLink={savedLink} pendingUnlink={pendingUnlink}/>
     <div className="panel cve-nvd-decision">
     <div className="cve-nvd-joint-title">
@@ -370,7 +370,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         (["CONFIRMED", "CONDITIONAL"].includes(choice) ? " selected" : "")}
         onClick={() => {
           setChoice(confirmationVerdict); setJustification("");
-          setOverrideAcknowledged(false);
+          setOverrideAcknowledged(false); setPlatformAcknowledged(false);
         }}>
         {confirmationLabel}</button>}
       {canDiscard && !pendingUnlink && <button type="button" className={"cve-nvd-action" +
@@ -484,6 +484,21 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       </ol> : <p className="cve-muted">No hay decisiones registradas.</p>}
     </details>
   </div></>;
+}
+
+function CandidateReview({ context, config, canDecide, onSaved }) {
+  const [open, setOpen] = useState(false);
+  return <div className="cve-pending-configuration">
+    <button type="button" className="cve-pending-configuration-trigger"
+      aria-expanded={open} onClick={() => setOpen(value => !value)}>
+      <span>Configuración NVD {config.position} · Pendiente de evidencia</span>
+      <span aria-hidden="true">{open ? "▴" : "▾"}</span>
+    </button>
+    {open && <div className="cve-pending-configuration-content">
+      <ConfigurationReview context={context} config={config}
+        canDecide={canDecide} onSaved={onSaved}/>
+    </div>}
+  </div>;
 }
 
 export default function CveDetail() {
@@ -731,22 +746,13 @@ export default function CveDetail() {
           </p>
           <div className="cve-nvd-other-scroll" tabIndex={0} role="region"
             aria-label="Configuraciones NVD pendientes de verificar">
-            {candidates.map(config => <details className="cve-pending-configuration"
-              key={context.hardware_asset_id + ":candidate:" + config.index}>
-              <summary>Configuración NVD {config.position}
-                {" · "}Pendiente de evidencia
-              </summary>
-              <div className="cve-pending-configuration-content">
-                <Criterion item={config.tree}
-                  installedSoftware={context.installed_software || []}
-                  canDecide={false}/>
-                <p className="cve-muted">
-                  Este criterio no tiene una coincidencia confirmada con el
-                  activo evaluado. Su estado técnico sigue pendiente; la
-                  ausencia de una coincidencia no equivale a «No aplica».
-                </p>
-              </div>
-            </details>)}
+            {candidates.map(config => <CandidateReview
+              key={context.hardware_asset_id + ":candidate:" + config.index}
+              context={context} config={config} canDecide={canDecide}
+              onSaved={() => {
+                setNotice("Evaluación guardada. El historial se actualizó.");
+                setRevision(n => n + 1);
+              }}/>)}
           </div>
         </details>}
       </>}
