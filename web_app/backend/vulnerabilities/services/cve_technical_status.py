@@ -110,8 +110,8 @@ def _current_linked_installation(cve, hardware, inventory_fp):
             continue
         linked = (row.software_installation_id
                   if row.status in ("APPLIES", "APPLIES_CONDITIONAL") else None)
-        return linked, row.configuration_index
-    return None, None
+        return linked, row.configuration_index, row.status
+    return None, None, None
 
 
 def related_assets_for_cves(cves):
@@ -145,7 +145,7 @@ def related_assets_for_cves(cves):
                 )
                 proof = automatic_positive_evidence(analysed)
                 negative = automatic_negative_evidence(analysed)
-                chosen_installation, chosen_configuration = _current_linked_installation(
+                chosen_installation, chosen_configuration, human_status = _current_linked_installation(
                     cve, hardware, inventory_fp,
                 )
                 proof_installations = {
@@ -153,6 +153,13 @@ def related_assets_for_cves(cves):
                     for row in (proof or {}).get("criteria", [])
                     if row.get("vulnerable") and row.get("software_installation_id")
                 }
+                # A current human negative or conditional decision on the
+                # same NVD branch must not resurrect a technical positive as
+                # a "VULNERABLE" asset in the catalogue or hardening.
+                if (chosen_configuration == (proof or {}).get("configuration_index")
+                        and human_status in ("NOT_APPLICABLE", "APPLIES_CONDITIONAL",
+                                             "PENDING_REVIEW")):
+                    proof_installations = set()
                 linked = proof_installations | (
                     {chosen_installation} if chosen_installation else set()
                 )
