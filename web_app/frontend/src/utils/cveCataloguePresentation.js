@@ -249,6 +249,29 @@ export function allowedCveDecisionTransitions(currentStatus) {
 }
 
 
+/** Only hardware-scoped evidence may enter the interactive CVE detail.
+ * A historical audit of an unrelated NVD platform is never a candidate.
+ * The full configuration list remains available separately for audit/engine.
+ */
+export function selectCveOperationalGroups(context) {
+  const relevant = (context?.relevant_configurations || []).filter(row =>
+    row.hardware_scope === "MATCHED" || row.hardware_scope === "UNSCOPED"
+  );
+  const selectedIndexes = new Set(relevant.map(row => row.index));
+  const hardwareSoftware = (context?.hardware_software_configurations || [])
+    .filter(row => row.hardware_scope === "MATCHED" &&
+      selectedIndexes.has(row.index));
+  return {
+    reviewPool: hardwareSoftware.length ? hardwareSoftware : relevant,
+    hardwareSoftware,
+    independentConfigs: hardwareSoftware.length ? relevant.filter(row =>
+      row.hardware_scope === "UNSCOPED" &&
+      !hardwareSoftware.some(hw => hw.index === row.index)
+    ) : [],
+  };
+}
+
+
 /** Installation USED to evaluate a negative CVE conclusion.
  * This is evidence, not a positive vulnerability/CVE association. It does not
  * turn NOT_APPLICABLE into an affected-software hardening finding.
