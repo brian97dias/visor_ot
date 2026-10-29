@@ -11,7 +11,8 @@ import {
   CVE_APPLICABILITY_SOURCE,
   selectedCveHardwareId, groupCveEvidence,
   nvdCriterionIdentityBadge, currentCveSoftwareLink,
-  currentCveEvaluatedSoftware, isSavedCveLinkSelection, cveAuditJustification,
+  currentCveEvaluatedSoftware, allowedCveDecisionTransitions,
+  isSavedCveLinkSelection, cveAuditJustification,
   displayNvdGroupBranches, nvdAlternativeGroupLabel,
 } from "../utils/cveCataloguePresentation";
 import {
@@ -367,6 +368,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       setSaving(false);
     }
   }
+  const allowedChanges = allowedCveDecisionTransitions(currentStatus);
   const showChoices = canDecide && (!lockedDecision || reviewOpen);
   return <>
     <Criterion item={config.tree} selection={selectedCriterion}
@@ -429,12 +431,12 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         className="cve-nvd-action" onClick={beginReopen}>
         Reabrir evaluación</button>}
       {showChoices && <>
-        {canConfirm && currentStatus !== "APPLIES" &&
+        {canConfirm && allowedChanges.includes("CONFIRMED") &&
           confirmationVerdict === "CONFIRMED" && <button type="button"
           className={"cve-nvd-action" + (choice === "CONFIRMED" ? " selected" : "")}
           onClick={() => { setChoice("CONFIRMED"); setReviewOpen(true); setJustification(""); }}>
           Confirmar correspondencia</button>}
-        {currentStatus !== "APPLIES_CONDITIONAL" &&
+        {allowedChanges.includes("CONDITIONAL") &&
           (canConditional || canConfirm || canReopen) && <button type="button"
           className={"cve-nvd-action" + (choice === "CONDITIONAL" ? " selected" : "")}
           onClick={() => {
@@ -442,7 +444,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
             if (savedLink && !draftLink) setDraftLink({criterionKey:"", installationId:""});
           }}>
           Correspondencia parcial</button>}
-        {canDiscard && currentStatus !== "NOT_APPLICABLE" &&
+        {canDiscard && allowedChanges.includes("NOT_MATCH") &&
           <button type="button" className={"cve-nvd-action" +
           (choice === "NOT_MATCH" ? " selected" : "")}
           onClick={() => {
