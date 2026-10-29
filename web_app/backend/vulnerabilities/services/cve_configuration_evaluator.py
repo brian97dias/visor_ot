@@ -105,19 +105,52 @@ def _product_match(criterion, confirmed):
 
 
 
-def _verified_distinct_product(criterion, confirmed):
-    """Only disjoint, explicit Siemens *product lines*; never fuzzy CPE matching.
+# These are device/model identities, never free-form name similarity.
+# Siemens' S7-1200 manuals distinguish the CPU models 1211C, 1212C,
+# 1214C, 1215C and 1217C; SiePortal separately identifies fail-safe FCs.
+# A bare family CPE remains UNKNOWN because it can include a specific CPU.
+_SIEMENS_S7_1200_CPU_MODELS = frozenset({
+    "1211c", "1212c", "1212fc", "1214c", "1214fc",
+    "1215c", "1215fc", "1217c",
+})
 
-    NVD CPE family and variant relationships cannot be deduced from arbitrary
-    spelling differences. These two Siemens product lines are not aliases:
-    S7-PLCSIM Advanced is simulation software, not a S7-1200 CPU.
-    Extend only with independently verified disjoint families.
+
+def _exclusive_siemens_hardware(product):
+    """A strictly identified Siemens *device*, not an implied family match.
+
+    Return None for unknown variants and general family/umbrella products.
+    Only distinct, independently enumerated hardware model identities and
+    established disjoint product lines can be used as negative evidence.
     """
-    if criterion[3] != confirmed[3] or criterion[3] != "siemens":
+    name = product.lower()
+    for model in _SIEMENS_S7_1200_CPU_MODELS:
+        if name == "simatic_s7-1200_cpu_" + model:
+            return ("s7-1200-cpu", model)
+    if name == "simatic_s7-plcsim_advanced":
+        return ("simulator", "s7-plcsim-advanced")
+    # Explicit S7-1500 CPU model; an S7-1500 family/umbrella name is NOT
+    # enough to prove device exclusivity on its own.
+    if name.startswith("simatic_s7-1500_cpu_"):
+        model = name.removeprefix("simatic_s7-1500_cpu_")
+        if model and model.replace("_", "").isalnum():
+            return ("s7-1500-cpu", model)
+    return None
+
+
+def _verified_distinct_product(criterion, confirmed):
+    """Prove distinct Siemens CPU devices without treating CPE mismatch as absence.
+
+    Guardrails: confirmed Siemens hardware CPEs only, exact known S7-1200
+    model products, explicit S7-1500 CPU models, or the separate PLCSIM
+    simulation line. Unknown family aliases and arbitrary vendor products
+    are not proof that a hardware platform is absent.
+    """
+    if (criterion[2] != "h" or confirmed[2] != "h"
+            or criterion[3] != "siemens" or confirmed[3] != "siemens"):
         return False
-    names = (criterion[4].lower(), confirmed[4].lower())
-    return ((any("s7-plcsim" in name for name in names)
-             and any("s7-1200" in name for name in names)))
+    left = _exclusive_siemens_hardware(criterion[4])
+    right = _exclusive_siemens_hardware(confirmed[4])
+    return bool(left and right and left != right)
 
 
 def _identity(criterion, candidates):
@@ -165,7 +198,8 @@ def evaluate_criterion(criterion, hardware_cpes, installed_software):
             return _trace(INDETERMINATE, "No existe CPE vigente confirmado del hardware.")
         if identity == "DISTINCT":
             return _trace(EXCLUDED,
-                "Producto distinto comprobado: S7-PLCSIM y S7-1200 no son la misma línea de producto.",
+                "Dispositivo/plataforma Siemens distintos demostrados por modelos "
+                "o líneas de producto explícitas; no se infiere ausencia de software.",
                 identity=identity, distinct_cpes=names)
         if identity != "MATCHED":
             return _trace(INDETERMINATE,
