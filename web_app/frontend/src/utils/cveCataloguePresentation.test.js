@@ -345,6 +345,7 @@ test("rechecking a saved CVE software link is an unchanged draft", () => {
   assert.equal(isSavedCveLinkSelection(automatic,"nvd-firmware","5"),true);
   assert.equal(isSavedCveLinkSelection(automatic,"nvd-firmware",5),true);
   assert.equal(isSavedCveLinkSelection(automatic,"nvd-firmware",""),false);
-  assert.equal(isSavedCveLinkSelection(automatic,"different-criterion","5"),false);
+  assert.equal(isSavedCveLinkSelection(automatic,"different-criterion","5"),true,
+    "the database stores the installation, not the displayed OR criterion");
   assert.equal(isSavedCveLinkSelection(null,"nvd-firmware","5"),false);
 });
