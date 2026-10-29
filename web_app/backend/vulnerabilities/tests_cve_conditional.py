@@ -135,7 +135,8 @@ class ConditionalSiemensTests(TestCase):
         record = AssetCveAssessment.objects.get()
         self.assertIsNone(record.software_installation_id)
         self.assertEqual(record.criteria_evidence["decision_scope"], "HARDWARE_CVE")
-        linked = record.criteria_evidence["linked_software"]
+        self.assertEqual(record.criteria_evidence.get("linked_software"), None)
+        linked = record.criteria_evidence["reviewed_software"]
         self.assertEqual(len(linked), 1)
         self.assertEqual(linked[0]["software_asset_id"], software.pk)
         self.assertEqual(linked[0]["link_source"], "ANALYST_DISCRETION")
