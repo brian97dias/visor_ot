@@ -643,6 +643,55 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(data["configurations"][45]["hardware_scope"], "DISTINCT")
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
+    def test_system_negative_audits_of_47_other_cpus_never_become_relevant(self):
+        """Automatic decision history must not select an unrelated NVD CPU."""
+        self.cve.cve_id = "CVE-2021-37205"
+        self.cve.configurations = nvd_2021_37205_configurations()
+        self.cve.save(update_fields=["cve_id", "configurations"])
+        url = (
+            "/api/vulnerabilities/cves/CVE-2021-37205/hardware/"
+            + str(self.hw.pk) + "/assessment/"
+        )
+        synced = self.client.post(url + "automatic/", {}, format="json")
+        self.assertEqual(synced.status_code, 200, synced.data)
+        data = self.client.get(url).data
+        self.assertEqual(len(data["configurations"]), 48)
+        self.assertEqual(data["technical_result"], EXCLUDED)
+        self.assertEqual(data["applicability"]["status"], "NOT_APPLICABLE")
+        self.assertEqual(data["applicability"]["source"], "SYSTEM")
+        self.assertTrue(any(
+            row["history"] for row in data["configurations"]
+            if row["position"] != 13
+        ))
+        self.assertEqual(
+            [row["position"] for row in data["relevant_configurations"]], [13]
+        )
+        self.assertEqual(
+            [row["position"] for row in data["hardware_software_configurations"]],
+            [13],
+        )
+        self.assertEqual(data["unrelated_configuration_count"], 47)
+        self.assertEqual(data["candidate_configurations"], [])
+        self.assertEqual(data["unverified_platform_configurations"], [])
+        self.assertEqual(data["configurations"][0]["hardware_scope"], "DISTINCT")
+
+    def test_matched_standalone_software_is_relevant_without_hardware_condition(self):
+        self.cve.configurations = [
+            {"nodes": [{"operator": "OR", "cpeMatch": [
+                {"criteria": CPU_FW_CRITERION, "vulnerable": True},
+            ]}]},
+            nvd_platform_firmware(PLCSIM_HW, PLCSIM_FW, before="5.0"),
+        ]
+        self.cve.save(update_fields=["configurations"])
+        data = self.client.get(self.url).data
+        self.assertEqual(data["configurations"][0]["hardware_scope"], "UNSCOPED")
+        self.assertEqual(
+            [row["position"] for row in data["relevant_configurations"]], [1]
+        )
+        self.assertEqual(data["hardware_software_configurations"], [])
+        self.assertEqual(data["candidate_configurations"], [])
+        self.assertEqual(data["unrelated_configuration_count"], 1)
+
     def test_unverified_other_hardware_is_auditable_not_a_firmware_candidate(self):
         ambiguous_hw = (
             "cpe:2.3:h:siemens:simatic_s7-1500_cpu_family:-:*:*:*:*:*:*:*"
