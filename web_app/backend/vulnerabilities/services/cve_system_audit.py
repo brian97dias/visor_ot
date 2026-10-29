@@ -108,6 +108,12 @@ def ensure_system_cve_assessment(cve_id, hardware_id):
     hw, cve, confirmed, installed, inventory_fp = _context(
         cve_id, hardware_id, lock=True,
     )
+    from .cve_applicability import latest_hardware_cve_decision
+    global_record, global_current = latest_hardware_cve_decision(
+        cve, hw, inventory_fp,
+    )
+    if global_record is not None and global_current:
+        return global_record, False
     technical = evaluate_configurations(
         cve.configurations, list(confirmed), installed,
     )
