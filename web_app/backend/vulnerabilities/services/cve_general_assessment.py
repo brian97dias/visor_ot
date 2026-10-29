@@ -644,7 +644,22 @@ def general_assessment_context(cve_id, hardware_id):
     )
     # One shared projection is used by both detail and catalogue. NVD's
     # technical result is never rewritten by the analyst's decision.
-    from .cve_applicability import project_configuration_decisions
+    from .cve_applicability import (
+        project_configuration_decisions, latest_hardware_cve_decision,
+    )
+    global_record, global_is_current = latest_hardware_cve_decision(
+        cve, hw, inventory_fp,
+    )
+    global_assessment = None
+    if global_record is not None:
+        idx = global_record.configuration_index
+        global_assessment = _serialize_assessment(
+            global_record, inventory_fp, _digest(cve.configurations[idx]),
+            installed,
+        )
+        if not global_is_current:
+            global_assessment["stale"] = True
+            global_assessment["effective_status"] = "PENDING_REVIEW"
     current_human = {
         row["index"]: row["latest_assessment"]["status"]
         for row in configs
@@ -658,10 +673,17 @@ def general_assessment_context(cve_id, hardware_id):
         and row["latest_assessment"]["source"] == "ANALYST"
         for row in configs
     )
-    if current_human or has_stale_human:
+    if global_record is not None or current_human or has_stale_human:
         projected = project_configuration_decisions(
-            technical, current_human,
-            stale_human_evidence=has_stale_human,
+            technical,
+            {} if global_record is not None else current_human,
+            stale_human_evidence=(
+                not global_is_current if global_record is not None
+                else has_stale_human
+            ),
+            global_decision=(
+                global_record.status if global_is_current else None
+            ),
         )
         applicability.update({
             **projected,
@@ -710,7 +732,10 @@ def general_assessment_context(cve_id, hardware_id):
         "technical_result": technical["result"],
         "technical_configuration_counts": technical_counts,
         "applicability": applicability,
-        "automatic_audit_pending": audit_pending,
+        "automatic_audit_pending": (
+            audit_pending and global_record is None
+        ),
+        "hardware_cve_decision": global_assessment,
         "assessment_summary": analyst,
         "confirmed_hardware_cpes": [
             {"cpe_name": name, "association_id": assoc.pk}
