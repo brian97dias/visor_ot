@@ -84,6 +84,12 @@ class SystemCveAuditTests(TestCase):
         retry = self.client.post(self.sync_url, {}, format="json")
         self.assertFalse(retry.data["created"])
         self.assertEqual(AssetCveAssessment.objects.count(), 2)
+        latest = AssetCveAssessment.objects.order_by("-decided_at", "-pk").first()
+        self.assertEqual(latest.status, "PENDING_REVIEW")
+        self.assertIsNone(latest.software_installation_id)
+        previous = AssetCveAssessment.objects.exclude(pk=latest.pk).get()
+        self.assertEqual(previous.status, "APPLIES")
+        self.assertEqual(previous.software_installation_id, self.installation.pk)
         self.assertEqual(retry.data["context"]["configurations"][8]["latest_assessment"]["source"],
                          "ANALYST")
 
