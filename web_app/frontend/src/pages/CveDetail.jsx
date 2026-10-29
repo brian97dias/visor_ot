@@ -166,9 +166,12 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
       </div>) : <p className="cve-muted">No hay criterios detallados en este grupo.</p>}
     {hidden.length > 0 && <details className="cve-nvd-other-evidence cve-nvd-other-branches">
       <summary>{nvdAlternativeGroupLabel(hidden)} ({hidden.length})</summary>
-      <p className="cve-muted">Opciones del operador O de NVD.
-        No implican presencia en el inventario ni aplicabilidad confirmada.</p>
-      {hidden.map(renderChild)}
+      <div className="cve-nvd-other-scroll" tabIndex={0}
+        role="region" aria-label={nvdAlternativeGroupLabel(hidden)}>
+        <p className="cve-muted">Opciones del operador O de NVD.
+          No implican presencia en el inventario ni aplicabilidad confirmada.</p>
+        {hidden.map(renderChild)}
+      </div>
     </details>}
   </div>;
 }
@@ -226,6 +229,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const canDiscard = canReview &&
     contextualCveActionOptions(config, last).some(option => option.key === "NOT_MATCH");
   const canUndo = canReopen;
+  const unchangedLink = Boolean(savedLink) &&
+    savedLink.criterionKey === selectedCriterion &&
+    savedLink.installationId === installId;
   const noSelected = choice === "CONFIRMED" && !selectedId;
   const invalid = !justification.trim() || noSelected ||
     (choice === "CONDITIONAL" && justification.trim().length < 20);
@@ -242,6 +248,13 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   function updateAssociation(criterionKey, installationId) {
     if (savedLink && !criterionKey && !installationId) {
       beginReopen();
+      return;
+    }
+    if (savedLink && savedLink.criterionKey === criterionKey &&
+        savedLink.installationId === String(installationId)) {
+      // No actual change: cancel the tentative reopening and restore the
+      // persisted SYSTEM/ANALYST association without an audit write.
+      reset();
       return;
     }
     setDraftLink({ criterionKey, installationId });
@@ -320,7 +333,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         confirmes la reapertura. Cancelar conservará la evaluación anterior.</p>
     </div>}
     {(canConfirm || canDiscard || canUndo) && <div className="cve-nvd-actions">
-      {canConfirm && !pendingUnlink && !(savedLink && draftLink === null) &&
+      {canConfirm && !pendingUnlink && !unchangedLink &&
         <button type="button"
         disabled={!enableConfirm}
         title={!enableConfirm ? "No hay evidencia suficiente para registrar una evaluación condicionada." : ""}
