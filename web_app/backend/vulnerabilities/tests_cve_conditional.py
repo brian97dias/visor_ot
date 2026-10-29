@@ -133,7 +133,8 @@ class ConditionalSiemensTests(TestCase):
         self.assertEqual(posted.status_code, 201, posted.data)
         self.assertEqual(posted.data["assessment"]["status"], "APPLIES_CONDITIONAL")
         record = AssetCveAssessment.objects.get()
-        self.assertEqual(record.software_installation_id, installation.pk)
+        self.assertIsNone(record.software_installation_id)
+        self.assertEqual(record.criteria_evidence["decision_scope"], "HARDWARE_CVE")
         linked = record.criteria_evidence["linked_software"]
         self.assertEqual(len(linked), 1)
         self.assertEqual(linked[0]["software_asset_id"], software.pk)
@@ -143,9 +144,10 @@ class ConditionalSiemensTests(TestCase):
         self.assertEqual(linked[0]["candidate_nvd_criteria"], [fixtures.STEP7])
         self.assertFalse(linked[0]["identity_verified"])
         self.assertFalse(linked[0]["version_verified"])
-        self.assertEqual(self.client.get(self.url).data[
-            "configurations"][0]["latest_assessment"]["software_installation_id"],
-            installation.pk)
+        result = self.client.get(self.url).data
+        self.assertIsNone(result["configurations"][0]["latest_assessment"]
+                          ["software_installation_id"])
+        self.assertEqual(result["applicability"]["status"], "APPLIES_CONDITIONAL")
 
     def test_unchecked_software_link_remains_empty_even_when_installed(self):
         self._installed_step7_without_confirmed_cpe()
@@ -187,18 +189,18 @@ class ConditionalSiemensTests(TestCase):
         self.assertIn("software_installation_id", refused.data)
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
-    def test_requires_specific_justification_and_hardware_match(self):
+    def test_short_justification_allowed_but_hardware_identity_enforced(self):
         short = self.client.post(self.url, self.payload(
             justification="Pendiente",
         ), format="json")
-        self.assertEqual(short.status_code, 400, short.data)
+        self.assertEqual(short.status_code, 201, short.data)
         self.cve.configurations[0]["nodes"][0]["cpeMatch"][0]["criteria"] = (
             fixtures.PLCSIM_HW
         )
         self.cve.save(update_fields=["configurations"])
         refused = self.client.post(self.url, self.payload(), format="json")
         self.assertEqual(refused.status_code, 400, refused.data)
-        self.assertEqual(AssetCveAssessment.objects.count(), 0)
+        self.assertEqual(AssetCveAssessment.objects.count(), 1)
 
     def test_configuration_update_marks_conditional_decision_stale(self):
         self.assertEqual(self.client.post(
