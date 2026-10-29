@@ -358,12 +358,13 @@ def general_assessment_context(cve_id, hardware_id):
 
         criteria = list(leaves(annotated_tree))
         conditional_supported = (
-            observation["result"] == "INDETERMINATE"
+            observation["result"] in ("INDETERMINATE", "EXCLUDED")
             and not _has_nvd_negation(config)
             and any(item.get("part") == "h" and
                 item.get("technical_identity") == "MATCHED" and
                 item.get("technical_matched_cpe") for item in criteria)
-            and any(item.get("vulnerable") is True for item in criteria)
+            and any(item.get("vulnerable") is True and
+                    item.get("part") in ("o", "a") for item in criteria)
         )
         candidate_installations = sorted({
             item.get("technical_software_installation_id")
@@ -379,6 +380,9 @@ def general_assessment_context(cve_id, hardware_id):
             "fingerprint": cfg_fp,
             "tree": annotated_tree,
             "conditional_supported": bool(conditional_supported),
+            "technical_override_supported": bool(
+                conditional_supported and observation["result"] == "EXCLUDED"
+            ),
             "candidate_installation_ids": candidate_installations,
             "technical_result": observation["result"],
             "review_supported": bool(supported),
@@ -435,7 +439,7 @@ def _matched_criterion_nodes(tree):
 
 
 def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
-                          installation_id):
+                          installation_id, *, allow_excluded=False):
     """Evidence for a cautious analyst claim: proven hardware context and
     an identified NVD vulnerable component, not an inferred installation.
     """
@@ -455,9 +459,9 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
     if automatic_positive_evidence(evaluation):
         raise ValidationError({"verdict":
             "Todas las condiciones NVD están verificadas: utiliza Aplica, no Aplica condicionada."})
-    if evaluation["result"] == "EXCLUDED":
+    if evaluation["result"] == "EXCLUDED" and not allow_excluded:
         raise ValidationError({"verdict":
-            "La configuración NVD está técnicamente excluida; no puede declararse aplicable condicionada."})
+            "La exclusión NVD requiere una decisión discrepante expresamente reconocida."})
     annotated = _annotate_tree(
         _render_tree(config, confirmed, installed), evaluation["configurations"][0],
     )
@@ -500,7 +504,7 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
         matching_parts = [
             item for item in vulnerable
             if item.get("part") == permitted_parts.get(installation["software_type"])
-            and item.get("technical_result") != "EXCLUDED"
+            and (allow_excluded or item.get("technical_result") != "EXCLUDED")
         ]
         if not matching_parts:
             raise ValidationError({"software_installation_id":
@@ -522,10 +526,14 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
             "matched_cpe": proven.get("technical_matched_cpe") if proven else None,
             "installation_id": installation_id,
             "software_asset_id": installation["software_asset_id"],
-            "link_source": "CONFIRMED_CPE" if proven else "ANALYST_DISCRETION",
+            "link_source": (
+                "ANALYST_OVERRIDE" if allow_excluded
+                else "CONFIRMED_CPE" if proven else "ANALYST_DISCRETION"
+            ),
             "identity_verified": bool(proven),
             "version_verified": bool(
-                proven and proven.get("technical_result") == "COMPATIBLE"
+                not allow_excluded and proven
+                and proven.get("technical_result") == "COMPATIBLE"
             ),
         }]
     return {
@@ -551,6 +559,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
                               configuration_index, verdict,
                               software_installation_id=None,
                               inventory_declared_complete=False,
+                              technical_override_acknowledged=False,
                               justification="", inventory_fingerprint="",
                               configuration_fingerprint=""):
     hw, cve, confirmed, installed, actual_fp = _context(cve_id, hardware_id, lock=True)
@@ -566,8 +575,15 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
     reason = justification.strip()
     if not reason or len(reason) > 1000:
         raise ValidationError({"justification": "Justifica tu decisión (máximo 1000 caracteres)."})
+    technical = evaluate_configurations([config], list(confirmed), installed)
+    excluded = technical["result"] == "EXCLUDED"
+    override = excluded and verdict in ("CONFIRMED", "CONDITIONAL")
+    if override and not technical_override_acknowledged:
+        raise ValidationError({"technical_override_acknowledged":
+            "Reconoce expresamente que la decisión contradice la exclusión técnica."})
     supported = _simple_and_firmware(config, confirmed, installed)
-    if not supported and verdict not in ("UNKNOWN", "CONDITIONAL"):
+    if not supported and verdict not in ("UNKNOWN", "CONDITIONAL") and not (
+            override and verdict == "CONFIRMED"):
         raise ValidationError({"verdict": "La configuración no es verificable mediante este flujo."})
     if (supported and supported["required_installation_id"] is not None
             and verdict == "NOT_MATCH"):
@@ -601,19 +617,31 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
                 "Selecciona la instalación concreta verificada contra NVD."
         })
     conditional_evidence = None
-    if verdict == "CONDITIONAL":
+    if verdict == "CONDITIONAL" or override:
         if len(reason) < 20:
             raise ValidationError({"justification":
-                "Justifica las condiciones pendientes (mínimo 20 caracteres)."})
+                "Justifica la decisión y las condiciones pendientes (mínimo 20 caracteres)."})
+        if override and verdict == "CONFIRMED" and selected is None:
+            raise ValidationError({"software_installation_id":
+                "La confirmación discrepante requiere una instalación vigente vinculada."})
         conditional_evidence = _conditional_evidence(
-            cve, hw, configuration_index, confirmed, installed, software_installation_id
+            cve, hw, configuration_index, confirmed, installed,
+            software_installation_id, allow_excluded=override,
         )
+        if override:
+            conditional_evidence["technical_override"] = {
+                "acknowledged": True,
+                "technical_result": "EXCLUDED",
+                "analyst_verdict": verdict,
+                "reason": technical["configurations"][0].get("reason", ""),
+                "configuration_fingerprint": cfg_fp,
+            }
     # A negative verdict only settles an AND branch if the inventory was
     # explicitly attested complete and only this installation was in scope.
     status = "PENDING_REVIEW"
     if verdict == "CONDITIONAL":
         status = "APPLIES_CONDITIONAL"
-    elif supported and verdict == "CONFIRMED" and selected is not None:
+    elif (supported or override) and verdict == "CONFIRMED" and selected is not None:
         status = "APPLIES"
     elif (supported and verdict == "NOT_MATCH" and selected is not None
           and inventory_declared_complete and len(installed) == 1):
