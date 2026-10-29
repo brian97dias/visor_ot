@@ -10,7 +10,8 @@ import {
   CVE_SEVERITY, CVE_TECHNICAL_STATE, CVE_EVALUATION_STATE,
   CVE_APPLICABILITY_SOURCE,
   selectedCveHardwareId, groupCveEvidence,
-  nvdCriterionIdentityBadge, currentCveSoftwareLink, cveAuditJustification,
+  nvdCriterionIdentityBadge, currentCveSoftwareLink,
+  isSavedCveLinkSelection, cveAuditJustification,
   displayNvdGroupBranches, nvdAlternativeGroupLabel,
 } from "../utils/cveCataloguePresentation";
 import {
@@ -229,9 +230,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const canDiscard = canReview &&
     contextualCveActionOptions(config, last).some(option => option.key === "NOT_MATCH");
   const canUndo = canReopen;
-  const unchangedLink = Boolean(savedLink) &&
-    savedLink.criterionKey === selectedCriterion &&
-    savedLink.installationId === installId;
+  const unchangedLink = isSavedCveLinkSelection(
+    savedLink, selectedCriterion, installId,
+  );
   const noSelected = choice === "CONFIRMED" && !selectedId;
   const invalid = !justification.trim() || noSelected ||
     (choice === "CONDITIONAL" && justification.trim().length < 20);
@@ -250,8 +251,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       beginReopen();
       return;
     }
-    if (savedLink && savedLink.criterionKey === criterionKey &&
-        savedLink.installationId === String(installationId)) {
+    if (isSavedCveLinkSelection(savedLink, criterionKey, installationId)) {
       // No actual change: cancel the tentative reopening and restore the
       // persisted SYSTEM/ANALYST association without an audit write.
       reset();
@@ -296,7 +296,8 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     <Criterion item={config.tree} selection={selectedCriterion}
       onSelect={updateAssociation}
       installId={installId} installedSoftware={context.installed_software || []}
-      canDecide={canDecide} savedLink={savedLink} pendingUnlink={pendingUnlink}/>
+      canDecide={canDecide && config.technical_result !== "EXCLUDED"}
+      savedLink={savedLink} pendingUnlink={pendingUnlink}/>
     <div className="panel cve-nvd-decision">
     <div className="cve-nvd-joint-title">
       <h3>{highlight ? "Correspondencia · Configuración NVD " + config.position :
@@ -317,7 +318,12 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     {last?.stale && <p className="cpe-warning">
       La evaluación previa conserva su registro histórico, pero la evidencia cambió.
       Se necesita revisar nuevamente.</p>}
-    {!config.review_supported && <p className="cpe-warning" role="status">
+    {config.technical_result === "EXCLUDED" ? <p className="cve-muted"
+      role="status">
+      Esta configuración fue excluida técnicamente. Si la evidencia de versión
+      o plataforma es suficiente, VISOR OT registra el descarte automático.
+      La exclusión de una configuración no descarta necesariamente el CVE completo.
+    </p> : !config.review_supported && <p className="cpe-warning" role="status">
       Esta configuración no permite confirmar automáticamente todas las
       condiciones NVD. {canConditional
         ? "El analista puede registrarla como Aplica condicionada, justificando qué falta verificar."
