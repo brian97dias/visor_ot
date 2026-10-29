@@ -90,6 +90,10 @@ def _catalogue_applicability(analyst_status, related_assets):
     hardware remains pending; one positive outranks negatives. Manual
     decisions still follow resolve_applicability's precedence.
     """
+    # Audit lifecycle and CVE applicability are distinct. Preserve STALE
+    # explicitly instead of disguising outdated conclusions as PENDING_REVIEW.
+    if analyst_status == "STALE":
+        return {"status": "STALE", "source": "NONE"}
     scoped = [row.get("scoped_applicability") for row in related_assets]
     if scoped and all(isinstance(row, dict) for row in scoped):
         statuses = [row.get("status") for row in scoped]
@@ -104,8 +108,18 @@ def _catalogue_applicability(analyst_status, related_assets):
         origin = (
             "ANALYST" if any(row.get("status") == conclusion
                              and row.get("source") == "ANALYST" for row in scoped)
-            else "SYSTEM" if conclusion != "PENDING_REVIEW" else "NONE"
+            else "SYSTEM" if conclusion not in ("PENDING_REVIEW", "IN_REVIEW")
+                 else "NONE"
         )
+        # A current HUMAN review with no proven positive is not an untouched
+        # candidate. Preserve its audit lifecycle in the catalogue and filters.
+        if analyst_status == "IN_REVIEW" and conclusion == "PENDING_REVIEW":
+            return {"status": "IN_REVIEW", "source": "NONE"}
+        if (analyst_status in ("APPLIES", "APPLIES_CONDITIONAL",
+                               "NOT_APPLICABLE") and conclusion == "PENDING_REVIEW"):
+            # Legacy CVE assessment rows are fingerprinted by the older
+            # scenario; their contextual software projection can be empty.
+            return {"status": analyst_status, "source": "ANALYST"}
         return {"status": conclusion, "source": origin}
     positive = next((row.get("automatic_evidence") for row in related_assets
                      if row.get("automatic_evidence")), None)
