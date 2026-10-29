@@ -1082,7 +1082,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         status = "APPLIES_CONDITIONAL"
     elif (supported or override or manual_confirm) and verdict == "CONFIRMED" and selected is not None:
         status = "APPLIES"
-    elif verdict == "NOT_MATCH" and inventory_declared_complete:
+    elif verdict == "NOT_MATCH" and (global_scope or inventory_declared_complete):
         status = "NOT_APPLICABLE"
     if verdict == "NOT_MATCH":
         # The negative assessment has an evaluated installation, NOT a
