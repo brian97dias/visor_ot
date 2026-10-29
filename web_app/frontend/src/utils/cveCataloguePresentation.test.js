@@ -11,7 +11,8 @@ import {
   preferredCveHardwareId, selectedCveHardwareId, cveReviewProgress,
   groupCveEvidence, cveHumanReviewMessage,
   relevantNvdChildren, displayNvdGroupBranches, nvdAlternativeGroupLabel,
-  currentCveSoftwareLink, isSavedCveLinkSelection,
+  currentCveSoftwareLink, currentCveEvaluatedSoftware,
+  isSavedCveLinkSelection,
   cveAssetRoleLabel,
   displayCveApplicability, CVE_CATALOGUE_FILTER_STATES,
   nvdCriterionIdentityBadge, cveAuditJustification,
@@ -280,6 +281,51 @@ test("single NVD criterion does not invent an OR alternative", () => {
   const result = displayNvdGroupBranches(group);
   assert.deepEqual(result.shown, [one]);
   assert.deepEqual(result.hidden, []);
+});
+
+test("negative system decision marks evaluated firmware but never a positive link", () => {
+  const negative = {
+    index: 12,
+    technical_result: "EXCLUDED",
+    latest_assessment: {
+      source: "SYSTEM", effective_status: "NOT_APPLICABLE",
+      status: "NOT_APPLICABLE", stale: false,
+      evaluated_software: [{
+        software_installation_id: 5, software_asset_id: 25,
+        criterion: "cpe:2.3:o:siemens:cpu_1215c_firmware:*:*:*:*:*:*:*:*",
+      }],
+    },
+    tree: { kind: "GROUP", children: [{
+      kind: "CRITERION", vulnerable: true, part: "o",
+      criteria: "cpe:2.3:o:siemens:cpu_1215c_firmware:*:*:*:*:*:*:*:*",
+      match_criteria_id: "firmware-criterion",
+    }] },
+  };
+  const context = { installed_software: [{
+    installation_id: 5, software_asset_id: 25,
+    software_type: "FIRMWARE", version: "4.5.2",
+  }] };
+  assert.equal(currentCveSoftwareLink(negative, context), null);
+  const evidence = currentCveEvaluatedSoftware(negative, context);
+  assert.deepEqual(evidence, {
+    installationId: "5", criterionKey: "firmware-criterion",
+    source: "SYSTEM", evidenceOnly: true,
+  });
+  assert.equal(isSavedCveLinkSelection(evidence, "firmware-criterion", "5"), true);
+  assert.equal(isSavedCveLinkSelection(evidence, "", ""), false);
+  const stale = {
+    ...negative,
+    latest_assessment: { ...negative.latest_assessment, stale: true },
+  };
+  assert.equal(currentCveEvaluatedSoftware(stale, context), null);
+  const reopened = {
+    ...negative,
+    latest_assessment: {
+      ...negative.latest_assessment, source: "ANALYST",
+      effective_status: "APPLIES_CONDITIONAL", status: "APPLIES_CONDITIONAL",
+    },
+  };
+  assert.equal(currentCveEvaluatedSoftware(reopened, context), null);
 });
 
 test("saved SYSTEM software association is visible without a new analyst action", () => {
