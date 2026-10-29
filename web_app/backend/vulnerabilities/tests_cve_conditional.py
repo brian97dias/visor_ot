@@ -37,6 +37,33 @@ class ConditionalSiemensTests(TestCase):
             "software_installation_id": software_installation_id,
         }
 
+    def test_analyst_can_mark_unresolved_software_configuration_no_corresponde(self):
+        context = self.client.get(self.url).data
+        data = {
+            "configuration_index": 0, "verdict": "NOT_MATCH",
+            "software_installation_id": None,
+            "inventory_declared_complete": True,
+            "justification": (
+                "Revisión documentada del inventario y de las instalaciones "
+                "del controlador: el software requerido no participa en este activo."
+            ),
+            "configuration_fingerprint": context["configurations"][0]["fingerprint"],
+            "inventory_fingerprint": context["inventory_fingerprint"],
+        }
+        saved = self.client.post(self.url, data, format="json")
+        self.assertEqual(saved.status_code, 201, saved.data)
+        self.assertEqual(saved.data["assessment"]["status"], "NOT_APPLICABLE")
+        record = AssetCveAssessment.objects.get()
+        self.assertIsNone(record.software_installation_id)
+        self.assertEqual(record.criteria_evidence["negative_scope"], "NVD_CONFIGURATION")
+        result = self.client.get(self.url).data
+        self.assertEqual(result["technical_result"], "INDETERMINATE")
+        self.assertEqual(result["applicability"]["status"], "NOT_APPLICABLE")
+        self.assertEqual(result["applicability"]["source"], "ANALYST")
+        duplicate = self.client.post(self.url, data, format="json")
+        self.assertEqual(duplicate.status_code, 400, duplicate.data)
+        self.assertEqual(AssetCveAssessment.objects.count(), 1)
+
     def test_step7_not_in_inventory_can_be_recorded_without_firmware_link(self):
         before = self.client.get(self.url).data
         self.assertEqual(before["applicability"]["status"], "PENDING_REVIEW")
