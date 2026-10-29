@@ -392,12 +392,12 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       !last.stale && <p className="cve-review-note" role="status">
         Revisión abierta por el analista. La evidencia técnica NVD sigue disponible.
       </p>}
-    {technicalConflict && reviewOpen &&
+    {technicalConflict && reviewOpen && !choice &&
       <p className="cve-review-note" role="status">
         NVD excluye esta configuración con la evidencia actual.
         Puedes registrar otra conclusión y explicar el motivo.
       </p>}
-    {unverifiedPlatform && showChoices &&
+    {unverifiedPlatform && showChoices && !choice &&
       <p className="cve-review-note">
         La plataforma NVD no tiene una identidad CPE confirmada en este hardware.
       </p>}
