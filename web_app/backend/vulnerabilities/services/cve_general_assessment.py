@@ -1089,7 +1089,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         raise ValidationError({"software_installation_id":
             "Selecciona la instalación concreta verificada contra NVD."})
     conditional_evidence = None
-    if verdict == "CONDITIONAL" or override or manual_confirm:
+    if verdict == "CONDITIONAL" or override or (manual_confirm and not supported):
         if override and verdict == "CONFIRMED" and selected is None:
             raise ValidationError({"software_installation_id":
                 "La confirmación discrepante requiere una instalación vigente vinculada."})
