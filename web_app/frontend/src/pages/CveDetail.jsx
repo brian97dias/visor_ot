@@ -10,6 +10,7 @@ import {
   CVE_SEVERITY, CVE_TECHNICAL_STATE, CVE_EVALUATION_STATE,
   CVE_APPLICABILITY_SOURCE,
   selectedCveHardwareId, groupCveEvidence, selectCveOperationalGroups,
+  cveApplicabilityExplanation, cveConfigurationHighlights,
   nvdCriterionIdentityBadge, currentCveSoftwareLink,
   currentCveEvaluatedSoftware, allowedCveDecisionTransitions,
   isSavedCveLinkSelection, cveAuditJustification,
@@ -106,14 +107,13 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
             </div>;
           })}
           {pendingUnlink && <p className="cve-cancel-pending" role="status">
-            Revisión pendiente: la casilla solo cambia provisionalmente.
-            Justifica la correspondencia parcial para guardar una nueva decisión;
-            cancelar conserva la evaluación vigente.
+            Instalación desmarcada provisionalmente. El cambio solo se registra
+            si guardas una nueva decisión.
           </p>}
           <p className="cve-muted">
             {savedLink?.evidenceOnly
-              ? "La casilla marcada identifica la instalación evaluada; NO significa que sea vulnerable. La versión y los criterios NVD quedan en el historial."
-              : "Una asociación manual no confirma por sí sola la versión vulnerable. Cambiar una decisión guardada exige justificar el cambio."}
+              ? "Identificar una instalación evaluada no significa que sea vulnerable."
+              : "La vinculación manual no confirma por sí sola la versión vulnerable."}
           </p>
         </> : <p className="cve-muted">
           No hay software de este tipo instalado en el inventario de este hardware.
@@ -380,52 +380,31 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       onChooseSoftware={onChooseSoftware}/>
     <div className="panel cve-nvd-decision">
     <div className="cve-nvd-joint-title">
-      <h3>{highlight ? "Correspondencia · Configuración NVD " + config.position :
-        "Revisión de evidencia adicional · Configuración " + config.position}</h3>
+      <h3>{highlight ? "Evaluación · Configuración NVD " + config.position :
+        "Evaluación adicional · Configuración NVD " + config.position}</h3>
       <span className="cve-status-label" data-status={status}>
         {STATE[status] || status}
         {last?.source === "SYSTEM" && " · Automático"}</span>
     </div>
-    <p>La correspondencia se evalúa contra la configuración NVD {config.position}
-      y el hardware #{context.hardware_asset_id}. El historial registra
-      confirmaciones automáticas y decisiones humanas con su justificación.</p>
+    {last?.stale && <p className="cve-review-note" role="status">
+      La evidencia del inventario cambió. La decisión anterior permanece en el historial.
+    </p>}
     {last?.source === "ANALYST" && last.status === "PENDING_REVIEW" &&
-      !last.stale && <p className="cve-muted" role="status">
-        Evaluación reabierta por el analista: ya no hay una vinculación de software
-        confirmada en esta decisión. La evidencia técnica NVD sigue evaluándose
-        de forma independiente y puede continuar indicando coincidencia.
+      !last.stale && <p className="cve-review-note" role="status">
+        Revisión abierta por el analista. La evidencia técnica NVD sigue disponible.
       </p>}
-    {last?.stale && <p className="cpe-warning">
-      La evaluación previa conserva su registro histórico, pero la evidencia cambió.
-      Se necesita revisar nuevamente.</p>}
-    {config.technical_result === "EXCLUDED" ? <div className="cve-technical-discrepancy"
-      role="status">
-      <strong>Configuración excluida por evidencia técnica NVD</strong>
-      <p>La exclusión automática no impide una decisión distinta del analista.
-        Puedes asociar el software y registrar una correspondencia manual,
-        pero deberás reconocer y justificar la discrepancia. El resultado técnico
-        permanecerá intacto y el CVE completo puede seguir pendiente.</p>
-    </div> : !config.review_supported && <p className="cpe-warning" role="status">
-      Esta configuración no permite confirmar automáticamente todas las
-      condiciones NVD. {canConditional
-        ? "El analista puede registrarla como Aplica condicionada, justificando qué falta verificar."
-        : "La revisión permanece pendiente."}</p>}
-    {unverifiedPlatform && <div className="cve-technical-discrepancy" role="status">
-      Esta configuración no tiene plataforma de hardware CPE confirmada.
-      Si identificas una instalación pertinente, puedes asociarla de manera
-      condicionada con reconocimiento explícito y justificación del analista.
-      Esto no constituye una coincidencia técnica NVD.
-    </div>}
-    {config.review_installation_id && config.technical_result === "COMPATIBLE" &&
-      <p className="cve-muted">
-        El firmware instalado satisface este criterio NVD; no se puede
-        descartar mientras las evidencias sean vigentes.
+    {technicalConflict && reviewOpen &&
+      <p className="cve-review-note" role="status">
+        NVD excluye esta configuración con la evidencia actual.
+        Puedes registrar otra conclusión y explicar el motivo.
       </p>}
-    {pendingUnlink && <div className="cve-pending-reopen" role="status">
-      <strong>Correspondencia parcial pendiente de confirmar</strong>
-      <p>El resultado anterior sigue vigente. La decisión solo cambiará
-        al guardar una justificación válida; cancelar la conserva.</p>
-    </div>}
+    {unverifiedPlatform && showChoices &&
+      <p className="cve-review-note">
+        La plataforma NVD no tiene una identidad CPE confirmada en este hardware.
+      </p>}
+    {pendingUnlink && <p className="cve-review-note" role="status">
+      La instalación está desmarcada para esta revisión. Cancelar conserva la evaluación actual.
+    </p>}
     {(canReopen || showChoices) && <div className="cve-nvd-actions">
       {canReopen && !reviewOpen && <button type="button"
         className="cve-nvd-action" onClick={beginReopen}>
@@ -452,16 +431,14 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
           }}>No corresponde</button>}
       </>}
     </div>}
-    {choice === "CONDITIONAL" && <p className="cve-muted" role="status">
-      Resultado previsto: Aplica condicionada.
-      {linkedInstallationId
-        ? " La instalación marcada quedará vinculada por decisión del analista, sin atribuirle una confirmación CPE que no existe."
-        : " No se vinculará ningún software. Esto no equivale a descartar el CVE."}
+    {choice === "CONDITIONAL" && <p className="cve-review-note" role="status">
+      Correspondencia parcial: {linkedInstallationId
+        ? "se registrará la instalación seleccionada como asociación condicionada."
+        : "no se vinculará ninguna instalación de software."}
     </p>}
-    {!canDiscard && canDecide && !lockedDecision && <p className="cve-muted">
-      La no correspondencia requiere un contexto verificable de hardware
-      o software y evidencia negativa justificada.
-    </p>}
+    {!canDiscard && canDecide && !lockedDecision &&
+      <p className="cve-muted">No hay evidencia suficiente para descartar
+        manualmente esta configuración.</p>}
     {!canDecide && <p className="cve-muted">
       El rol actual permite consultar, pero no registrar decisiones.</p>}
     {choice && showChoices &&
@@ -654,6 +631,7 @@ export default function CveDetail() {
   const primary = reviewPool.find(row => row.index === chosenConfiguration) ||
     suggestedPrimary;
   const others = reviewPool.filter(row => row.index !== primary?.index);
+  const evidenceHighlights = cveConfigurationHighlights(primary);
   const source = cve?.description_source;
   const nvdUrl = "https://nvd.nist.gov/vuln/detail/" + encodeURIComponent(cveId);
   if (loading) return <section className="page" aria-busy="true">
@@ -730,40 +708,15 @@ export default function CveDetail() {
                 CVE_APPLICABILITY_SOURCE.NONE}
             </span>
           </div>
-          {context.applicability?.status === "APPLIES_CONDITIONAL" ? <p>
-            El CVE se gestiona de manera condicionada por decisión del analista.
-            Quedan condiciones NVD pendientes de verificar; la asociación con
-            software, si existe, consta en el historial.
-          </p> : context.applicability?.status === "NOT_APPLICABLE" &&
-            context.applicability?.source === "SYSTEM" ? <p>
-            Todas las configuraciones NVD fueron excluidas con evidencia técnica
-            verificable para este hardware. El sistema conserva los criterios
-            y las razones de exclusión en el historial.
-          </p> : context.applicability?.status === "APPLIES" &&
-            context.applicability?.source === "SYSTEM" ? <p>
-            La evidencia CPE y las versiones registradas satisfacen automáticamente
-            las condiciones de la configuración NVD
-            {context.applicability.automatic_evidence?.configuration_position
-              ? " " + context.applicability.automatic_evidence.configuration_position
-              : ""}.
-          </p> : context.applicability?.status === "APPLIES" ? <p>
-            Existe una correspondencia confirmada para este hardware con
-            evidencia documentada en el historial.
-          </p> : context.applicability?.status === "NOT_APPLICABLE" ? <p>
-            Las configuraciones pertinentes fueron descartadas con evidencia
-            registrada y vigente. Consulta el historial para revisar las decisiones.
-          </p> : context.applicability?.status === "PENDING_REVIEW" &&
-            (context.technical_configuration_counts?.EXCLUDED || 0) > 0 ? <p>
-            {context.technical_configuration_counts.EXCLUDED} configuración(es)
-            descartada(s) técnicamente con la evidencia disponible;
-            {" "}{context.technical_configuration_counts.INDETERMINATE}
-            alternativa(s) siguen sin resolver. No se considera descartado el
-            CVE completo. El analista puede revisar la evidencia pendiente.
-          </p> : <p>
-            No hay evidencia completa para confirmar ni descartar el CVE.
-            La falta de software inventariado no demuestra su ausencia.
-            Revisa las condiciones NVD antes de decidir.
-          </p>}
+          <p className="cve-applicability-explanation">
+            {cveApplicabilityExplanation(context)}
+          </p>
+          {evidenceHighlights.length > 0 &&
+            <ul className="cve-evidence-highlights"
+              aria-label="Evidencia principal de la configuración seleccionada">
+              {evidenceHighlights.map(fact =>
+                <li key={fact.label} data-kind={fact.kind}>{fact.label}</li>)}
+            </ul>}
         </div>
         {primary ? <>
           <section className="cve-nvd-conditions cve-general-relevant-configuration"
