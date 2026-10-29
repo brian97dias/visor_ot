@@ -402,9 +402,6 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       <p className="cve-review-note">
         La plataforma NVD no tiene una identidad CPE confirmada en este hardware.
       </p>}
-    {pendingUnlink && <p className="cve-review-note" role="status">
-      La instalación está desmarcada para esta revisión. Cancelar conserva la evaluación actual.
-    </p>}
     {(canReopen || showChoices) && <div className="cve-nvd-actions">
       {canReopen && !reviewOpen && <button type="button"
         className="cve-nvd-action" onClick={beginReopen}>
