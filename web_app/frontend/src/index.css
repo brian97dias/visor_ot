@@ -3534,3 +3534,20 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   outline: 2px solid #f87171;
   outline-offset: 2px;
 }
+
+
+/* Scroll the OR alternatives, not the entire CVE page. */
+.cve-nvd-other-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding: 3px 12px 7px 3px;
+  scrollbar-gutter: stable;
+}
+.cve-nvd-other-scroll:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+.cve-nvd-other-scroll > .cve-muted { margin: 8px 0 12px; }
+.cve-nvd-other-scroll > .cve-nvd-condition,
+.cve-nvd-other-scroll > .cve-general-group { margin-bottom: 9px; }
