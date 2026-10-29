@@ -165,6 +165,58 @@ class SystemCveAuditTests(TestCase):
         self.assertEqual(result["applicability"]["source"], "ANALYST")
         self.assertEqual(AssetCveAssessment.objects.count(), 2)
 
+    def test_system_audit_history_shows_product_version_and_keeps_snapshot(self):
+        self._set_negative_siemens_range()
+        self.client.post(self.sync_url, {}, format="json")
+        recorded = AssetCveAssessment.objects.get(configuration_index=0)
+        snapshot = recorded.criteria_evidence["software_snapshot"][0]
+        self.assertEqual(snapshot["software_installation_id"], self.installation.pk)
+        self.assertEqual(snapshot["software_name"], self.sw.asset.name)
+        self.assertEqual(snapshot["installed_version"], "4.5.2")
+        self.assertIn(self.sw.asset.name, recorded.justification)
+        self.assertNotIn("instalación #" + str(self.installation.pk), recorded.justification)
+        history = self.client.get(self.url).data["configurations"][0]["history"][0]
+        self.assertEqual(history["software_display"][0]["software_name"],
+                         self.sw.asset.name)
+        self.assertEqual(history["software_display"][0]["installed_version"], "4.5.2")
+
+        # The old decision keeps its original software/version even after
+        # inventory changes invalidate its current technical conclusion.
+        self.sw.version = "4.6.0"
+        self.sw.save(update_fields=["version"])
+        stale = self.client.get(self.url).data["configurations"][0]["history"][0]
+        self.assertTrue(stale["stale"])
+        self.assertEqual(stale["software_display"][0]["installed_version"], "4.5.2")
+        self.assertEqual(stale["software_display"][0]["software_name"],
+                         snapshot["software_name"])
+
+    def test_manual_discrepancy_records_software_snapshot_without_vulnerable_fk(self):
+        self.client.post(self.sync_url, {}, format="json")
+        context = self.client.get(self.url).data
+        payload = {
+            "configuration_index": 8,
+            "configuration_fingerprint": context["configurations"][8]["fingerprint"],
+            "inventory_fingerprint": context["inventory_fingerprint"],
+            "verdict": "NOT_MATCH",
+            "software_installation_id": self.installation.pk,
+            "inventory_declared_complete": True,
+            "technical_override_acknowledged": True,
+            "justification": (
+                "El analista verificó documentación externa y registró una "
+                "evaluación negativa independiente de la conclusión NVD."
+            ),
+        }
+        result = self.client.post(self.url, payload, format="json")
+        self.assertEqual(result.status_code, 201, result.data)
+        self.assertEqual(result.data["assessment"]["status"], "NOT_APPLICABLE")
+        self.assertIsNone(result.data["assessment"]["software_installation_id"])
+        sw = result.data["assessment"]["software_display"][0]
+        self.assertEqual(sw["software_name"], self.sw.asset.name)
+        self.assertEqual(sw["installed_version"], "4.5.2")
+        self.assertEqual(sw["software_installation_id"], self.installation.pk)
+        self.assertEqual(AssetCveAssessment.objects.order_by("-pk").first()
+                         .criteria_evidence["software_snapshot"][0], sw)
+
     def test_repeating_automatic_sync_never_duplicates(self):
         first = self.client.post(self.sync_url, {}, format="json")
         second = self.client.post(self.sync_url, {}, format="json")
