@@ -133,6 +133,21 @@ def ensure_system_cve_assessment(cve_id, hardware_id):
                 if first is None:
                     first = latest
                 continue
+            evaluated = []
+            by_installation = {row["installation_id"]: row for row in installed}
+            for condition in negative["excluded_by"]:
+                if condition.get("reason") != "FIRMWARE_OR_SOFTWARE_VERSION_EXCLUDED":
+                    continue
+                installation = by_installation.get(condition.get("software_installation_id"))
+                if installation is not None:
+                    evaluated.append({
+                        "software_installation_id": installation["installation_id"],
+                        "software_asset_id": installation["software_asset_id"],
+                        "installed_version": condition["installed_version"],
+                        "criterion": condition["criterion"],
+                        "confirmed_cpe": condition["confirmed_cpe"],
+                        "reason": condition["reason"],
+                    })
             record = AssetCveAssessment.objects.create(
                 hardware=hw, cve=cve, configuration_index=index,
                 configuration_snapshot=config,
@@ -142,6 +157,7 @@ def ensure_system_cve_assessment(cve_id, hardware_id):
                 status=AssetCveAssessment.Status.NOT_APPLICABLE,
                 criteria_evidence={
                     "origin": "SYSTEM", "negative_evidence": negative,
+                    "evaluated_software": evaluated,
                 },
                 justification=_negative_justification(negative),
                 decided_by=None,
