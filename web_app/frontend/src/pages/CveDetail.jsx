@@ -600,8 +600,11 @@ export default function CveDetail() {
             </div>
             <span className="cve-catalogue-evaluation-status"
               data-status={context.applicability?.status || "PENDING_REVIEW"}>
-              {CVE_EVALUATION_STATE[context.applicability?.status] ||
-                CVE_EVALUATION_STATE.PENDING_REVIEW}
+              {context.applicability?.status === "PENDING_REVIEW" &&
+                (context.technical_configuration_counts?.EXCLUDED || 0) > 0
+                ? "Validación parcial" :
+                (CVE_EVALUATION_STATE[context.applicability?.status] ||
+                  CVE_EVALUATION_STATE.PENDING_REVIEW)}
               {" · "}{CVE_APPLICABILITY_SOURCE[context.applicability?.source] ||
                 CVE_APPLICABILITY_SOURCE.NONE}
             </span>
@@ -610,7 +613,13 @@ export default function CveDetail() {
             El CVE se gestiona de manera condicionada por decisión del analista.
             Quedan condiciones NVD pendientes de verificar; la asociación con
             software, si existe, consta en el historial.
-          </p> : context.applicability?.source === "SYSTEM" ? <p>
+          </p> : context.applicability?.status === "NOT_APPLICABLE" &&
+            context.applicability?.source === "SYSTEM" ? <p>
+            Todas las configuraciones NVD fueron excluidas con evidencia técnica
+            verificable para este hardware. El sistema conserva los criterios
+            y las razones de exclusión en el historial.
+          </p> : context.applicability?.status === "APPLIES" &&
+            context.applicability?.source === "SYSTEM" ? <p>
             La evidencia CPE y las versiones registradas satisfacen automáticamente
             las condiciones de la configuración NVD
             {context.applicability.automatic_evidence?.configuration_position
@@ -622,8 +631,15 @@ export default function CveDetail() {
           </p> : context.applicability?.status === "NOT_APPLICABLE" ? <p>
             Las configuraciones pertinentes fueron descartadas con evidencia
             registrada y vigente. Consulta el historial para revisar las decisiones.
+          </p> : context.applicability?.status === "PENDING_REVIEW" &&
+            (context.technical_configuration_counts?.EXCLUDED || 0) > 0 ? <p>
+            {context.technical_configuration_counts.EXCLUDED} configuración(es)
+            descartada(s) técnicamente con la evidencia disponible;
+            {" "}{context.technical_configuration_counts.INDETERMINATE}
+            alternativa(s) siguen sin resolver. No se considera descartado el
+            CVE completo. El analista puede revisar la evidencia pendiente.
           </p> : <p>
-            No hay evidencia completa para confirmar el CVE automáticamente.
+            No hay evidencia completa para confirmar ni descartar el CVE.
             La falta de software inventariado no demuestra su ausencia.
             Revisa las condiciones NVD antes de decidir.
           </p>}
