@@ -55,7 +55,7 @@ class ConditionalSiemensTests(TestCase):
         self.assertEqual(saved.data["assessment"]["status"], "NOT_APPLICABLE")
         record = AssetCveAssessment.objects.get()
         self.assertIsNone(record.software_installation_id)
-        self.assertEqual(record.criteria_evidence["negative_scope"], "NVD_CONFIGURATION")
+        self.assertEqual(record.criteria_evidence["negative_scope"], "HARDWARE_CVE")
         result = self.client.get(self.url).data
         self.assertEqual(result["technical_result"], "INDETERMINATE")
         self.assertEqual(result["applicability"]["status"], "NOT_APPLICABLE")
@@ -156,7 +156,8 @@ class ConditionalSiemensTests(TestCase):
         self.assertEqual(posted.status_code, 201, posted.data)
         record = AssetCveAssessment.objects.get()
         self.assertIsNone(record.software_installation_id)
-        self.assertEqual(record.criteria_evidence["linked_software"], [])
+        self.assertEqual(record.criteria_evidence.get("linked_software"), None)
+        self.assertEqual(record.criteria_evidence["reviewed_software"], [])
 
     def test_discretionary_link_cannot_use_non_installed_software(self):
         software = self.fixture.make_software("STEP 7 sin instalacion")
