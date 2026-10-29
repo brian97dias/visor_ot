@@ -407,12 +407,37 @@ def general_assessment_context(cve_id, hardware_id):
         technical, analyst["status"], inventory_fingerprint=inventory_fp,
         cve=cve, hardware_id=hw.pk,
     )
+    # Only a POST may append audit rows. GET advertises whether a proved
+    # SYSTEM decision lacks a current audit row, even when the global CVE
+    # is still pending because other NVD alternatives are unresolved.
+    from .cve_applicability import (
+        automatic_positive_evidence, automatic_negative_evidence,
+        verified_negative_configurations,
+    )
+    positive = automatic_positive_evidence(technical)
+    if positive is not None:
+        system_candidates = [positive["configuration_index"]]
+    else:
+        negatives = verified_negative_configurations(technical)
+        if automatic_negative_evidence(technical) is None:
+            negatives = [
+                row for row in negatives
+                if any(proof["reason"] == "FIRMWARE_OR_SOFTWARE_VERSION_EXCLUDED"
+                       for proof in row["excluded_by"])
+            ]
+        system_candidates = [row["configuration_index"] for row in negatives]
+    audit_pending = any(
+        configs[index]["latest_assessment"] is None
+        or configs[index]["latest_assessment"]["stale"]
+        for index in system_candidates
+    )
     return {
         "cve_id": cve.cve_id, "hardware_asset_id": hw.pk,
         "hardware_name": hw.asset.name, "inventory_fingerprint": inventory_fp,
         "installed_software": installed,
         "technical_result": technical["result"],
         "applicability": applicability,
+        "automatic_audit_pending": audit_pending,
         "assessment_summary": analyst,
         "confirmed_hardware_cpes": [
             {"cpe_name": name, "association_id": assoc.pk}
