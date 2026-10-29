@@ -3551,3 +3551,37 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cve-nvd-other-scroll > .cve-muted { margin: 8px 0 12px; }
 .cve-nvd-other-scroll > .cve-nvd-condition,
 .cve-nvd-other-scroll > .cve-general-group { margin-bottom: 9px; }
+
+
+/* Human decisions may contradict technical NVD exclusion, but never erase it. */
+.cve-technical-discrepancy {
+  border: 1px solid #854d0e;
+  border-left: 3px solid #eab308;
+  border-radius: 7px;
+  padding: 12px 14px;
+  margin: 13px 0;
+  background: #282313;
+  color: #fde68a;
+}
+.cve-technical-discrepancy strong { font-size: .86rem; }
+.cve-technical-discrepancy p {
+  margin: 7px 0 0; font-size: .81rem; line-height: 1.6;
+  color: #e2d5ac;
+}
+.cve-override-attestation {
+  margin: 12px 0;
+  padding: 12px 13px;
+  background: #2b2119;
+  border: 1px solid #a16207;
+  border-radius: 8px;
+}
+.cve-override-attestation label {
+  display: flex; gap: 9px; align-items: flex-start;
+  color: #fde68a; font-size: .85rem; line-height: 1.5;
+  cursor: pointer;
+}
+.cve-override-attestation input { margin-top: 3px; accent-color: #eab308; }
+.cve-override-attestation p {
+  margin: 8px 0 0; color: #cbd5e1;
+  font-size: .79rem;
+}
