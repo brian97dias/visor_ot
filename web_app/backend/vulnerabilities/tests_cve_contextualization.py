@@ -846,47 +846,51 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(found[0]["role"], "PLATFORM")
         self.assertEqual(found[1]["role"], "VULNERABLE")
 
-    def test_version_bounded_confirmation_is_scoped_and_audited(self):
+    def test_version_bounded_automatic_positive_requires_a_real_human_change(self):
         context = self.client.get(self.url)
         self.assertEqual(context.status_code, 200, context.data)
         info = context.data
         row = info["relevant_configurations"][0]
         self.assertTrue(row["review_supported"])
-        self.assertEqual(row["review_installation_id"], self.installation.pk)
+        self.assertEqual(info["applicability"]["status"], "APPLIES")
         payload = {
             "configuration_index": 8,
             "verdict": "CONFIRMED",
             "software_installation_id": self.installation.pk,
-            "inventory_declared_complete": False,
-            "justification": "CPU y firmware confirmados, versión 4.5.2 < 4.6.0.",
+            "justification": "Sin cambios",
             "inventory_fingerprint": info["inventory_fingerprint"],
             "configuration_fingerprint": row["fingerprint"],
         }
-        created = self.client.post(self.url, payload, format="json")
-        self.assertEqual(created.status_code, 201, created.data)
-        self.assertEqual(created.data["assessment"]["status"], "APPLIES")
-        current = self.client.get(self.url).data
-        summary = current["assessment_summary"]
-        self.assertEqual(current["applicability"]["source"], "ANALYST")
-        self.assertEqual(summary["status"], "APPLIES")
-        self.assertEqual(summary["confirmed_configurations"], 1)
-        self.assertEqual(summary["pending_configurations"], 11)
-        self.assertEqual(AssetCveAssessment.objects.count(), 1)
-        listing = self.client.get("/api/vulnerabilities/cves/?technical=ALL")
-        self.assertEqual(listing.data["results"][0]["evaluation_status"], "APPLIES")
-        payload["verdict"] = "UNKNOWN"
-        payload["software_installation_id"] = None
-        payload["justification"] = "Reabrir análisis sin borrar la decisión previa."
-        undone = self.client.post(self.url, payload, format="json")
-        self.assertEqual(undone.status_code, 201, undone.data)
-        self.assertEqual(undone.data["assessment"]["status"], "PENDING_REVIEW")
-        reopened_context = self.client.get(self.url).data
-        reopened_summary = reopened_context["assessment_summary"]
-        self.assertEqual(reopened_context["applicability"]["source"], "SYSTEM")
-        self.assertEqual(reopened_summary["status"], "IN_REVIEW")
-        self.assertEqual(reopened_summary["confirmed_configurations"], 0)
-        self.assertEqual(AssetCveAssessment.objects.count(), 2)
+        reaffirm = self.client.post(self.url, payload, format="json")
+        self.assertEqual(reaffirm.status_code, 400, reaffirm.data)
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
+        payload.update({
+            "verdict": "CONDITIONAL",
+            "software_installation_id": None,
+            "technical_override_acknowledged": True,
+            "justification": "Pendiente",
+        })
+        changed = self.client.post(self.url, payload, format="json")
+        self.assertEqual(changed.status_code, 201, changed.data)
+        self.assertEqual(changed.data["assessment"]["status"], "APPLIES_CONDITIONAL")
+        current = self.client.get(self.url).data
+        self.assertEqual(current["applicability"]["status"], "APPLIES_CONDITIONAL")
+        self.assertEqual(current["applicability"]["source"], "ANALYST")
+        self.assertIsNone(current["hardware_cve_decision"]["software_installation_id"])
+        self.assertEqual(current["technical_result"], COMPATIBLE)
+        self.assertEqual(AssetCveAssessment.objects.count(), 1)
+
+        payload.update({
+            "verdict": "UNKNOWN",
+            "justification": "Reabro la revisión",
+        })
+        reopened = self.client.post(self.url, payload, format="json")
+        self.assertEqual(reopened.status_code, 201, reopened.data)
+        context = self.client.get(self.url).data
+        self.assertEqual(context["applicability"]["status"], "IN_REVIEW")
+        self.assertEqual(context["assessment_summary"]["status"], "IN_REVIEW")
+        self.assertEqual(AssetCveAssessment.objects.count(), 2)
     def test_verified_positive_requires_documented_technical_override_for_no_match(self):
         context = self.client.get(self.url).data
         config = context["relevant_configurations"][0]
