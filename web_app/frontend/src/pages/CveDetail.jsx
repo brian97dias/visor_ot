@@ -186,6 +186,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const [choice, setChoice] = useState("");
   const [justification, setJustification] = useState("");
   const [complete, setComplete] = useState(false);
+  const [overrideAcknowledged, setOverrideAcknowledged] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const justificationRef = useRef(null);
@@ -216,13 +217,15 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     ["APPLIES", "APPLIES_CONDITIONAL", "NOT_APPLICABLE"].includes(last.status));
   const canReview = config.review_supported && canDecide;
   const canConditional = config.conditional_supported && canDecide &&
-    config.technical_result === "INDETERMINATE";
+    ["INDETERMINATE", "EXCLUDED"].includes(config.technical_result);
+  const technicalConflict = config.technical_result === "EXCLUDED";
   const checked = Boolean(selectedCriterion);
   const canConfirm = canReview || canConditional;
   const linkedInstallationId = checked ? installId : "";
   const eligible = (config.candidate_installation_ids || []).includes(Number(linkedInstallationId)) ||
     config.review_installation_id === Number(linkedInstallationId);
-  const confirmationVerdict = linkedInstallationId && canReview && eligible
+  const confirmationVerdict = linkedInstallationId &&
+    ((canReview && eligible) || (technicalConflict && config.technical_override_supported))
     ? "CONFIRMED" : "CONDITIONAL";
   const enableConfirm = canDecide && (confirmationVerdict === "CONFIRMED" || canConditional);
   const confirmationLabel = linkedInstallationId
@@ -235,16 +238,18 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   );
   const noSelected = choice === "CONFIRMED" && !selectedId;
   const invalid = !justification.trim() || noSelected ||
-    (choice === "CONDITIONAL" && justification.trim().length < 20);
+    (choice === "CONDITIONAL" && justification.trim().length < 20) ||
+    (technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice) &&
+      (!overrideAcknowledged || justification.trim().length < 20));
 
   function reset() {
     setChoice(""); setDraftLink(null);
-    setJustification(""); setComplete(false); setError("");
+    setJustification(""); setComplete(false); setOverrideAcknowledged(false); setError("");
   }
   function beginReopen() {
     setDraftLink({ criterionKey: "", installationId: "" });
     setChoice("UNKNOWN");
-    setJustification(""); setComplete(false); setError("");
+    setJustification(""); setComplete(false); setOverrideAcknowledged(false); setError("");
   }
   function updateAssociation(criterionKey, installationId) {
     if (savedLink && !criterionKey && !installationId) {
@@ -258,7 +263,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       return;
     }
     setDraftLink({ criterionKey, installationId });
-    setChoice(""); setJustification(""); setError("");
+    setChoice(""); setJustification(""); setOverrideAcknowledged(false); setError("");
   }
   async function submit(event) {
     event.preventDefault();
@@ -275,6 +280,8 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
           choice === "CONDITIONAL" ? (linkedInstallationId ? Number(linkedInstallationId) : null) :
           (selectedId ? Number(selectedId) : null),
         inventory_declared_complete: choice === "NOT_MATCH" && complete,
+        technical_override_acknowledged: technicalConflict &&
+          ["CONFIRMED", "CONDITIONAL"].includes(choice) && overrideAcknowledged,
         justification: justification.trim(),
       });
       if (choice === "UNKNOWN") {
@@ -296,7 +303,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     <Criterion item={config.tree} selection={selectedCriterion}
       onSelect={updateAssociation}
       installId={installId} installedSoftware={context.installed_software || []}
-      canDecide={canDecide && config.technical_result !== "EXCLUDED"}
+      canDecide={canDecide}
       savedLink={savedLink} pendingUnlink={pendingUnlink}/>
     <div className="panel cve-nvd-decision">
     <div className="cve-nvd-joint-title">
@@ -318,12 +325,14 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     {last?.stale && <p className="cpe-warning">
       La evaluación previa conserva su registro histórico, pero la evidencia cambió.
       Se necesita revisar nuevamente.</p>}
-    {config.technical_result === "EXCLUDED" ? <p className="cve-muted"
+    {config.technical_result === "EXCLUDED" ? <div className="cve-technical-discrepancy"
       role="status">
-      Esta configuración fue excluida técnicamente. Si la evidencia de versión
-      o plataforma es suficiente, VISOR OT registra el descarte automático.
-      La exclusión de una configuración no descarta necesariamente el CVE completo.
-    </p> : !config.review_supported && <p className="cpe-warning" role="status">
+      <strong>Configuración excluida por evidencia técnica NVD</strong>
+      <p>La exclusión automática no impide una decisión distinta del analista.
+        Puedes asociar el software y registrar una correspondencia manual,
+        pero deberás reconocer y justificar la discrepancia. El resultado técnico
+        permanecerá intacto y el CVE completo puede seguir pendiente.</p>
+    </div> : !config.review_supported && <p className="cpe-warning" role="status">
       Esta configuración no permite confirmar automáticamente todas las
       condiciones NVD. {canConditional
         ? "El analista puede registrarla como Aplica condicionada, justificando qué falta verificar."
@@ -346,7 +355,10 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         data-action={confirmationVerdict}
         className={"cve-nvd-action" +
         (["CONFIRMED", "CONDITIONAL"].includes(choice) ? " selected" : "")}
-        onClick={() => { setChoice(confirmationVerdict); setJustification(""); }}>
+        onClick={() => {
+          setChoice(confirmationVerdict); setJustification("");
+          setOverrideAcknowledged(false);
+        }}>
         {confirmationLabel}</button>}
       {canDiscard && !pendingUnlink && <button type="button" className={"cve-nvd-action" +
         (choice === "NOT_MATCH" ? " selected" : "")}
@@ -382,6 +394,14 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
             {sw.software_name} · Instalación #{sw.installation_id}</option>)}
         </select>
       </label>}
+      {technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice) &&
+        <div className="cve-override-attestation">
+          <label><input type="checkbox" checked={overrideAcknowledged}
+            onChange={event => setOverrideAcknowledged(event.target.checked)}/>
+            Reconozco que la versión o plataforma quedó excluida técnicamente
+            por NVD y que esta es una decisión manual discrepante.</label>
+          <p>La decisión no modifica los criterios ni la evaluación técnica NVD.</p>
+        </div>}
       <label>Justificación de la decisión
         <textarea ref={justificationRef} rows={3} required maxLength={1000}
           aria-invalid={pendingUnlink && !justification.trim()}
@@ -402,7 +422,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       <div className="cve-form-actions">
         <button type="submit" className="button-primary"
           disabled={saving || invalid}>{saving ? "Guardando..." :
-          choice === "UNKNOWN" ? "Confirmar y deshacer" : "Guardar evaluación"}</button>
+          choice === "UNKNOWN" ? "Confirmar y deshacer" :
+          technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice)
+            ? "Registrar decisión discrepante" : "Guardar evaluación"}</button>
         <button type="button" className="button-secondary" disabled={saving}
           onClick={reset}>Cancelar</button>
       </div>
@@ -415,6 +437,11 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
           <strong>{STATE[item.status] || item.status}</strong>
           <span className="cve-muted"> · {item.source === "SYSTEM"
             ? "Automático" : "Analista"}</span>
+          {item.technical_override && <p className="cve-history-warning">
+            Decisión humana discrepante: NVD mantiene el resultado
+            { " "}{item.technical_override.technical_result}. La vinculación
+            fue autorizada expresamente por el analista.
+          </p>}
           {item.stale && <p className="cve-history-warning">
             Registro histórico: evidencia no vigente.</p>}
           <p>{item.source === "SYSTEM" ? "El sistema" :
@@ -486,7 +513,7 @@ export default function CveDetail() {
       .then(async data => {
         // Existing imported CVEs may predate automatic audit logging.
         // Synchronise their proof once through a POST; never write on GET.
-        if (canDecide && data.applicability?.source === "SYSTEM") {
+        if (canDecide && data.automatic_audit_pending) {
           try {
             const synced = await ensureAutomaticCveAssessment(
               cveId, Number(selectedHardware)
