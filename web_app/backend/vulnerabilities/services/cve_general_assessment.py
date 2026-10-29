@@ -364,6 +364,44 @@ def _hardware_scope(criterion_nodes):
     return "UNVERIFIED"
 
 
+def _manual_firmware_installations(annotated_tree, installed):
+    """Conservative candidates for human confirmation without a software CPE.
+
+    The vulnerable firmware CPE must describe the SAME verified hardware
+    model, and the installed firmware name must contain that explicit model.
+    Merely sharing FIRMWARE type or a version is not sufficient.
+    """
+    import re
+
+    leaves = list(_flatten_technical_tree(annotated_tree))
+    hardware_products = []
+    firmware_products = []
+    for item in leaves:
+        fields = str(item.get("criteria") or "").split(":")
+        if len(fields) != 13 or fields[3] != "siemens":
+            continue
+        if (item.get("part") == "h"
+                and item.get("technical_identity") == "MATCHED"):
+            hardware_products.append(fields[4])
+        if (item.get("part") == "o" and item.get("vulnerable") is True
+                and fields[4].endswith("_firmware")):
+            firmware_products.append(fields[4])
+    models = set()
+    for product in hardware_products:
+        if product + "_firmware" not in firmware_products:
+            continue
+        match = re.search(r"_cpu_([0-9]{4}[a-z]{0,3})$", product)
+        if match:
+            models.add(match.group(1))
+    return sorted({
+        row["installation_id"]
+        for row in installed
+        if row["software_type"] == "FIRMWARE"
+        and any(model in re.sub(r"[^a-z0-9]", "", row["software_name"].lower())
+                for model in models)
+    })
+
+
 def _relevance_summary(configs, technical_trees):
     """Select only evidence pertaining to this inventory context.
 
@@ -523,6 +561,10 @@ def general_assessment_context(cve_id, hardware_id):
             and bool(vulnerable_software_types)
             and (hardware_matched or manual_platform_review)
         )
+        manual_firmware_installations = (
+            _manual_firmware_installations(annotated_tree, installed)
+            if hardware_scope == "MATCHED" else []
+        )
         candidate_installations = sorted({
             item.get("technical_software_installation_id")
             for item in criteria
@@ -545,6 +587,12 @@ def general_assessment_context(cve_id, hardware_id):
                 conditional_supported and observation["result"] == "EXCLUDED"
             ),
             "candidate_installation_ids": candidate_installations,
+            "manual_firmware_installation_ids": manual_firmware_installations,
+            "manual_confirm_supported": bool(
+                hardware_scope == "MATCHED"
+                and manual_firmware_installations
+                and not _has_nvd_negation(config)
+            ),
             "technical_result": observation["result"],
             "evaluated_software": evaluated_software,
             "review_supported": bool(supported),
