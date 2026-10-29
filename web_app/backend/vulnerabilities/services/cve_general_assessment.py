@@ -913,6 +913,22 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
             "Esta decisión es distinta del resultado técnico NVD. "
             "Registra una revisión justificada para continuar."})
 
+    from .cve_applicability import latest_hardware_cve_decision
+    global_previous, global_current = latest_hardware_cve_decision(
+        cve, hw, actual_fp,
+    )
+    # A hardware-matched NVD branch can support a human conclusion for the
+    # COMPLETE Hardware-CVE pair. Legacy software-only reviews remain
+    # configuration-scoped: they cannot change a physical PLC by themselves.
+    annotated = _annotate_tree(
+        _render_tree(config, confirmed, installed),
+        technical["configurations"][0],
+    )
+    matched_hardware = any(
+        leaf.get("part") == "h" and leaf.get("technical_identity") == "MATCHED"
+        for leaf in _flatten_technical_tree(annotated)
+    )
+    global_scope = matched_hardware and verdict != "UNKNOWN"
     # Reaffirming a CURRENT persisted decision changes no state and may not
     # manufacture a new analyst audit record. A mere UI opening never writes.
     latest = AssetCveAssessment.objects.filter(
@@ -920,26 +936,37 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
     ).order_by("-decided_at", "-pk").first()
     target = {
         "CONFIRMED": "APPLIES", "CONDITIONAL": "APPLIES_CONDITIONAL",
-        "NOT_MATCH": "NOT_APPLICABLE" if inventory_declared_complete else "PENDING_REVIEW",
+        "NOT_MATCH": "NOT_APPLICABLE" if (global_scope or inventory_declared_complete)
+                     else "PENDING_REVIEW",
         "UNKNOWN": "PENDING_REVIEW",
     }[verdict]
-    if (latest and latest.inventory_fingerprint == actual_fp
+    if (global_scope and global_current and global_previous.status == target):
+        raise ValidationError({"verdict":
+            "La evaluación Hardware–CVE ya tiene este estado vigente."})
+    if (not global_scope and latest and latest.inventory_fingerprint == actual_fp
             and latest.configuration_fingerprint == cfg_fp
             and latest.status == target):
         raise ValidationError({"verdict":
             "La evaluación ya tiene este estado vigente. No se registran reconfirmaciones."})
 
     supported = _simple_and_firmware(config, confirmed, installed)
-    if not supported and verdict == "CONFIRMED" and not override:
+    manual_firmware_ids = (
+        _manual_firmware_installations(annotated, installed)
+        if matched_hardware else []
+    )
+    manual_confirm = (
+        verdict == "CONFIRMED" and not supported
+        and software_installation_id in manual_firmware_ids
+        and not _has_nvd_negation(config)
+    )
+    if not supported and verdict == "CONFIRMED" and not manual_confirm:
         raise ValidationError({"verdict":
-            "La configuración no permite una confirmación positiva sin evidencia comprobada."})
+            "Selecciona un firmware instalado que corresponda al modelo "
+            "de hardware confirmado en el criterio NVD."})
     if verdict == "NOT_MATCH":
         if _has_nvd_negation(config):
             raise ValidationError({"verdict":
                 "Esta configuración contiene negaciones NVD y requiere revisión especializada."})
-        if inventory_declared_complete and len(reason) < 20:
-            raise ValidationError({"justification":
-                "Documenta la evidencia negativa y el alcance revisado (mínimo 20 caracteres)."})
         # Manual non-correspondence is scoped to this NVD configuration, never
         # inferred solely from a missing software entry and never an automatic
         # global dismissal. Require a verified platform or unscoped criterion.
@@ -978,10 +1005,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         raise ValidationError({"software_installation_id":
             "Selecciona la instalación concreta verificada contra NVD."})
     conditional_evidence = None
-    if verdict == "CONDITIONAL" or override:
-        if len(reason) < 20:
-            raise ValidationError({"justification":
-                "Justifica la decisión y las condiciones pendientes (mínimo 20 caracteres)."})
+    if verdict == "CONDITIONAL" or override or manual_confirm:
         if override and verdict == "CONFIRMED" and selected is None:
             raise ValidationError({"software_installation_id":
                 "La confirmación discrepante requiere una instalación vigente vinculada."})
@@ -1004,7 +1028,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
     status = "PENDING_REVIEW"
     if verdict == "CONDITIONAL":
         status = "APPLIES_CONDITIONAL"
-    elif (supported or override) and verdict == "CONFIRMED" and selected is not None:
+    elif (supported or override or manual_confirm) and verdict == "CONFIRMED" and selected is not None:
         status = "APPLIES"
     elif verdict == "NOT_MATCH" and inventory_declared_complete:
         status = "NOT_APPLICABLE"
@@ -1019,7 +1043,9 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
                 "software_asset_id": selected["software_asset_id"],
                 "installed_version": selected.get("version"),
             }] if selected else [],
-            "negative_scope": "NVD_CONFIGURATION",
+            "negative_scope": (
+                "HARDWARE_CVE" if global_scope else "NVD_CONFIGURATION"
+            ),
             "technical_result": result,
             "technical_override": {
                 "acknowledged": True, "technical_result": result,
@@ -1033,6 +1059,25 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
             "verdict": verdict,
             "inventory_declared_complete": inventory_declared_complete,
         }
+    if global_scope:
+        # The human decision supersedes *all* alternative NVD branches only
+        # for this inventoried hardware/CVE. Technical NVD results remain
+        # untouched, including software-only/unknown configurations.
+        conditional_evidence.update({
+            "decision_scope": "HARDWARE_CVE",
+            "nvd_fingerprint": _digest(cve.configurations),
+            "technical_result": evaluate_configurations(
+                cve.configurations, list(confirmed), installed,
+            )["result"],
+            "source_configuration_index": configuration_index,
+        })
+        if manual_confirm:
+            conditional_evidence["manual_identity_evidence"] = {
+                "basis": "VERIFIED_HARDWARE_MODEL_AND_INSTALLED_FIRMWARE",
+                "software_cpe_confirmed": False,
+                "version_verified_from_nvd": False,
+                "installation_id": selected["installation_id"],
+            }
     # Snapshot the actual inventory values before a later firmware update or
     # unlink; this display evidence never changes the NVD technical result.
     snapshot = _software_snapshot(selected)
@@ -1044,8 +1089,11 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         configuration_snapshot=config, configuration_fingerprint=cfg_fp,
         inventory_fingerprint=actual_fp, status=status,
         software_installation_id=(
-            selected["installation_id"] if selected and
-            status in ("APPLIES", "APPLIES_CONDITIONAL") else None
+            selected["installation_id"]
+            if selected and (
+                status == "APPLIES" if global_scope
+                else status in ("APPLIES", "APPLIES_CONDITIONAL")
+            ) else None
         ),
         criteria_evidence=conditional_evidence,
         justification=reason, decided_by=actor,
