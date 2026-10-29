@@ -128,6 +128,20 @@ def _exclusive_siemens_hardware(product):
             return ("s7-1200-cpu", model)
     if name == "simatic_s7-plcsim_advanced":
         return ("simulator", "s7-plcsim-advanced")
+    # Explicit physical controller models in Siemens SSA-838121/NVD.
+    # Never classify an arbitrary suffix or a generic family name as a CPU.
+    if name in {
+        "simatic_drive_controller_cpu_1504d_tf",
+        "simatic_drive_controller_cpu_1507d_tf",
+    }:
+        return ("drive-controller-cpu", name)
+    if name == "simatic_et_200sp_open_controller_cpu_1515sp_pc2":
+        return ("et-200sp-open-controller", "1515sp-pc2")
+    if name in {
+        "tim_1531_irc", "siplus_tim_1531_irc",
+        "simatic_tim_1531_irc", "simatic_siplus_tim_1531_irc",
+    }:
+        return ("tim-1531-irc", name)
     # Explicit S7-1500 CPU model; an S7-1500 family/umbrella name is NOT
     # enough to prove device exclusivity on its own.
     if name.startswith("simatic_s7-1500_cpu_"):
@@ -143,7 +157,8 @@ def _verified_distinct_product(criterion, confirmed):
     """Prove distinct Siemens CPU devices without treating CPE mismatch as absence.
 
     Guardrails: confirmed Siemens hardware CPEs only, exact known S7-1200
-    model products, explicit S7-1500 CPU models, or the separate PLCSIM
+    model products, explicit S7-1500 CPU models, selected SSA-838121 controllers,
+    or the separate PLCSIM
     simulation line. Unknown family aliases and arbitrary vendor products
     are not proof that a hardware platform is absent.
     """
