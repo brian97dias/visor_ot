@@ -564,21 +564,6 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   </div></>;
 }
 
-function CandidateReview({ context, config, canDecide, onSaved }) {
-  const [open, setOpen] = useState(false);
-  return <div className="cve-pending-configuration">
-    <button type="button" className="cve-pending-configuration-trigger"
-      aria-expanded={open} onClick={() => setOpen(value => !value)}>
-      <span>Configuración NVD {config.position} · Pendiente de evidencia</span>
-      <span aria-hidden="true">{open ? "▴" : "▾"}</span>
-    </button>
-    {open && <div className="cve-pending-configuration-content">
-      <ConfigurationReview context={context} config={config}
-        canDecide={canDecide} onSaved={onSaved}/>
-    </div>}
-  </div>;
-}
-
 export default function CveDetail() {
   const { cveId } = useParams();
   const [searchParams] = useSearchParams();
