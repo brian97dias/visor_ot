@@ -473,6 +473,25 @@ export function displayNvdGroupBranches(node, selectedCriterion = "") {
   };
 }
 
+/** One NVD configuration may contain an OR of dozens of CPU models.
+ * Keep the whole tree for technical evaluation, but only render the
+ * independently verified hardware model in the operational hardware detail.
+ * Software OR alternatives are NOT discarded by this presentation helper.
+ */
+export function operationalNvdGroupBranches(node, selectedCriterion = "") {
+  const result = displayNvdGroupBranches(node, selectedCriterion);
+  if (node?.operator !== "OR") return result;
+  const children = node?.children || [];
+  if (!children.length) return result;
+  const exclusivelyHardware = children.every(child =>
+    child?.kind === "CRITERION" && child.part === "h");
+  if (!exclusivelyHardware) return result;
+  const matched = children.filter(child =>
+    child.technical_identity === "MATCHED" &&
+    Boolean(child.technical_matched_cpe));
+  return matched.length ? {shown: matched, hidden: []} : result;
+}
+
 /** Labels describe NVD criteria, not assets proven to be affected. */
 export function nvdAlternativeGroupLabel(branches) {
   const kinds = new Set();
