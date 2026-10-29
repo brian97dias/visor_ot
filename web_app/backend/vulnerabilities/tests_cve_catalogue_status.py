@@ -95,13 +95,13 @@ class CveCatalogueEvaluationStatusTests(TestCase):
         self.assertEqual(self.current_state(cve.cve_id), "NOT_APPLICABLE")
         self.assertEqual(self.client.get(self.BASE, {"status": "NOT_APPLICABLE"}).data["count"], 1)
 
-    def test_one_negative_of_two_configurations_is_in_review_not_not_applicable(self):
+    def test_hardware_wide_negative_applies_to_all_nvd_alternatives(self):
         cve = self.make_cve(
             configurations=[nvd_and(), nvd_and()]
         )
         self.assess(cve, "NOT_MATCH", index=0, complete=True)
-        self.assertEqual(self.current_state(cve.cve_id), "IN_REVIEW")
-        self.assertEqual(self.client.get(self.BASE, {"status": "NOT_APPLICABLE"}).data["count"], 0)
+        self.assertEqual(self.current_state(cve.cve_id), "NOT_APPLICABLE")
+        self.assertEqual(self.client.get(self.BASE, {"status": "NOT_APPLICABLE"}).data["count"], 1)
 
     def test_changed_hardware_identity_marks_old_decision_stale(self):
         cve = self.make_cve()
