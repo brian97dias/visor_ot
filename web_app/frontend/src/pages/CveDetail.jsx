@@ -13,6 +13,7 @@ import {
   cveApplicabilityExplanation, cveConfigurationHighlights,
   nvdCriterionIdentityBadge, currentCveSoftwareLink,
   currentCveEvaluatedSoftware, allowedCveDecisionTransitions,
+  cveHistoryDecisionDescription, cveHistorySoftwareLabel,
   isSavedCveLinkSelection, cveAuditJustification,
   displayNvdGroupBranches, nvdAlternativeGroupLabel,
 } from "../utils/cveCataloguePresentation";
@@ -499,29 +500,46 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       <summary>Historial de decisiones ({config.history?.length || 0})</summary>
       {config.history?.length ? <ol className="cve-history">
         {config.history.map(item => <li key={item.id}>
-          <strong>{STATE[item.status] || item.status}</strong>
-          <span className="cve-muted"> · {item.source === "SYSTEM"
-            ? "Automático" : "Analista"}</span>
-          {item.technical_override && <p className="cve-history-warning">
-            Decisión humana discrepante: NVD mantiene el resultado
-            { " "}{item.technical_override.technical_result}. La vinculación
-            fue autorizada expresamente por el analista.
+          <div className="cve-history-heading">
+            <strong>{STATE[item.status] || item.status}</strong>
+            <span className="cve-muted"> · {item.source === "SYSTEM"
+              ? "Automático" : "Analista"}</span>
+          </div>
+          <p className="cve-history-byline">
+            {item.source === "SYSTEM" ? "VISOR OT" :
+              (item.decided_by || "Usuario no disponible")}
+            {" · "}{localizedTimestamp(item.decided_at)}
+          </p>
+          {cveHistorySoftwareLabel(item).map(row =>
+            <div className="cve-history-software" key={row.key}>
+              <strong>{row.label}</strong>
+              {row.detail && <small>{row.detail}</small>}
+            </div>)}
+          {item.status === "APPLIES_CONDITIONAL" &&
+            !item.software_installation_id &&
+            !cveHistorySoftwareLabel(item).length &&
+            <p className="cve-muted">Sin software vinculado.</p>}
+          <p className="cve-history-reason">
+            {cveHistoryDecisionDescription(item)}
+          </p>
+          {item.technical_override && <p className="cve-review-note">
+            La conclusión del analista es diferente del resultado técnico
+            NVD ({CVE_TECHNICAL_STATE[item.technical_override.technical_result] ||
+              item.technical_override.technical_result}). Ambos quedan registrados.
           </p>}
-          {item.stale && <p className="cve-history-warning">
-            Registro histórico: evidencia no vigente.</p>}
-          <p>{item.source === "SYSTEM" ? "El sistema" :
-            (item.decided_by || "Usuario no disponible")} ·
-            {localizedTimestamp(item.decided_at)}</p>
-          <p>{cveAuditJustification(item.justification, item.source)}</p>
-          {item.status === "APPLIES_CONDITIONAL" && item.conditional_evidence &&
-            <p className="cve-muted">
-              Componentes vulnerables NVD:
-              {" "}{(item.conditional_evidence.vulnerable_criteria || [])
-                .map(row => row.criteria).join("; ")}
-              {" · "}{item.software_installation_id
-                ? "Instalación vinculada #" + item.software_installation_id
-                : "Sin software vinculado"}
-            </p>}
+          {item.stale && <p className="cve-review-note">
+            Evidencia histórica: el inventario o las condiciones NVD cambiaron.
+          </p>}
+          {(item.justification || item.conditional_evidence) &&
+            <details className="cve-nvd-history-detail">
+              <summary>Ver fundamento y evidencia de la decisión</summary>
+              <p>{cveAuditJustification(item.justification, item.source)}</p>
+              {item.status === "APPLIES_CONDITIONAL" && item.conditional_evidence &&
+                <p>Condiciones NVD relacionadas:
+                  {" "}{(item.conditional_evidence.vulnerable_criteria || [])
+                    .map(row => row.criteria).join("; ") || "Sin criterios adicionales"}
+                </p>}
+            </details>}
         </li>)}
       </ol> : <p className="cve-muted">No hay decisiones registradas.</p>}
     </details>
