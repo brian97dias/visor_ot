@@ -1011,10 +1011,10 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         and software_installation_id in manual_firmware_ids
         and not _has_nvd_negation(config)
     )
-    if not supported and verdict == "CONFIRMED" and not manual_confirm:
+    if verdict == "CONFIRMED" and not software_proven and not manual_confirm:
         raise ValidationError({"verdict":
-            "Selecciona un firmware instalado que corresponda al modelo "
-            "de hardware confirmado en el criterio NVD."})
+            "La confirmación requiere una identidad CPE comprobada para "
+            "la instalación o un firmware del modelo de hardware confirmado."})
     if verdict == "NOT_MATCH":
         if _has_nvd_negation(config):
             raise ValidationError({"verdict":
