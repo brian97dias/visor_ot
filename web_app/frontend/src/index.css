@@ -3689,3 +3689,46 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   .cve-evidence-highlights { gap: 6px; }
   .cve-evidence-highlights li { font-size: .72rem; }
 }
+
+
+/* Human CVE audit: readable product identity and rationale first. */
+.cve-general-history .cve-history-software {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  margin-top: 10px;
+  border: 1px solid #294058;
+  border-radius: 7px;
+  background: #0f1f33;
+}
+.cve-general-history .cve-history-software strong {
+  color: #e2e8f0;
+  font-size: .87rem;
+  font-weight: 650;
+}
+.cve-general-history .cve-history-software small {
+  color: #94a3b8;
+  font-size: .74rem;
+}
+.cve-general-history .cve-history-byline {
+  margin: 7px 0 9px;
+  color: #94a3b8;
+  font-size: .78rem;
+}
+.cve-general-history .cve-history-reason {
+  margin: 10px 0 8px;
+  color: #cbd5e1;
+  line-height: 1.55;
+}
+.cve-general-history .cve-nvd-history-detail {
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+.cve-general-history .cve-nvd-history-detail p {
+  font-size: .8rem;
+  margin: 9px 0;
+  overflow-wrap: anywhere;
+}
