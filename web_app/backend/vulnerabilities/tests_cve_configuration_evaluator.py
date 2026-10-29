@@ -276,9 +276,11 @@ class NvdVersionIntegrationTests(TestCase):
         self.assertEqual(excluded.data["count"], 1)
         self.assertEqual(excluded.data["results"][0]["technical_result"], EXCLUDED)
         self.assertEqual(excluded.data["results"][0]["evaluation_status"], "PENDING_REVIEW")
-        # A negative technical range is NOT a final human No aplica.
+        # A fully evidenced exclusion is an automatic applicability result,
+        # but remains distinct from the append-only *human* decision status.
         self.assertEqual(excluded.data["results"][0]["applicability_status"],
-                         "PENDING_REVIEW")
-        self.assertEqual(excluded.data["results"][0]["applicability_source"], "NONE")
-        self.assertEqual(self.client.get(base, {"technical": "ATTENTION"}).data["count"], 1)
+                         "NOT_APPLICABLE")
+        self.assertEqual(excluded.data["results"][0]["applicability_source"], "SYSTEM")
+        self.assertEqual(self.client.get(base, {"status": "NOT_APPLICABLE"}).data["count"], 1)
+        self.assertEqual(self.client.get(base, {"technical": "ATTENTION"}).data["count"], 0)
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
