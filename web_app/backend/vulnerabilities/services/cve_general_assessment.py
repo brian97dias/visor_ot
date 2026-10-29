@@ -306,9 +306,14 @@ def _relevance_summary(configs, technical_trees):
         if matches or config.get("history"):
             relevant.append((matches, config))
     priority = {"COMPATIBLE": 0, "INDETERMINATE": 1, "EXCLUDED": 2}
+    # A confirmed product identity (including a firmware whose version is
+    # EXCLUDED) is a stronger primary candidate than an UNKNOWN firmware
+    # attached to the same confirmed hardware. Display relevance is not a
+    # vulnerability verdict: the technical AND/OR result remains unchanged.
     relevant.sort(key=lambda row: (
+        -row[0],
         priority.get(row[1]["technical_result"], 3),
-        -row[0], row[1]["index"],
+        row[1]["index"],
     ))
     return [row for _, row in relevant]
 
