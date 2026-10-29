@@ -90,6 +90,23 @@ def _catalogue_applicability(analyst_status, related_assets):
     hardware remains pending; one positive outranks negatives. Manual
     decisions still follow resolve_applicability's precedence.
     """
+    scoped = [row.get("scoped_applicability") for row in related_assets]
+    if scoped and all(isinstance(row, dict) for row in scoped):
+        statuses = [row.get("status") for row in scoped]
+        if "APPLIES" in statuses:
+            conclusion = "APPLIES"
+        elif "APPLIES_CONDITIONAL" in statuses:
+            conclusion = "APPLIES_CONDITIONAL"
+        elif all(value == "NOT_APPLICABLE" for value in statuses):
+            conclusion = "NOT_APPLICABLE"
+        else:
+            conclusion = "PENDING_REVIEW"
+        origin = (
+            "ANALYST" if any(row.get("status") == conclusion
+                             and row.get("source") == "ANALYST" for row in scoped)
+            else "SYSTEM" if conclusion != "PENDING_REVIEW" else "NONE"
+        )
+        return {"status": conclusion, "source": origin}
     positive = next((row.get("automatic_evidence") for row in related_assets
                      if row.get("automatic_evidence")), None)
     negatives = (
