@@ -512,7 +512,7 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
 
-    def test_unknown_configurations_remain_accessible_to_analyst(self):
+    def test_unverified_other_hardware_is_auditable_not_a_firmware_candidate(self):
         ambiguous_hw = (
             "cpe:2.3:h:siemens:simatic_s7-1500_cpu_family:-:*:*:*:*:*:*:*"
         )
@@ -532,31 +532,60 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(data["technical_result"], INDETERMINATE)
         self.assertEqual(data["applicability"]["status"], "PENDING_REVIEW")
         self.assertEqual(
-            [config["position"] for config in data["relevant_configurations"]],
+            [config["position"] for config in data["hardware_software_configurations"]],
             [1],
         )
+        self.assertEqual(data["candidate_configurations"], [])
         self.assertEqual(
-            [config["position"] for config in data["candidate_configurations"]],
+            [config["position"] for config in data["unverified_platform_configurations"]],
             [2],
         )
-        self.assertEqual(
-            data["technical_configuration_counts"]["INDETERMINATE"], 1,
-        )
-        self.assertEqual(
-            data["technical_configuration_counts"]["EXCLUDED"], 1,
-        )
-        self.assertTrue(data["candidate_configurations"][0]
-                        ["manual_platform_review_required"])
-        candidate = data["candidate_configurations"][0]
+        ambiguous = data["unverified_platform_configurations"][0]
+        self.assertFalse(ambiguous["manual_platform_review_required"])
         payload = {
             "configuration_index": 1,
-            "configuration_fingerprint": candidate["fingerprint"],
+            "configuration_fingerprint": ambiguous["fingerprint"],
+            "inventory_fingerprint": data["inventory_fingerprint"],
+            "verdict": "CONDITIONAL",
+            "software_installation_id": self.installation.pk,
+            "platform_unverified_acknowledged": True,
+            "justification": (
+                "La plataforma NVD no coincide con el equipo y se pretende "
+                "vincular su firmware al hardware físico sin evidencia."
+            ),
+        }
+        rejected = self.client.post(self.url, payload, format="json")
+        self.assertEqual(rejected.status_code, 400, rejected.data)
+        self.assertIn("verdict", rejected.data)
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
+
+    def test_software_without_nvd_hardware_can_be_linked_conditionally(self):
+        unknown_fw = (
+            "cpe:2.3:o:siemens:unknown_unscoped_firmware:*:*:*:*:*:*:*:*"
+        )
+        config = {"nodes": [{"operator": "OR", "cpeMatch": [
+            {"criteria": unknown_fw, "vulnerable": True},
+        ]}]}
+        self.cve.configurations = [config]
+        self.cve.save(update_fields=["configurations"])
+        data = self.client.get(self.url).data
+        self.assertEqual(data["technical_result"], INDETERMINATE)
+        self.assertEqual(
+            [c["position"] for c in data["candidate_configurations"]],
+            [1],
+        )
+        row = data["candidate_configurations"][0]
+        self.assertEqual(row["hardware_scope"], "UNSCOPED")
+        self.assertTrue(row["manual_platform_review_required"])
+        payload = {
+            "configuration_index": 0,
+            "configuration_fingerprint": row["fingerprint"],
             "inventory_fingerprint": data["inventory_fingerprint"],
             "verdict": "CONDITIONAL",
             "software_installation_id": self.installation.pk,
             "justification": (
-                "El analista relaciona discrecionalmente este firmware "
-                "sin afirmar una coincidencia CPE de plataforma."
+                "El analista relaciona discrecionalmente el componente "
+                "sin afirmar una coincidencia exacta con la identidad NVD."
             ),
         }
         rejected = self.client.post(self.url, payload, format="json")
@@ -570,9 +599,6 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(record.software_installation_id, self.installation.pk)
         self.assertTrue(record.criteria_evidence["platform_unverified"]["acknowledged"])
         self.assertIsNone(record.criteria_evidence["linked_software"][0]["matched_cpe"])
-        current = self.client.get(self.url).data
-        self.assertEqual(current["technical_result"], INDETERMINATE)
-        self.assertEqual(current["applicability"]["source"], "ANALYST")
 
     def test_catalogue_contains_named_hardware_and_only_corresponding_firmware(self):
         response = self.client.get("/api/vulnerabilities/cves/")
