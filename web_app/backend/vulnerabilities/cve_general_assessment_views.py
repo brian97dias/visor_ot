@@ -19,6 +19,7 @@ class GeneralCveDecisionSerializer(serializers.Serializer):
     )
     inventory_declared_complete = serializers.BooleanField(default=False)
     technical_override_acknowledged = serializers.BooleanField(default=False)
+    platform_unverified_acknowledged = serializers.BooleanField(default=False)
     justification = serializers.CharField(allow_blank=False, max_length=1000)
     inventory_fingerprint = serializers.RegexField(regex=r"^[a-f0-9]{64}$")
     configuration_fingerprint = serializers.RegexField(regex=r"^[a-f0-9]{64}$")
