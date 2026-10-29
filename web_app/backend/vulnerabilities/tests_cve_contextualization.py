@@ -280,6 +280,26 @@ class SiemensHardwareIdentityExclusions(SimpleTestCase):
         self.assertEqual(evidence["configurations"][0]["excluded_by"][0]
                          ["reason"], "DISTINCT_PLATFORM_VERIFIED")
 
+    def test_explicit_other_siemens_controller_models_are_distinct(self):
+        other_models = [
+            "simatic_drive_controller_cpu_1504d_tf",
+            "simatic_drive_controller_cpu_1507d_tf",
+            "simatic_et_200sp_open_controller_cpu_1515sp_pc2",
+            "tim_1531_irc",
+        ]
+        for product in other_models:
+            with self.subTest(product=product):
+                scenario = nvd_platform_firmware(self.hardware(product), STEP7)
+                technical = evaluate_configurations(
+                    [scenario], [CPU_HW], installed()
+                )
+                self.assertEqual(technical["result"], EXCLUDED)
+                self.assertEqual(
+                    automatic_negative_evidence(technical)
+                    ["configurations"][0]["excluded_by"][0]["reason"],
+                    "DISTINCT_PLATFORM_VERIFIED",
+                )
+
     def test_same_cpu_remains_matched_not_distinct(self):
         evaluated = evaluate_configurations(
             [nvd_platform_firmware(CPU_HW, STEP7)], [CPU_HW], installed()
