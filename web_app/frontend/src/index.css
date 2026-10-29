@@ -3455,13 +3455,6 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cve-evaluated-hardware { display: grid; gap: 13px; min-width: 0; }
 .cve-evaluated-hardware h2 { font-size: 1.06rem; color: #f1f5f9; }
 .cve-evaluated-hardware-identity { display: flex; gap: 13px; align-items: center; }
-.cve-evaluated-hardware-icon {
-  width: 42px; height: 42px; display: inline-flex;
-  justify-content: center; align-items: center;
-  flex-shrink: 0; border-radius: 8px;
-  background: #182c42; color: #7dd3fc;
-  font-size: 1.2rem;
-}
 .cve-evaluated-hardware-identity h3 {
   font-size: .99rem; margin: 0 0 5px; color: #f8fafc;
 }
@@ -3504,4 +3497,40 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   .cve-nvd-proof { padding: 0 15px; }
   .cve-evaluated-hardware-identity { align-items: flex-start; }
   .cve-hardware-applicability .cve-catalogue-evaluation-status { max-width: 100%; }
+}
+
+/* A checkbox change is a draft until a justified POST is confirmed. */
+.cve-cancel-pending {
+  margin: 12px 0 4px;
+  border-left: 3px solid #f87171;
+  border-radius: 5px;
+  padding: 10px 13px;
+  color: #fecaca;
+  background: #2d1721;
+  font-size: .83rem;
+  line-height: 1.55;
+}
+.cve-pending-reopen {
+  margin: 16px 0;
+  border: 1px solid #b91c1c;
+  border-left: 4px solid #f87171;
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: #301723;
+  color: #fecaca;
+}
+.cve-pending-reopen strong { display: block; font-size: .9rem; }
+.cve-pending-reopen p {
+  color: #fecaca;
+  margin: 7px 0 0;
+  line-height: 1.6;
+  font-size: .82rem;
+}
+.cve-nvd-decision .cve-compact-review textarea[aria-invalid="true"] {
+  border-color: #f87171;
+  box-shadow: 0 0 0 1px #b91c1c;
+}
+.cve-nvd-decision .cve-compact-review textarea[aria-invalid="true"]:focus {
+  outline: 2px solid #f87171;
+  outline-offset: 2px;
 }
