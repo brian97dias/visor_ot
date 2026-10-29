@@ -314,7 +314,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     setReviewOpen(true);
     setDraftLink(null);
     setChoice("");
-    setJustification(""); setComplete(false); setError("");
+    setJustification(""); setError("");
   }
   function updateAssociation(criterionKey, installationId) {
     if (savedLink && !criterionKey && !installationId) {
