@@ -251,6 +251,11 @@ def _serialize_assessment(item, inventory_fp, config_fp):
             if source == "SYSTEM" and item.status == "NOT_APPLICABLE"
             and isinstance(item.criteria_evidence, dict) else None
         ),
+        "evaluated_software": (
+            item.criteria_evidence.get("evaluated_software", [])
+            if source == "SYSTEM" and item.status == "NOT_APPLICABLE"
+            and not stale and isinstance(item.criteria_evidence, dict) else []
+        ),
         "technical_override": (
             item.criteria_evidence.get("technical_override")
             if source == "ANALYST"
@@ -372,6 +377,11 @@ def general_assessment_context(cve_id, hardware_id):
     technical = evaluate_configurations(
         cve.configurations, list(confirmed), installed
     )
+    from .cve_applicability import verified_negative_configurations
+    verified_negatives = {
+        row["configuration_index"]: row
+        for row in verified_negative_configurations(technical)
+    }
     configs = []
     for index, config in enumerate(cve.configurations):
         cfg_fp = _digest(config)
@@ -384,6 +394,29 @@ def general_assessment_context(cve_id, hardware_id):
         annotated_tree = _annotate_tree(
             _render_tree(config, confirmed, installed), observation
         )
+        # Read-only evidence of installations used to disprove a version
+        # requirement. A negative result NEVER creates a positive CVE link.
+        observed_installations = {
+            row["installation_id"]: row for row in installed
+        }
+        negative = verified_negatives.get(index)
+        evaluated_software = []
+        for condition in (negative or {}).get("excluded_by", []):
+            if condition.get("reason") != "FIRMWARE_OR_SOFTWARE_VERSION_EXCLUDED":
+                continue
+            installation = observed_installations.get(
+                condition.get("software_installation_id")
+            )
+            if not installation:
+                continue
+            evaluated_software.append({
+                "software_installation_id": installation["installation_id"],
+                "software_asset_id": installation["software_asset_id"],
+                "installed_version": installation.get("version"),
+                "criterion": condition["criterion"],
+                "confirmed_cpe": condition.get("confirmed_cpe"),
+                "reason": condition["reason"],
+            })
 
         def leaves(node):
             if node.get("kind") == "CRITERION":
@@ -443,6 +476,7 @@ def general_assessment_context(cve_id, hardware_id):
             ),
             "candidate_installation_ids": candidate_installations,
             "technical_result": observation["result"],
+            "evaluated_software": evaluated_software,
             "review_supported": bool(supported),
             "review_reason": "" if supported else (
                 "La combinación de operadores, negaciones, rangos o CPE "
