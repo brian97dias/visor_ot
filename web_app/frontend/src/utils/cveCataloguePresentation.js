@@ -249,6 +249,65 @@ export function allowedCveDecisionTransitions(currentStatus) {
 }
 
 
+/** Compact, evidence-based wording for the asset-level CVE summary.
+ * Status is always the backend conclusion; these messages do not reclassify.
+ */
+export function cveApplicabilityExplanation(context) {
+  const status = context?.applicability?.status;
+  const origin = context?.applicability?.source;
+  const counts = context?.technical_configuration_counts || {};
+  if (status === "APPLIES") return origin === "SYSTEM"
+    ? "Los CPE y las condiciones NVD comprobadas indican que este CVE afecta al activo."
+    : "Existe una correspondencia registrada por el analista. Consulta el historial de la evaluación.";
+  if (status === "NOT_APPLICABLE") return origin === "SYSTEM"
+    ? "Las alternativas NVD quedaron descartadas con evidencia técnica para este hardware."
+    : "El analista registró una conclusión de no aplicabilidad. La justificación está en el historial.";
+  if (status === "APPLIES_CONDITIONAL") return
+    "El analista registró una correspondencia parcial. Quedan condiciones por verificar.";
+  if (status === "IN_REVIEW") return
+    "La evaluación está reabierta. La decisión anterior y la evidencia NVD siguen disponibles en el historial.";
+  if (status === "STALE") return
+    "El inventario cambió y la evaluación anterior necesita revisarse.";
+  const excluded = Number(counts.EXCLUDED) || 0;
+  const pending = Number(counts.INDETERMINATE) || 0;
+  if (excluded > 0 && pending > 0) return
+    `${excluded} configuración(es) descartada(s); ${pending} alternativa(s) aún sin resolver.`;
+  return "Todavía no existe evidencia suficiente para confirmar o descartar este CVE.";
+}
+
+/** Display only proven facts from the selected NVD branch. Never infer a
+ * software version match from an unknown CPE, nor treat an excluded branch
+ * as a positive vulnerable installation.
+ */
+export function cveConfigurationHighlights(config) {
+  if (!config) return [];
+  const criteria = [];
+  function visit(node) {
+    if (node?.kind === "CRITERION") criteria.push(node);
+    for (const child of node?.children || []) visit(child);
+  }
+  visit(config.tree);
+  const results = [];
+  if (criteria.some(row => row.part === "h" &&
+      row.technical_identity === "MATCHED")) {
+    results.push({label: "CPE hardware confirmado", kind: "verified"});
+  }
+  if (criteria.some(row => ["o", "a"].includes(row.part) &&
+      row.technical_identity === "MATCHED")) {
+    results.push({label: "CPE software identificado", kind: "verified"});
+  }
+  if ((config.evaluated_software || []).some(row =>
+      row.reason === "FIRMWARE_OR_SOFTWARE_VERSION_EXCLUDED")) {
+    results.push({label: "Versión fuera de rango", kind: "excluded"});
+  } else if (config.technical_result === "COMPATIBLE") {
+    results.push({label: "Condiciones NVD cumplidas", kind: "verified"});
+  } else if (config.technical_result === "INDETERMINATE") {
+    results.push({label: "Evidencia pendiente", kind: "pending"});
+  }
+  return results;
+}
+
+
 /** Only hardware-scoped evidence may enter the interactive CVE detail.
  * A historical audit of an unrelated NVD platform is never a candidate.
  * The full configuration list remains available separately for audit/engine.
