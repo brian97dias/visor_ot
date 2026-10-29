@@ -354,8 +354,11 @@ export function cveConfigurationHighlights(config) {
  * The full configuration list remains available separately for audit/engine.
  */
 export function selectCveOperationalGroups(context) {
+  // This is the HARDWARE detail, not an application/software discovery
+  // screen. Unscoped software remains in the backend's NVD computation, but
+  // cannot be linked to a PLC merely because NVD mentions it elsewhere.
   const relevant = (context?.relevant_configurations || []).filter(row =>
-    row.hardware_scope === "MATCHED" || row.hardware_scope === "UNSCOPED"
+    row.hardware_scope === "MATCHED"
   );
   const selectedIndexes = new Set(relevant.map(row => row.index));
   const hardwareSoftware = (context?.hardware_software_configurations || [])
@@ -364,10 +367,7 @@ export function selectCveOperationalGroups(context) {
   return {
     reviewPool: hardwareSoftware.length ? hardwareSoftware : relevant,
     hardwareSoftware,
-    independentConfigs: hardwareSoftware.length ? relevant.filter(row =>
-      row.hardware_scope === "UNSCOPED" &&
-      !hardwareSoftware.some(hw => hw.index === row.index)
-    ) : [],
+    independentConfigs: [],
   };
 }
 
