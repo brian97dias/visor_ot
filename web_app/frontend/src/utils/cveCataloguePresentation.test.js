@@ -12,7 +12,7 @@ import {
   groupCveEvidence, cveHumanReviewMessage,
   relevantNvdChildren, displayNvdGroupBranches, nvdAlternativeGroupLabel,
   currentCveSoftwareLink, currentCveEvaluatedSoftware,
-  isSavedCveLinkSelection,
+  allowedCveDecisionTransitions, isSavedCveLinkSelection,
   cveAssetRoleLabel,
   displayCveApplicability, CVE_CATALOGUE_FILTER_STATES,
   nvdCriterionIdentityBadge, cveAuditJustification,
@@ -281,6 +281,17 @@ test("single NVD criterion does not invent an OR alternative", () => {
   const result = displayNvdGroupBranches(group);
   assert.deepEqual(result.shown, [one]);
   assert.deepEqual(result.hidden, []);
+});
+
+test("an automatic or analyst verdict can be reopened only into other states", () => {
+  assert.deepEqual(allowedCveDecisionTransitions("APPLIES"),
+    ["CONDITIONAL", "NOT_MATCH"]);
+  assert.deepEqual(allowedCveDecisionTransitions("NOT_APPLICABLE"),
+    ["CONFIRMED", "CONDITIONAL"]);
+  assert.deepEqual(allowedCveDecisionTransitions("APPLIES_CONDITIONAL"),
+    ["CONFIRMED", "NOT_MATCH"]);
+  assert.deepEqual(allowedCveDecisionTransitions("PENDING_REVIEW"),
+    ["CONFIRMED", "CONDITIONAL", "NOT_MATCH"]);
 });
 
 test("negative system decision marks evaluated firmware but never a positive link", () => {
