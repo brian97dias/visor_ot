@@ -182,6 +182,60 @@ def automatic_negative_evidence(technical):
     return {"configurations": negatives}
 
 
+
+def project_configuration_decisions(technical, human_statuses, *,
+                                    stale_human_evidence=False):
+    """Project ONE hardware/CVE from its NVD alternatives and current audits.
+
+    NVD compatibility remains independent from human audit history. The latest
+    current human decision only supersedes its OWN configuration: an UNKNOWN
+    reopening does not confirm an NVD exclusion, and a proved NVD positive
+    remains a SYSTEM finding even after UNKNOWN. Stale human evidence is
+    neither a current positive nor a safe negative.
+    """
+    configs = technical.get("configurations", [])
+    excluded = {
+        item["configuration_index"]
+        for item in verified_negative_configurations(technical)
+    }
+    states = []
+    for index, config in enumerate(configs):
+        human = human_statuses.get(index)
+        if human in (APPLIES, APPLIES_CONDITIONAL, NOT_APPLICABLE):
+            states.append((human, ANALYST))
+        elif automatic_positive_evidence({
+            "result": config["result"], "configurations": [config],
+        }) is not None:
+            states.append((APPLIES, SYSTEM))
+        elif human == PENDING_REVIEW:
+            # Explicitly reopened by the analyst; no silent re-exclusion.
+            states.append(("IN_REVIEW", NONE))
+        elif index in excluded:
+            states.append((NOT_APPLICABLE, SYSTEM))
+        else:
+            states.append((PENDING_REVIEW, NONE))
+
+    for wanted in (APPLIES, APPLIES_CONDITIONAL):
+        if any(state == wanted for state, _ in states):
+            origin = (ANALYST if any(
+                state == wanted and source == ANALYST for state, source in states
+            ) else SYSTEM)
+            return {"status": wanted, "source": origin}
+    if stale_human_evidence:
+        return {"status": "STALE", "source": NONE}
+    if any(state == "IN_REVIEW" for state, _ in states):
+        return {"status": "IN_REVIEW", "source": NONE}
+    if states and all(state == NOT_APPLICABLE for state, _ in states):
+        return {
+            "status": NOT_APPLICABLE,
+            "source": ANALYST if any(source == ANALYST for _, source in states)
+            else SYSTEM,
+        }
+    if human_statuses:
+        return {"status": "IN_REVIEW", "source": NONE}
+    return {"status": PENDING_REVIEW, "source": NONE}
+
+
 def resolve_applicability(technical_result, analyst_status, *,
                           automatic_evidence=None, automatic_negative=None):
     """Separate a system conclusion from append-only human decisions.
