@@ -743,8 +743,8 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
                 "del hardware; no enlaces firmware de otra CPU."})
         if not platform_unverified_acknowledged or installation_id is None:
             raise ValidationError({"platform_unverified_acknowledged":
-                "NVD no especifica una plataforma de hardware; selecciona "
-                "una instalación y reconoce expresamente la incertidumbre."})
+                "NVD no especifica una plataforma de hardware. "
+                "Selecciona una instalación y documenta la decisión condicionada."})
 
     def vulnerable_leaves(node):
         if node.get("kind") == "CRITERION" and node.get("vulnerable") is True:
@@ -862,7 +862,8 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
     override = excluded and verdict in ("CONFIRMED", "CONDITIONAL")
     if (override or conflicting_negative or conflicting_positive) and not technical_override_acknowledged:
         raise ValidationError({"technical_override_acknowledged":
-            "Reconoce expresamente que tu decisión contradice la conclusión técnica NVD."})
+            "Esta decisión es distinta del resultado técnico NVD. "
+            "Registra una revisión justificada para continuar."})
 
     # Reaffirming a CURRENT persisted decision changes no state and may not
     # manufacture a new analyst audit record. A mere UI opening never writes.
