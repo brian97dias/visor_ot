@@ -511,6 +511,41 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(criterion["technical_software_asset_id"], self.sw.pk)
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
+
+    def test_unknown_configurations_remain_accessible_to_analyst(self):
+        ambiguous_hw = (
+            "cpe:2.3:h:siemens:simatic_s7-1500_cpu_family:-:*:*:*:*:*:*:*"
+        )
+        ambiguous_fw = (
+            "cpe:2.3:o:siemens:simatic_s7-1500_cpu_family_firmware:*:*:*:*:*:*:*:*"
+        )
+        excluded = nvd_platform_firmware(
+            CPU_HW, CPU_FW_CRITERION, before="4.5.2", after="4.5.0"
+        )
+        self.cve.configurations = [
+            excluded, nvd_platform_firmware(ambiguous_hw, ambiguous_fw),
+        ]
+        self.cve.save(update_fields=["configurations"])
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200, response.data)
+        data = response.data
+        self.assertEqual(data["technical_result"], INDETERMINATE)
+        self.assertEqual(data["applicability"]["status"], "PENDING_REVIEW")
+        self.assertEqual(
+            [config["position"] for config in data["relevant_configurations"]],
+            [1],
+        )
+        self.assertEqual(
+            [config["position"] for config in data["candidate_configurations"]],
+            [2],
+        )
+        self.assertEqual(
+            data["technical_configuration_counts"]["INDETERMINATE"], 1,
+        )
+        self.assertEqual(
+            data["technical_configuration_counts"]["EXCLUDED"], 1,
+        )
+
     def test_catalogue_contains_named_hardware_and_only_corresponding_firmware(self):
         response = self.client.get("/api/vulnerabilities/cves/")
         self.assertEqual(response.status_code, 200, response.data)
