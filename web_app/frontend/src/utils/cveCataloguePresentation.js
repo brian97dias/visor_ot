@@ -158,6 +158,13 @@ export const CVE_APPLICABILITY_SOURCE = {
 
 /** Explain product identity separately from verified vulnerable versions. */
 export function nvdCriterionIdentityBadge(item) {
+  if (item?.technical_identity === "PLATFORM_DISTINCT") {
+    return { label: "Plataforma incompatible", state: "NOT_SATISFIED" };
+  }
+  if (item?.technical_identity === "DISTINCT" &&
+      item?.technical_result === "EXCLUDED") {
+    return { label: "Plataforma distinta", state: "NOT_SATISFIED" };
+  }
   if (["a", "o"].includes(item?.part)) {
     if (item.technical_identity === "MATCHED" && item.technical_matched_cpe) {
       if (item.technical_result === "COMPATIBLE") {
