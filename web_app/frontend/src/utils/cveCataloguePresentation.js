@@ -237,6 +237,18 @@ export function currentCveSoftwareLink(config, context) {
   };
 }
 
+/** Reopening must propose a DIFFERENT state, never reaffirm a verdict. */
+export function allowedCveDecisionTransitions(currentStatus) {
+  const actions = ["CONFIRMED", "CONDITIONAL", "NOT_MATCH"];
+  const already = {
+    APPLIES: "CONFIRMED",
+    APPLIES_CONDITIONAL: "CONDITIONAL",
+    NOT_APPLICABLE: "NOT_MATCH",
+  }[currentStatus];
+  return already ? actions.filter(action => action !== already) : actions;
+}
+
+
 /** Installation USED to evaluate a negative CVE conclusion.
  * This is evidence, not a positive vulnerability/CVE association. It does not
  * turn NOT_APPLICABLE into an affected-software hardening finding.
