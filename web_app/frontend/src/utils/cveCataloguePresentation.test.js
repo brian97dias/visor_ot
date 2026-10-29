@@ -438,7 +438,7 @@ test("historic software fallback never invents a product or version", () => {
     }],
   };
   assert.deepEqual(cveHistorySoftwareLabel(legacy), [{
-    key: "5", label: "Software #25", detail: "Software #25",
+    key: "5", label: "Software #25", detail: "",
   }]);
   assert.match(cveHistoryDecisionDescription({
     status: "NOT_APPLICABLE",
