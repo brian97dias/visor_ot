@@ -153,7 +153,7 @@ export function createGeneralCveAssessment(cveId, hardwareId, payload) {
 }
 
 
-/** Persist a verified SYSTEM correspondence in the existing NVD audit history. */
+/** Synchronize verified SYSTEM correspondence and negative configuration evidence. */
 export function ensureAutomaticCveAssessment(cveId, hardwareId) {
   return request("/api/vulnerabilities/cves/" + encodeURIComponent(cveId) +
     "/hardware/" + hardwareId + "/assessment/automatic/", { method: "POST" });
