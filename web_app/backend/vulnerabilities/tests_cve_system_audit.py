@@ -117,6 +117,88 @@ class SystemCveAuditTests(TestCase):
         self.assertFalse(result.data["created"])
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
+    def _set_negative_siemens_range(self, *, unknown=False):
+        from vulnerabilities.tests_cve_contextualization import (
+            CPU_HW, CPU_FW_CRITERION, PLCSIM_HW, PLCSIM_FW,
+            STEP7, nvd_platform_firmware,
+        )
+        excluded = nvd_platform_firmware(
+            CPU_HW, CPU_FW_CRITERION, before="4.5.2", after="4.5.0"
+        )
+        other = (nvd_platform_firmware(CPU_HW, STEP7)
+                 if unknown else nvd_platform_firmware(
+                     PLCSIM_HW, PLCSIM_FW, before="5.0"))
+        self.cve.configurations = [excluded, other]
+        self.cve.save(update_fields=["configurations"])
+
+    def test_verified_negative_firmware_logs_system_no_aplica_globally(self):
+        self._set_negative_siemens_range()
+        context = self.client.get(self.url).data
+        self.assertEqual(context["technical_result"], "EXCLUDED")
+        self.assertEqual(context["applicability"]["status"], "NOT_APPLICABLE")
+        self.assertEqual(context["applicability"]["source"], "SYSTEM")
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
+        first = self.client.post(self.sync_url, {}, format="json")
+        self.assertEqual(first.status_code, 200, first.data)
+        self.assertTrue(first.data["created"])
+        self.assertEqual(AssetCveAssessment.objects.count(), 2)
+        decisions = list(AssetCveAssessment.objects.order_by("configuration_index"))
+        self.assertTrue(all(item.status == "NOT_APPLICABLE" for item in decisions))
+        self.assertTrue(all(item.decided_by_id is None for item in decisions))
+        self.assertTrue(all(item.criteria_evidence["origin"] == "SYSTEM"
+                            for item in decisions))
+        self.assertEqual(
+            decisions[0].criteria_evidence["negative_evidence"]["excluded_by"][0]
+            ["installed_version"], "4.5.2"
+        )
+        self.assertIn("antes de (excluido) 4.5.2", decisions[0].justification)
+        second = self.client.post(self.sync_url, {}, format="json")
+        self.assertFalse(second.data["created"])
+        self.assertEqual(AssetCveAssessment.objects.count(), 2)
+
+    def test_partial_negative_is_audited_without_global_no_aplica(self):
+        self._set_negative_siemens_range(unknown=True)
+        before = self.client.get(self.url).data
+        self.assertEqual(before["technical_result"], "INDETERMINATE")
+        self.assertEqual(before["applicability"]["status"], "PENDING_REVIEW")
+        result = self.client.post(self.sync_url, {}, format="json")
+        self.assertTrue(result.data["created"])
+        self.assertEqual(AssetCveAssessment.objects.count(), 1)
+        row = AssetCveAssessment.objects.get()
+        self.assertEqual(row.configuration_index, 0)
+        self.assertEqual(row.status, "NOT_APPLICABLE")
+        self.assertEqual(result.data["context"]["applicability"]["status"],
+                         "PENDING_REVIEW")
+
+    def test_manual_reopening_negative_evidence_prevents_system_overwrite(self):
+        self._set_negative_siemens_range()
+        self.client.post(self.sync_url, {}, format="json")
+        before = self.client.get(self.url).data
+        payload = {
+            "configuration_index": 0, "verdict": "UNKNOWN",
+            "software_installation_id": None,
+            "inventory_declared_complete": False,
+            "justification": "Reabrir la exclusión técnica y revisar nueva evidencia.",
+            "inventory_fingerprint": before["inventory_fingerprint"],
+            "configuration_fingerprint": before["configurations"][0]["fingerprint"],
+        }
+        posted = self.client.post(self.url, payload, format="json")
+        self.assertEqual(posted.status_code, 201, posted.data)
+        self.assertEqual(AssetCveAssessment.objects.count(), 3)
+        retry = self.client.post(self.sync_url, {}, format="json")
+        self.assertFalse(retry.data["created"])
+        self.assertEqual(AssetCveAssessment.objects.count(), 3)
+        self.assertEqual(retry.data["context"]["applicability"]["status"], "IN_REVIEW")
+
+    def test_version_change_invalidates_previous_automatic_negative(self):
+        self._set_negative_siemens_range()
+        self.client.post(self.sync_url, {}, format="json")
+        self.sw.version = "4.5.3"
+        self.sw.save(update_fields=["version"])
+        current = self.client.get(self.url).data
+        self.assertNotEqual(current["applicability"]["status"], "NOT_APPLICABLE")
+        self.assertTrue(current["configurations"][0]["latest_assessment"]["stale"])
+
     def test_new_current_positive_after_nvd_update_is_a_new_audit(self):
         first = self.client.post(self.sync_url, {}, format="json")
         self.assertTrue(first.data["created"])
