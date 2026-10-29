@@ -818,6 +818,21 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
             raise ValidationError({"platform_unverified_acknowledged":
                 "NVD no especifica una plataforma de hardware. "
                 "Selecciona una instalación y documenta la decisión condicionada."})
+        # No hardware predicate does NOT authorize mapping a different program
+        # to the PLC by software TYPE alone. The selected installation must
+        # itself have a confirmed CPE for an NVD vulnerable product.
+        if not any(
+            leaf.get("kind") == "CRITERION"
+            and leaf.get("vulnerable") is True
+            and leaf.get("part") in ("o", "a")
+            and leaf.get("technical_identity") == "MATCHED"
+            and leaf.get("technical_software_installation_id") == installation_id
+            for leaf in _flatten_technical_tree(annotated)
+        ):
+            raise ValidationError({"software_installation_id":
+                "No se puede vincular software ajeno o no identificado "
+                "a este hardware: falta correspondencia CPE comprobada "
+                "para la instalación seleccionada."})
 
     def vulnerable_leaves(node):
         if node.get("kind") == "CRITERION" and node.get("vulnerable") is True:
