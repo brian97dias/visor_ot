@@ -545,6 +545,34 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(
             data["technical_configuration_counts"]["EXCLUDED"], 1,
         )
+        self.assertTrue(data["candidate_configurations"][0]
+                        ["manual_platform_review_required"])
+        candidate = data["candidate_configurations"][0]
+        payload = {
+            "configuration_index": 1,
+            "configuration_fingerprint": candidate["fingerprint"],
+            "inventory_fingerprint": data["inventory_fingerprint"],
+            "verdict": "CONDITIONAL",
+            "software_installation_id": self.installation.pk,
+            "justification": (
+                "El analista relaciona discrecionalmente este firmware "
+                "sin afirmar una coincidencia CPE de plataforma."
+            ),
+        }
+        rejected = self.client.post(self.url, payload, format="json")
+        self.assertEqual(rejected.status_code, 400, rejected.data)
+        self.assertIn("platform_unverified_acknowledged", rejected.data)
+        payload["platform_unverified_acknowledged"] = True
+        approved = self.client.post(self.url, payload, format="json")
+        self.assertEqual(approved.status_code, 201, approved.data)
+        self.assertEqual(approved.data["assessment"]["status"], "APPLIES_CONDITIONAL")
+        record = AssetCveAssessment.objects.get()
+        self.assertEqual(record.software_installation_id, self.installation.pk)
+        self.assertTrue(record.criteria_evidence["platform_unverified"]["acknowledged"])
+        self.assertIsNone(record.criteria_evidence["linked_software"][0]["matched_cpe"])
+        current = self.client.get(self.url).data
+        self.assertEqual(current["technical_result"], INDETERMINATE)
+        self.assertEqual(current["applicability"]["source"], "ANALYST")
 
     def test_catalogue_contains_named_hardware_and_only_corresponding_firmware(self):
         response = self.client.get("/api/vulnerabilities/cves/")
