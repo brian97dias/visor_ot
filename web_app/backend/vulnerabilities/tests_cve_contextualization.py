@@ -13,6 +13,9 @@ from vulnerabilities.models import (
 from vulnerabilities.services.cve_configuration_evaluator import (
     COMPATIBLE, EXCLUDED, INDETERMINATE, evaluate_configurations,
 )
+from vulnerabilities.services.cve_applicability import (
+    automatic_negative_evidence, verified_negative_configurations,
+)
 from vulnerabilities.services.cve_general_assessment import (
     general_assessment_context, summarize_hardware_cve_review,
 )
@@ -156,6 +159,85 @@ class SiemensContextualLogicTests(SimpleTestCase):
         ]}
         result = evaluate_configurations([config], [CPU_HW], installed())
         self.assertEqual(result["result"], INDETERMINATE)
+
+
+class AutomaticNegativeProofTests(SimpleTestCase):
+    """Negative classification requires verifiable NVD evidence, never missing assets."""
+
+    def test_exact_upper_bound_excludes_firmware_and_distinct_platform(self):
+        target = nvd_platform_firmware(
+            CPU_HW, CPU_FW_CRITERION, before="4.5.2", after="4.5.0"
+        )
+        other = nvd_platform_firmware(PLCSIM_HW, PLCSIM_FW, before="5.0")
+        result = evaluate_configurations([target, other], [CPU_HW], installed())
+        self.assertEqual(result["result"], EXCLUDED)
+        proof = automatic_negative_evidence(result)
+        self.assertIsNotNone(proof)
+        self.assertEqual(len(proof["configurations"]), 2)
+        software = proof["configurations"][0]["excluded_by"][0]
+        self.assertEqual(software["reason"], "FIRMWARE_OR_SOFTWARE_VERSION_EXCLUDED")
+        self.assertEqual(software["installed_version"], "4.5.2")
+        self.assertEqual(software["software_installation_id"], 5)
+        self.assertEqual(
+            software["version_constraints"]["versionEndExcluding"], "4.5.2"
+        )
+        other_proof = proof["configurations"][1]["excluded_by"][0]
+        self.assertEqual(other_proof["reason"], "DISTINCT_PLATFORM_VERIFIED")
+        self.assertTrue(other_proof["confirmed_hardware_cpes"])
+
+    def test_version_inside_range_is_never_automatically_excluded(self):
+        vulnerable = nvd_platform_firmware(
+            CPU_HW, CPU_FW_CRITERION, before="4.5.2", after="4.5.0"
+        )
+        result = evaluate_configurations(
+            [vulnerable], [CPU_HW], installed("4.5.1")
+        )
+        # A different recorded firmware version from its confirmed 4.5.2 CPE
+        # must be treated as unknown rather than silently using that CPE.
+        self.assertIsNone(automatic_negative_evidence(result))
+        inclusive = nvd_platform_firmware(
+            CPU_HW, CPU_FW_CRITERION, before="4.6.0", after="4.5.0"
+        )
+        inside = evaluate_configurations([inclusive], [CPU_HW], installed())
+        self.assertEqual(inside["result"], COMPATIBLE)
+        self.assertIsNone(automatic_negative_evidence(inside))
+
+    def test_one_unknown_alternative_prevents_global_no_aplica(self):
+        excluded = nvd_platform_firmware(
+            CPU_HW, CPU_FW_CRITERION, before="4.5.2", after="4.5.0"
+        )
+        unknown = nvd_platform_firmware(CPU_HW, STEP7)
+        result = evaluate_configurations([excluded, unknown], [CPU_HW], installed())
+        self.assertEqual(result["result"], INDETERMINATE)
+        self.assertIsNone(automatic_negative_evidence(result))
+        verified = verified_negative_configurations(result)
+        self.assertEqual(len(verified), 1)
+        self.assertEqual(verified[0]["configuration_index"], 0)
+
+    def test_unknown_inventory_or_vulnerable_hardware_is_not_negative_proof(self):
+        target = nvd_platform_firmware(
+            CPU_HW, CPU_FW_CRITERION, before="4.5.2", after="4.5.0"
+        )
+        missing_cpe = evaluate_configurations(
+            [target], [CPU_HW], installed(confirmed=False)
+        )
+        self.assertIsNone(automatic_negative_evidence(missing_cpe))
+        vulnerable_hardware = {"operator": "OR", "cpeMatch": [
+            {"criteria": PLCSIM_HW, "vulnerable": True},
+        ]}
+        technical = evaluate_configurations(
+            [vulnerable_hardware], [CPU_HW], installed()
+        )
+        self.assertEqual(technical["result"], EXCLUDED)
+        self.assertIsNone(automatic_negative_evidence(technical))
+
+    def test_nvd_negation_never_counts_as_proven_negative(self):
+        negated = nvd_platform_firmware(
+            CPU_HW, CPU_FW_CRITERION, before="4.5.2", after="4.5.0"
+        )
+        negated["negate"] = True
+        result = evaluate_configurations([negated], [CPU_HW], installed())
+        self.assertIsNone(automatic_negative_evidence(result))
 
 
 class SiemensContextualHttpTests(TestCase):
