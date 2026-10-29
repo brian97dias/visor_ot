@@ -149,7 +149,10 @@ def _exclusive_siemens_hardware(product):
         model = name.removeprefix("simatic_s7-1500_cpu_")
         # Explicit numeric CPU model only. Names such as cpu_family,
         # cpu_series or other generic products must remain UNKNOWN.
-        if re.fullmatch(r"1[5-9][0-9]{2}(?:[-_][a-z0-9]+)*", model):
+        if re.fullmatch(
+            r"1[5-9][0-9]{2}(?:spf|sp|fc|tf|c|f|t|h|r)?"
+            r"(?:-[1-9][0-9]?)?(?:_(?:pn|dp))?", model
+        ):
             return ("s7-1500-cpu", model)
     return None
 
@@ -169,6 +172,32 @@ def _verified_distinct_product(criterion, confirmed):
     left = _exclusive_siemens_hardware(criterion[4])
     right = _exclusive_siemens_hardware(confirmed[4])
     return bool(left and right and left != right)
+
+
+# Supported hardware-only exclusion. Siemens documents S7-1500S Software
+# Controller as a PC/IPC-based runtime, not an application executed on a
+# physical S7-1200 CPU. Do not generalize this rule to STEP 7 or other apps.
+# Documentation: https://www.siemens.com/en-us/products/simatic/s7-1500s-controller/
+_PC_ONLY_SOFTWARE_PRODUCTS = frozenset({
+    ("a", "siemens", "simatic_s7-1500_software_controller"),
+})
+
+
+def _verified_pc_software_excluded(cpe, confirmed_hardware):
+    """Proof of an incompatible runtime platform, NOT an absent inventory row.
+
+    Requires one or more verified hardware CPEs, all corresponding to
+    independently enumerated physical S7-1200 CPU models. Unexpected extra
+    hardware identities must make the relationship unknown.
+    """
+    if (cpe[2], cpe[3], cpe[4]) not in _PC_ONLY_SOFTWARE_PRODUCTS:
+        return False
+    return bool(confirmed_hardware) and all(
+        name[2] == "h" and name[3] == "siemens"
+        and (_exclusive_siemens_hardware(name[4]) or (None,))[0]
+        == "s7-1200-cpu"
+        for name in confirmed_hardware
+    )
 
 
 def _identity(criterion, candidates):
@@ -234,6 +263,18 @@ def evaluate_criterion(criterion, hardware_cpes, installed_software):
     expected_type = ("FIRMWARE", "OS") if cpe[2] == "o" else ("APPLICATION",)
     relevant = [sw for sw in installed_software if sw.get("software_type") in expected_type]
     if not relevant:
+        # An explicitly incompatible software runtime can be excluded only
+        # with its documented platform prerequisite and confirmed physical CPU.
+        # Other software remains UNKNOWN, never automatically absent.
+        hw_names = [_parse_cpe(name) for name in hardware_cpes]
+        hw_names = [name for name in hw_names if name and name[2] == "h"]
+        if _verified_pc_software_excluded(cpe, hw_names):
+            return _trace(
+                EXCLUDED,
+                "SIMATIC S7-1500 Software Controller requiere un IPC; "
+                "no se ejecuta en una CPU física S7-1200.",
+                identity="PLATFORM_DISTINCT", distinct_cpes=hw_names,
+            )
         return _trace(INDETERMINATE, "No hay instalación vigente del tipo de software requerido.")
 
     matching = []
@@ -253,6 +294,17 @@ def evaluate_criterion(criterion, hardware_cpes, installed_software):
         matching.append((sw, candidate))
 
     if not matching:
+        # No installed CPE matched: distinguish only a documented impossible
+        # platform, not absence of an arbitrary software product.
+        hw_names = [_parse_cpe(name) for name in hardware_cpes]
+        hw_names = [name for name in hw_names if name and name[2] == "h"]
+        if _verified_pc_software_excluded(cpe, hw_names):
+            return _trace(
+                EXCLUDED,
+                "SIMATIC S7-1500 Software Controller requiere un IPC; "
+                "no se ejecuta en una CPU física S7-1200.",
+                identity="PLATFORM_DISTINCT", distinct_cpes=hw_names,
+            )
         return _trace(INDETERMINATE,
             "No hay correspondencia exacta con un CPE vigente confirmado del producto instalado.")
 
