@@ -139,6 +139,32 @@ class SystemCveAuditTests(TestCase):
         ]
         self.assertFalse(linked_assets)
 
+    def test_automatic_positive_can_be_reopened_as_conditional_without_link(self):
+        self.client.post(self.sync_url, {}, format="json")
+        current = self.client.get(self.url).data
+        data = {
+            "configuration_index": 8, "verdict": "CONDITIONAL",
+            "software_installation_id": None,
+            "technical_override_acknowledged": True,
+            "justification": (
+                "La identificación automática se mantiene como evidencia, "
+                "pero el analista requiere comprobar una condición adicional."
+            ),
+            "inventory_fingerprint": current["inventory_fingerprint"],
+            "configuration_fingerprint": current["configurations"][8]["fingerprint"],
+        }
+        response = self.client.post(self.url, data, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["assessment"]["status"], "APPLIES_CONDITIONAL")
+        record = AssetCveAssessment.objects.order_by("-decided_at", "-pk").first()
+        self.assertIsNone(record.software_installation_id)
+        self.assertTrue(record.criteria_evidence["technical_override"]["acknowledged"])
+        result = self.client.get(self.url).data
+        self.assertEqual(result["technical_result"], "COMPATIBLE")
+        self.assertEqual(result["applicability"]["status"], "APPLIES_CONDITIONAL")
+        self.assertEqual(result["applicability"]["source"], "ANALYST")
+        self.assertEqual(AssetCveAssessment.objects.count(), 2)
+
     def test_repeating_automatic_sync_never_duplicates(self):
         first = self.client.post(self.sync_url, {}, format="json")
         second = self.client.post(self.sync_url, {}, format="json")
