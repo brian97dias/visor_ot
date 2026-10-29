@@ -131,10 +131,13 @@ def _identity(criterion, candidates):
     return "UNKNOWN"
 
 
-def _trace(result, reason, *, identity="UNKNOWN", cpe=None, asset=None, version=None):
+def _trace(result, reason, *, identity="UNKNOWN", cpe=None, asset=None, version=None,
+           distinct_cpes=None):
     observation = {"result": result, "reason": reason, "identity": identity}
     if cpe:
         observation["matched_cpe"] = ":".join(cpe)
+    if distinct_cpes:
+        observation["distinct_confirmed_cpes"] = [":".join(row) for row in distinct_cpes]
     if asset:
         observation["software_asset_id"] = asset.get("software_asset_id")
         observation["software_name"] = asset.get("software_name")
@@ -161,7 +164,9 @@ def evaluate_criterion(criterion, hardware_cpes, installed_software):
         if not names:
             return _trace(INDETERMINATE, "No existe CPE vigente confirmado del hardware.")
         if identity == "DISTINCT":
-            return _trace(EXCLUDED, "Producto distinto comprobado: S7-PLCSIM y S7-1200 no son la misma línea de producto.", identity=identity)
+            return _trace(EXCLUDED,
+                "Producto distinto comprobado: S7-PLCSIM y S7-1200 no son la misma línea de producto.",
+                identity=identity, distinct_cpes=names)
         if identity != "MATCHED":
             return _trace(INDETERMINATE,
                 "La relación de familia o variante entre CPE no está acreditada.",
@@ -253,6 +258,11 @@ def _evaluate_group(group, hardware_cpes, installed):
     children.extend(
         {"kind": "CRITERION", "criteria": item.get("criteria"),
          "vulnerable": item.get("vulnerable"),
+         "part": _parse_cpe(item.get("criteria"))[2]
+             if _parse_cpe(item.get("criteria")) else None,
+         "version_constraints": {
+             key: item[key] for key in VERSION_KEYS if key in item
+         },
          **evaluate_criterion(item, hardware_cpes, installed)}
         for item in matches
         if isinstance(item, dict)
