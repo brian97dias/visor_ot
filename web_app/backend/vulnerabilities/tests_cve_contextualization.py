@@ -906,15 +906,16 @@ class SiemensContextualHttpTests(TestCase):
         self.assertIn("technical_override_acknowledged", response.data)
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
-    def test_stale_positive_can_be_reopened_without_current_matching_cpe(self):
+    def test_stale_analyst_partial_can_be_reopened_after_firmware_change(self):
         context = self.client.get(self.url).data
         config = context["relevant_configurations"][0]
         confirmed = self.client.post(self.url, {
             "configuration_index": config["index"],
-            "verdict": "CONFIRMED",
-            "software_installation_id": self.installation.pk,
+            "verdict": "CONDITIONAL",
+            "software_installation_id": None,
+            "technical_override_acknowledged": True,
             "inventory_declared_complete": False,
-            "justification": "Firmware 4.5.2 dentro de rango y CPE vigentes.",
+            "justification": "Revisión parcial de la afectación del firmware.",
             "inventory_fingerprint": context["inventory_fingerprint"],
             "configuration_fingerprint": config["fingerprint"],
         }, format="json")
