@@ -235,8 +235,6 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const [choice, setChoice] = useState("");
   const [justification, setJustification] = useState("");
   const [complete, setComplete] = useState(false);
-  const [overrideAcknowledged, setOverrideAcknowledged] = useState(false);
-  const [platformAcknowledged, setPlatformAcknowledged] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const justificationRef = useRef(null);
@@ -292,17 +290,16 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const noSelected = choice === "CONFIRMED" && !selectedId;
   const invalid = !justification.trim() || noSelected ||
     (choice === "NOT_MATCH" && (!complete || justification.trim().length < 20)) ||
-    (positiveConflict &&
-      (!overrideAcknowledged || justification.trim().length < 20)) ||
+    (positiveConflict && justification.trim().length < 20) ||
     (choice === "CONDITIONAL" && justification.trim().length < 20) ||
     (technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice) &&
-      (!overrideAcknowledged || justification.trim().length < 20)) ||
+      justification.trim().length < 20) ||
     (unverifiedPlatform && choice === "CONDITIONAL" &&
-      (!platformAcknowledged || !linkedInstallationId || justification.trim().length < 20));
+      (!linkedInstallationId || justification.trim().length < 20));
 
   function reset() {
     setChoice(""); setDraftLink(null); setReviewOpen(false);
-    setJustification(""); setComplete(false); setOverrideAcknowledged(false); setPlatformAcknowledged(false); setError("");
+    setJustification(""); setComplete(false); setError("");
   }
   function beginReopen() {
     setReviewOpen(true);
@@ -316,7 +313,6 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       setDraftLink({ criterionKey: "", installationId: "" });
       setChoice("CONDITIONAL");
       setJustification(""); setComplete(false);
-      setOverrideAcknowledged(false); setPlatformAcknowledged(false);
       setError("");
       return;
     }
@@ -328,7 +324,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     }
     setDraftLink({ criterionKey, installationId });
     setReviewOpen(true);
-    setChoice(""); setJustification(""); setOverrideAcknowledged(false); setPlatformAcknowledged(false); setError("");
+    setChoice(""); setJustification(""); setError("");
   }
   async function submit(event) {
     event.preventDefault();
@@ -348,9 +344,11 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         technical_override_acknowledged: (
           (technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice)) ||
           positiveConflict
-        ) && overrideAcknowledged,
+        ),
+        // The informed Save action + mandatory justification is the single
+        // explicit analyst confirmation. No redundant acknowledgement checkbox.
         platform_unverified_acknowledged: unverifiedPlatform &&
-          choice === "CONDITIONAL" && platformAcknowledged,
+          choice === "CONDITIONAL" && Boolean(linkedInstallationId),
         justification: justification.trim(),
       });
       if (choice === "UNKNOWN") {
@@ -454,31 +452,28 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       </label>}
       {(technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice) ||
         positiveConflict) &&
-        <div className="cve-override-attestation">
-          <label><input type="checkbox" checked={overrideAcknowledged}
-            onChange={event => setOverrideAcknowledged(event.target.checked)}/>
-            Reconozco que esta decisión contradice el resultado técnico
-            vigente de NVD y que debo justificar expresamente mi discrepancia.</label>
-          <p>La decisión no modifica los criterios ni la evaluación técnica NVD.</p>
-        </div>}
+        <p className="cve-review-note" role="status">
+          El resultado técnico NVD es diferente de esta decisión.
+          Si la guardas, quedarán registrados tu criterio y su justificación;
+          la evidencia automática se conservará.
+        </p>}
       {unverifiedPlatform && choice === "CONDITIONAL" &&
-        <div className="cve-override-attestation">
-          <label><input type="checkbox" checked={platformAcknowledged}
-            onChange={event => setPlatformAcknowledged(event.target.checked)}/>
-            Reconozco que esta configuración NVD no tiene una plataforma
-            CPE confirmada en el hardware y solicito una vinculación
-            discrecional de la instalación seleccionada.</label>
-          <p>Se conservará el estado técnico pendiente y quedará registrada
-            la asociación manual con su justificación.</p>
-        </div>}
+        <p className="cve-review-note" role="status">
+          La plataforma NVD no está identificada para este hardware.
+          La asociación quedará condicionada a la evidencia que describas.
+        </p>}
       <label>Justificación de la decisión
         <textarea ref={justificationRef} rows={3} required maxLength={1000}
           aria-invalid={pendingUnlink && !justification.trim()}
           value={justification}
           onChange={event => setJustification(event.target.value)}
           placeholder={choice === "UNKNOWN"
-            ? "Explica por qué deseas retirar esta asociación y reabrir la evaluación..."
-            : "Describe las evidencias que sustentan la correspondencia..."}/>
+            ? "Explica qué necesitas revisar..."
+            : choice === "CONDITIONAL"
+              ? "Explica qué falta verificar o por qué no vinculas esta instalación..."
+              : choice === "NOT_MATCH"
+                ? "Describe la comprobación que permite descartar esta configuración..."
+                : "Explica las evidencias de la correspondencia..."}/>
       </label>
       {choice === "NOT_MATCH" && <div className="cve-attestation">
         <label><input type="checkbox" checked={complete}
@@ -491,9 +486,10 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       <div className="cve-form-actions">
         <button type="submit" className="button-primary"
           disabled={saving || invalid}>{saving ? "Guardando..." :
-          (technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice) ||
-            positiveConflict) ? "Registrar decisión discrepante" :
-            choice === "NOT_MATCH" ? "Registrar No corresponde" : "Guardar evaluación"}</button>
+          choice === "NOT_MATCH" ? "Guardar No corresponde" :
+            choice === "CONDITIONAL" ? "Guardar correspondencia parcial" :
+            choice === "CONFIRMED" ? "Confirmar correspondencia" :
+            "Guardar evaluación"}</button>
         <button type="button" className="button-secondary" disabled={saving}
           onClick={reset}>Cancelar</button>
       </div>
