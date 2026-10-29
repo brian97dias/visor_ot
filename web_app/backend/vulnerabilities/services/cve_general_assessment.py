@@ -362,14 +362,32 @@ def general_assessment_context(cve_id, hardware_id):
                 yield from leaves(child)
 
         criteria = list(leaves(annotated_tree))
+        hardware_matched = any(
+            item.get("part") == "h"
+            and item.get("technical_identity") == "MATCHED"
+            and item.get("technical_matched_cpe") for item in criteria
+        )
+        vulnerable_software_types = {
+            item.get("part") for item in criteria
+            if item.get("vulnerable") is True
+            and item.get("part") in ("o", "a")
+        }
+        software_type_present = any(
+            ("o" in vulnerable_software_types and sw["software_type"] in ("FIRMWARE", "OS"))
+            or ("a" in vulnerable_software_types and sw["software_type"] == "APPLICATION")
+            for sw in installed
+        )
+        manual_platform_review = (
+            observation["result"] == "INDETERMINATE"
+            and not hardware_matched
+            and bool(vulnerable_software_types)
+            and software_type_present
+        )
         conditional_supported = (
             observation["result"] in ("INDETERMINATE", "EXCLUDED")
             and not _has_nvd_negation(config)
-            and any(item.get("part") == "h" and
-                item.get("technical_identity") == "MATCHED" and
-                item.get("technical_matched_cpe") for item in criteria)
-            and any(item.get("vulnerable") is True and
-                    item.get("part") in ("o", "a") for item in criteria)
+            and bool(vulnerable_software_types)
+            and (hardware_matched or manual_platform_review)
         )
         candidate_installations = sorted({
             item.get("technical_software_installation_id")
@@ -385,6 +403,9 @@ def general_assessment_context(cve_id, hardware_id):
             "fingerprint": cfg_fp,
             "tree": annotated_tree,
             "conditional_supported": bool(conditional_supported),
+            "manual_platform_review_required": bool(
+                conditional_supported and manual_platform_review
+            ),
             "technical_override_supported": bool(
                 conditional_supported and observation["result"] == "EXCLUDED"
             ),
@@ -485,7 +506,8 @@ def _matched_criterion_nodes(tree):
 
 
 def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
-                          installation_id, *, allow_excluded=False):
+                          installation_id, *, allow_excluded=False,
+                          platform_unverified_acknowledged=False):
     """Evidence for a cautious analyst claim: proven hardware context and
     an identified NVD vulnerable component, not an inferred installation.
     """
@@ -518,8 +540,10 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
         "role": "VULNERABLE" if item.get("vulnerable") is True else "PLATFORM",
     } for item in matching if item.get("part") == "h"]
     if not hardware_roles:
-        raise ValidationError({"verdict":
-            "No hay identidad CPE del hardware comprobada en esta configuración NVD."})
+        if not platform_unverified_acknowledged or installation_id is None:
+            raise ValidationError({"platform_unverified_acknowledged":
+                "Esta alternativa carece de plataforma CPE confirmada; "
+                "selecciona una instalación y reconoce expresamente la incertidumbre."})
 
     def vulnerable_leaves(node):
         if node.get("kind") == "CRITERION" and node.get("vulnerable") is True:
@@ -584,6 +608,13 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
         }]
     return {
         "origin": "ANALYST", "hardware_roles": hardware_roles,
+        "platform_unverified": (
+            {
+                "acknowledged": True,
+                "confirmed_hardware_cpes": list(confirmed),
+                "reason": "No hay coincidencia CPE de hardware en la configuración NVD.",
+            } if not hardware_roles else None
+        ),
         "vulnerable_criteria": [{
             "criteria": item["criteria"], "part": item.get("part"),
             "identity_verified": item.get("technical_identity") == "MATCHED",
@@ -606,6 +637,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
                               software_installation_id=None,
                               inventory_declared_complete=False,
                               technical_override_acknowledged=False,
+                              platform_unverified_acknowledged=False,
                               justification="", inventory_fingerprint="",
                               configuration_fingerprint=""):
     hw, cve, confirmed, installed, actual_fp = _context(cve_id, hardware_id, lock=True)
@@ -673,6 +705,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         conditional_evidence = _conditional_evidence(
             cve, hw, configuration_index, confirmed, installed,
             software_installation_id, allow_excluded=override,
+            platform_unverified_acknowledged=platform_unverified_acknowledged,
         )
         if override:
             conditional_evidence["technical_override"] = {
