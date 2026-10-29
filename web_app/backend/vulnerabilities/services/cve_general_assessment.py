@@ -431,11 +431,16 @@ def general_assessment_context(cve_id, hardware_id):
         or configs[index]["latest_assessment"]["stale"]
         for index in system_candidates
     )
+    technical_counts = {
+        key: sum(row["result"] == key for row in technical["configurations"])
+        for key in ("COMPATIBLE", "EXCLUDED", "INDETERMINATE")
+    }
     return {
         "cve_id": cve.cve_id, "hardware_asset_id": hw.pk,
         "hardware_name": hw.asset.name, "inventory_fingerprint": inventory_fp,
         "installed_software": installed,
         "technical_result": technical["result"],
+        "technical_configuration_counts": technical_counts,
         "applicability": applicability,
         "automatic_audit_pending": audit_pending,
         "assessment_summary": analyst,
