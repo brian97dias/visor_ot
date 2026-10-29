@@ -253,7 +253,7 @@ def _serialize_assessment(item, inventory_fp, config_fp):
         ),
         "evaluated_software": (
             item.criteria_evidence.get("evaluated_software", [])
-            if source == "SYSTEM" and item.status == "NOT_APPLICABLE"
+            if item.status == "NOT_APPLICABLE"
             and not stale and isinstance(item.criteria_evidence, dict) else []
         ),
         "technical_override": (
