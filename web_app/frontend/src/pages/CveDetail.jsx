@@ -648,7 +648,10 @@ export default function CveDetail() {
 
   const configs = context?.relevant_configurations || [];
   const hardwareSoftware = context?.hardware_software_configurations || [];
-  const reviewPool = hardwareSoftware.length ? hardwareSoftware : configs;
+  // Never fall back to every historical NVD configuration. Only matched
+  // platforms or demonstrated standalone software are operational evidence.
+  const reviewPool = hardwareSoftware.length ? hardwareSoftware :
+    configs.filter(row => ["MATCHED", "UNSCOPED"].includes(row.hardware_scope));
   const candidates = context?.candidate_configurations || [];
   const unverifiedPlatforms = context?.unverified_platform_configurations || [];
   const { primary: suggestedPrimary } = groupCveEvidence(reviewPool);
@@ -656,7 +659,8 @@ export default function CveDetail() {
     suggestedPrimary;
   const others = reviewPool.filter(row => row.index !== primary?.index);
   const independentConfigs = hardwareSoftware.length
-    ? configs.filter(row => !hardwareSoftware.some(hw => hw.index === row.index))
+    ? configs.filter(row => row.hardware_scope === "UNSCOPED" &&
+      !hardwareSoftware.some(hw => hw.index === row.index))
     : [];
   const source = cve?.description_source;
   const nvdUrl = "https://nvd.nist.gov/vuln/detail/" + encodeURIComponent(cveId);
@@ -792,11 +796,12 @@ export default function CveDetail() {
               }}/>
           </section>
           {independentConfigs.length > 0 && <details className="cve-nvd-other-evidence">
-            <summary>Otras condiciones sin hardware confirmado
+            <summary>Software independiente pertinente
               {" (" + independentConfigs.length + ")"}</summary>
-            <p className="cve-muted">Estos criterios no constituyen alternativas
-              de firmware para la CPU seleccionada. Se conservan por contener
-              software potencialmente pertinente o decisiones previas.</p>
+            <p className="cve-muted">Estas condiciones NVD no exigen una
+              plataforma de hardware concreta, pero existe una identidad
+              de software coincidente en el inventario. No son alternativas
+              de firmware de otra CPU.</p>
             {independentConfigs.map(config => <CandidateReview
               key={context.hardware_asset_id + ":independent:" + config.index}
               context={context} config={config} canDecide={canDecide}
@@ -832,21 +837,15 @@ export default function CveDetail() {
           </div>
         </details>}
         {unverifiedPlatforms.length > 0 &&
-          <details className="cve-nvd-other-evidence cve-platform-uncertainties">
-            <summary>Plataformas NVD sin identidad comprobada
-              {" (" + unverifiedPlatforms.length + ")"}</summary>
-            <p className="cve-muted">Estas configuraciones no son alternativas
-              de software para el hardware confirmado. No se descartan sin
-              evidencia; su estado técnico permanece pendiente.</p>
-            <div className="cve-nvd-other-scroll" role="region" tabIndex={0}>
-              {unverifiedPlatforms.map(config => <details key={config.index}
-                className="cve-pending-configuration">
-                <summary>Configuración NVD {config.position}</summary>
-                <Criterion item={config.tree}
-                  installedSoftware={context.installed_software || []}/>
-              </details>)}
-            </div>
-          </details>}
+          <div className="cve-technical-summary" role="status">
+            <p className="cve-muted">
+              {unverifiedPlatforms.length} configuración(es) NVD tienen
+              una plataforma cuya identidad no se ha podido comprobar.
+              Permanecen pendientes en la evaluación global; no son
+              alternativas para vincular software del hardware seleccionado.
+              Sus criterios originales se conservan para auditoría.
+            </p>
+          </div>}
       </>}
   </section>;
 }
