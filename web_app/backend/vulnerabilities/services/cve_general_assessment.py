@@ -1111,6 +1111,12 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
             "verdict": verdict,
             "inventory_declared_complete": inventory_declared_complete,
         }
+    if global_scope and verdict == "CONDITIONAL":
+        # A partial assessment may remember a reviewed component, but does
+        # not retain any positive CVE-to-software association.
+        conditional_evidence["reviewed_software"] = (
+            conditional_evidence.pop("linked_software", []) or []
+        )
     if global_scope:
         # The human decision supersedes *all* alternative NVD branches only
         # for this inventoried hardware/CVE. Technical NVD results remain
