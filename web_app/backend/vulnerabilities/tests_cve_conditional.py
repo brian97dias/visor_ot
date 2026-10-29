@@ -210,15 +210,68 @@ class ConditionalSiemensTests(TestCase):
         self.assertEqual(response.status_code, 400, response.data)
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
-    def test_firmware_outside_nvd_range_cannot_be_conditional(self):
+    def _excluded_firmware_config(self):
         self.cve.configurations[0]["nodes"][1]["cpeMatch"] = [{
             "criteria": fixtures.CPU_FW_CRITERION,
             "vulnerable": True, "versionEndExcluding": "4.5.2",
         }]
         self.cve.save(update_fields=["configurations"])
+
+    def test_technical_exclusion_requires_explicit_human_acknowledgement(self):
+        self._excluded_firmware_config()
         info = self.client.get(self.url).data
         self.assertEqual(info["configurations"][0]["technical_result"], "EXCLUDED")
-        self.assertFalse(info["configurations"][0]["conditional_supported"])
-        result = self.client.post(self.url, self.payload(), format="json")
-        self.assertEqual(result.status_code, 400, result.data)
+        self.assertTrue(info["configurations"][0]["conditional_supported"])
+        self.assertTrue(info["configurations"][0]["technical_override_supported"])
+        rejected = self.client.post(self.url, self.payload(), format="json")
+        self.assertEqual(rejected.status_code, 400, rejected.data)
+        self.assertIn("technical_override_acknowledged", rejected.data)
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
+
+    def test_analyst_may_conditionally_manage_excluded_firmware_without_link(self):
+        self._excluded_firmware_config()
+        payload = self.payload()
+        payload["technical_override_acknowledged"] = True
+        saved = self.client.post(self.url, payload, format="json")
+        self.assertEqual(saved.status_code, 201, saved.data)
+        self.assertEqual(saved.data["assessment"]["status"], "APPLIES_CONDITIONAL")
+        record = AssetCveAssessment.objects.get()
+        self.assertIsNone(record.software_installation_id)
+        self.assertTrue(record.criteria_evidence["technical_override"]["acknowledged"])
+        self.assertEqual(record.criteria_evidence["technical_override"]["technical_result"],
+                         "EXCLUDED")
+        read = self.client.get(self.url).data
+        self.assertEqual(read["technical_result"], "EXCLUDED")
+        self.assertEqual(read["applicability"]["status"], "APPLIES_CONDITIONAL")
+        self.assertEqual(read["applicability"]["source"], "ANALYST")
+
+    def test_analyst_can_confirm_excluded_firmware_but_technical_stays_excluded(self):
+        self._excluded_firmware_config()
+        payload = self.payload(software_installation_id=self.installation.pk)
+        payload["verdict"] = "CONFIRMED"
+        payload["technical_override_acknowledged"] = True
+        saved = self.client.post(self.url, payload, format="json")
+        self.assertEqual(saved.status_code, 201, saved.data)
+        self.assertEqual(saved.data["assessment"]["status"], "APPLIES")
+        record = AssetCveAssessment.objects.get()
+        self.assertEqual(record.software_installation_id, self.installation.pk)
+        self.assertEqual(record.criteria_evidence["linked_software"][0]["link_source"],
+                         "ANALYST_OVERRIDE")
+        self.assertFalse(record.criteria_evidence["linked_software"][0]["version_verified"])
+        self.assertEqual(record.criteria_evidence["technical_override"]["analyst_verdict"],
+                         "CONFIRMED")
+        read = self.client.get(self.url).data
+        self.assertEqual(read["technical_result"], "EXCLUDED")
+        self.assertEqual(read["applicability"]["status"], "APPLIES")
+        self.assertEqual(read["applicability"]["source"], "ANALYST")
+        self.assertTrue(read["configurations"][0]["history"][0][
+            "technical_override"]["acknowledged"])
+
+    def test_manual_override_must_use_actual_installed_software(self):
+        self._excluded_firmware_config()
+        payload = self.payload(software_installation_id=999999)
+        payload["technical_override_acknowledged"] = True
+        rejected = self.client.post(self.url, payload, format="json")
+        self.assertEqual(rejected.status_code, 400, rejected.data)
+        self.assertIn("software_installation_id", rejected.data)
+        self.assertFalse(AssetCveAssessment.objects.exists())
