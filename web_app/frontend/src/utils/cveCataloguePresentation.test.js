@@ -14,6 +14,7 @@ import {
   relevantNvdChildren, displayNvdGroupBranches, nvdAlternativeGroupLabel,
   currentCveSoftwareLink, currentCveEvaluatedSoftware,
   allowedCveDecisionTransitions, isSavedCveLinkSelection,
+  cveHistoryDecisionDescription, cveHistorySoftwareLabel,
   cveAssetRoleLabel,
   displayCveApplicability, CVE_CATALOGUE_FILTER_STATES,
   nvdCriterionIdentityBadge, cveAuditJustification,
@@ -396,6 +397,56 @@ test("operational detail preserves matched standalone software, not foreign CPU"
   assert.deepEqual(selectCveOperationalGroups({
     relevant_configurations: [standalone, foreign],
   }).reviewPool.map(row => row.index), [0]);
+});
+
+test("audit timeline highlights software name and historic version, not installation IDs", () => {
+  const oldRecord = {
+    source: "SYSTEM", status: "NOT_APPLICABLE",
+    justification: "Software instalado #25, instalación #5, versión 4.5.2",
+    negative_evidence: {excluded_by: [{
+      reason: "FIRMWARE_OR_SOFTWARE_VERSION_EXCLUDED",
+    }]},
+    software_display: [{
+      software_installation_id: 5, software_asset_id: 25,
+      software_name: "Firmware SIMATIC S7-1200 CPU 1215C",
+      installed_version: "4.5.2",
+    }],
+  };
+  assert.equal(cveHistoryDecisionDescription(oldRecord),
+    "La versión evaluada está fuera del intervalo vulnerable NVD.");
+  assert.deepEqual(cveHistorySoftwareLabel(oldRecord), [{
+    key: "5",
+    label: "Firmware SIMATIC S7-1200 CPU 1215C · Versión 4.5.2",
+    detail: "Software #25",
+  }]);
+  assert.equal(cveHistoryDecisionDescription({
+    source: "SYSTEM", status: "APPLIES",
+  }), "Los CPE y las versiones comprobadas cumplen los criterios NVD.");
+  assert.equal(cveHistoryDecisionDescription({
+    source: "ANALYST", justification: "Revisión manual documentada.",
+  }), "Revisión manual documentada.");
+  assert.deepEqual(cveHistorySoftwareLabel({software_display: []}), []);
+});
+
+test("historic software fallback never invents a product or version", () => {
+  const legacy = {
+    software_display: [{
+      software_installation_id: 5,
+      software_asset_id: 25,
+      software_name: null,
+      installed_version: null,
+    }],
+  };
+  assert.deepEqual(cveHistorySoftwareLabel(legacy), [{
+    key: "5", label: "Software #25", detail: "Software #25",
+  }]);
+  assert.match(cveHistoryDecisionDescription({
+    status: "NOT_APPLICABLE",
+    source: "SYSTEM",
+    negative_evidence: {excluded_by: [
+      {reason: "DISTINCT_PLATFORM_VERIFIED"},
+    ]},
+  }), /plataforma NVD/);
 });
 
 test("negative system decision marks evaluated firmware but never a positive link", () => {
