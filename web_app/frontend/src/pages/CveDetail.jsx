@@ -15,7 +15,7 @@ import {
   displayNvdGroupBranches, nvdAlternativeGroupLabel,
 } from "../utils/cveCataloguePresentation";
 import {
-  localizedTimestamp, contextualCveActionOptions, versionConstraintsText,
+  localizedTimestamp, versionConstraintsText,
 } from "../utils/cveAssessmentPresentation";
 
 const STATE = {
@@ -94,21 +94,25 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
                     event.target.checked ? criterionKey : "",
                     event.target.checked ? String(sw.installation_id) : ""
                   )}/>
-                <span>{persisted
-                  ? savedLink.source === "SYSTEM"
-                    ? "CVE asociado automáticamente · Desmarcar para reabrir la evaluación"
-                    : "CVE asociado por el analista · Desmarcar para reabrir la evaluación"
-                  : "Asociar este CVE al software instalado"}</span>
+                <span>{persisted && savedLink.evidenceOnly
+                  ? "Firmware identificado y utilizado para evaluar por qué no aplica"
+                  : persisted
+                    ? savedLink.source === "SYSTEM"
+                      ? "CVE asociado automáticamente · Desmarcar para revisar"
+                      : "CVE asociado por el analista · Desmarcar para revisar"
+                    : "Asociar este CVE al software instalado"}</span>
               </label>
             </div>;
           })}
           {pendingUnlink && <p className="cve-cancel-pending" role="status">
-            Asociación pendiente de retirar. Justifica el cambio en el panel
-            de evaluación y confirma; si cancelas, se mantendrá el registro anterior.
+            Revisión pendiente: la casilla solo cambia provisionalmente.
+            Justifica la correspondencia parcial para guardar una nueva decisión;
+            cancelar conserva la evaluación vigente.
           </p>}
           <p className="cve-muted">
-            Una asociación manual no confirma por sí sola la versión vulnerable.
-            Desmarcar una asociación guardada requiere justificación y confirmación.
+            {savedLink?.evidenceOnly
+              ? "La casilla marcada identifica la instalación evaluada; NO significa que sea vulnerable. La versión y los criterios NVD quedan en el historial."
+              : "Una asociación manual no confirma por sí sola la versión vulnerable. Cambiar una decisión guardada exige justificar el cambio."}
           </p>
         </> : <p className="cve-muted">
           No hay software de este tipo instalado en el inventario de este hardware.
@@ -422,9 +426,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         descartar mientras las evidencias sean vigentes.
       </p>}
     {pendingUnlink && <div className="cve-pending-reopen" role="status">
-      <strong>Reapertura pendiente de confirmar</strong>
-      <p>El CVE seguirá asociado hasta que registres la justificación y
-        confirmes la reapertura. Cancelar conservará la evaluación anterior.</p>
+      <strong>Correspondencia parcial pendiente de confirmar</strong>
+      <p>El resultado anterior sigue vigente. La decisión solo cambiará
+        al guardar una justificación válida; cancelar la conserva.</p>
     </div>}
     {(canReopen || showChoices) && <div className="cve-nvd-actions">
       {canReopen && !reviewOpen && <button type="button"
