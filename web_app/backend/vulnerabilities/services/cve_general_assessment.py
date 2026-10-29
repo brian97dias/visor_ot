@@ -1086,7 +1086,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
                 or global_positive_conflict or global_negative_conflict):
             conditional_evidence["technical_override"] = {
                 "acknowledged": True,
-                "technical_result": result,
+                "technical_result": whole["result"] if global_scope else result,
                 "analyst_verdict": verdict,
                 "reason": technical["configurations"][0].get("reason", ""),
                 "configuration_fingerprint": cfg_fp,
@@ -1116,7 +1116,8 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
             ),
             "technical_result": result,
             "technical_override": {
-                "acknowledged": True, "technical_result": result,
+                "acknowledged": True,
+                "technical_result": whole["result"] if global_scope else result,
                 "analyst_verdict": verdict,
             } if (conflicting_negative or global_positive_conflict) else None,
         }
