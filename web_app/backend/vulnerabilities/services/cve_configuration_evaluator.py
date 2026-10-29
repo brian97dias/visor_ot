@@ -114,6 +114,13 @@ _SIEMENS_S7_1200_CPU_MODELS = frozenset({
     "1215c", "1215fc", "1217c",
 })
 
+# Explicit CPU identifiers appearing as distinct hardware platforms in the
+# NVD configuration branches of CVE-2021-37205. These are enumerated models,
+# NOT a fuzzy prefix/product-name match.
+_SIEMENS_S7_1500_DOCUMENTED_MODELS = frozenset({
+    "1513prof-2", "1513pro-2", "1516pro_f", "1516pro-2", "1518hf-4",
+})
+
 
 def _exclusive_siemens_hardware(product):
     """A strictly identified Siemens *device*, not an implied family match.
@@ -147,8 +154,12 @@ def _exclusive_siemens_hardware(product):
     # enough to prove device exclusivity on its own.
     if name.startswith("simatic_s7-1500_cpu_"):
         model = name.removeprefix("simatic_s7-1500_cpu_")
-        # Explicit numeric CPU model only. Names such as cpu_family,
-        # cpu_series or other generic products must remain UNKNOWN.
+        # Names such as cpu_family or cpu_series stay UNKNOWN. NVD also
+        # contains a small number of explicit Siemens CPU names outside the
+        # regular numeric model pattern; only these enumerated device models
+        # qualify for negative platform evidence.
+        if model in _SIEMENS_S7_1500_DOCUMENTED_MODELS:
+            return ("s7-1500-cpu", model)
         if re.fullmatch(
             r"1[5-9][0-9]{2}(?:spf|sp|fc|tf|c|f|t|h|r)?"
             r"(?:-[1-9][0-9]?)?(?:_(?:pn|dp))?", model
