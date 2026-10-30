@@ -369,7 +369,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     if (savedLink && !criterionKey && !installationId) {
       setReviewOpen(true);
       setDraftLink({ criterionKey: "", installationId: "" });
-      setChoice("CONDITIONAL");
+      // "No corresponde" does not require a checked software installation.
+      setChoice(previous => previous === "NOT_MATCH"
+        ? previous : "CONDITIONAL");
       setJustification("");
       setError("");
       return;
