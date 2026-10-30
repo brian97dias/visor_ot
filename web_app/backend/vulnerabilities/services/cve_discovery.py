@@ -1,9 +1,8 @@
 """Read-only CPE eligibility and deduplicated CVE discovery query planning.
 
-A CVE search begins with active hardware having a current, explicitly
-confirmed *hardware* CPE. Additional query CPEs come only from current
-software installations on that hardware and current, confirmed *software*
-CPEs. Discovery does not imply vulnerability applicability.
+A CVE search uses ONLY confirmed and current hardware CPEs. Installed software,
+its CPEs and versions remain evidence for subsequent per-hardware applicability,
+not independent CVE discovery queries. Discovery does not imply applicability.
 
 No network I/O, job creation, inventory mutation or CVE assessment takes
 place here. The future enqueue/worker must re-check current evidence before
@@ -13,9 +12,9 @@ import hashlib
 import json
 from collections import defaultdict
 
-from assets.models import Asset, Hardware, SoftwareInstallation
+from assets.models import Asset, Hardware
 from vulnerabilities.models import AssetCpe
-from .identity import fingerprint, hardware_identity, software_identity
+from .identity import fingerprint, hardware_identity
 
 MAX_CVE_DISCOVERY_HARDWARE = 100
 
@@ -64,6 +63,32 @@ def _source(hardware_id, assoc, origin, identity, installation=None):
     return source
 
 
+def has_hardware_discovery_source(sources):
+    """Current discovery candidates require explicit hardware h:CPE provenance.
+
+    Historical SOFTWARE-only findings remain in storage for audit.
+    """
+    return isinstance(sources, list) and any(
+        isinstance(source, dict)
+        and source.get("origin") == "HARDWARE"
+        and _valid_part(source.get("cpe_name"), "HARDWARE")
+        for source in sources
+    )
+
+
+def hardware_discovery_pairs(cve_ids):
+    """Read-only (Cve PK, Hardware PK) with hardware-query provenance."""
+    from vulnerabilities.models import AssetCveFinding
+
+    return {
+        (cve_pk, hardware_pk)
+        for cve_pk, hardware_pk, sources in AssetCveFinding.objects.filter(
+            cve_id__in=cve_ids
+        ).values_list("cve_id", "hardware_id", "sources")
+        if has_hardware_discovery_source(sources)
+    }
+
+
 def build_cve_discovery_plan(hardware_ids):
     """Return a deterministic, read-only plan for up to 100 selected hardware.
 
@@ -71,11 +96,11 @@ def build_cve_discovery_plan(hardware_ids):
     - selected_hardware_ids: input order, deduplicated.
     - eligible_hardware_ids: active hardware with >=1 current confirmed h:CPE.
     - skipped: explicit reason for missing, archived or not-yet-eligible assets.
-    - queries: one entry per DISTINCT official CPE name across the selection;
-      each carries all source hardware/software associations plus checkpoints.
-    - evidence_fingerprints: SHA256 per eligible hardware over relevant current
-      associations and active installation identities. The worker must compare
-      this against the live inventory before issuing a request.
+    - queries: one entry per distinct official hardware CPE across the selection;
+      each carries hardware-only provenance and existing checkpoints.
+    - evidence_fingerprints: SHA256 per eligible hardware over current hardware
+      CPE sources. Installed software changes do not invalidate a discovery
+      query (they are handled separately by the applicability evaluator).
     """
     if not isinstance(hardware_ids, (list, tuple)):
         raise ValueError("Selecciona una lista de identificadores de hardware.")
@@ -96,38 +121,17 @@ def build_cve_discovery_plan(hardware_ids):
         pk: hw for pk, hw in hardware.items()
         if hw.asset.inventory_status == Asset.InventoryStatus.ACTIVE
     }
-    installations = list(SoftwareInstallation.objects.filter(
-        hardware_id__in=active,
-        unlinked_at__isnull=True,
-        software__asset__inventory_status=Asset.InventoryStatus.ACTIVE,
-    ).select_related("software", "software__asset").order_by(
-        "hardware_id", "pk"
-    ))
-    installed_by_hardware = defaultdict(list)
-    for installation in installations:
-        installed_by_hardware[installation.hardware_id].append(installation)
-
-    asset_ids = set(active) | {row.software_id for row in installations}
+    # Only hardware associations can authorize a CVE discovery query.
+    # SoftwareInstallation / confirmed software CPEs are read later by the
+    # CVE applicability evaluator, never by the discovery planner.
     associations = AssetCpe.objects.filter(
-        asset_id__in=asset_ids,
+        asset_id__in=active,
         validation_status=AssetCpe.Validation.CONFIRMED,
         cpe__deprecated=False,
     ).select_related("cpe").order_by("asset_id", "pk")
     associations_by_asset = defaultdict(list)
     for association in associations:
         associations_by_asset[association.asset_id].append(association)
-
-    software_identities = {}
-    for installation in installations:
-        asset_id = installation.software_id
-        if asset_id not in software_identities:
-            try:
-                software_identities[asset_id] = fingerprint(
-                    software_identity(installation.software.asset)
-                )
-            except (ValueError, AttributeError):
-                # Invalid software identity is never treated as a confirmed CPE.
-                software_identities[asset_id] = None
 
     plan = {
         "selected_hardware_ids": ids,
@@ -167,27 +171,8 @@ def build_cve_discovery_plan(hardware_ids):
             _source(hardware_id, assoc, "HARDWARE", hw_identity)
             for assoc in hw_cpes
         ]
-        installed_identity_basis = []
-        for installation in installed_by_hardware[hardware_id]:
-            identity = software_identities[installation.software_id]
-            installed_identity_basis.append({
-                "installation_id": installation.pk,
-                "software_id": installation.software_id,
-                "identity_fingerprint": identity,
-            })
-            if identity is None:
-                continue
-            sw_cpes = _current_associations(
-                associations_by_asset[installation.software_id],
-                identity, "SOFTWARE"
-            )
-            sources.extend(
-                _source(hardware_id, assoc, "SOFTWARE", identity, installation)
-                for assoc in sw_cpes
-            )
-
-        # Include current installation identities even if a software asset has
-        # no confirmed CPE; adding/removing it must make a snapshot outdated.
+        # Discovery is driven by confirmed hardware identity only.
+        # Software changes are handled by the applicability evaluator.
         sources.sort(key=lambda row: (
             row["origin"], row["asset_id"], row.get("installation_id", 0),
             row["asset_cpe_id"]
@@ -195,8 +180,7 @@ def build_cve_discovery_plan(hardware_ids):
         plan["eligible_hardware_ids"].append(hardware_id)
         plan["evidence_fingerprints"][str(hardware_id)] = _digest({
             "hardware_identity": hw_identity,
-            "active_software_installations": installed_identity_basis,
-            "confirmed_cpe_sources": sources,
+            "confirmed_hardware_cpe_sources": sources,
         })
 
         for source in sources:
