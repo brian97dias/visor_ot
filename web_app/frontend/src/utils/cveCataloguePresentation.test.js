@@ -11,6 +11,8 @@ import {
   preferredCveHardwareId, selectedCveHardwareId, cveReviewProgress,
   groupCveEvidence, selectCveOperationalGroups, cveHumanReviewMessage,
   cveApplicabilityExplanation, cveConfigurationHighlights,
+  CVE_CONTEXTUAL_SCOPE, cveContextualScopeSummary,
+  cveScopeCriterionLabels, cveHardwareApplicabilityLabel,
   relevantNvdChildren, displayNvdGroupBranches, operationalNvdGroupBranches,
   displayedNvdSoftwareCriterion, canSelectNvdCriterionSoftware,
   nvdAlternativeGroupLabel,
@@ -68,6 +70,105 @@ test("compact applicability text distinguishes technical and human conclusions",
   assert.match(summary("PENDING_REVIEW", "NONE", {
     EXCLUDED: 0, INDETERMINATE: 2,
   }), /no existe evidencia suficiente/);
+});
+
+test("scope summary preserves all original NVD branches and distinguishes 2019-10943", () => {
+  const make = (index, relation, technical_result, criteria) => ({
+    index, position: index + 1, technical_result, contextual_scope: relation,
+    tree: {kind: "GROUP", children: [{kind: "CRITERION", part: "h", criteria}]},
+  });
+  const branches = Array.from({length: 11}, (_, index) => make(
+    index, index === 5 ? "PERTINENT" : index === 10 ? "OUT_OF_SCOPE" : "FOREIGN",
+    index === 5 ? "EXCLUDED" : index === 10 ? "INDETERMINATE" : "EXCLUDED",
+    "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*",
+  ));
+  const originals = structuredClone(branches);
+  const context = {
+    configurations: branches,
+    nvd_technical_result: "INDETERMINATE",
+    technical_result: "EXCLUDED",
+    contextual_selection: {
+      pertinent_indexes: [5],
+      foreign_indexes: [0, 1, 2, 3, 4, 6, 7, 8, 9],
+      uncertain_indexes: [],
+      out_of_scope_indexes: [10],
+      evaluated_indexes: [5],
+      configurations: branches.map(({index, position, technical_result, contextual_scope}) =>
+        ({index, position, technical_result, relation: contextual_scope,
+          reason: "Motivo técnico registrado"})),
+    },
+    applicability: {status: "NOT_APPLICABLE", source: "SYSTEM",
+      automatic_evidence: {proof_scope: "NVD_HARDWARE_CONTEXT",
+        evaluated_configuration_indexes: [5]}},
+  };
+  const summary = cveContextualScopeSummary(context);
+  assert.equal(summary.total, 11);
+  assert.equal(summary.pertinentCount, 1);
+  assert.equal(summary.foreignCount, 9);
+  assert.equal(summary.outOfScopeCount, 1);
+  assert.equal(summary.uncertainCount, 0);
+  assert.deepEqual(summary.evaluatedIndexes, [5]);
+  assert.equal(summary.groups[0].entries[0].position, 6);
+  assert.equal(summary.groups[2].entries[0].position, 11);
+  assert.equal(summary.rawResult, "INDETERMINATE");
+  assert.equal(summary.contextualResult, "EXCLUDED");
+  assert.equal(summary.proof.proof_scope, "NVD_HARDWARE_CONTEXT");
+  assert.deepEqual(branches, originals);
+  assert.match(cveApplicabilityExplanation(context), /1 configuración\(es\).*descartadas/);
+  assert.match(cveApplicabilityExplanation(context), /no demuestra ausencia/);
+  assert.equal(CVE_CONTEXTUAL_SCOPE.OUT_OF_SCOPE.label, "Software sin anclaje");
+});
+
+test("scope facts show distinct platforms but never assert software absence", () => {
+  const scope = cveContextualScopeSummary({
+    contextual_selection: {configurations: [
+      {index: 0, position: 1, relation: "FOREIGN", technical_result: "EXCLUDED"},
+      {index: 1, position: 2, relation: "UNCERTAIN",
+        technical_result: "INDETERMINATE"},
+      {index: 2, position: 3, relation: "OUT_OF_SCOPE",
+        technical_result: "INDETERMINATE"},
+    ]},
+  });
+  assert.equal(scope.foreignCount, 1);
+  assert.equal(scope.uncertainCount, 1);
+  assert.equal(scope.outOfScopeCount, 1);
+  assert.match(CVE_CONTEXTUAL_SCOPE.OUT_OF_SCOPE.note, /No se afirma/);
+  assert.match(cveApplicabilityExplanation({
+    applicability: {status: "PENDING_REVIEW", source: "NONE"},
+    contextual_selection: {configurations: [
+      {index: 0, relation: "FOREIGN"},
+    ]},
+  }), /No se ha acreditado ninguna/);
+  assert.equal(cveContextualScopeSummary({}), null);
+});
+
+test("NVD criterion titles are grounded in the tree, not inferred device matching", () => {
+  const labels = cveScopeCriterionLabels({tree: {kind: "GROUP", children: [
+    {kind: "CRITERION", criteria:
+      "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*"},
+    {kind: "CRITERION", criteria:
+      "cpe:2.3:o:siemens:simatic_s7-1200_cpu_1215c_firmware:*:*:*:*:*:*:*:*"},
+    {kind: "CRITERION", criteria:
+      "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*"},
+  ]}});
+  assert.deepEqual(labels, [
+    "Hardware: siemens / simatic_s7-1200_cpu_1215c",
+    "Firmware / SO: siemens / simatic_s7-1200_cpu_1215c_firmware",
+  ]);
+  assert.deepEqual(cveScopeCriterionLabels(null), []);
+});
+
+test("a hardware row distinguishes human override from the previous SYSTEM verdict", () => {
+  assert.equal(cveHardwareApplicabilityLabel({
+    scoped_applicability: {status: "APPLIES", source: "ANALYST"},
+  }), "Aplica · Validado por analista");
+  assert.equal(cveHardwareApplicabilityLabel({
+    scoped_applicability: {status: "NOT_APPLICABLE", source: "SYSTEM"},
+  }), "No aplica · Automático");
+  assert.equal(cveHardwareApplicabilityLabel({}), null);
+  assert.match(cveApplicabilityExplanation({
+    applicability: {status: "APPLIES", source: "ANALYST"},
+  }), /analista.*«Aplica»/);
 });
 
 test("compact evidence labels only represent demonstrated CPE and version facts", () => {
