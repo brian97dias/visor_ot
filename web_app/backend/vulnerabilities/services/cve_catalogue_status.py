@@ -11,6 +11,7 @@ from collections import defaultdict
 from rest_framework.exceptions import NotFound, ValidationError
 
 from vulnerabilities.models import AssetCveAssessment, AssetCveFinding
+from .cve_discovery import hardware_discovery_pairs
 from .cve_general_assessment import _context as general_context, _digest
 from .cve_assessment import _context as experimental_context
 from .cve_ingestion import CveResponseError
@@ -81,9 +82,7 @@ def catalogue_statuses(cves):
         return {}
     ids = [cve.pk for cve in cves]
     hardware_by_cve = defaultdict(set)
-    for cve_pk, hw_pk in AssetCveFinding.objects.filter(
-        cve_id__in=ids
-    ).values_list("cve_id", "hardware_id"):
+    for cve_pk, hw_pk in hardware_discovery_pairs(ids):
         hardware_by_cve[cve_pk].add(hw_pk)
     latest = defaultdict(dict)
     seen = set()
