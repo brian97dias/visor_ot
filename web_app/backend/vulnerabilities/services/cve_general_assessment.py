@@ -310,6 +310,10 @@ def _serialize_assessment(item, inventory_fp, config_fp, installed=None):
             item.criteria_evidence.get("reviewed_software", [])
             if isinstance(item.criteria_evidence, dict) else []
         ),
+        "manual_applicability_evidence": (
+            item.criteria_evidence.get("manual_applicability_evidence")
+            if isinstance(item.criteria_evidence, dict) else None
+        ),
         "software_display": _assessment_software_display(
             item, inventory_fp, config_fp, installed,
         ),
@@ -1041,8 +1045,20 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         if global_previous is not None and
         isinstance(global_previous.criteria_evidence, dict) else None
     )
+    previous_reviewed = (
+        global_previous.criteria_evidence.get("reviewed_software", [])
+        if global_previous is not None and
+        isinstance(global_previous.criteria_evidence, dict) else []
+    )
+    previous_software_id = (
+        global_previous.software_installation_id or
+        ((previous_reviewed[0].get("installation_id") or
+          previous_reviewed[0].get("software_installation_id"))
+         if previous_reviewed else None)
+    ) if global_previous else None
     if (global_scope and global_current and global_previous.status == target
-            and (previous_choice or {}).get("key", "") == selected_nvd_criterion):
+            and (previous_choice or {}).get("key", "") == selected_nvd_criterion
+            and previous_software_id == software_installation_id):
         raise ValidationError({"verdict":
             "La evaluación Hardware–CVE ya tiene este estado y criterio vigentes."})
     if global_scope and global_previous is None:
@@ -1059,7 +1075,10 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
             and latest.configuration_fingerprint == cfg_fp
             and latest.status == target
             and (latest.criteria_evidence.get("selected_nvd_criterion") or {}).get(
-                "key", "") == selected_nvd_criterion):
+                "key", "") == selected_nvd_criterion
+            and (latest.software_installation_id or
+                 ((latest.criteria_evidence.get("reviewed_software") or [{}])[0]
+                  .get("installation_id"))) == software_installation_id):
         raise ValidationError({"verdict":
             "La evaluación ya tiene este estado vigente. No se registran reconfirmaciones."})
 
