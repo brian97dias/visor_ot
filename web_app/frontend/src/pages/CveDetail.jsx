@@ -235,6 +235,10 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   softwareAlternatives = [], onChooseSoftware }) {
   const globalDecision = context?.hardware_cve_decision;
   const last = globalDecision || config.latest_assessment;
+  // A hardware-wide verdict affects applicability, but its selected NVD leaf
+  // only belongs to the configuration where it was recorded.
+  const localDecision = globalDecision?.configuration_index === config.index
+    ? globalDecision : config.latest_assessment;
   const status = last?.effective_status || "PENDING_REVIEW";
   const firmwareCriterion = vulnerableSoftwareCriterion(config.tree);
   const manuallyLinked = globalDecision && !globalDecision.stale &&
@@ -248,18 +252,18 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     ? manuallyLinked : currentCveSoftwareLink(config, context);
   const evaluatedLink = globalDecision
     ? null : currentCveEvaluatedSoftware(config, context);
-  const reviewed = (last?.reviewed_software || [])[0];
-  const reviewedLink = reviewed && last?.selected_nvd_criterion ? {
+  const reviewed = (localDecision?.reviewed_software || [])[0];
+  const reviewedLink = reviewed && localDecision?.selected_nvd_criterion ? {
     installationId: String(reviewed.installation_id ||
       reviewed.software_installation_id),
-    criterionKey: last.selected_nvd_criterion.key,
+    criterionKey: localDecision.selected_nvd_criterion.key,
     source: "ANALYST", evidenceOnly: true,
   } : null;
   const savedLink = savedPositive || reviewedLink || evaluatedLink;
   // null means no edit; an empty draft overrides the persisted check only locally.
   const [draftLink, setDraftLink] = useState(null);
   const [focusedCriterion, setFocusedCriterion] = useState(
-    last?.selected_nvd_criterion?.key || ""
+    localDecision?.selected_nvd_criterion?.key || ""
   );
   const [reviewOpen, setReviewOpen] = useState(false);
   const [choice, setChoice] = useState("");
@@ -397,9 +401,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       setSaving(false);
     }
   }
-  const previousCriterion = last?.selected_nvd_criterion?.key || "";
-  const priorReviewed = (last?.reviewed_software || [])[0];
-  const previousInstallation = last?.software_installation_id ||
+  const previousCriterion = localDecision?.selected_nvd_criterion?.key || "";
+  const priorReviewed = (localDecision?.reviewed_software || [])[0];
+  const previousInstallation = localDecision?.software_installation_id ||
     priorReviewed?.installation_id || priorReviewed?.software_installation_id || "";
   const evidenceChanged = selectedCriterion !== previousCriterion ||
     String(selectedId || "") !== String(previousInstallation || "");
