@@ -16,6 +16,7 @@ import {
   cveHistoryDecisionDescription, cveHistorySoftwareLabel,
   isSavedCveLinkSelection, cveAuditJustification,
   preferredCveCorrespondenceVerdict, updatedCveReviewChoice,
+  canConfirmCveWithExternalEvidence,
   operationalNvdGroupBranches, nvdAlternativeGroupLabel,
   displayedNvdSoftwareCriterion, canSelectNvdCriterionSoftware,
 } from "../utils/cveCataloguePresentation";
@@ -320,6 +321,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const lockedDecision = Boolean(currentStatus &&
     ["APPLIES", "APPLIES_CONDITIONAL", "NOT_APPLICABLE"].includes(currentStatus));
   const canReopen = canDecide && lockedDecision;
+  const canExternalOverride = canConfirmCveWithExternalEvidence(
+    config, context, canDecide
+  );
   const canReview = config.review_supported && canDecide;
   const canConditional = config.conditional_supported && canDecide &&
     ["INDETERMINATE", "EXCLUDED"].includes(config.technical_result);
@@ -505,6 +509,19 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
           {primaryVerdict === "CONFIRMED"
             ? "Confirmar correspondencia" : "Correspondencia parcial"}
         </button>}
+        {canExternalOverride && allowedChanges.includes("CONFIRMED") &&
+          <button type="button" className={"cve-nvd-action" +
+            (choice === "CONFIRMED" && !linkedInstallationId ? " selected" : "")}
+            onClick={() => {
+              // Evidence external to NVD can justify a Hardware-CVE decision,
+              // but never creates an unverified vulnerable software link.
+              setDraftLink({ criterionKey: "", installationId: "" });
+              setChoice("CONFIRMED");
+              setReviewOpen(true);
+              setJustification("");
+            }}>
+            Confirmar CVE con evidencia externa
+          </button>}
         {canDiscard && allowedChanges.includes("NOT_MATCH") &&
           <button type="button" className={"cve-nvd-action" +
           (choice === "NOT_MATCH" ? " selected" : "")}
@@ -513,6 +530,13 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
           }}>No corresponde</button>}
       </>}
     </div>}
+    {choice === "CONFIRMED" && canExternalOverride && !linkedInstallationId &&
+      <p className="cve-review-note" role="status">
+        Confirmación excepcional del CVE para este hardware, sin vincular
+        un software como vulnerable. Explica la evidencia externa (por ejemplo,
+        un aviso oficial del fabricante) y por qué modifica la exclusión NVD.
+        La conclusión automática y tu decisión quedarán en el historial.
+      </p>}
     {choice === "CONDITIONAL" && <p className="cve-review-note" role="status">
       Correspondencia parcial: {linkedInstallationId
         ? "la instalación quedará registrada como revisada, sin considerarla vulnerable."
@@ -560,7 +584,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
               ? "Explica qué falta verificar o por qué no vinculas esta instalación..."
               : choice === "NOT_MATCH"
                 ? "Describe la comprobación que permite descartar esta configuración..."
-                : "Explica las evidencias de la correspondencia..."}/>
+                : choice === "CONFIRMED" && canExternalOverride && !linkedInstallationId
+                  ? "Indica el aviso oficial, la versión afectada y el fundamento para contradecir la exclusión NVD..."
+                  : "Explica las evidencias de la correspondencia..."}/>
       </label>
       {choice === "NOT_MATCH" && <p className="cve-review-note">
         La decisión se aplicará al CVE de este hardware y se conservará
@@ -571,6 +597,8 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
           disabled={saving || invalid}>{saving ? "Guardando..." :
           choice === "NOT_MATCH" ? "Guardar No corresponde" :
             choice === "CONDITIONAL" ? "Guardar correspondencia parcial" :
+            choice === "CONFIRMED" && canExternalOverride && !linkedInstallationId
+            ? "Confirmar CVE por evidencia externa" :
             choice === "CONFIRMED" ? "Confirmar correspondencia" :
             "Guardar evaluación"}</button>
         <button type="button" className="button-secondary" disabled={saving}
