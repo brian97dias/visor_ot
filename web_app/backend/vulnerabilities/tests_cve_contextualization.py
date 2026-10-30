@@ -383,10 +383,10 @@ class ContextualNvdConfigurationScopeTests(SimpleTestCase):
             [0],
         )
 
-    def test_cve_2019_10943_shape_keeps_other_platform_uncertainties(self):
-        # Representative NVD branches, not a substitute for the stored JSON:
-        # #1 unknown ET200SP model, #6 CPU1215C out of range,
-        # #11 OR of incompatible Software Controller and unverified PLCSIM.
+    def test_cve_2019_10943_shape_scopes_other_platforms(self):
+        # Representative NVD branches; the full NVD snapshot is also tested.
+        # #1 ET200SP is foreign, #6 CPU1215C is excluded by firmware version,
+        # #11 is unanchored software (not evidence of software absence).
         et200sp = (
             "cpe:2.3:h:siemens:"
             "simatic_et_200sp_open_controller_cpu_1515sp_pc:-:*:*:*:*:*:*:*"
@@ -580,6 +580,22 @@ class ContextualHardwareCveConsolidationTests(SimpleTestCase):
                 technical, {}, global_decision="PENDING_REVIEW"
             ),
             {"status": "IN_REVIEW", "source": "NONE"},
+        )
+
+    def test_no_pertinent_branch_is_pending_not_automatically_safe(self):
+        foreign = nvd_platform_firmware(PLCSIM_HW, PLCSIM_FW)
+        unanchored = {"operator": "OR", "cpeMatch": [
+            {"criteria": STEP7, "vulnerable": True},
+        ]}
+        configs = [foreign, unanchored]
+        technical = self.evaluate(configs)
+        self.assertEqual(technical["contextual_selection"]["pertinent_indexes"], [])
+        self.assertEqual(technical["contextual_selection"]["foreign_indexes"], [0])
+        self.assertEqual(technical["contextual_selection"]["out_of_scope_indexes"], [1])
+        self.assertEqual(technical["contextual_result"], INDETERMINATE)
+        self.assertIsNone(automatic_negative_evidence(technical))
+        self.assertEqual(
+            self.application(technical, configs)["status"], "PENDING_REVIEW"
         )
 
     def test_empty_or_ambiguous_configurations_never_prove_no_aplica(self):
@@ -1321,8 +1337,8 @@ class SiemensContextualHttpTests(TestCase):
         )
 
     def test_contextual_result_is_shared_by_hardware_detail_and_catalogue(self):
-        # Same 2019-10943 representative shape used in the pure evaluator
-        # tests: two uncertain branches prevent an automatic "No aplica".
+        # Both views must report the negative conclusion for the same
+        # hardware-anchored NVD configuration, while retaining raw NVD scope.
         et200sp = (
             "cpe:2.3:h:siemens:"
             "simatic_et_200sp_open_controller_cpu_1515sp_pc:-:*:*:*:*:*:*:*"
