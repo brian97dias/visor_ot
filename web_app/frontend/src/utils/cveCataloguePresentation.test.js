@@ -601,3 +601,42 @@ test("rechecking a saved CVE software link is an unchanged draft", () => {
     "the database stores the installation, not the displayed OR criterion");
   assert.equal(isSavedCveLinkSelection(null,"nvd-firmware","5"),false);
 });
+
+test("STEP 7 NVD V16 Update 4 can be focused without a software installation", () => {
+  const make = (version, update, id) => ({
+    kind: "CRITERION", part: "a", vulnerable: true, match_criteria_id: id,
+    criteria: `cpe:2.3:a:siemens:simatic_step_7:${version}:${update}:*:*:*:*:*:*`,
+    technical_identity: "UNKNOWN",
+  });
+  const options = [
+    make("16", "update1", "step7-16-u1"),
+    make("16", "update4", "step7-16-u4"),
+    make("17", "update1", "step7-17-u1"),
+  ];
+  const or = {kind: "GROUP", operator: "OR", children: options};
+  const snapshot = JSON.stringify(or);
+  const selected = operationalNvdGroupBranches(or, "step7-16-u4");
+  assert.deepEqual(selected.shown, [options[1]]);
+  assert.deepEqual(selected.hidden, [options[0], options[2]]);
+  assert.equal(JSON.stringify(or), snapshot);
+  // The selection only focuses presentation; no installed software was needed.
+});
+
+test("software NVD OR remains reachable within a hardware AND constraint", () => {
+  const step7 = [
+    {kind:"CRITERION",part:"a",vulnerable:true,criteria:"software15"},
+    {kind:"CRITERION",part:"a",vulnerable:true,criteria:"software16"},
+  ];
+  const cpu = {kind:"CRITERION",part:"h",vulnerable:false,
+    criteria:"cpu1215c",technical_identity:"MATCHED",
+    technical_matched_cpe:"cpe:2.3:h:siemens:cpu1215c:-:*:*:*:*:*:*:*"};
+  const and={kind:"GROUP",operator:"AND",children:[
+    {kind:"GROUP",operator:"OR",children:step7},
+    {kind:"GROUP",operator:"OR",children:[cpu]},
+  ]};
+  const children=operationalNvdGroupBranches(and,"software16");
+  assert.equal(children.shown.length,2);
+  assert.deepEqual(operationalNvdGroupBranches(children.shown[0],"software16").shown,
+    [step7[1]]);
+  assert.deepEqual(operationalNvdGroupBranches(children.shown[1]).shown,[cpu]);
+});
