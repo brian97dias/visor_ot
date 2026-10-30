@@ -16,6 +16,7 @@ import {
   cveHistoryDecisionDescription, cveHistorySoftwareLabel,
   isSavedCveLinkSelection, cveAuditJustification,
   operationalNvdGroupBranches, nvdAlternativeGroupLabel,
+  displayedNvdSoftwareCriterion,
 } from "../utils/cveCataloguePresentation";
 import {
   localizedTimestamp, versionConstraintsText,
@@ -46,7 +47,7 @@ function vulnerableSoftwareCriterion(tree) {
 function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, installId,
   installedSoftware = [], canDecide = false, savedLink = null,
   pendingUnlink = false, softwareAlternatives = [], onChooseSoftware,
-  onChooseCriterion,
+  onChooseCriterion, isAlternative = false,
 }) {
   if (item.kind === "CRITERION") {
     const isSoftware = ["a", "o"].includes(item.part);
@@ -72,15 +73,16 @@ function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, inst
       </div>
 
       {isSoftware && item.vulnerable && onSelect && <div className="cve-nvd-selection">
-        {onChooseCriterion && selection !== criterionKey &&
+        {onChooseCriterion && (isAlternative || selection !== criterionKey) &&
           <button type="button" className="cve-nvd-software-choice"
             onClick={() => onChooseCriterion(criterionKey)}>
             Examinar esta alternativa NVD
           </button>}
-        {selection === criterionKey && <p className="cve-review-note">
-          Alternativa NVD examinada: <code>{item.criteria}</code>
-        </p>}
-        {currentInstallations.length ? <>
+        {!isAlternative && selection === criterionKey && <>
+          <p className="cve-review-note">
+            Alternativa NVD examinada: <code>{item.criteria}</code>
+          </p>
+          {currentInstallations.length ? <>
           <p className="cve-nvd-association-title">
             Software registrado como instalado en este hardware
           </p>
@@ -136,9 +138,12 @@ function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, inst
           No hay software inventariado en este hardware. Puedes registrar una
           evaluación sin vincular ninguna instalación.
         </p>}
+        </>}
       </div>}
 
-      <details className="cve-nvd-proof">
+      <details className="cve-nvd-proof"
+        open={isAlternative || (isSoftware && item.vulnerable &&
+          !isAlternative && selection === criterionKey)}>
         <summary>Ver evidencia técnica NVD</summary>
         <div className="cve-nvd-proof-content">
           <div className="cve-nvd-criterion">
@@ -204,7 +209,7 @@ function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, inst
   const isOr = item.operator === "OR";
   const { shown, hidden } = operationalNvdGroupBranches(item, selection);
   const firstSoftware = shown.findIndex(child => Boolean(vulnerableSoftwareCriterion(child)));
-  const renderChild = (child, i) =>
+  const renderChild = (child, i, alternative = isAlternative) =>
     <Criterion key={(child.match_criteria_id || child.criteria || "grupo") + ":" + i}
       item={child} depth={depth + 1} selection={selection}
       linkedCriterion={linkedCriterion} onSelect={onSelect} installId={installId}
@@ -212,7 +217,8 @@ function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, inst
       savedLink={savedLink} pendingUnlink={pendingUnlink}
       softwareAlternatives={i === firstSoftware ? softwareAlternatives : []}
       onChooseSoftware={onChooseSoftware}
-      onChooseCriterion={onChooseCriterion}/>;
+      onChooseCriterion={onChooseCriterion}
+      isAlternative={alternative}/>;
 
   return <div className={"cve-general-group " + (depth ? "cve-general-nested" : "")}>
     {!isOr && shown.length > 1 && depth === 0 &&
@@ -234,7 +240,7 @@ function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, inst
         role="region" aria-label={nvdAlternativeGroupLabel(hidden)}>
         <p className="cve-muted">Opciones del operador O de NVD.
           No implican presencia en el inventario ni aplicabilidad confirmada.</p>
-        {hidden.map(renderChild)}
+        {hidden.map((child, i) => renderChild(child, i, true))}
       </div>
     </details>}
   </div>;
@@ -285,7 +291,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const currentLink = draftLink === null ? savedLink : draftLink;
   const installId = currentLink?.installationId || "";
   const linkedCriterion = currentLink?.criterionKey || "";
-  const selectedCriterion = focusedCriterion || linkedCriterion;
+  const initialCriterion = displayedNvdSoftwareCriterion(config.tree);
+  const selectedCriterion = focusedCriterion || linkedCriterion ||
+    initialCriterion?.match_criteria_id || initialCriterion?.criteria || "";
   const pendingUnlink = choice === "CONDITIONAL" && Boolean(savedLink) &&
     draftLink !== null && !draftLink.installationId;
 
