@@ -5,7 +5,6 @@ import {
   createGeneralCveAssessment, ensureAutomaticCveAssessment,
 } from "../api/vulnerabilities";
 import SuccessNotice from "../components/SuccessNotice";
-import CveAnalysis from "./CveAnalysis";
 import {
   CVE_SEVERITY, CVE_TECHNICAL_STATE, CVE_EVALUATION_STATE,
   CVE_APPLICABILITY_SOURCE,
@@ -677,10 +676,8 @@ export default function CveDetail() {
     }
   }, [requestedHardware, hardware, selectedHardware]);
 
-  const isLegacy = cveId === "CVE-2021-33540" &&
-    Number(selectedHardware) === 2;
   useEffect(() => {
-    if (!selectedHardware || isLegacy) {
+    if (!selectedHardware) {
       setContext(null);
       return undefined;
     }
@@ -706,7 +703,7 @@ export default function CveDetail() {
       .catch(err => { if (live) setError(err.message); })
       .finally(() => { if (live) setContextLoading(false); });
     return () => { live = false; };
-  }, [cveId, selectedHardware, isLegacy, revision, canDecide]);
+  }, [cveId, selectedHardware, revision, canDecide]);
 
   const { reviewPool, hardwareSoftware } =
     selectCveOperationalGroups(context);
@@ -725,7 +722,6 @@ export default function CveDetail() {
     <p className="error-message" role="alert">
       {error || "No se pudo cargar el CVE."}</p>
   </section>;
-  if (isLegacy) return <CveAnalysis/>;
   return <section className="page cve-analysis-page cve-nvd-detail cve-general-analysis">
     <nav className="breadcrumbs" aria-label="Ruta de navegación">
       <Link to="/vulnerabilities/cve">Análisis CVE</Link><span>/</span>
