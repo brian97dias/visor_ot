@@ -441,3 +441,73 @@ class ExperimentalCveAssessmentTests(TestCase):
         self.assertEqual(AssetCveAssessment.objects.count(), 2)
         self.assertEqual(Cpe.objects.count(), 1)
         self.assertEqual(AssetCpe.objects.count(), 1)
+
+    def test_legacy_current_and_stale_share_one_catalogue_detail_status(self):
+        self.confirm_hardware_cpe()
+        installation = self.link()
+        saved = self.post_decision(
+            verdict="CONFIRMED", installation=installation,
+            justification="Evidencia histórica comprobada",
+        )
+        self.assertEqual(saved.status_code, 201, saved.data)
+        detail_url = f"/api/vulnerabilities/cves/{self.cve.cve_id}/hardware/2/assessment/"
+        def assert_views(expected):
+            detail = self.client.get(detail_url)
+            self.assertEqual(detail.status_code, 200, detail.data)
+            listing = self.client.get("/api/vulnerabilities/cves/")
+            self.assertEqual(listing.status_code, 200, listing.data)
+            row = next(x for x in listing.data["results"]
+                       if x["cve_id"] == self.cve.cve_id)
+            self.assertEqual(detail.data["applicability"]["status"], expected)
+            self.assertEqual(row["applicability_status"], expected)
+            return detail.data
+        current = assert_views("APPLIES")
+        branch = next(row for row in current["relevant_configurations"]
+                      if row["index"] == 11)
+        history = branch["history"][0]
+        self.assertFalse(history["stale"])
+        self.assertEqual(history["software_installation_id"], installation.pk)
+        self.assertEqual(history["software_display"][0]["software_name"],
+                         self.software_asset.name)
+        self.assertEqual(history["software_display"][0]["installed_version"], "2.0")
+        self.firmware.version = "3.0"
+        self.firmware.save(update_fields=["version"])
+        changed = assert_views("PENDING_REVIEW")
+        latest = next(row for row in changed["relevant_configurations"]
+                      if row["index"] == 11)["latest_assessment"]
+        self.assertTrue(latest["stale"])
+        self.assertEqual(AssetCveAssessment.objects.count(), 1)
+
+    def test_legacy_decision_can_be_reopened_as_hardware_pending(self):
+        self.confirm_hardware_cpe()
+        installation = self.link()
+        self.assertEqual(
+            self.post_decision(verdict="CONFIRMED", installation=installation).status_code,
+            201,
+        )
+        url = f"/api/vulnerabilities/cves/{self.cve.cve_id}/hardware/2/assessment/"
+        context = self.client.get(url).data
+        branch = next(row for row in context["relevant_configurations"]
+                      if row["index"] == 11)
+        response = self.client.post(url, {
+            "configuration_index": 11,
+            "inventory_fingerprint": context["inventory_fingerprint"],
+            "configuration_fingerprint": branch["fingerprint"],
+            "verdict": "UNKNOWN",
+            "justification": "Reabrir el CVE para comprobar el firmware nuevamente.",
+        }, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["assessment"]["status"], "PENDING_REVIEW")
+        refreshed = self.client.get(url).data
+        self.assertEqual(refreshed["applicability"]["status"], "PENDING_REVIEW")
+        self.assertEqual(refreshed["hardware_cve_decision"]["status"], "PENDING_REVIEW")
+        self.assertEqual(
+            list(AssetCveAssessment.objects.order_by("pk").values_list("status", flat=True)),
+            ["APPLIES", "PENDING_REVIEW"],
+        )
+        listing = self.client.get("/api/vulnerabilities/cves/")
+        self.assertEqual(
+            next(row for row in listing.data["results"]
+                 if row["cve_id"] == self.cve.cve_id)["applicability_status"],
+            "PENDING_REVIEW",
+        )
