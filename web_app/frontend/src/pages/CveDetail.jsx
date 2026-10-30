@@ -110,7 +110,7 @@ function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, inst
                     ? savedLink.source === "SYSTEM"
                       ? "CVE asociado automáticamente · Desmarcar para revisar"
                       : "CVE asociado por el analista · Desmarcar para revisar"
-                    : "Asociar este CVE al software instalado"}</span>
+                    : "Seleccionar software para esta evaluación"}</span>
               </label>
             </div>;
           })}
@@ -124,9 +124,8 @@ function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, inst
               : "La vinculación manual no confirma por sí sola la versión vulnerable."}
           </p>
         </> : <p className="cve-muted">
-          No hay una instalación identificada como correspondiente a este criterio NVD
-          en el hardware seleccionado. Puedes registrar una correspondencia parcial
-          sin vincular software.
+          No hay software inventariado en este hardware. Puedes registrar una
+          evaluación sin vincular ninguna instalación.
         </p>}
       </div>}
 
@@ -249,7 +248,14 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     ? manuallyLinked : currentCveSoftwareLink(config, context);
   const evaluatedLink = globalDecision
     ? null : currentCveEvaluatedSoftware(config, context);
-  const savedLink = savedPositive || evaluatedLink;
+  const reviewed = (last?.reviewed_software || [])[0];
+  const reviewedLink = reviewed && last?.selected_nvd_criterion ? {
+    installationId: String(reviewed.installation_id ||
+      reviewed.software_installation_id),
+    criterionKey: last.selected_nvd_criterion.key,
+    source: "ANALYST", evidenceOnly: true,
+  } : null;
+  const savedLink = savedPositive || reviewedLink || evaluatedLink;
   // null means no edit; an empty draft overrides the persisted check only locally.
   const [draftLink, setDraftLink] = useState(null);
   const [focusedCriterion, setFocusedCriterion] = useState(
@@ -363,7 +369,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         selected_nvd_criterion: selectedCriterion,
         inventory_declared_complete: false,
         technical_override_acknowledged: (
-          (choice === "CONFIRMED" && !eligible) ||
+          choice === "CONFIRMED" ||
           (technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice)) ||
           positiveConflict ||
           (context?.technical_result === "EXCLUDED" &&
