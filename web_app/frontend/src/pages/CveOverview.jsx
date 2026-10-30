@@ -194,7 +194,7 @@ export default function CveOverview() {
       <div className="table-container">
         <table className="data-table">
           <thead><tr><th>CVE</th><th>Severidad</th><th>Descripción NVD</th>
-            <th>Activos relacionados</th><th>Aplicabilidad</th><th>Acción</th></tr></thead>
+            <th>Activos evaluados</th><th>Aplicabilidad</th><th>Acción</th></tr></thead>
           <tbody>
             {loading ? <tr><td colSpan="6">Cargando CVE...</td></tr>
             : catalogue.results.length === 0 ? <tr><td colSpan="6">
@@ -219,7 +219,7 @@ export default function CveOverview() {
                     {context.assets?.length ? context.assets.map(asset =>
                       <div key={asset.asset_id} className="cve-catalogue-asset-item">
                         <span>{asset.asset_type === "HARDWARE"
-                          ? "Hardware · " + cveAssetRoleLabel(asset.role)
+                          ? "Hardware · Plataforma"
                           : asset.software_type === "FIRMWARE"
                             ? "Firmware · Vulnerable" : "Software · Vulnerable"}</span>
                         <Link to={"/assets/" + asset.asset_id}
