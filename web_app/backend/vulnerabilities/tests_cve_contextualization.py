@@ -1018,6 +1018,101 @@ class SiemensContextualHttpTests(TestCase):
             + "/hardware/" + str(self.hw.pk) + "/assessment/"
         )
 
+    def _load_nvd_configuration_fixture(self, cve_id):
+        path = Path(__file__).resolve().parent / "fixtures" / (
+            "nvd_" + cve_id + ".json"
+        )
+        with path.open(encoding="utf-8") as handle:
+            record = json.load(handle)
+        self.assertEqual(record["id"], cve_id)
+        self.cve.cve_id = cve_id
+        self.cve.configurations = record["configurations"]
+        self.cve.save(update_fields=["cve_id", "configurations"])
+        self.url = (
+            "/api/vulnerabilities/cves/" + cve_id
+            + "/hardware/" + str(self.hw.pk) + "/assessment/"
+        )
+        return record
+
+    def test_real_2021_44695_only_config_nine_is_operational(self):
+        record = self._load_nvd_configuration_fixture("CVE-2021-44695")
+        self.assertEqual(len(record["configurations"]), 96)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200, response.data)
+        data = response.data
+        self.assertEqual(len(data["configurations"]), 96)  # NVD retained
+        self.assertEqual(data["contextual_selection"]["pertinent_indexes"], [8])
+        self.assertEqual(data["contextual_selection"]["evaluated_indexes"], [8])
+        self.assertEqual(
+            [row["position"] for row in data["relevant_configurations"]], [9]
+        )
+        self.assertEqual(
+            [row["position"] for row in data["hardware_software_configurations"]],
+            [9],
+        )
+        self.assertEqual(data["assessment_summary"]["total_configurations"], 1)
+        self.assertEqual(data["technical_result"], COMPATIBLE)
+        self.assertEqual(data["applicability"]["status"], "APPLIES")
+        self.assertEqual(data["applicability"]["source"], "SYSTEM")
+        self.assertEqual(
+            data["applicability"]["automatic_evidence"]["configuration_index"], 8
+        )
+
+    def test_real_2021_42029_preserves_step7_software_or_review(self):
+        record = self._load_nvd_configuration_fixture("CVE-2021-42029")
+        self.assertEqual(len(record["configurations"]), 1)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200, response.data)
+        data = response.data
+        self.assertEqual(data["contextual_selection"]["pertinent_indexes"], [0])
+        self.assertEqual(
+            [row["position"] for row in data["relevant_configurations"]], [1]
+        )
+        self.assertEqual(data["technical_result"], INDETERMINATE)
+        self.assertEqual(data["applicability"]["status"], "PENDING_REVIEW")
+        branch = data["relevant_configurations"][0]
+        self.assertEqual(branch["hardware_scope"], "MATCHED")
+
+        def criteria(node):
+            if node.get("kind") == "CRITERION":
+                yield node
+            for child in node.get("children", []):
+                yield from criteria(child)
+
+        software = [
+            node for node in criteria(branch["tree"])
+            if node.get("part") == "a" and node.get("vulnerable")
+        ]
+        self.assertEqual(len(software), 8)
+        self.assertTrue(all("simatic_step_7" in node["criteria"]
+                            for node in software))
+        self.assertEqual(branch["candidate_installation_ids"], [])
+        # Selecting a criterion for review is not claiming it is installed.
+        selected = software[1]
+        key = selected.get("match_criteria_id") or selected["criteria"]
+        review = self.client.post(self.url, {
+            "configuration_index": 0,
+            "configuration_fingerprint": branch["fingerprint"],
+            "inventory_fingerprint": data["inventory_fingerprint"],
+            "verdict": "CONDITIONAL",
+            "selected_nvd_criterion": key,
+            "software_installation_id": None,
+            "justification": (
+                "Alternativa STEP 7 V16 examinada; instalación no comprobada "
+                "en este hardware."
+            ),
+        }, format="json")
+        self.assertEqual(review.status_code, 201, review.data)
+        after = self.client.get(self.url).data
+        self.assertEqual(after["applicability"]["status"], "APPLIES_CONDITIONAL")
+        self.assertEqual(after["applicability"]["source"], "ANALYST")
+        self.assertIsNone(
+            after["hardware_cve_decision"]["software_installation_id"]
+        )
+        self.assertEqual(
+            after["hardware_cve_decision"]["selected_nvd_criterion"]["key"], key
+        )
+
     def test_detail_is_one_cve_per_hardware_with_relevant_evidence_only(self):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200, response.data)
@@ -1035,8 +1130,8 @@ class SiemensContextualHttpTests(TestCase):
                          data["configurations"][8]["fingerprint"])
         self.assertEqual(len(proof["criteria"]), 2)
         self.assertEqual(data["assessment_summary"]["status"], "PENDING_REVIEW")
-        self.assertEqual(data["assessment_summary"]["total_configurations"], 12)
-        self.assertEqual(data["assessment_summary"]["pending_configurations"], 12)
+        self.assertEqual(data["assessment_summary"]["total_configurations"], 1)
+        self.assertEqual(data["assessment_summary"]["pending_configurations"], 1)
         self.assertEqual(len(data["configurations"]), 12)  # NVD preserved
         # Scope classification is a read-only projection for phase 2:
         # it does not rewrite automatic applicability (phase 3).
