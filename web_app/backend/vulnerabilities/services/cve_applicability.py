@@ -310,7 +310,7 @@ def project_configuration_decisions(technical, human_statuses, *,
     if global_decision in (APPLIES, APPLIES_CONDITIONAL, NOT_APPLICABLE):
         return {"status": global_decision, "source": ANALYST}
     if global_decision == PENDING_REVIEW:
-        return {"status": "IN_REVIEW", "source": NONE}
+        return {"status": PENDING_REVIEW, "source": NONE}
     configs = technical.get("configurations", [])
     excluded = {
         item["configuration_index"]
@@ -338,7 +338,7 @@ def project_configuration_decisions(technical, human_statuses, *,
             states.append((APPLIES, SYSTEM))
         elif human == PENDING_REVIEW:
             # Explicitly reopened by the analyst; no silent re-exclusion.
-            states.append(("IN_REVIEW", NONE))
+            states.append((PENDING_REVIEW, NONE))
         elif index in excluded:
             states.append((NOT_APPLICABLE, SYSTEM))
         else:
@@ -351,15 +351,16 @@ def project_configuration_decisions(technical, human_statuses, *,
         state in (APPLIES, APPLIES_CONDITIONAL) and origin == ANALYST
         for state, origin in states
     ):
-        return {"status": "STALE", "source": NONE}
+        return {"status": PENDING_REVIEW, "source": NONE,
+                "revalidation_required": True}
     for wanted in (APPLIES, APPLIES_CONDITIONAL):
         if any(state == wanted for state, _ in states):
             origin = (ANALYST if any(
                 state == wanted and source == ANALYST for state, source in states
             ) else SYSTEM)
             return {"status": wanted, "source": origin}
-    if any(state == "IN_REVIEW" for state, _ in states):
-        return {"status": "IN_REVIEW", "source": NONE}
+    if any(state == PENDING_REVIEW for state, _ in states):
+        return {"status": PENDING_REVIEW, "source": NONE}
     # Every included branch is either backed by _negative_proof or has an
     # explicit current analyst decision. Ignored branches cannot be counted
     # as proof and an empty included set never produces NOT_APPLICABLE.
