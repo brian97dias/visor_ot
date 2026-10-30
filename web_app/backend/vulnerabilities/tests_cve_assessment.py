@@ -476,6 +476,8 @@ class ExperimentalCveAssessmentTests(TestCase):
         latest = next(row for row in changed["relevant_configurations"]
                       if row["index"] == 11)["latest_assessment"]
         self.assertTrue(latest["stale"])
+        # Display the recorded 2.0, never the newer live firmware 3.0.
+        self.assertEqual(latest["software_display"][0]["installed_version"], "2.0")
         self.assertEqual(AssetCveAssessment.objects.count(), 1)
 
     def test_legacy_decision_can_be_reopened_as_hardware_pending(self):
