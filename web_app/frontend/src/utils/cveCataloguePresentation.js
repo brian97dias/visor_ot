@@ -497,6 +497,24 @@ export function operationalNvdGroupBranches(node, selectedCriterion = "") {
   return matched.length ? {shown: matched, hidden: []} : result;
 }
 
+/** Resolve the displayed vulnerable software leaf without changing NVD logic.
+ * The initial choice follows the current technical display priority; a manual
+ * choice focuses the corresponding OR branch instead of altering the evaluator.
+ */
+export function displayedNvdSoftwareCriterion(node, selectedCriterion = "") {
+  if (node?.kind === "CRITERION") {
+    return node.vulnerable === true && ["a", "o"].includes(node.part)
+      ? node : null;
+  }
+  if (node?.kind !== "GROUP") return null;
+  const { shown } = operationalNvdGroupBranches(node, selectedCriterion);
+  for (const child of shown) {
+    const found = displayedNvdSoftwareCriterion(child, selectedCriterion);
+    if (found) return found;
+  }
+  return null;
+}
+
 /** Labels describe NVD criteria, not assets proven to be affected. */
 export function nvdAlternativeGroupLabel(branches) {
   const kinds = new Set();
