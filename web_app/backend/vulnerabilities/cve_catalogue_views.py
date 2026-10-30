@@ -341,7 +341,7 @@ class CveCatalogueHardwareView(APIView):
             for finding in AssetCveFinding.objects.filter(
                 cve__cve_id=cve_id,
             ).select_related("hardware__asset")
-            if has_hardware_discovery_source(finding.sources)
+            if has_hardware_discovery_source(finding.sources, finding.hardware_id)
         }
         reviewed_ids = set(AssetCveAssessment.objects.filter(
             cve__cve_id=cve_id,
