@@ -7,7 +7,7 @@ import {
 } from "../api/vulnerabilities";
 import {
   CVE_EVALUATION_STATE, CVE_CATALOGUE_FILTER_STATES,
-  displayCveApplicability, cveAssetRoleLabel,
+  displayCveApplicability,
 
   CVE_APPLICABILITY_SOURCE,
 
