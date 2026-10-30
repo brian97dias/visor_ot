@@ -461,8 +461,9 @@ def select_contextual_configurations(evaluated):
     """Return a read-only, index-preserving scope projection over NVD trees.
 
     The original configurations and their complete evaluated AND/OR/NOT trees
-    are never removed, flattened or modified. This selector deliberately
-    does NOT aggregate the final Hardware-CVE verdict (phase 3).
+    are never removed, flattened or modified. The contextual result is an
+    additional technical projection; analyst verdicts and verified negative
+    proof are resolved separately by cve_applicability.
     """
     rows = evaluated.get("configurations", []) if isinstance(evaluated, dict) else []
     projection = {
@@ -529,8 +530,8 @@ def evaluate_configurations(configurations, hardware_cpes, installed_software):
             for config in configurations]
     result = {"result": _combine([row["result"] for row in rows], "OR"),
               "configurations": rows}
-    # Scope classification is an additional derived projection. Phase 2 does
-    # not change established applicability or legacy automatic audit results.
+    # Preserve the raw NVD evaluation and expose the contextual projection
+    # separately, so audit trails can explain both conclusions.
     result["contextual_selection"] = select_contextual_configurations(result)
     result["contextual_result"] = result["contextual_selection"]["result"]
     return result
