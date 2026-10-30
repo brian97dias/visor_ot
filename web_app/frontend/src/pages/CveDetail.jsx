@@ -241,11 +241,13 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     ? globalDecision : config.latest_assessment;
   const status = last?.effective_status || "PENDING_REVIEW";
   const firmwareCriterion = vulnerableSoftwareCriterion(config.tree);
-  const manuallyLinked = globalDecision && !globalDecision.stale &&
+  const manuallyLinked = globalDecision &&
+    globalDecision.configuration_index === config.index && !globalDecision.stale &&
     globalDecision.status === "APPLIES" &&
     globalDecision.software_installation_id && firmwareCriterion ? {
       installationId: String(globalDecision.software_installation_id),
-      criterionKey: firmwareCriterion.match_criteria_id || firmwareCriterion.criteria,
+      criterionKey: globalDecision.selected_nvd_criterion?.key ||
+         firmwareCriterion.match_criteria_id || firmwareCriterion.criteria,
       source: "ANALYST",
     } : null;
   const savedPositive = globalDecision
