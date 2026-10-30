@@ -82,6 +82,9 @@ class CveDiscoveryWorkerTests(TestCase):
         self.fixtures.link()
         self.fixtures.confirm(self.firmware.asset, SW_CPE)
         job, _ = self.enqueue()
+        # The worker discovers through hardware but still evaluates its
+        # installed firmware CPE and version when NVD requires both.
+        self.assertEqual([query["cpe_name"] for query in job.queries], [HW_CPE])
         row = record("CVE-2024-65432")
         row["configurations"] = [nvd_and(HW_CPE, SW_CPE)]
         fetched = Mock(return_value=page([row], size=2))
