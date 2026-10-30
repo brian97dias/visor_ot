@@ -183,13 +183,91 @@ class ConditionalSiemensTests(TestCase):
             reread["applicability"]["status"], "APPLIES_CONDITIONAL"
         )
 
-    def test_unrelated_firmware_cannot_be_linked_to_step7(self):
-        refused = self.client.post(self.url, self.payload(
-            software_installation_id=self.installation.pk,
-        ), format="json")
-        self.assertEqual(refused.status_code, 400, refused.data)
-        self.assertIn("software_installation_id", refused.data)
-        self.assertEqual(AssetCveAssessment.objects.count(), 0)
+    def test_other_firmware_can_be_reviewed_without_becoming_step7(self):
+        data = self.payload(software_installation_id=self.installation.pk)
+        data["selected_nvd_criterion"] = fixtures.STEP7
+        saved = self.client.post(self.url, data, format="json")
+        self.assertEqual(saved.status_code, 201, saved.data)
+        record = AssetCveAssessment.objects.get()
+        self.assertEqual(record.status, "APPLIES_CONDITIONAL")
+        self.assertIsNone(record.software_installation_id)
+        reviewed = record.criteria_evidence["reviewed_software"]
+        self.assertEqual(len(reviewed), 1)
+        self.assertEqual(reviewed[0]["link_source"], "ANALYST_REVIEW_ONLY")
+        self.assertFalse(reviewed[0]["identity_verified"])
+        self.assertEqual(record.criteria_evidence["selected_nvd_criterion"]["criteria"],
+                         fixtures.STEP7)
+
+    def test_analyst_can_confirm_hardware_cve_without_software_link(self):
+        data = self.payload()
+        data.update(verdict="CONFIRMED", selected_nvd_criterion=fixtures.STEP7,
+                    technical_override_acknowledged=True)
+        saved = self.client.post(self.url, data, format="json")
+        self.assertEqual(saved.status_code, 201, saved.data)
+        record = AssetCveAssessment.objects.get()
+        self.assertEqual(record.status, "APPLIES")
+        self.assertIsNone(record.software_installation_id)
+        self.assertEqual(
+            record.criteria_evidence["manual_applicability_evidence"]["basis"],
+            "ANALYST_HARDWARE_CVE_CONCLUSION",
+        )
+        reread = self.client.get(self.url).data
+        self.assertEqual(reread["technical_result"], "INDETERMINATE")
+        self.assertEqual(reread["applicability"]["status"], "APPLIES")
+        self.assertEqual(reread["applicability"]["source"], "ANALYST")
+
+    def test_manual_positive_requires_explicit_acknowledgement(self):
+        data = self.payload()
+        data.update(verdict="CONFIRMED", selected_nvd_criterion=fixtures.STEP7)
+        response = self.client.post(self.url, data, format="json")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("technical_override_acknowledged", response.data)
+        self.assertFalse(AssetCveAssessment.objects.exists())
+
+    def test_confirm_with_unrelated_firmware_keeps_review_but_no_positive_link(self):
+        data = self.payload(software_installation_id=self.installation.pk)
+        data.update(verdict="CONFIRMED", selected_nvd_criterion=fixtures.STEP7,
+                    technical_override_acknowledged=True)
+        saved = self.client.post(self.url, data, format="json")
+        self.assertEqual(saved.status_code, 201, saved.data)
+        record = AssetCveAssessment.objects.get()
+        self.assertEqual(record.status, "APPLIES")
+        self.assertIsNone(record.software_installation_id)
+        self.assertEqual(
+            record.criteria_evidence["reviewed_software"][0]["installation_id"],
+            self.installation.pk,
+        )
+        self.assertFalse(record.criteria_evidence["reviewed_software"][0]
+                         ["identity_verified"])
+
+    def test_analyst_selects_exact_or_criterion_and_is_audited(self):
+        alternative = (
+            "cpe:2.3:a:siemens:simatic_step_7:16:update4:*:*:*:*:*:*"
+        )
+        uuid = "10000000-0000-4000-8000-000000000001"
+        config = self.cve.configurations
+        config[0]["nodes"][1]["cpeMatch"].append({
+            "criteria": alternative, "vulnerable": True, "matchCriteriaId": uuid,
+        })
+        self.cve.save(update_fields=["configurations"])
+        data = self.payload()
+        data["selected_nvd_criterion"] = uuid
+        saved = self.client.post(self.url, data, format="json")
+        self.assertEqual(saved.status_code, 201, saved.data)
+        evidence = AssetCveAssessment.objects.get().criteria_evidence
+        self.assertEqual(evidence["selected_nvd_criterion"]["key"], uuid)
+        self.assertEqual(evidence["selected_nvd_criterion"]["criteria"], alternative)
+        self.assertEqual(evidence["selected_nvd_criterion"]["part"], "a")
+        self.assertEqual(self.client.get(self.url).data["configurations"][0]
+                         ["latest_assessment"]["selected_nvd_criterion"]["key"], uuid)
+
+    def test_rejects_a_criterion_not_in_the_nvd_configuration(self):
+        data = self.payload()
+        data["selected_nvd_criterion"] = "cpe:2.3:a:other:product:*:*:*:*:*:*:*:*"
+        response = self.client.post(self.url, data, format="json")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("selected_nvd_criterion", response.data)
+        self.assertFalse(AssetCveAssessment.objects.exists())
 
     def test_short_justification_allowed_but_hardware_identity_enforced(self):
         short = self.client.post(self.url, self.payload(
