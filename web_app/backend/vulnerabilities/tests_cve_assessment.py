@@ -97,6 +97,54 @@ class ExperimentalCveAssessmentTests(TestCase):
         payload.update(overrides)
         return self.client.post(self.url, payload, format="json")
 
+    def test_phoenix_cve_uses_the_same_generic_assessment_api(self):
+        """The former experimental CVE must work without a hard-coded CVE UI."""
+        self.confirm_hardware_cpe()
+        installation = self.link()
+        url = (
+            f"/api/vulnerabilities/cves/{EXPERIMENTAL_CVE_ID}/"
+            f"hardware/{self.hw.pk}/assessment/"
+        )
+        result = self.client.get(url)
+        self.assertEqual(result.status_code, 200, result.data)
+        data = result.data
+        self.assertEqual(data["hardware_asset_id"], self.hw.pk)
+        self.assertEqual(
+            len(data["configurations"]), len(self.cve.configurations)
+        )
+        phoenix = next(
+            (row for row in data["relevant_configurations"]
+             if row["position"] == 12), None
+        )
+        self.assertIsNotNone(phoenix)
+        self.assertEqual(phoenix["hardware_scope"], "MATCHED")
+        self.assertTrue(phoenix["conditional_supported"])
+        self.assertIn(
+            installation.pk,
+            [row["installation_id"] for row in data["installed_software"]],
+        )
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
+
+        # The new UI uses the generic endpoint to register a conditional
+        # decision without inventing a verified firmware CPE identity.
+        submitted = self.client.post(url, {
+            "configuration_index": phoenix["index"],
+            "verdict": "CONDITIONAL",
+            "software_installation_id": None,
+            "selected_nvd_criterion": FIRMWARE_CRITERION,
+            "inventory_fingerprint": data["inventory_fingerprint"],
+            "configuration_fingerprint": phoenix["fingerprint"],
+            "justification": "Firmware identificado, versión por verificar.",
+        }, format="json")
+        self.assertEqual(submitted.status_code, 201, submitted.data)
+        self.assertEqual(
+            submitted.data["assessment"]["status"], "APPLIES_CONDITIONAL"
+        )
+        self.assertIsNone(
+            submitted.data["assessment"]["software_installation_id"]
+        )
+        self.assertEqual(AssetCveAssessment.objects.count(), 1)
+
     def test_multilingual_nvd_descriptions_are_returned_without_translating_or_overwriting(self):
         descriptions = [
             {"lang": "en", "value": "NVD English original"},
