@@ -43,19 +43,15 @@ function vulnerableSoftwareCriterion(tree) {
   return null;
 }
 
-function Criterion({ item, depth = 0, selection, onSelect, installId,
+function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, installId,
   installedSoftware = [], canDecide = false, savedLink = null,
   pendingUnlink = false, softwareAlternatives = [], onChooseSoftware,
-  allowedInstallationIds = null }) {
+  onChooseCriterion,
+}) {
   if (item.kind === "CRITERION") {
     const isSoftware = ["a", "o"].includes(item.part);
     const identityBadge = nvdCriterionIdentityBadge(item);
-    const currentInstallations = (installedSoftware || []).filter(sw =>
-      (item.part === "a" ? sw.software_type === "APPLICATION" :
-        ["FIRMWARE", "OS"].includes(sw.software_type)) &&
-      (allowedInstallationIds === null ||
-        allowedInstallationIds.includes(Number(sw.installation_id)))
-    );
+    const currentInstallations = installedSoftware || [];
     const criterionKey = item.match_criteria_id || item.criteria;
     return <div className="cve-nvd-condition cve-general-criterion">
       <div className="cve-nvd-condition-summary">
@@ -76,12 +72,20 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
       </div>
 
       {isSoftware && item.vulnerable && onSelect && <div className="cve-nvd-selection">
+        {onChooseCriterion && selection !== criterionKey &&
+          <button type="button" className="cve-nvd-software-choice"
+            onClick={() => onChooseCriterion(criterionKey)}>
+            Examinar esta alternativa NVD
+          </button>}
+        {selection === criterionKey && <p className="cve-review-note">
+          Alternativa NVD examinada: <code>{item.criteria}</code>
+        </p>}
         {currentInstallations.length ? <>
           <p className="cve-nvd-association-title">
             Software registrado como instalado en este hardware
           </p>
           {currentInstallations.map(sw => {
-            const isChecked = selection === criterionKey &&
+            const isChecked = linkedCriterion === criterionKey &&
               installId === String(sw.installation_id);
             const persisted = isChecked && savedLink?.installationId ===
               String(sw.installation_id) && savedLink.criterionKey === criterionKey;
@@ -195,12 +199,12 @@ function Criterion({ item, depth = 0, selection, onSelect, installId,
   const renderChild = (child, i) =>
     <Criterion key={(child.match_criteria_id || child.criteria || "grupo") + ":" + i}
       item={child} depth={depth + 1} selection={selection}
-      onSelect={onSelect} installId={installId}
+      linkedCriterion={linkedCriterion} onSelect={onSelect} installId={installId}
       installedSoftware={installedSoftware} canDecide={canDecide}
       savedLink={savedLink} pendingUnlink={pendingUnlink}
-      allowedInstallationIds={allowedInstallationIds}
       softwareAlternatives={i === firstSoftware ? softwareAlternatives : []}
-      onChooseSoftware={onChooseSoftware}/>;
+      onChooseSoftware={onChooseSoftware}
+      onChooseCriterion={onChooseCriterion}/>;
 
   return <div className={"cve-general-group " + (depth ? "cve-general-nested" : "")}>
     {!isOr && shown.length > 1 && depth === 0 &&
@@ -248,6 +252,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const savedLink = savedPositive || evaluatedLink;
   // null means no edit; an empty draft overrides the persisted check only locally.
   const [draftLink, setDraftLink] = useState(null);
+  const [focusedCriterion, setFocusedCriterion] = useState(
+    last?.selected_nvd_criterion?.key || ""
+  );
   const [reviewOpen, setReviewOpen] = useState(false);
   const [choice, setChoice] = useState("");
   const [justification, setJustification] = useState("");
@@ -256,7 +263,8 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const justificationRef = useRef(null);
   const currentLink = draftLink === null ? savedLink : draftLink;
   const installId = currentLink?.installationId || "";
-  const selectedCriterion = currentLink?.criterionKey || "";
+  const linkedCriterion = currentLink?.criterionKey || "";
+  const selectedCriterion = focusedCriterion || linkedCriterion;
   const pendingUnlink = choice === "CONDITIONAL" && Boolean(savedLink) &&
     draftLink !== null && !draftLink.installationId;
 
@@ -286,17 +294,15 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     ["INDETERMINATE", "EXCLUDED"].includes(config.technical_result);
   const technicalConflict = config.technical_result === "EXCLUDED";
   const unverifiedPlatform = Boolean(config.manual_platform_review_required);
-  const checked = Boolean(selectedCriterion);
+  const checked = Boolean(linkedCriterion);
   const canConfirm = canReview || canConditional ||
-    config.manual_confirm_supported ||
+    config.manual_confirm_supported || config.hardware_scope === "MATCHED" ||
     (reviewOpen && config.technical_result === "COMPATIBLE");
   const linkedInstallationId = checked ? installId : "";
   const eligible = (config.candidate_installation_ids || []).includes(Number(linkedInstallationId)) ||
     (config.manual_firmware_installation_ids || []).includes(Number(linkedInstallationId)) ||
     config.review_installation_id === Number(linkedInstallationId);
-  const confirmationVerdict = linkedInstallationId && eligible
-    ? "CONFIRMED" : "CONDITIONAL";
-  const positiveConflict = (
+    const positiveConflict = (
     config.technical_result === "COMPATIBLE" ||
     (context?.technical_result === "COMPATIBLE")
   ) && ["NOT_MATCH", "CONDITIONAL"].includes(choice);
@@ -306,10 +312,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       (last?.source === "ANALYST" && !last?.stale &&
         ["APPLIES", "APPLIES_CONDITIONAL"].includes(last.status))) &&
     (canReview || canConditional || config.technical_result === "COMPATIBLE");
-  const noSelected = choice === "CONFIRMED" && !selectedId;
-  // A non-empty explanation is required, but its quality cannot be judged
+    // A non-empty explanation is required, but its quality cannot be judged
   // by character count. The backend still verifies hardware/software scope.
-  const invalid = !justification.trim() || noSelected ||
+  const invalid = !justification.trim() ||
     (unverifiedPlatform && choice === "CONDITIONAL" && !linkedInstallationId);
 
   function reset() {
@@ -323,6 +328,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     setJustification(""); setError("");
   }
   function updateAssociation(criterionKey, installationId) {
+    if (criterionKey) setFocusedCriterion(criterionKey);
     if (savedLink && !criterionKey && !installationId) {
       setReviewOpen(true);
       setDraftLink({ criterionKey: "", installationId: "" });
@@ -353,10 +359,11 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         inventory_fingerprint: context.inventory_fingerprint,
         verdict: choice,
         software_installation_id: choice === "UNKNOWN" ? null :
-          choice === "CONDITIONAL" && config.hardware_scope === "MATCHED"
-            ? null : (selectedId ? Number(selectedId) : null),
+          (selectedId ? Number(selectedId) : null),
+        selected_nvd_criterion: selectedCriterion,
         inventory_declared_complete: false,
         technical_override_acknowledged: (
+          (choice === "CONFIRMED" && !eligible) ||
           (technicalConflict && ["CONFIRMED", "CONDITIONAL"].includes(choice)) ||
           positiveConflict ||
           (context?.technical_result === "EXCLUDED" &&
@@ -385,21 +392,15 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   }
   const allowedChanges = allowedCveDecisionTransitions(currentStatus);
   const showChoices = canDecide && (!lockedDecision || reviewOpen);
-  const allowedInstallationIds = [
-    ...(config.candidate_installation_ids || []),
-    ...(config.manual_firmware_installation_ids || []),
-    ...(config.review_installation_id ? [config.review_installation_id] : []),
-    ...(savedLink?.installationId ? [Number(savedLink.installationId)] : []),
-  ];
   return <>
     <Criterion item={config.tree} selection={selectedCriterion}
-      onSelect={updateAssociation}
+      linkedCriterion={linkedCriterion} onSelect={updateAssociation}
       installId={installId} installedSoftware={context.installed_software || []}
       canDecide={canDecide && (canConfirm || canReopen || canDiscard)}
       savedLink={savedLink} pendingUnlink={pendingUnlink}
-      allowedInstallationIds={allowedInstallationIds}
       softwareAlternatives={softwareAlternatives}
-      onChooseSoftware={onChooseSoftware}/>
+      onChooseSoftware={onChooseSoftware}
+      onChooseCriterion={setFocusedCriterion}/>
     <div className="panel cve-nvd-decision">
     <div className="cve-nvd-joint-title">
       <h3>{highlight ? "Correspondencia del CVE" :
@@ -429,8 +430,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         className="cve-nvd-action" onClick={beginReopen}>
         Reabrir evaluación</button>}
       {showChoices && <>
-        {canConfirm && allowedChanges.includes("CONFIRMED") &&
-          confirmationVerdict === "CONFIRMED" && <button type="button"
+        {canConfirm && allowedChanges.includes("CONFIRMED") && <button type="button"
           className={"cve-nvd-action" + (choice === "CONFIRMED" ? " selected" : "")}
           onClick={() => { setChoice("CONFIRMED"); setReviewOpen(true); setJustification(""); }}>
           Confirmar correspondencia</button>}
