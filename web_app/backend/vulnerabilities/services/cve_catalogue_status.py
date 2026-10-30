@@ -28,46 +28,27 @@ CATALOGUE_STATES = (
 
 
 def _is_current(record, cve, cache):
-    """Recheck both current inventory identity and the exact NVD configuration."""
-    configs = cve.configurations
-    if not isinstance(configs, list) or record.configuration_index >= len(configs):
+    """Use the same decision validity as detail and related-assets projection."""
+    if not isinstance(cve.configurations, list):
         return False
-    if record.configuration_index < 0:
+    index = record.configuration_index
+    if index < 0 or index >= len(cve.configurations):
         return False
-
-    is_legacy = (
-        cve.cve_id == "CVE-2021-33540"
-        and record.hardware_id == 2
-        and isinstance(record.criteria_evidence, dict)
-        and {"hardware", "firmware"}.issubset(record.criteria_evidence)
-    )
-    key = (cve.pk, record.hardware_id, is_legacy)
+    key = (cve.pk, record.hardware_id)
     if key not in cache:
         try:
-            if is_legacy:
-                context = experimental_context(record.hardware_id)
-                cache[key] = (
-                    context["inventory_fingerprint"],
-                    {context["scenario"]["index"]:
-                     context["configuration_fingerprint"]},
-                )
-            else:
-                _, _, _, _, inventory_fingerprint = general_context(
-                    cve.cve_id, record.hardware_id
-                )
-                cache[key] = (
-                    inventory_fingerprint,
-                    {index: _digest(config) for index, config in enumerate(configs)},
-                )
+            hardware, _, _, _, inventory_fp = general_context(
+                cve.cve_id, record.hardware_id
+            )
+            cache[key] = (hardware, inventory_fp)
         except (NotFound, ValidationError, CveResponseError, ValueError, AttributeError):
-            cache[key] = (None, {})
-    inventory_fingerprint, config_fingerprints = cache[key]
-    return bool(
-        inventory_fingerprint
-        and record.inventory_fingerprint == inventory_fingerprint
-        and record.configuration_fingerprint == config_fingerprints.get(
-            record.configuration_index
-        )
+            cache[key] = (None, None)
+    hardware, inventory_fp = cache[key]
+    if hardware is None:
+        return False
+    from .cve_applicability import assessment_evidence_is_current
+    return assessment_evidence_is_current(
+        record, cve, hardware, inventory_fp, _digest(cve.configurations[index])
     )
 
 
