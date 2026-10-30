@@ -230,6 +230,44 @@ def automatic_negative_evidence(technical):
 
 
 
+def assessment_evidence_is_current(record, cve, hardware, inventory_fp, config_fp):
+    """Validate stored evidence using the SAME scheme that produced the record.
+
+    Legacy Phoenix Contact experimental assessments used a different
+    inventory fingerprint. They remain current only while that exact legacy
+    fingerprint and the unchanged NVD configuration still match. Do not
+    rewrite historical evidence or migrate its fingerprint silently.
+    """
+    if record.configuration_fingerprint != config_fp:
+        return False
+    if record.inventory_fingerprint == inventory_fp:
+        return True
+    evidence = record.criteria_evidence
+    if not (
+        cve.cve_id == "CVE-2021-33540"
+        and hardware.pk == 2
+        and record.hardware_id == hardware.pk
+        and isinstance(evidence, dict)
+        and isinstance(evidence.get("hardware"), dict)
+        and isinstance(evidence.get("firmware"), dict)
+        and evidence["firmware"].get("selected_installation_id")
+            == record.software_installation_id
+    ):
+        return False
+    try:
+        from .cve_assessment import _context as experimental_context
+        old = experimental_context(hardware.pk)
+    except Exception:
+        # An unavailable/mismatched old evidence scope cannot be revalidated.
+        return False
+    return (
+        old["cve"].pk == cve.pk
+        and old["scenario"]["index"] == record.configuration_index
+        and record.configuration_fingerprint == old["configuration_fingerprint"]
+        and record.inventory_fingerprint == old["inventory_fingerprint"]
+    )
+
+
 def latest_hardware_cve_decision(cve, hardware, inventory_fingerprint):
     """Latest explicit asset-wide human verdict; never reinterpret a NVD leaf.
 
