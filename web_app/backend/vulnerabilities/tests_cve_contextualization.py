@@ -1244,6 +1244,58 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(data["configurations"][45]["hardware_scope"], "DISTINCT")
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
+    def test_catalogue_includes_firmware_used_to_disprove_cve_by_version(self):
+        """A verified negative uses installed firmware as evaluation evidence.
+
+        This is NOT a new vulnerable-software relation, nor a new assessment.
+        """
+        self.cve.cve_id = "CVE-2021-37205"
+        self.cve.configurations = nvd_2021_37205_configurations()
+        self.cve.save(update_fields=["cve_id", "configurations"])
+
+        result = self.client.get("/api/vulnerabilities/cves/")
+        self.assertEqual(result.status_code, 200, result.data)
+        cve = next(row for row in result.data["results"]
+                   if row["cve_id"] == "CVE-2021-37205")
+        self.assertEqual(cve["applicability_status"], "NOT_APPLICABLE")
+        self.assertEqual(cve["applicability_source"], "SYSTEM")
+        context = next(row for row in cve["related_assets"]
+                       if row["hardware_id"] == self.hw.pk)
+        self.assertEqual(context["technical_result"], EXCLUDED)
+        self.assertEqual(
+            [row["asset_type"] for row in context["assets"]],
+            ["HARDWARE", "SOFTWARE"],
+        )
+        firmware = context["assets"][1]
+        self.assertEqual(firmware["asset_id"], self.sw.asset_id)
+        self.assertEqual(firmware["installation_id"], self.installation.pk)
+        self.assertEqual(firmware["software_type"], "FIRMWARE")
+        self.assertEqual(firmware["role"], "VULNERABLE")
+        self.assertEqual(firmware["version"], "4.5.2")
+        exclusions = context["automatic_negative_evidence"]["configurations"]
+        self.assertEqual([row["configuration_index"] for row in exclusions], [12])
+        self.assertEqual(
+            exclusions[0]["excluded_by"][0]["reason"],
+            "FIRMWARE_OR_SOFTWARE_VERSION_EXCLUDED",
+        )
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
+
+    def test_catalogue_does_not_include_unrelated_installed_firmware(self):
+        """An installed firmware is not listed unless actually evaluated."""
+        self._load_nvd_configuration_fixture("CVE-2021-42029")
+        result = self.client.get("/api/vulnerabilities/cves/")
+        self.assertEqual(result.status_code, 200, result.data)
+        cve = next(row for row in result.data["results"]
+                   if row["cve_id"] == "CVE-2021-42029")
+        self.assertEqual(cve["applicability_status"], "PENDING_REVIEW")
+        context = next(row for row in cve["related_assets"]
+                       if row["hardware_id"] == self.hw.pk)
+        self.assertEqual(
+            [row["asset_type"] for row in context["assets"]],
+            ["HARDWARE"],
+        )
+        self.assertIsNone(context["automatic_negative_evidence"])
+
     def test_system_negative_audits_only_the_one_hardware_relevant_cpu(self):
         """Only pertinent firmware exclusions get new SYSTEM audit rows."""
         self.cve.cve_id = "CVE-2021-37205"
