@@ -105,7 +105,7 @@ function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, inst
                     event.target.checked ? String(sw.installation_id) : ""
                   )}/>
                 <span>{persisted && savedLink.evidenceOnly
-                  ? "Firmware identificado y utilizado para evaluar por qué no aplica"
+                  ? "Software inventariado revisado; esto no confirma vulnerabilidad"
                   : persisted
                     ? savedLink.source === "SYSTEM"
                       ? "CVE asociado automáticamente · Desmarcar para revisar"
@@ -396,7 +396,18 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       setSaving(false);
     }
   }
-  const allowedChanges = allowedCveDecisionTransitions(currentStatus);
+  const previousCriterion = last?.selected_nvd_criterion?.key || "";
+  const priorReviewed = (last?.reviewed_software || [])[0];
+  const previousInstallation = last?.software_installation_id ||
+    priorReviewed?.installation_id || priorReviewed?.software_installation_id || "";
+  const evidenceChanged = selectedCriterion !== previousCriterion ||
+    String(selectedId || "") !== String(previousInstallation || "");
+  const allowedChanges = [
+    ...allowedCveDecisionTransitions(currentStatus),
+    ...(evidenceChanged && currentStatus === "APPLIES" ? ["CONFIRMED"] : []),
+    ...(evidenceChanged && currentStatus === "APPLIES_CONDITIONAL" ? ["CONDITIONAL"] : []),
+    ...(evidenceChanged && currentStatus === "NOT_APPLICABLE" ? ["NOT_MATCH"] : []),
+  ];
   const showChoices = canDecide && (!lockedDecision || reviewOpen);
   return <>
     <Criterion item={config.tree} selection={selectedCriterion}
@@ -406,7 +417,11 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       savedLink={savedLink} pendingUnlink={pendingUnlink}
       softwareAlternatives={softwareAlternatives}
       onChooseSoftware={onChooseSoftware}
-      onChooseCriterion={setFocusedCriterion}/>
+      onChooseCriterion={key => {
+        setFocusedCriterion(key);
+        setReviewOpen(true);
+        setChoice("");
+      }}/>
     <div className="panel cve-nvd-decision">
     <div className="cve-nvd-joint-title">
       <h3>{highlight ? "Correspondencia del CVE" :
@@ -458,7 +473,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     </div>}
     {choice === "CONDITIONAL" && <p className="cve-review-note" role="status">
       Correspondencia parcial: {linkedInstallationId
-        ? "se registrará la instalación seleccionada como asociación condicionada."
+        ? "la instalación quedará registrada como revisada, sin considerarla vulnerable."
         : "no se vinculará ninguna instalación de software."}
     </p>}
     {!canDiscard && canDecide && !lockedDecision &&
@@ -547,6 +562,13 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
           <p className="cve-history-reason">
             {cveHistoryDecisionDescription(item)}
           </p>
+          {item.selected_nvd_criterion && <p className="cve-review-note">
+            Alternativa NVD revisada: <code>{item.selected_nvd_criterion.criteria}</code>
+          </p>}
+          {item.manual_applicability_evidence && <p className="cve-review-note">
+            Confirmación manual del CVE para el hardware; no se ha verificado
+            una identidad CPE de software afectado.
+          </p>}
           {item.technical_override && <p className="cve-review-note">
             La conclusión del analista es diferente del resultado técnico
             NVD ({CVE_TECHNICAL_STATE[item.technical_override.technical_result] ||
