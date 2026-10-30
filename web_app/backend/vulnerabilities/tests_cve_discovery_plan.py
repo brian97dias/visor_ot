@@ -105,51 +105,61 @@ class CveDiscoveryPlanTests(TestCase):
         self.assertEqual(query["next_start_index"], 0)
         self.assertEqual(query["status"], "QUEUED")
 
-    def test_confirmed_software_cpe_requires_current_installation(self):
-        self.confirm(self.hardware.asset, HW_CPE)
-        self.confirm(self.firmware.asset, SW_CPE)
-        plan = build_cve_discovery_plan([self.hardware.pk])
-        self.assertEqual([q["cpe_name"] for q in plan["queries"]], [HW_CPE])
-        installed = self.link()
+    def test_installed_software_never_generates_independent_cve_queries(self):
+        hardware_cpe = self.confirm(self.hardware.asset, HW_CPE)
+        sw_cpe = self.confirm(self.firmware.asset, SW_CPE)
+        before = build_cve_discovery_plan([self.hardware.pk])
+        installation = self.link()
         after = build_cve_discovery_plan([self.hardware.pk])
-        self.assertEqual({q["cpe_name"] for q in after["queries"]}, {HW_CPE, SW_CPE})
-        sw_query = next(q for q in after["queries"] if q["cpe_name"] == SW_CPE)
-        self.assertEqual(sw_query["sources"][0]["origin"], "SOFTWARE")
-        self.assertEqual(sw_query["sources"][0]["installation_id"], installed.pk)
-        self.assertEqual(sw_query["sources"][0]["asset_id"], self.firmware.asset_id)
-        installed.unlinked_at = timezone.now()
-        installed.unlinked_by = self.user
-        installed.save(update_fields=["unlinked_at", "unlinked_by"])
+        self.assertEqual([q["cpe_name"] for q in after["queries"]], [HW_CPE])
+        self.assertEqual(after["queries"][0]["sources"][0]["asset_cpe_id"],
+                         hardware_cpe.pk)
+        self.assertTrue(all(source["origin"] == "HARDWARE"
+                            for q in after["queries"] for source in q["sources"]))
+        self.assertNotIn(sw_cpe.pk, {
+            source["asset_cpe_id"] for q in after["queries"]
+            for source in q["sources"]
+        })
+        self.assertEqual(before["evidence_fingerprints"],
+                         after["evidence_fingerprints"])
+        self.firmware.version = "3.0"
+        self.firmware.save(update_fields=["version"])
+        changed_software = build_cve_discovery_plan([self.hardware.pk])
+        self.assertEqual(after["queries"], changed_software["queries"])
+        self.assertEqual(after["evidence_fingerprints"],
+                         changed_software["evidence_fingerprints"])
+        installation.unlinked_at = timezone.now()
+        installation.unlinked_by = self.user
+        installation.save(update_fields=["unlinked_at", "unlinked_by"])
         unlinked = build_cve_discovery_plan([self.hardware.pk])
-        self.assertEqual([q["cpe_name"] for q in unlinked["queries"]], [HW_CPE])
+        self.assertEqual(unlinked["queries"], before["queries"])
+        self.assertEqual(unlinked["evidence_fingerprints"],
+                         before["evidence_fingerprints"])
 
-    def test_archived_software_or_stale_software_identity_is_not_queried(self):
+    def test_archived_and_stale_software_do_not_affect_hardware_queries(self):
         self.confirm(self.hardware.asset, HW_CPE)
-        installed = self.link()
+        self.link()
         assoc = self.confirm(self.firmware.asset, SW_CPE)
         initial = build_cve_discovery_plan([self.hardware.pk])
-        self.assertEqual(len(initial["queries"]), 2)
+        self.assertEqual(len(initial["queries"]), 1)
         self.firmware.version = "3.0"
         self.firmware.save(update_fields=["version"])
         stale = build_cve_discovery_plan([self.hardware.pk])
         self.assertEqual([q["cpe_name"] for q in stale["queries"]], [HW_CPE])
-        self.assertNotEqual(
-            initial["evidence_fingerprints"], stale["evidence_fingerprints"]
-        )
+        self.assertEqual(initial["evidence_fingerprints"],
+                         stale["evidence_fingerprints"])
         assoc.validated_identity_fingerprint = fingerprint(
             software_identity(self.firmware.asset)
         )
         assoc.save(update_fields=["validated_identity_fingerprint"])
         renewed = build_cve_discovery_plan([self.hardware.pk])
-        self.assertEqual(len(renewed["queries"]), 2)
+        self.assertEqual(len(renewed["queries"]), 1)
         self.firmware.asset.inventory_status = Asset.InventoryStatus.ARCHIVED
         self.firmware.asset.save(update_fields=["inventory_status"])
         archived = build_cve_discovery_plan([self.hardware.pk])
-        self.assertEqual([q["cpe_name"] for q in archived["queries"]], [HW_CPE])
-        self.assertNotEqual(
-            renewed["evidence_fingerprints"], archived["evidence_fingerprints"]
-        )
-        self.assertEqual(installed.hardware_id, self.hardware.pk)
+        self.assertEqual(renewed["queries"], archived["queries"])
+        self.assertEqual(renewed["evidence_fingerprints"],
+                         archived["evidence_fingerprints"])
 
     def test_stale_hardware_identity_or_revoked_or_deprecated_cpe_skipped(self):
         assoc = self.confirm(self.hardware.asset, HW_CPE)
@@ -183,7 +193,7 @@ class CveDiscoveryPlanTests(TestCase):
         pending.validation_status = AssetCpe.Validation.CONFIRMED
         pending.save(update_fields=["validation_status"])
         plan = build_cve_discovery_plan([self.hardware.pk])
-        self.assertEqual({q["cpe_name"] for q in plan["queries"]}, {HW_CPE, SW_CPE})
+        self.assertEqual({q["cpe_name"] for q in plan["queries"]}, {HW_CPE})
         self.assertNotIn(invalid.pk, [
             src["asset_cpe_id"] for q in plan["queries"] for src in q["sources"]
         ])
@@ -258,7 +268,7 @@ class CveDiscoveryPlanTests(TestCase):
         self.link(software=application)
         self.confirm(application.asset, SW_CPE_TWO)
         plan = build_cve_discovery_plan([self.hardware.pk])
-        self.assertEqual(len(plan["queries"]), 3)
+        self.assertEqual(len(plan["queries"]), 1)
         sources = [s for q in plan["queries"] for s in q["sources"]]
-        self.assertEqual({s["origin"] for s in sources}, {"HARDWARE", "SOFTWARE"})
-        self.assertEqual(len([s for s in sources if s["origin"] == "SOFTWARE"]), 2)
+        self.assertEqual({s["origin"] for s in sources}, {"HARDWARE"})
+        self.assertEqual(len([s for s in sources if s["origin"] == "SOFTWARE"]), 0)
