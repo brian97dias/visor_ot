@@ -295,7 +295,7 @@ export function updatedCveReviewChoice(currentChoice, newPreferredVerdict) {
 
 /** Reopening must propose a DIFFERENT state, never reaffirm a verdict. */
 export function allowedCveDecisionTransitions(currentStatus) {
-  const actions = ["CONFIRMED", "CONDITIONAL", "NOT_MATCH"];
+  const actions = ["CONFIRMED", "CONDITIONAL", "NOT_MATCH", "UNKNOWN"];
   const already = {
     APPLIES: "CONFIRMED",
     APPLIES_CONDITIONAL: "CONDITIONAL",
