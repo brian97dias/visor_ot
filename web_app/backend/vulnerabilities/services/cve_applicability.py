@@ -308,19 +308,10 @@ def project_configuration_decisions(technical, human_statuses, *,
             return {"status": wanted, "source": origin}
     if any(state == "IN_REVIEW" for state, _ in states):
         return {"status": "IN_REVIEW", "source": NONE}
-    # An automatic global negative is only possible when at least one
-    # hardware-anchored branch exists and *all* pertinent branches have proof.
-    # Per-config human decisions can still be projected in their own scope;
-    # current hardware-wide human decisions are handled at the top.
-    proof = automatic_negative_evidence(technical)
-    if states and all(state == NOT_APPLICABLE for state, _ in states) and (
-        proof is not None or (
-            human_statuses and all(
-                index in human_statuses
-                for index in scope.get("pertinent_indexes", range(len(configs)))
-            )
-        )
-    ):
+    # Every included branch is either backed by _negative_proof or has an
+    # explicit current analyst decision. Ignored branches cannot be counted
+    # as proof and an empty included set never produces NOT_APPLICABLE.
+    if states and all(state == NOT_APPLICABLE for state, _ in states):
         return {
             "status": NOT_APPLICABLE,
             "source": ANALYST if any(
