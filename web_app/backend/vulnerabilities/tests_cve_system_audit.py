@@ -71,7 +71,8 @@ class SystemCveAuditTests(TestCase):
         }
         refused = self.client.post(self.url, data, format="json")
         self.assertEqual(refused.status_code, 400, refused.data)
-        self.assertEqual(AssetCveAssessment.objects.count(), 2)
+        # Only the pertinent firmware branch was automatically audited.
+        self.assertEqual(AssetCveAssessment.objects.count(), 1)
         data.update({
             "verdict": "CONDITIONAL", "software_installation_id": None,
             "technical_override_acknowledged": True,
@@ -83,7 +84,7 @@ class SystemCveAuditTests(TestCase):
         changed = self.client.post(self.url, data, format="json")
         self.assertEqual(changed.status_code, 201, changed.data)
         self.assertEqual(changed.data["assessment"]["status"], "APPLIES_CONDITIONAL")
-        self.assertEqual(AssetCveAssessment.objects.count(), 3)
+        self.assertEqual(AssetCveAssessment.objects.count(), 2)
         latest = self.client.get(self.url).data
         self.assertEqual(latest["technical_result"], "EXCLUDED")
         self.assertEqual(latest["applicability"]["status"], "APPLIES_CONDITIONAL")
@@ -92,7 +93,7 @@ class SystemCveAuditTests(TestCase):
                          ["software_installation_id"], None)
         duplicate = self.client.post(self.url, data, format="json")
         self.assertEqual(duplicate.status_code, 400, duplicate.data)
-        self.assertEqual(AssetCveAssessment.objects.count(), 3)
+        self.assertEqual(AssetCveAssessment.objects.count(), 2)
 
     def test_automatic_positive_may_be_negated_only_with_explicit_acknowledgement(self):
         self.client.post(self.sync_url, {}, format="json")
