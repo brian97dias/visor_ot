@@ -298,7 +298,8 @@ def _serialize_assessment(item, inventory_fp, config_fp, installed=None):
               and item.criteria_evidence.get("origin") == "SYSTEM"
               else "ANALYST")
     return {
-        "id": item.pk, "status": item.status, "source": source,
+        "id": item.pk, "configuration_index": item.configuration_index,
+        "status": item.status, "source": source,
         "effective_status": "PENDING_REVIEW" if stale else item.status,
         "stale": stale, "justification": item.justification,
         "software_installation_id": item.software_installation_id,
