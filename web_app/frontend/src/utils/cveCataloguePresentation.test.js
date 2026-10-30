@@ -499,13 +499,13 @@ test("single NVD criterion does not invent an OR alternative", () => {
 
 test("an automatic or analyst verdict can be reopened only into other states", () => {
   assert.deepEqual(allowedCveDecisionTransitions("APPLIES"),
-    ["CONDITIONAL", "NOT_MATCH"]);
+    ["CONDITIONAL", "NOT_MATCH", "UNKNOWN"]);
   assert.deepEqual(allowedCveDecisionTransitions("NOT_APPLICABLE"),
-    ["CONFIRMED", "CONDITIONAL"]);
+    ["CONFIRMED", "CONDITIONAL", "UNKNOWN"]);
   assert.deepEqual(allowedCveDecisionTransitions("APPLIES_CONDITIONAL"),
-    ["CONFIRMED", "NOT_MATCH"]);
+    ["CONFIRMED", "NOT_MATCH", "UNKNOWN"]);
   assert.deepEqual(allowedCveDecisionTransitions("PENDING_REVIEW"),
-    ["CONFIRMED", "CONDITIONAL", "NOT_MATCH"]);
+    ["CONFIRMED", "CONDITIONAL", "NOT_MATCH", "UNKNOWN"]);
 });
 
 test("operational detail hides unrelated hardware even with automatic history", () => {
