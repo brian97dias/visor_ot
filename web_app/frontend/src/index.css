@@ -3740,3 +3740,119 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
   font-weight: 600;
   font-size: .8rem;
 }
+
+/* CVE phase 4: separate raw NVD evidence from Hardware-CVE applicability. */
+.cve-contextual-scope {
+  padding: 18px 20px;
+  margin: 14px 0 22px;
+}
+.cve-contextual-scope-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 18px;
+}
+.cve-contextual-scope-header h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  color: #e2e8f0;
+}
+.cve-contextual-scope-header p,
+.cve-contextual-proof,
+.cve-contextual-human,
+.cve-contextual-comparison {
+  font-size: .83rem;
+  line-height: 1.6;
+  color: #cbd5e1;
+  margin: 6px 0 13px;
+}
+.cve-contextual-total {
+  font-size: .75rem;
+  font-weight: 600;
+  color: #93c5fd;
+  border: 1px solid #334155;
+  border-radius: 16px;
+  padding: 5px 10px;
+}
+.cve-contextual-counts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+  margin: 12px 0;
+}
+.cve-contextual-count {
+  background: #101e31;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.cve-contextual-count strong { color: #e2e8f0; font-size: 1.2rem; }
+.cve-contextual-count span { color: #cbd5e1; font-size: .73rem; }
+.cve-contextual-count[data-scope="PERTINENT"] { border-color: #166534; }
+.cve-contextual-count[data-scope="UNCERTAIN"] { border-color: #92400e; }
+.cve-contextual-comparison { margin: 12px 0; }
+.cve-contextual-comparison strong { color: #e2e8f0; }
+.cve-contextual-proof,
+.cve-contextual-human {
+  border-left: 2px solid #0e7490;
+  background: #102538;
+  padding: 10px 12px;
+  border-radius: 4px;
+}
+.cve-contextual-verdict-origin {
+  color: #93c5fd !important;
+  font-size: .75rem !important;
+  font-weight: 600;
+  margin-top: 0 !important;
+}
+.cve-contextual-disclosures { display: grid; gap: 8px; margin-top: 14px; }
+.cve-contextual-group {
+  border: 1px solid #334155;
+  border-radius: 7px;
+  background: #0f1c2e;
+  padding: 10px 13px;
+}
+.cve-contextual-group summary {
+  color: #e2e8f0;
+  font-size: .83rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cve-contextual-group > p,
+.cve-contextual-entries li p {
+  margin: 8px 0;
+  color: #94a3b8;
+  font-size: .8rem;
+  line-height: 1.5;
+}
+.cve-contextual-entries { padding-left: 23px; max-height: 360px; overflow: auto; }
+.cve-contextual-entries li {
+  padding: 9px 0;
+  border-top: 1px solid #26384f;
+  font-size: .8rem;
+}
+.cve-contextual-entries li strong { color: #e2e8f0; margin-right: 9px; }
+.cve-contextual-entries li small {
+  display: block;
+  color: #94a3b8;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+.cve-contextual-entry-result { color: #93c5fd; }
+.cve-catalogue-hardware-verdict {
+  color: #cbd5e1;
+  font-size: .72rem;
+  font-weight: 600;
+}
+@media (max-width: 760px) {
+  .cve-contextual-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 380px) {
+  .cve-contextual-counts { grid-template-columns: 1fr; }
+}
