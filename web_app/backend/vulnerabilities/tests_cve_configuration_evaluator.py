@@ -97,6 +97,15 @@ class NvdVersionEvaluatorTests(SimpleTestCase):
             "La versión instalada (4.5.2) cumple esta condición.",
         )
 
+    def test_unrestricted_firmware_message_reaches_nvd_criterion_observation(self):
+        observation = evaluate_criterion(
+            {"criteria": SIEMENS_MATCH, "vulnerable": True},
+            [SIEMENS_HW], installed(),
+        )
+        self.assertEqual(observation["result"], COMPATIBLE)
+        self.assertIn("cualquier versión de este firmware", observation["reason"])
+        self.assertIn("versión instalada (4.0)", observation["reason"])
+
     def test_unrestricted_version_without_inventory_version_is_still_allowed(self):
         result, reason = evaluate_version(
             "", "*", software_type="FIRMWARE",
