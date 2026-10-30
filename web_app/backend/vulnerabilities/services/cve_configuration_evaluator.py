@@ -500,6 +500,17 @@ def select_contextual_configurations(evaluated):
             "relation": scope, "reason": reasons[scope],
             "technical_result": row.get("result", INDETERMINATE),
         })
+    included = projection["pertinent_indexes"] + projection["uncertain_indexes"]
+    # A FOREIGN branch has no viable relation to this physical hardware.
+    # Keep its evaluated NVD tree as evidence, but do not let it block the
+    # contextual OR. An empty/no-platform NVD record remains indeterminate.
+    contextual = (
+        _combine([rows[index]["result"] for index in included], "OR")
+        if included else EXCLUDED if projection["foreign_indexes"] else INDETERMINATE
+    )
+    projection["evaluated_indexes"] = sorted(included)
+    projection["ignored_foreign_indexes"] = list(projection["foreign_indexes"])
+    projection["result"] = contextual
     return projection
 
 
@@ -512,6 +523,7 @@ def evaluate_configurations(configurations, hardware_cpes, installed_software):
             "contextual_selection": select_contextual_configurations(
                 {"configurations": []}
             ),
+            "contextual_result": INDETERMINATE,
         }
     rows = [_evaluate_group(config, hardware_cpes, installed_software)
             for config in configurations]
@@ -520,4 +532,5 @@ def evaluate_configurations(configurations, hardware_cpes, installed_software):
     # Scope classification is an additional derived projection. Phase 2 does
     # not change established applicability or legacy automatic audit results.
     result["contextual_selection"] = select_contextual_configurations(result)
+    result["contextual_result"] = result["contextual_selection"]["result"]
     return result
