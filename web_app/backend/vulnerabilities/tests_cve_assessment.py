@@ -10,6 +10,7 @@ from rest_framework.test import APIClient
 from assets.models import Asset, Hardware, Software, SoftwareInstallation
 from vulnerabilities.models import (
     Cve, Cpe, CpeSearchRun, AssetCpe, AssetCpeDecision, AssetCveAssessment,
+    AssetCveFinding, CveDiscoveryRun,
 )
 from vulnerabilities.services.cve_ingestion import (
     EXPERIMENTAL_CVE_ID, FIRMWARE_CRITERION, HARDWARE_CRITERION,
@@ -101,6 +102,15 @@ class ExperimentalCveAssessmentTests(TestCase):
         """The former experimental CVE must work without a hard-coded CVE UI."""
         self.confirm_hardware_cpe()
         installation = self.link()
+        run = CveDiscoveryRun.objects.create(
+            requested_by=self.analyst,
+            selected_hardware_ids=[self.hw.pk],
+            status=CveDiscoveryRun.Status.COMPLETED,
+        )
+        AssetCveFinding.objects.create(
+            hardware=self.hw, cve=self.cve,
+            first_discovery_run=run, last_discovery_run=run,
+        )
         url = (
             f"/api/vulnerabilities/cves/{EXPERIMENTAL_CVE_ID}/"
             f"hardware/{self.hw.pk}/assessment/"
