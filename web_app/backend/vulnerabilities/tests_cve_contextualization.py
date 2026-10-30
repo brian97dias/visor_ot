@@ -322,7 +322,7 @@ class ContextualNvdConfigurationScopeTests(SimpleTestCase):
         self.assertEqual(result["contextual_selection"]["foreign_indexes"], [0])
         self.assertEqual(result["contextual_selection"]["uncertain_indexes"], [])
 
-    def test_software_only_match_is_pertinent_but_unanchored_is_out_of_scope(self):
+    def test_software_only_match_cannot_select_an_unanchored_configuration(self):
         application = {"operator": "OR", "cpeMatch": [{
             "criteria": STEP7, "vulnerable": True
         }]}
@@ -337,11 +337,14 @@ class ContextualNvdConfigurationScopeTests(SimpleTestCase):
                 STEP7.replace(":*:*:*:*:*:*:*:*", ":16:*:*:*:*:*:*:*")
             ],
         }]
+        matched_software = self.evaluate([application], inventory=installed_app)
         self.assertEqual(
-            self.evaluate([application], inventory=installed_app)
-                ["contextual_selection"]["pertinent_indexes"],
-            [0],
+            matched_software["contextual_selection"]["pertinent_indexes"], []
         )
+        self.assertEqual(
+            matched_software["contextual_selection"]["out_of_scope_indexes"], [0]
+        )
+        self.assertEqual(matched_software["contextual_result"], INDETERMINATE)
 
     def test_nested_or_does_not_discard_a_matching_hardware_path(self):
         other_hw = PLCSIM_HW
@@ -525,7 +528,7 @@ class ContextualHardwareCveConsolidationTests(SimpleTestCase):
             "PENDING_REVIEW",
         )
 
-    def test_uncertain_hardware_family_prevents_global_negative(self):
+    def test_unanchored_ambiguous_family_does_not_block_hardware_exclusion(self):
         uncertain_hardware = (
             "cpe:2.3:h:siemens:simatic_s7-1200:-:*:*:*:*:*:*:*"
         )
@@ -537,14 +540,17 @@ class ContextualHardwareCveConsolidationTests(SimpleTestCase):
         self.assertEqual(technical["contextual_selection"]["uncertain_indexes"], [0])
         self.assertEqual(technical["contextual_selection"]["pertinent_indexes"], [1])
         self.assertEqual(technical["contextual_selection"]["foreign_indexes"], [2])
-        self.assertEqual(technical["contextual_result"], INDETERMINATE)
-        self.assertIsNone(automatic_negative_evidence(technical))
+        self.assertEqual(technical["contextual_result"], EXCLUDED)
         self.assertEqual(
-            self.application(technical, configs)["status"], "PENDING_REVIEW"
+            automatic_negative_evidence(technical)["evaluated_configuration_indexes"],
+            [1],
+        )
+        self.assertEqual(
+            self.application(technical, configs)["status"], "NOT_APPLICABLE"
         )
         self.assertEqual(
             project_configuration_decisions(technical, {})["status"],
-            "PENDING_REVIEW",
+            "NOT_APPLICABLE",
         )
 
     def test_technical_positive_preserved_with_foreign_alternatives(self):
@@ -1140,7 +1146,7 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(data["unverified_platform_configurations"], [])
         self.assertEqual(data["configurations"][0]["hardware_scope"], "DISTINCT")
 
-    def test_matched_standalone_software_is_relevant_without_hardware_condition(self):
+    def test_matched_standalone_software_is_not_pertinent_without_hardware_cpe(self):
         self.cve.configurations = [
             {"nodes": [{"operator": "OR", "cpeMatch": [
                 {"criteria": CPU_FW_CRITERION, "vulnerable": True},
@@ -1150,12 +1156,12 @@ class SiemensContextualHttpTests(TestCase):
         self.cve.save(update_fields=["configurations"])
         data = self.client.get(self.url).data
         self.assertEqual(data["configurations"][0]["hardware_scope"], "UNSCOPED")
-        self.assertEqual(
-            [row["position"] for row in data["relevant_configurations"]], [1]
-        )
+        self.assertEqual(data["relevant_configurations"], [])
         self.assertEqual(data["hardware_software_configurations"], [])
         self.assertEqual(data["candidate_configurations"], [])
-        self.assertEqual(data["unrelated_configuration_count"], 1)
+        self.assertEqual(data["unrelated_configuration_count"], 2)
+        self.assertEqual(data["technical_result"], INDETERMINATE)
+        self.assertEqual(data["applicability"]["status"], "PENDING_REVIEW")
 
     def test_unverified_other_hardware_is_auditable_not_a_firmware_candidate(self):
         ambiguous_hw = (
@@ -1174,8 +1180,8 @@ class SiemensContextualHttpTests(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200, response.data)
         data = response.data
-        self.assertEqual(data["technical_result"], INDETERMINATE)
-        self.assertEqual(data["applicability"]["status"], "PENDING_REVIEW")
+        self.assertEqual(data["technical_result"], EXCLUDED)
+        self.assertEqual(data["applicability"]["status"], "NOT_APPLICABLE")
         self.assertEqual(
             [config["position"] for config in data["hardware_software_configurations"]],
             [1],
