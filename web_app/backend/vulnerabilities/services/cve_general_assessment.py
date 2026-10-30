@@ -779,10 +779,11 @@ def general_assessment_context(cve_id, hardware_id):
         "cve_id": cve.cve_id, "hardware_asset_id": hw.pk,
         "hardware_name": hw.asset.name, "inventory_fingerprint": inventory_fp,
         "installed_software": installed,
-        "technical_result": technical["result"],
+        "technical_result": technical["contextual_result"],
+        "nvd_technical_result": technical["result"],
         "technical_configuration_counts": technical_counts,
-        # Phase 2: read-only contextual classification. Global technical and
-        # applicability conclusions remain unchanged until phase 3.
+        # Contextual scope is the operative per-Hardware-CVE projection.
+        # Preserve the unfiltered NVD outcome and all original trees.
         "contextual_selection": scope_selection,
         "applicability": applicability,
         "automatic_audit_pending": (
