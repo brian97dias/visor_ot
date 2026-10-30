@@ -167,12 +167,31 @@ def _scoped_status_with_current_audits(cve, hardware, inventory_fp, analysed):
     )
 
 
+def _excluded_version_installations(negative):
+    """Installed software used to prove a contextual NVD version exclusion.
+
+    This is display-only evaluation evidence, NOT a vulnerable-software
+    finding. Ignore unrelated platform exclusions and unverified identities.
+    """
+    installations = set()
+    for configuration in (negative or {}).get("configurations", []):
+        for evidence in configuration.get("excluded_by", []):
+            if evidence.get("reason") != "FIRMWARE_OR_SOFTWARE_VERSION_EXCLUDED":
+                continue
+            installation_id = evidence.get("software_installation_id")
+            if installation_id:
+                installations.add(installation_id)
+    return installations
+
+
 def related_assets_for_cves(cves):
     """Concrete inventoried assets evidenced in each hardware/CVE context.
 
-    Hardware is the contextual unit. Software is included only when a
-    criterion's CPE matches its CURRENT confirmed CPE and active installation.
-    An unrelated installed program is never labelled as a matching CVE asset.
+    Hardware is the contextual unit. Installed software participates when
+    there is verified positive evidence, verified contextual version-exclusion
+    evidence or a current analyst-linked installation. Showing evaluated
+    software does NOT imply that the CVE applies or create a vulnerability link.
+    Unrelated installed programs are never included.
     """
     items = list(cves)
     result = {cve.pk: [] for cve in items}
@@ -230,7 +249,12 @@ def related_assets_for_cves(cves):
                         and human_status in ("NOT_APPLICABLE", "APPLIES_CONDITIONAL",
                                              "PENDING_REVIEW")):
                     proof_installations = set()
-                linked = proof_installations | (
+                # The firmware can have been *evaluated* to rule out the
+                # CVE. Show that real installation in the catalogue without
+                # creating a vulnerable-software association or altering
+                # any Hardware-CVE decision.
+                evaluated_exclusions = _excluded_version_installations(negative)
+                linked = proof_installations | evaluated_exclusions | (
                     {chosen_installation} if chosen_installation else set()
                 )
                 role = _hardware_role(
