@@ -3,6 +3,8 @@
 The data below reproduces the relevant NVD *shapes*, not a downloaded copy
 of all 96 configurations. The live NVD JSON is still stored unchanged.
 """
+from types import SimpleNamespace
+
 from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -16,7 +18,7 @@ from vulnerabilities.services.cve_configuration_evaluator import (
 )
 from vulnerabilities.services.cve_applicability import (
     automatic_negative_evidence, verified_negative_configurations,
-    project_configuration_decisions,
+    project_configuration_decisions, scoped_applicability,
 )
 from vulnerabilities.services.cve_general_assessment import (
     general_assessment_context, summarize_hardware_cve_review,
@@ -446,6 +448,141 @@ class ContextualNvdConfigurationScopeTests(SimpleTestCase):
         result = self.evaluate([config])
         self.assertEqual(result["result"], INDETERMINATE)
         self.assertEqual(result["contextual_selection"]["pertinent_indexes"], [0])
+
+
+class ContextualHardwareCveConsolidationTests(SimpleTestCase):
+    """Phase 3: contextual Hardware-CVE verdict and audit-grade negative proof."""
+
+    @staticmethod
+    def evaluate(configurations, software=None):
+        return evaluate_configurations(
+            configurations, [CPU_HW], installed() if software is None else software,
+        )
+
+    @staticmethod
+    def application(technical, configurations, analyst_status="PENDING_REVIEW"):
+        cve = SimpleNamespace(
+            configurations=configurations, last_modified=None, retrieved_at=None
+        )
+        return scoped_applicability(
+            technical, analyst_status,
+            inventory_fingerprint="a" * 64, cve=cve, hardware_id=10,
+        )
+
+    def test_foreign_branches_do_not_block_proven_pertinent_version_exclusion(self):
+        # Matching CPU 1215C, firmware 4.5.2, vulnerable below 4.4.
+        relevant = nvd_platform_firmware(
+            CPU_HW, CPU_FW_CRITERION, before="4.4"
+        )
+        foreign = nvd_platform_firmware(PLCSIM_HW, PLCSIM_FW)
+        configs = [foreign, relevant, foreign]
+        technical = self.evaluate(configs)
+        self.assertEqual(technical["result"], EXCLUDED)
+        self.assertEqual(technical["contextual_result"], EXCLUDED)
+        scope = technical["contextual_selection"]
+        self.assertEqual(scope["evaluated_indexes"], [1])
+        self.assertEqual(scope["ignored_foreign_indexes"], [0, 2])
+        evidence = automatic_negative_evidence(technical)
+        self.assertIsNotNone(evidence)
+        self.assertEqual(len(evidence["configurations"]), 3)
+        self.assertEqual(evidence["foreign_configuration_indexes"], [0, 2])
+        self.assertEqual(evidence["evaluated_configuration_indexes"], [1])
+        verdict = self.application(technical, configs)
+        self.assertEqual(verdict["status"], "NOT_APPLICABLE")
+        self.assertEqual(verdict["source"], "SYSTEM")
+        self.assertEqual(verdict["nvd_technical_result"], EXCLUDED)
+        self.assertEqual(verdict["technical_result"], EXCLUDED)
+        self.assertEqual(
+            project_configuration_decisions(technical, {}),
+            {"status": "NOT_APPLICABLE", "source": "SYSTEM"},
+        )
+
+    def test_foreign_vulnerable_hardware_without_negative_proof_is_not_safe(self):
+        # A different identified hardware product is not by itself a proven
+        # safe verdict when NVD marks that hardware itself as vulnerable.
+        config = {"operator": "OR", "cpeMatch": [
+            {"criteria": PLCSIM_HW, "vulnerable": True}
+        ]}
+        technical = self.evaluate([config])
+        self.assertEqual(technical["contextual_selection"]["foreign_indexes"], [0])
+        self.assertEqual(technical["contextual_result"], EXCLUDED)
+        self.assertIsNone(automatic_negative_evidence(technical))
+        self.assertEqual(
+            self.application(technical, [config])["status"], "PENDING_REVIEW"
+        )
+        self.assertEqual(
+            project_configuration_decisions(technical, {})["status"],
+            "PENDING_REVIEW",
+        )
+
+    def test_uncertain_et200sp_or_external_plcsim_prevents_global_negative(self):
+        uncertain_hardware = (
+            "cpe:2.3:h:siemens:"
+            "simatic_et_200sp_open_controller_cpu_1515sp_pc:-:*:*:*:*:*:*:*"
+        )
+        pending = nvd_platform_firmware(uncertain_hardware, CPU_FW_CRITERION)
+        relevant = nvd_platform_firmware(CPU_HW, CPU_FW_CRITERION, before="4.4")
+        foreign = nvd_platform_firmware(PLCSIM_HW, PLCSIM_FW)
+        configs = [pending, relevant, foreign]
+        technical = self.evaluate(configs)
+        self.assertEqual(technical["contextual_selection"]["uncertain_indexes"], [0])
+        self.assertEqual(technical["contextual_selection"]["pertinent_indexes"], [1])
+        self.assertEqual(technical["contextual_selection"]["foreign_indexes"], [2])
+        self.assertEqual(technical["contextual_result"], INDETERMINATE)
+        self.assertIsNone(automatic_negative_evidence(technical))
+        self.assertEqual(
+            self.application(technical, configs)["status"], "PENDING_REVIEW"
+        )
+        self.assertEqual(
+            project_configuration_decisions(technical, {})["status"],
+            "PENDING_REVIEW",
+        )
+
+    def test_technical_positive_preserved_with_foreign_alternatives(self):
+        pertinent = nvd_platform_firmware(
+            CPU_HW, CPU_FW_CRITERION, before="4.6.0"
+        )
+        unrelated = nvd_platform_firmware(PLCSIM_HW, PLCSIM_FW)
+        configurations = [unrelated, pertinent]
+        technical = self.evaluate(configurations)
+        self.assertEqual(technical["contextual_result"], COMPATIBLE)
+        verdict = self.application(technical, configurations)
+        self.assertEqual(verdict["status"], "APPLIES")
+        self.assertEqual(verdict["source"], "SYSTEM")
+        self.assertEqual(
+            project_configuration_decisions(technical, {}),
+            {"status": "APPLIES", "source": "SYSTEM"},
+        )
+
+    def test_manually_reviewed_pair_remains_authoritative(self):
+        config = nvd_platform_firmware(CPU_HW, CPU_FW_CRITERION, before="4.4")
+        technical = self.evaluate([config])
+        human = self.application(technical, [config], "APPLIES_CONDITIONAL")
+        self.assertEqual(human["status"], "APPLIES_CONDITIONAL")
+        self.assertEqual(human["source"], "ANALYST")
+        self.assertEqual(
+            project_configuration_decisions(
+                technical, {}, global_decision="APPLIES"
+            ),
+            {"status": "APPLIES", "source": "ANALYST"},
+        )
+        self.assertEqual(
+            project_configuration_decisions(
+                technical, {}, global_decision="PENDING_REVIEW"
+            ),
+            {"status": "IN_REVIEW", "source": "NONE"},
+        )
+
+    def test_empty_or_ambiguous_configurations_never_prove_no_aplica(self):
+        for configurations in ([], [{"operator": "OR", "nodes": []}]):
+            with self.subTest(configurations=configurations):
+                technical = self.evaluate(configurations)
+                self.assertEqual(technical["contextual_result"], INDETERMINATE)
+                self.assertIsNone(automatic_negative_evidence(technical))
+                self.assertEqual(
+                    project_configuration_decisions(technical, {})["status"],
+                    "PENDING_REVIEW",
+                )
 
 
 class SiemensContextualLogicTests(SimpleTestCase):
