@@ -61,10 +61,23 @@ def _positive_proof(node):
 
 
 def automatic_positive_evidence(technical):
-    """Prefer the first fully proven NVD alternative; indices are zero-based."""
-    if not isinstance(technical, dict) or technical.get("result") != COMPATIBLE:
+    """Return the first verified positive in the selected Hardware-CVE scope.
+
+    An installed application CPE alone must never establish applicability
+    for an unrelated hardware NVD configuration.
+    """
+    if not isinstance(technical, dict) or (
+        technical.get("contextual_result", technical.get("result")) != COMPATIBLE
+    ):
         return None
-    for index, alternative in enumerate(technical.get("configurations", [])):
+    configs = technical.get("configurations", [])
+    scope = technical.get("contextual_selection")
+    included = (
+        scope.get("pertinent_indexes", []) if scope is not None
+        else range(len(configs))
+    )
+    for index in included:
+        alternative = configs[index]
         proof = _positive_proof(alternative)
         if proof is not None and any(row["vulnerable"] for row in proof):
             return {"configuration_index": index,
@@ -172,10 +185,9 @@ def verified_negative_configurations(technical):
 def automatic_negative_evidence(technical):
     """Proof of NOT_APPLICABLE *within the anchored Hardware-CVE scope*.
 
-    Only PERTINENT configurations need independently verified negative proof.
-    UNCERTAIN configurations block a negative. FOREIGN hardware and unanchored
-    software-only alternatives are retained in the original NVD record, but
-    neither vote in this context nor require a proof of software absence.
+    Only hardware-anchored PERTINENT configurations need independently
+    verified negative proof. Unanchored alternative platforms and software
+    are kept in the original NVD record but are not part of this pairing.
     A missing pertinent configuration never establishes NOT_APPLICABLE.
     """
     if not isinstance(technical, dict) or (
@@ -188,7 +200,7 @@ def automatic_negative_evidence(technical):
     scope = technical.get("contextual_selection")
     if scope is not None:
         pertinent = scope.get("pertinent_indexes", [])
-        if not pertinent or scope.get("uncertain_indexes"):
+        if not pertinent:
             return None
     else:
         # Legacy/direct evaluations without a contextual selector.
@@ -267,15 +279,17 @@ def project_configuration_decisions(technical, human_statuses, *,
         for item in verified_negative_configurations(technical)
     }
     scope = technical.get("contextual_selection") or {}
-    ignored = set(scope.get("foreign_indexes", [])) | set(
-        scope.get("out_of_scope_indexes", [])
+    # Any configuration lacking a verified hardware anchor is irrelevant to
+    # this pair regardless of its FOREIGN / UNCERTAIN / OUT_OF_SCOPE label.
+    selected_indexes = set(
+        scope.get("pertinent_indexes", range(len(configs)))
     )
     states = []
     for index, config in enumerate(configs):
         # Historical configuration decisions stay on disk but do not
         # determine the active Hardware-CVE verdict outside the scope.
         # A current HARDWARE_CVE decision is processed above.
-        if index in ignored:
+        if index not in selected_indexes:
             continue
         human = human_statuses.get(index)
         if human in (APPLIES, APPLIES_CONDITIONAL, NOT_APPLICABLE):
