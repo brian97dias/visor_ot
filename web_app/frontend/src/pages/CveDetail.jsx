@@ -10,7 +10,7 @@ import {
   CVE_APPLICABILITY_SOURCE,
   selectedCveHardwareId, groupCveEvidence, selectCveOperationalGroups,
   cveApplicabilityExplanation, cveConfigurationHighlights,
-  cveContextualScopeSummary, cveScopeCriterionLabels,
+
   nvdCriterionIdentityBadge, currentCveSoftwareLink,
   currentCveEvaluatedSoftware, allowedCveDecisionTransitions,
   cveHistoryDecisionDescription, cveHistorySoftwareLabel,
@@ -663,78 +663,6 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   </div></>;
 }
 
-/** Contextual selection is auditable without re-opening all NVD trees.
- * The source NVD alternatives are never removed from the backend record.
- */
-function ContextualNvdScope({ context }) {
-  const scope = cveContextualScopeSummary(context);
-  if (!scope) return null;
-  const proof = scope.proof;
-  const automaticNegative = context.applicability?.status === "NOT_APPLICABLE" &&
-    context.applicability?.source === "SYSTEM" &&
-    proof?.proof_scope === "NVD_HARDWARE_CONTEXT";
-  const humanDecision = context.hardware_cve_decision;
-  return <section className="panel cve-contextual-scope"
-    aria-labelledby="cve-context-scope-title">
-    <div className="cve-contextual-scope-header">
-      <div>
-        <h2 id="cve-context-scope-title">Alcance de la evaluación NVD</h2>
-        <p>Se consideran las condiciones vinculadas al hardware y al software
-          identificado por CPE. Las demás configuraciones se conservan como
-          evidencia NVD, pero no se interpretan como productos instalados.</p>
-      </div>
-      <span className="cve-contextual-total">
-        {scope.total} configuraciones NVD originales</span>
-    </div>
-    <div className="cve-contextual-counts" role="list"
-      aria-label="Clasificación contextual de configuraciones NVD">
-      {scope.groups.map(group => <div key={group.key} role="listitem"
-        className="cve-contextual-count" data-scope={group.key}>
-        <strong>{group.count}</strong>
-        <span>{group.label}</span>
-      </div>)}
-    </div>
-    <p className="cve-contextual-comparison">
-      <strong>Evaluación NVD completa:</strong>{" "}
-      {CVE_TECHNICAL_STATE[scope.rawResult] || "Por verificar"}
-      {" · "}<strong>Evaluación para este hardware:</strong>{" "}
-      {CVE_TECHNICAL_STATE[scope.contextualResult] || "Por verificar"}
-    </p>
-    {automaticNegative &&
-      <p className="cve-contextual-proof" role="note">
-        El sistema descartó las configuraciones pertinentes{" "}
-        {proof.evaluated_configuration_indexes.map(index => "#" + (index + 1)).join(", ")}
-        {" "}mediante evidencia verificable. Esta conclusión es exclusivamente
-        contextual; no demuestra que otros productos estén ausentes ni sustituye
-        la documentación de seguridad del fabricante.
-      </p>}
-    {humanDecision && !humanDecision.stale && <p className="cve-contextual-human"
-      role="note">
-      El analista registró una decisión para el conjunto Hardware–CVE.
-      Esta decisión tiene prioridad operativa y no modifica las condiciones NVD.
-      La justificación permanece en el historial.
-    </p>}
-    <div className="cve-contextual-disclosures">
-      {scope.groups.map(group => <details key={group.key}
-        className="cve-contextual-group" data-scope={group.key}>
-        <summary>{group.label} ({group.count})</summary>
-        <p>{group.note}</p>
-        {group.entries.length > 0 ? <ol className="cve-contextual-entries">
-          {group.entries.map(item => <li key={item.index}>
-            <strong>Configuración NVD #{item.position}</strong>
-            <span className="cve-contextual-entry-result">
-              {CVE_TECHNICAL_STATE[item.technical_result] || "Por verificar"}
-            </span>
-            {cveScopeCriterionLabels(item.config).length > 0 &&
-              <small>{cveScopeCriterionLabels(item.config).join(" · ")}</small>}
-            <p>{item.reason}</p>
-          </li>)}
-        </ol> : <p>No hay configuraciones en este grupo.</p>}
-      </details>)}
-    </div>
-  </section>;
-}
-
 export default function CveDetail() {
   const { cveId } = useParams();
   const [searchParams] = useSearchParams();
@@ -891,10 +819,10 @@ export default function CveDetail() {
           </p>
           <p className="cve-contextual-verdict-origin">
             {context.applicability?.source === "ANALYST"
-              ? "Conclusión operativa del analista · la evidencia NVD se conserva"
+              ? "Decisión del analista sobre las condiciones pertinentes al hardware"
               : context.applicability?.source === "SYSTEM"
-                ? "Conclusión técnica automática · alcance contextual Hardware–CVE"
-                : "Sin conclusión comprobada para este hardware"}
+                ? "Conclusión automática basada en las condiciones NVD pertinentes"
+                : "Condiciones del hardware pendientes de evaluación"}
           </p>
           {evidenceHighlights.length > 0 &&
             <ul className="cve-evidence-highlights"
@@ -903,7 +831,6 @@ export default function CveDetail() {
                 <li key={fact.label} data-kind={fact.kind}>{fact.label}</li>)}
             </ul>}
         </div>
-        <ContextualNvdScope context={context}/>
         {primary ? <>
           <section className="cve-nvd-conditions cve-general-relevant-configuration"
             aria-labelledby="cve-primary-evidence">
@@ -927,14 +854,9 @@ export default function CveDetail() {
               }}/>
           </section>
         </> : <div className="panel cve-technical-summary">
-          {context.technical_result === "EXCLUDED"
-            ? <p>Las configuraciones NVD de este CVE quedan excluidas
-                técnicamente para el hardware y la evidencia disponible.
-                Esto no registra automáticamente una decisión del analista.
-                Las configuraciones originales se conservan para auditoría.</p>
-            : <p>No existen configuraciones NVD con correspondencia demostrada
-                frente a los CPE vigentes de este hardware. La aplicabilidad
-                permanece por verificar; las configuraciones originales se conservan.</p>}
+          <p>Este CVE no contiene configuraciones NVD vinculadas a un
+            CPE de hardware confirmado del activo seleccionado. No existen
+            condiciones pertinentes que evaluar con este inventario.</p>
         
         </div>}
       </>}
