@@ -240,10 +240,14 @@ export default function CveOverview() {
                   data-status={displayCveApplicability(row.applicability_status)}>
                   {CVE_EVALUATION_STATE[displayCveApplicability(row.applicability_status)]}
                 </span>
-                <small className="cve-catalogue-secondary">
-                  {CVE_APPLICABILITY_SOURCE[row.applicability_source] ||
-                    CVE_APPLICABILITY_SOURCE.NONE}
-                </small>
+                {["SYSTEM", "ANALYST"].includes(row.applicability_source) &&
+                  <small className="cve-catalogue-secondary">
+                    {CVE_APPLICABILITY_SOURCE[row.applicability_source]}
+                  </small>}
+                {row.revalidation_required &&
+                  <small className="cve-catalogue-secondary">
+                    Revisar evidencia anterior
+                  </small>}
 
               </td>
               <td><Link className="button-secondary"
