@@ -1,16 +1,43 @@
 """Generic CVE evaluation contracts; no NVD or inventory mutation."""
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
+from types import SimpleNamespace
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from vulnerabilities.models import AssetCpe, AssetCveAssessment, Cpe, Cve
 from vulnerabilities.services.cve_general_assessment import (
     general_assessment_context, record_general_assessment,
+    _recorded_installation_id,
 )
 from vulnerabilities.tests_cve_discovery_plan import (
     CveDiscoveryPlanTests, HW_CPE, SW_CPE,
 )
+
+
+class RecordedInstallationEvidenceTests(SimpleTestCase):
+    def test_duplicate_detection_uses_negative_and_reviewed_installations(self):
+        def assessment(link=None, evidence=None):
+            return SimpleNamespace(
+                software_installation_id=link,
+                criteria_evidence=evidence or {},
+            )
+
+        self.assertIsNone(_recorded_installation_id(None))
+        self.assertIsNone(_recorded_installation_id(assessment()))
+        self.assertEqual(_recorded_installation_id(assessment(link=7)), 7)
+        self.assertEqual(_recorded_installation_id(assessment(evidence={
+            "evaluated_software": [{"software_installation_id": 8}],
+        })), 8)
+        self.assertEqual(_recorded_installation_id(assessment(evidence={
+            "reviewed_software": [{"installation_id": 9}],
+        })), 9)
+        self.assertEqual(_recorded_installation_id(assessment(evidence={
+            "linked_software": [{"installation_id": 10}],
+        })), 10)
+        self.assertEqual(_recorded_installation_id(assessment(link=11, evidence={
+            "evaluated_software": [{"software_installation_id": 99}],
+        })), 11)
 
 
 def nvd_and(hardware_criterion=HW_CPE, firmware_criterion=SW_CPE):
