@@ -419,6 +419,19 @@ class ContextualNvdConfigurationScopeTests(SimpleTestCase):
         self.assertEqual(result["contextual_selection"]["pertinent_indexes"], [8])
         self.assertEqual(len(result["contextual_selection"]["foreign_indexes"]), 11)
 
+    def test_cve_2021_37205_all_48_original_branches_keep_exact_positions(self):
+        configs = nvd_2021_37205_configurations()
+        result = self.evaluate(configs)
+        scope = result["contextual_selection"]
+        self.assertEqual(len(configs), 48)
+        self.assertEqual(len(result["configurations"]), 48)
+        # Positions are the original order, not an index of filtered branches.
+        self.assertEqual(scope["pertinent_indexes"], [12])
+        self.assertEqual(scope["uncertain_indexes"], [5])
+        self.assertEqual(len(scope["foreign_indexes"]), 46)
+        self.assertEqual(scope["configurations"][12]["position"], 13)
+        self.assertEqual(result["configurations"][12]["result"], EXCLUDED)
+
     def test_external_step7_requires_review_without_excluding_cpu_platform(self):
         config = {"operator": "AND", "nodes": [
             {"operator": "OR", "cpeMatch": [
@@ -834,6 +847,14 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(data["assessment_summary"]["total_configurations"], 12)
         self.assertEqual(data["assessment_summary"]["pending_configurations"], 12)
         self.assertEqual(len(data["configurations"]), 12)  # NVD preserved
+        # Scope classification is a read-only projection for phase 2:
+        # it does not rewrite automatic applicability (phase 3).
+        scope = data["contextual_selection"]
+        self.assertEqual(scope["pertinent_indexes"], [8])
+        self.assertEqual(len(scope["foreign_indexes"]), 11)
+        self.assertEqual(scope["uncertain_indexes"], [])
+        self.assertEqual(data["configurations"][8]["contextual_scope"], SCOPE_PERTINENT)
+        self.assertTrue(data["configurations"][0]["contextual_scope_reason"])
         self.assertEqual([row["position"] for row in data["relevant_configurations"]], [9])
         self.assertEqual(data["unrelated_configuration_count"], 11)
         criterion = data["relevant_configurations"][0]["tree"]["children"][0]["children"][0]
