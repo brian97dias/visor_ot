@@ -22,7 +22,7 @@ export const CVE_EVALUATION_HELP = {
   IN_REVIEW: "Quedan configuraciones o activos por revisar",
   APPLIES: "Existe al menos una correspondencia vigente confirmada",
   APPLIES_CONDITIONAL: "El analista acepta gestionar el CVE con condiciones pendientes",
-  NOT_APPLICABLE: "Todas las configuraciones y activos relacionados están descartados",
+  NOT_APPLICABLE: "Las configuraciones NVD pertinentes al hardware están excluidas o fueron descartadas mediante revisión humana",
   STALE: "Cambió la evidencia desde la última evaluación",
 };
 
@@ -305,6 +305,83 @@ export function allowedCveDecisionTransitions(currentStatus) {
 }
 
 
+/** NVD branch scope is independent from the final Hardware-CVE verdict.
+ * OUT_OF_SCOPE describes missing linkage, NOT demonstrated software absence.
+ */
+export const CVE_CONTEXTUAL_SCOPE = {
+  PERTINENT: {
+    label: "Pertinentes",
+    note: "Configuraciones vinculadas al hardware o al software instalado mediante CPE confirmado.",
+  },
+  FOREIGN: {
+    label: "Otras plataformas",
+    note: "Identidades de hardware demostrablemente distintas; no participan en esta evaluación.",
+  },
+  OUT_OF_SCOPE: {
+    label: "Software sin anclaje",
+    note: "Sin correspondencia CPE acreditada con este equipo. No se afirma que ese software esté ausente.",
+  },
+  UNCERTAIN: {
+    label: "Relación por verificar",
+    note: "La identidad de hardware o su relación lógica todavía requiere evidencia.",
+  },
+};
+
+export function cveContextualScopeSummary(context) {
+  const selection = context?.contextual_selection;
+  if (!Array.isArray(selection?.configurations)) return null;
+  const original = Array.isArray(context?.configurations)
+    ? context.configurations : [];
+  const byIndex = new Map(original.map(config => [config.index, config]));
+  const groups = Object.entries(CVE_CONTEXTUAL_SCOPE).map(([key, metadata]) => {
+    const entries = selection.configurations
+      .filter(item => item.relation === key)
+      .map(item => ({
+        ...item,
+        position: item.position ?? item.index + 1,
+        config: byIndex.get(item.index) || null,
+      }));
+    return { key, ...metadata, entries, count: entries.length };
+  });
+  return {
+    groups,
+    total: selection.configurations.length,
+    pertinentCount: groups[0].count,
+    foreignCount: groups[1].count,
+    outOfScopeCount: groups[2].count,
+    uncertainCount: groups[3].count,
+    evaluatedIndexes: selection.evaluated_indexes || [],
+    proof: context?.applicability?.automatic_evidence || null,
+    rawResult: context?.nvd_technical_result,
+    contextualResult: context?.technical_result,
+  };
+}
+
+export function cveScopeCriterionLabels(config) {
+  const found = new Set();
+  function visit(node) {
+    if (node?.kind === "CRITERION" && typeof node.criteria === "string") {
+      const fields = node.criteria.split(":");
+      if (fields.length >= 5 && fields[0] === "cpe") {
+        const part = {h: "Hardware", o: "Firmware / SO", a: "Software"}[fields[2]]
+          || "Producto";
+        found.add(`${part}: ${fields[3]} / ${fields[4]}`);
+      }
+    }
+    for (const child of node?.children || []) visit(child);
+  }
+  visit(config?.tree);
+  return [...found];
+}
+
+export function cveHardwareApplicabilityLabel(context) {
+  const value = context?.scoped_applicability;
+  if (!value) return null;
+  const status = value.status || "PENDING_REVIEW";
+  const origin = value.source || "NONE";
+  return `${CVE_EVALUATION_STATE[status] || status} · ${CVE_APPLICABILITY_SOURCE[origin] || CVE_APPLICABILITY_SOURCE.NONE}`;
+}
+
 /** Compact, evidence-based wording for the asset-level CVE summary.
  * Status is always the backend conclusion; these messages do not reclassify.
  */
@@ -312,12 +389,15 @@ export function cveApplicabilityExplanation(context) {
   const status = context?.applicability?.status;
   const origin = context?.applicability?.source;
   const counts = context?.technical_configuration_counts || {};
+  const scope = cveContextualScopeSummary(context);
   if (status === "APPLIES") return origin === "SYSTEM"
-    ? "Los CPE y las condiciones NVD comprobadas indican que este CVE afecta al activo."
-    : "Existe una correspondencia registrada por el analista. Consulta el historial de la evaluación.";
+    ? "Los CPE y las condiciones NVD pertinentes verificadas indican que este CVE aplica al hardware evaluado."
+    : "El analista registró «Aplica» para este hardware. Su fundamento y la evidencia técnica original permanecen en el historial.";
   if (status === "NOT_APPLICABLE") return origin === "SYSTEM"
-    ? "Las alternativas NVD quedaron descartadas con evidencia técnica para este hardware."
-    : "El analista registró una conclusión de no aplicabilidad. La justificación está en el historial.";
+    ? scope
+      ? `Las ${scope.pertinentCount} configuración(es) NVD pertinentes quedaron descartadas por evidencia técnica. «No aplica» se limita a este hardware y su inventario; no demuestra ausencia de otros productos ni sustituye los avisos del fabricante.`
+      : "Las alternativas NVD quedaron descartadas con evidencia técnica para este hardware."
+    : "El analista registró una conclusión de no aplicabilidad para este hardware. La justificación está en el historial.";
   if (status === "APPLIES_CONDITIONAL") {
     return "El analista registró una correspondencia parcial. Quedan condiciones por verificar.";
   }
@@ -326,6 +406,15 @@ export function cveApplicabilityExplanation(context) {
   }
   if (status === "STALE") {
     return "El inventario cambió y la evaluación anterior necesita revisarse.";
+  }
+  if (scope) {
+    if (!scope.pertinentCount) {
+      return "No se ha acreditado ninguna configuración NVD pertinente al hardware. Las alternativas ajenas o sin anclaje permanecen disponibles para auditoría; no equivalen a «No aplica».";
+    }
+    if (scope.uncertainCount) {
+      return `Hay ${scope.uncertainCount} configuración(es) cuya relación con el equipo sigue por verificar; no se descartan automáticamente.`;
+    }
+    return "Las configuraciones NVD pertinentes todavía requieren evidencia adicional para emitir una conclusión contextual.";
   }
   const excluded = Number(counts.EXCLUDED) || 0;
   const pending = Number(counts.INDETERMINATE) || 0;
