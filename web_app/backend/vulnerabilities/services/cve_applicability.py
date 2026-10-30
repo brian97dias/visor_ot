@@ -170,13 +170,13 @@ def verified_negative_configurations(technical):
 
 
 def automatic_negative_evidence(technical):
-    """Global NOT_APPLICABLE requires complete, reproducible negative proof.
+    """Proof of NOT_APPLICABLE *within the anchored Hardware-CVE scope*.
 
-    Contextually FOREIGN branches do not participate in the OR calculation,
-    but a scope label alone is never sufficient proof for a global safety
-    verdict. Every FOREIGN branch also requires independently verified
-    negative evidence. This prevents unsupported vulnerable-hardware CPE
-    exclusions from silently producing a false NOT_APPLICABLE.
+    Only PERTINENT configurations need independently verified negative proof.
+    UNCERTAIN configurations block a negative. FOREIGN hardware and unanchored
+    software-only alternatives are retained in the original NVD record, but
+    neither vote in this context nor require a proof of software absence.
+    A missing pertinent configuration never establishes NOT_APPLICABLE.
     """
     if not isinstance(technical, dict) or (
         technical.get("contextual_result", technical.get("result")) != EXCLUDED
@@ -185,17 +185,35 @@ def automatic_negative_evidence(technical):
     configs = technical.get("configurations")
     if not isinstance(configs, list) or not configs:
         return None
-    negatives = verified_negative_configurations(technical)
-    if len(negatives) != len(configs):
+    scope = technical.get("contextual_selection")
+    if scope is not None:
+        pertinent = scope.get("pertinent_indexes", [])
+        if not pertinent or scope.get("uncertain_indexes"):
+            return None
+    else:
+        # Legacy/direct evaluations without a contextual selector.
+        pertinent = list(range(len(configs)))
+    proven = {
+        row["configuration_index"]: row
+        for row in verified_negative_configurations(technical)
+    }
+    if any(index not in proven for index in pertinent):
         return None
-    scope = technical.get("contextual_selection") or {}
     return {
-        "configurations": negatives,
-        "foreign_configuration_indexes": scope.get("foreign_indexes", []),
-        "evaluated_configuration_indexes": scope.get(
-            "evaluated_indexes", list(range(len(configs)))
+        "configurations": [proven[index] for index in pertinent],
+        "evaluated_configuration_indexes": list(pertinent),
+        "foreign_configuration_indexes": (
+            scope.get("foreign_indexes", []) if scope is not None else []
         ),
-        "proof_scope": "HARDWARE_CVE_CONTEXTUAL",
+        "out_of_scope_configuration_indexes": (
+            scope.get("out_of_scope_indexes", []) if scope is not None else []
+        ),
+        "proof_scope": "NVD_HARDWARE_CONTEXT",
+        "scope_limitation": (
+            "La exclusión cubre solo las configuraciones NVD pertinentes "
+            "al hardware; no demuestra ausencia de otros productos ni "
+            "sustituye avisos de seguridad del fabricante."
+        ),
     }
 
 
@@ -249,14 +267,17 @@ def project_configuration_decisions(technical, human_statuses, *,
         for item in verified_negative_configurations(technical)
     }
     scope = technical.get("contextual_selection") or {}
-    foreign = set(scope.get("foreign_indexes", []))
+    ignored = set(scope.get("foreign_indexes", [])) | set(
+        scope.get("out_of_scope_indexes", [])
+    )
     states = []
     for index, config in enumerate(configs):
-        human = human_statuses.get(index)
-        # Do not discard earlier human decisions from the audit projection.
-        # Only a FOREIGN branch with no explicit human verdict is omitted.
-        if index in foreign and human is None:
+        # Historical configuration decisions stay on disk but do not
+        # determine the active Hardware-CVE verdict outside the scope.
+        # A current HARDWARE_CVE decision is processed above.
+        if index in ignored:
             continue
+        human = human_statuses.get(index)
         if human in (APPLIES, APPLIES_CONDITIONAL, NOT_APPLICABLE):
             states.append((human, ANALYST))
         elif automatic_positive_evidence({
@@ -287,22 +308,25 @@ def project_configuration_decisions(technical, human_statuses, *,
             return {"status": wanted, "source": origin}
     if any(state == "IN_REVIEW" for state, _ in states):
         return {"status": "IN_REVIEW", "source": NONE}
-    if ((states and all(state == NOT_APPLICABLE for state, _ in states))
-            or (not states and bool(foreign))):
-        # A foreign classification by itself is not proof of exclusion.
-        # Require verified negative evidence for each ignored configuration;
-        # alternatively a scoped human decision for that specific branch.
-        foreign_supported = all(
-            index in excluded or human_statuses.get(index) == NOT_APPLICABLE
-            for index in foreign
+    # An automatic global negative is only possible when at least one
+    # hardware-anchored branch exists and *all* pertinent branches have proof.
+    # Per-config human decisions can still be projected in their own scope;
+    # current hardware-wide human decisions are handled at the top.
+    proof = automatic_negative_evidence(technical)
+    if states and all(state == NOT_APPLICABLE for state, _ in states) and (
+        proof is not None or (
+            human_statuses and all(
+                index in human_statuses
+                for index in scope.get("pertinent_indexes", range(len(configs)))
+            )
         )
-        if foreign_supported:
-            return {
-                "status": NOT_APPLICABLE,
-                "source": ANALYST if any(
-                    source == ANALYST for _, source in states
-                ) else SYSTEM,
-            }
+    ):
+        return {
+            "status": NOT_APPLICABLE,
+            "source": ANALYST if any(
+                source == ANALYST for _, source in states
+            ) else SYSTEM,
+        }
     if human_statuses:
         return {"status": "IN_REVIEW", "source": NONE}
     return {"status": PENDING_REVIEW, "source": NONE}
