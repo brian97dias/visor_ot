@@ -278,11 +278,24 @@ def _assessment_software_display(item, inventory_fp, config_fp, installed):
     after the inventory or NVD fingerprint has changed.
     """
     evidence = item.criteria_evidence if isinstance(item.criteria_evidence, dict) else {}
+    # Experimental Phoenix assessments predate software_snapshot, but
+    # include the immutable software identity selected at decision time.
+    legacy = (evidence.get("firmware") or {}).get("software_identity")
+    if isinstance(legacy, dict) and legacy.get("installation_id"):
+        return [{
+            "software_installation_id": legacy["installation_id"],
+            "software_asset_id": legacy.get("software_asset_id"),
+            "software_name": legacy.get("software_name"),
+            "software_type": legacy.get("software_type"),
+            "installed_version": legacy.get("version"),
+        }]
     recorded = evidence.get("software_snapshot") or []
     if isinstance(recorded, list) and recorded:
         return recorded
-    stale = (item.inventory_fingerprint != inventory_fp or
-             item.configuration_fingerprint != config_fp)
+    from .cve_applicability import assessment_evidence_is_current
+    stale = not assessment_evidence_is_current(
+        item, item.cve, item.hardware, inventory_fp, config_fp
+    )
     current = {row["installation_id"]: row for row in (installed or [])}
     candidates = []
     if item.software_installation_id:
@@ -322,7 +335,10 @@ def _assessment_software_display(item, inventory_fp, config_fp, installed):
 def _serialize_assessment(item, inventory_fp, config_fp, installed=None):
     if item is None:
         return None
-    stale = item.inventory_fingerprint != inventory_fp or item.configuration_fingerprint != config_fp
+    from .cve_applicability import assessment_evidence_is_current
+    stale = not assessment_evidence_is_current(
+        item, item.cve, item.hardware, inventory_fp, config_fp
+    )
     source = ("SYSTEM" if isinstance(item.criteria_evidence, dict)
               and item.criteria_evidence.get("origin") == "SYSTEM"
               else "ANALYST")
@@ -1058,8 +1074,15 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         "part": selected_leaf.get("part"),
         "bounds": selected_leaf.get("bounds") or {},
     } if selected_leaf is not None else None)
+    # Explicit UNKNOWN creates a hardware-wide reopening, including legacy
+    # decisions whose scope predates HARDWARE_CVE. Never resurrect an older
+    # APPLIES after the analyst reopens it.
+    legacy_previous = AssetCveAssessment.objects.filter(
+        hardware=hw, cve=cve, configuration_index=configuration_index,
+    ).order_by("-decided_at", "-pk").first()
     global_scope = matched_hardware and (
         verdict != "UNKNOWN" or global_previous is not None
+        or (legacy_previous is not None and verdict == "UNKNOWN")
     )
     from .cve_applicability import (
         automatic_positive_evidence, automatic_negative_evidence,
