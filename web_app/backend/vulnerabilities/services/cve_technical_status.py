@@ -93,12 +93,15 @@ def _hardware_role(analysis, preferred_index=None):
     return "HARDWARE_CONTEXT"
 
 
-def _current_linked_installation(cve, hardware, inventory_fp):
+def _current_linked_installation(cve, hardware, inventory_fp, eligible_indexes=None):
     """Latest current analyst evaluation; never link unrelated installed apps."""
     decisions = AssetCveAssessment.objects.filter(
         cve=cve, hardware=hardware
     ).order_by("-decided_at", "-pk")
+    allowed = set(eligible_indexes) if eligible_indexes is not None else None
     for row in decisions:
+        if allowed is not None and row.configuration_index not in allowed:
+            continue
         if (row.inventory_fingerprint != inventory_fp or
                 row.configuration_index >= len(cve.configurations) or
                 row.configuration_fingerprint !=
@@ -128,11 +131,15 @@ def _scoped_status_with_current_audits(cve, hardware, inventory_fp, analysed):
             global_decision=global_record.status if global_current else None,
         )
 
+    eligible = set(
+        analysed.get("contextual_selection", {}).get("pertinent_indexes", [])
+    )
     newest = {}
     for row in AssetCveAssessment.objects.filter(
         hardware=hardware, cve=cve,
     ).order_by("-decided_at", "-pk"):
-        newest.setdefault(row.configuration_index, row)
+        if row.configuration_index in eligible:
+            newest.setdefault(row.configuration_index, row)
 
     current, stale = {}, False
     for index, row in newest.items():
@@ -192,6 +199,7 @@ def related_assets_for_cves(cves):
                 )
                 chosen_installation, chosen_configuration, human_status = _current_linked_installation(
                     cve, hardware, inventory_fp,
+                    analysed["contextual_selection"]["pertinent_indexes"],
                 )
                 if global_record is not None:
                     chosen_configuration = global_record.configuration_index
