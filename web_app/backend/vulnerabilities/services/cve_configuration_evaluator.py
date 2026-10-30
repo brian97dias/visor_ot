@@ -142,8 +142,14 @@ def _exclusive_siemens_hardware(product):
         "simatic_drive_controller_cpu_1507d_tf",
     }:
         return ("drive-controller-cpu", name)
-    if name == "simatic_et_200sp_open_controller_cpu_1515sp_pc2":
-        return ("et-200sp-open-controller", "1515sp-pc2")
+    if name in {
+        "simatic_et_200sp_open_controller_cpu_1515sp_pc",
+        "simatic_et_200sp_open_controller_cpu_1515sp_pc2",
+    }:
+        # Two explicitly named ET 200SP Open Controller platforms (not a
+        # fuzzy family/prefix inference).
+        return ("et-200sp-open-controller",
+                name.removeprefix("simatic_et_200sp_open_controller_cpu_"))
     if name in {
         "tim_1531_irc", "siplus_tim_1531_irc",
         "simatic_tim_1531_irc", "simatic_siplus_tim_1531_irc",
@@ -403,6 +409,7 @@ def _evaluate_group(group, hardware_cpes, installed):
 SCOPE_PERTINENT = "PERTINENT"
 SCOPE_FOREIGN = "FOREIGN"
 SCOPE_UNCERTAIN = "UNCERTAIN"
+SCOPE_OUT_OF_SCOPE = "OUT_OF_SCOPE"
 _SCOPE_UNSCOPED = "UNSCOPED"
 
 
@@ -412,8 +419,9 @@ def _configuration_scope_state(node):
     MATCHED hardware and installed-software identities can establish a
     relevant path even when their versions are excluded. DISTINCT hardware,
     and documented PLATFORM_DISTINCT software, establish an impossible path.
-    Unmatched software remains unscoped until inventory evidence resolves it.
-    NOT/unknown operators conservatively remain uncertain.
+    Unmatched software-only alternatives are out of the hardware-anchored
+    scope, NOT proof that the software is absent. Unverified hardware
+    identities and NOT/unknown operators remain uncertain.
     """
     if not isinstance(node, dict):
         return SCOPE_UNCERTAIN
@@ -470,6 +478,7 @@ def select_contextual_configurations(evaluated):
         "pertinent_indexes": [],
         "foreign_indexes": [],
         "uncertain_indexes": [],
+        "out_of_scope_indexes": [],
         "configurations": [],
     }
     reasons = {
@@ -482,19 +491,26 @@ def select_contextual_configurations(evaluated):
             "demostradamente distinta o incompatible."
         ),
         SCOPE_UNCERTAIN: (
-            "No existe evidencia suficiente para acreditar o descartar la "
-            "relación de esta configuración con el hardware."
+            "La relación de una condición de hardware o de una ruta lógica "
+            "con este equipo todavía no puede verificarse."
+        ),
+        SCOPE_OUT_OF_SCOPE: (
+            "Configuración exclusivamente de software, sin plataforma de "
+            "hardware NVD ni identidad CPE de software instalada acreditada. "
+            "No forma parte de la evaluación anclada a este hardware; "
+            "no constituye una prueba de ausencia de ese software."
         ),
     }
     bucket = {
         SCOPE_PERTINENT: "pertinent_indexes",
         SCOPE_FOREIGN: "foreign_indexes",
         SCOPE_UNCERTAIN: "uncertain_indexes",
+        SCOPE_OUT_OF_SCOPE: "out_of_scope_indexes",
     }
     for index, row in enumerate(rows):
         scope = _configuration_scope_state(row)
         if scope == _SCOPE_UNSCOPED:
-            scope = SCOPE_UNCERTAIN
+            scope = SCOPE_OUT_OF_SCOPE
         projection[bucket[scope]].append(index)
         projection["configurations"].append({
             "index": index, "position": index + 1,
@@ -502,15 +518,21 @@ def select_contextual_configurations(evaluated):
             "technical_result": row.get("result", INDETERMINATE),
         })
     included = projection["pertinent_indexes"] + projection["uncertain_indexes"]
-    # A FOREIGN branch has no viable relation to this physical hardware.
-    # Keep its evaluated NVD tree as evidence, but do not let it block the
-    # contextual OR. An empty/no-platform NVD record remains indeterminate.
+    # FOREIGN and unanchored software-only branches are retained as NVD
+    # evidence, but do not participate in this hardware-scoped OR. A missing
+    # pertinent branch cannot by itself establish a negative.
+    # Never claim a negative applicability without at least one positively
+    # anchored NVD configuration for the selected hardware.
     contextual = (
         _combine([rows[index]["result"] for index in included], "OR")
-        if included else EXCLUDED if projection["foreign_indexes"] else INDETERMINATE
+        if projection["pertinent_indexes"] else INDETERMINATE
     )
     projection["evaluated_indexes"] = sorted(included)
     projection["ignored_foreign_indexes"] = list(projection["foreign_indexes"])
+    projection["ignored_out_of_scope_indexes"] = list(
+        projection["out_of_scope_indexes"]
+    )
+    projection["scope_basis"] = "CONFIRMED_HARDWARE_CPE"
     projection["result"] = contextual
     return projection
 
