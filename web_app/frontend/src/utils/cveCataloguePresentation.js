@@ -497,6 +497,16 @@ export function operationalNvdGroupBranches(node, selectedCriterion = "") {
   return matched.length ? {shown: matched, hidden: []} : result;
 }
 
+/** Only the examined software criterion may expose installation controls. */
+export function canSelectNvdCriterionSoftware(item, examinedKey, isAlternative = false) {
+  if (isAlternative || item?.kind !== "CRITERION" ||
+      item.vulnerable !== true || !["a", "o"].includes(item.part)) {
+    return false;
+  }
+  return Boolean(examinedKey) &&
+    (item.match_criteria_id || item.criteria) === examinedKey;
+}
+
 /** Resolve the displayed vulnerable software leaf without changing NVD logic.
  * The initial choice follows the current technical display priority; a manual
  * choice focuses the corresponding OR branch instead of altering the evaluator.
