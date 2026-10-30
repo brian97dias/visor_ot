@@ -411,7 +411,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         verdict: choice,
         software_installation_id: choice === "UNKNOWN" ? null :
           (selectedId ? Number(selectedId) : null),
-        selected_nvd_criterion: selectedCriterion,
+        selected_nvd_criterion: choice === "UNKNOWN" ? "" : selectedCriterion,
         inventory_declared_complete: false,
         technical_override_acknowledged: (
           choice === "CONFIRMED" ||
