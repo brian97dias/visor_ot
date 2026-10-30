@@ -236,12 +236,16 @@ function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, inst
           (isOr ? "O" : "Y")}>{isOr ? "O" : "Y"}</div>}
         {renderChild(child, i)}
       </div>) : <p className="cve-muted">No hay criterios detallados en este grupo.</p>}
-    {hidden.length > 0 && <details className="cve-nvd-other-evidence cve-nvd-other-branches">
+    {hidden.length > 0 && <details
+      className="cve-nvd-other-evidence cve-nvd-other-branches"
+      open={hidden.some(branch => Boolean(vulnerableSoftwareCriterion(branch)))}>
       <summary>{nvdAlternativeGroupLabel(hidden)} ({hidden.length})</summary>
       <div className="cve-nvd-other-scroll" tabIndex={0}
         role="region" aria-label={nvdAlternativeGroupLabel(hidden)}>
-        <p className="cve-muted">Opciones del operador O de NVD.
-          No implican presencia en el inventario ni aplicabilidad confirmada.</p>
+        <p className="cve-muted">Alternativas del operador O dentro de la
+          configuración NVD de este hardware. Puedes examinar una alternativa
+          de software para documentar tu revisión; seleccionarla no prueba
+          que esté instalada ni que la vulnerabilidad aplique.</p>
         {hidden.map((child, i) => renderChild(child, i, true))}
       </div>
     </details>}
