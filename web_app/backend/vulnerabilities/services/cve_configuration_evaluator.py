@@ -41,7 +41,7 @@ def compare_numeric_versions(installed, reference):
     return 0 if len(a) == len(b) else None
 
 
-def evaluate_version(installed, criterion_version="*", bounds=None):
+def evaluate_version(installed, criterion_version="*", bounds=None, *, software_type=None):
     """Evaluate a version constraint; returns a result and a short explanation."""
     bounds = bounds or {}
     if not isinstance(bounds, dict) or any(k not in VERSION_KEYS for k in bounds):
@@ -59,7 +59,18 @@ def evaluate_version(installed, criterion_version="*", bounds=None):
         # separately, but this version expression is not safely satisfiable.
         return INDETERMINATE, "El criterio CPE usa NA (-), que no significa cualquier versión."
     if not bounds:
-        return COMPATIBLE, "El criterio no restringe la versión instalada." if criterion_version == "*" else "La versión coincide con el criterio."
+        if criterion_version == "*":
+            product = "este firmware" if software_type == "FIRMWARE" else "este producto"
+            if installed:
+                return COMPATIBLE, (
+                    f"La condición NVD admite cualquier versión de {product}. "
+                    f"La versión instalada ({installed}) cumple esta condición."
+                )
+            return COMPATIBLE, (
+                f"La condición NVD admite cualquier versión de {product}; "
+                "no es necesario conocer la versión instalada para comprobarla."
+            )
+        return COMPATIBLE, "La versión coincide con el criterio."
 
     if not installed:
         return INDETERMINATE, "El inventario no tiene una versión instalada."
@@ -334,7 +345,10 @@ def evaluate_criterion(criterion, hardware_cpes, installed_software):
 
     exclusions = []
     for sw, candidate in matching:
-        result, reason = evaluate_version(sw.get("version", ""), cpe[5], bounds)
+        result, reason = evaluate_version(
+            sw.get("version", ""), cpe[5], bounds,
+            software_type=sw.get("software_type"),
+        )
         if candidate[5] not in ("*", "-", sw.get("version", "")):
             result, reason = INDETERMINATE, (
                 "La versión del CPE confirmado difiere de la versión inventariada."
