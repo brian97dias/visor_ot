@@ -1217,6 +1217,52 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(found[0]["role"], "PLATFORM")
         self.assertEqual(found[1]["role"], "VULNERABLE")
 
+    def test_contextual_result_is_shared_by_hardware_detail_and_catalogue(self):
+        # Same 2019-10943 representative shape used in the pure evaluator
+        # tests: two uncertain branches prevent an automatic "No aplica".
+        et200sp = (
+            "cpe:2.3:h:siemens:"
+            "simatic_et_200sp_open_controller_cpu_1515sp_pc:-:*:*:*:*:*:*:*"
+        )
+        software_controller = (
+            "cpe:2.3:a:siemens:"
+            "simatic_s7-1500_software_controller:*:*:*:*:*:*:*:*"
+        )
+        plcsim_app = (
+            "cpe:2.3:a:siemens:"
+            "simatic_s7_plcsim_advanced:*:*:*:*:*:*:*:*"
+        )
+        foreign = nvd_platform_firmware(PLCSIM_HW, PLCSIM_FW)
+        configs = [foreign for _ in range(11)]
+        configs[0] = nvd_platform_firmware(et200sp, CPU_FW_CRITERION)
+        configs[5] = nvd_platform_firmware(CPU_HW, CPU_FW_CRITERION, before="4.4")
+        configs[10] = {"operator": "OR", "cpeMatch": [
+            {"criteria": software_controller, "vulnerable": True},
+            {"criteria": plcsim_app, "vulnerable": True},
+        ]}
+        self.cve.configurations = configs
+        self.cve.save(update_fields=["configurations"])
+        detail = self.client.get(self.url)
+        self.assertEqual(detail.status_code, 200, detail.data)
+        data = detail.data
+        self.assertEqual(data["contextual_selection"]["pertinent_indexes"], [5])
+        self.assertEqual(data["contextual_selection"]["uncertain_indexes"], [0, 10])
+        self.assertEqual(len(data["contextual_selection"]["foreign_indexes"]), 8)
+        self.assertEqual(data["configurations"][5]["technical_result"], EXCLUDED)
+        self.assertEqual(data["technical_result"], INDETERMINATE)
+        self.assertEqual(data["nvd_technical_result"], INDETERMINATE)
+        self.assertEqual(data["applicability"]["status"], "PENDING_REVIEW")
+        self.assertEqual(
+            data["applicability"]["technical_result"], data["technical_result"]
+        )
+        self.assertIsNone(data["applicability"]["automatic_evidence"])
+        catalog = self.client.get("/api/vulnerabilities/cves/")
+        self.assertEqual(catalog.status_code, 200, catalog.data)
+        self.assertEqual(catalog.data["results"][0]["technical_result"],
+                         data["technical_result"])
+        self.assertEqual(catalog.data["results"][0]["applicability_status"],
+                         data["applicability"]["status"])
+
     def test_version_bounded_automatic_positive_requires_a_real_human_change(self):
         context = self.client.get(self.url)
         self.assertEqual(context.status_code, 200, context.data)
