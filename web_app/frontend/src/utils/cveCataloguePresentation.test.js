@@ -83,7 +83,7 @@ test("scope summary preserves all original NVD branches and distinguishes 2019-1
     index === 5 ? "EXCLUDED" : index === 10 ? "INDETERMINATE" : "EXCLUDED",
     "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*",
   ));
-  const originals = structuredClone(branches);
+  const originals = JSON.parse(JSON.stringify(branches));
   const context = {
     configurations: branches,
     nvd_technical_result: "INDETERMINATE",
@@ -275,7 +275,7 @@ test("catalogue statuses explain scoped evaluation rather than NVD fetch", () =>
   assert.equal(CVE_EVALUATION_STATE.NOT_APPLICABLE, "No aplica");
   assert.equal(CVE_EVALUATION_STATE.STALE, "Revisar evidencia");
   assert.match(CVE_EVALUATION_HELP.APPLIES, /al menos una/i);
-  assert.match(CVE_EVALUATION_HELP.NOT_APPLICABLE, /todas/i);
+  assert.match(CVE_EVALUATION_HELP.NOT_APPLICABLE, /pertinentes/i);
 });
 
 test("technical compatibility has its own labels and an attention filter", () => {
