@@ -397,11 +397,127 @@ def _evaluate_group(group, hardware_cpes, installed):
             "children": children}
 
 
+# This is a scope projection, not an applicability verdict. A configuration
+# is foreign only if *every* viable NVD logical path is demonstrably outside
+# the evaluated hardware. Unverified identity is never evidence of absence.
+SCOPE_PERTINENT = "PERTINENT"
+SCOPE_FOREIGN = "FOREIGN"
+SCOPE_UNCERTAIN = "UNCERTAIN"
+_SCOPE_UNSCOPED = "UNSCOPED"
+
+
+def _configuration_scope_state(node):
+    """Classify a complete evaluated NVD expression, not an isolated CPE.
+
+    MATCHED hardware and installed-software identities can establish a
+    relevant path even when their versions are excluded. DISTINCT hardware,
+    and documented PLATFORM_DISTINCT software, establish an impossible path.
+    Unmatched software remains unscoped until inventory evidence resolves it.
+    NOT/unknown operators conservatively remain uncertain.
+    """
+    if not isinstance(node, dict):
+        return SCOPE_UNCERTAIN
+    if node.get("kind") == "CRITERION":
+        identity = node.get("identity")
+        if node.get("part") == "h":
+            if identity == "MATCHED":
+                return SCOPE_PERTINENT
+            if identity == "DISTINCT":
+                return SCOPE_FOREIGN
+            return SCOPE_UNCERTAIN
+        if node.get("part") in ("a", "o"):
+            if identity == "MATCHED":
+                return SCOPE_PERTINENT
+            if identity == "PLATFORM_DISTINCT":
+                return SCOPE_FOREIGN
+            return _SCOPE_UNSCOPED
+        return SCOPE_UNCERTAIN
+
+    children = node.get("children")
+    operator = node.get("operator")
+    if (node.get("kind") != "GROUP" or node.get("negate")
+            or operator not in ("AND", "OR")
+            or not isinstance(children, list) or not children):
+        return SCOPE_UNCERTAIN
+    states = [_configuration_scope_state(child) for child in children]
+    if operator == "AND":
+        if SCOPE_FOREIGN in states:
+            return SCOPE_FOREIGN
+        if SCOPE_UNCERTAIN in states:
+            return SCOPE_UNCERTAIN
+        if SCOPE_PERTINENT in states:
+            return SCOPE_PERTINENT
+        return _SCOPE_UNSCOPED
+    if SCOPE_PERTINENT in states:
+        return SCOPE_PERTINENT
+    if all(state == SCOPE_FOREIGN for state in states):
+        return SCOPE_FOREIGN
+    if SCOPE_UNCERTAIN in states:
+        return SCOPE_UNCERTAIN
+    return _SCOPE_UNSCOPED
+
+
+def select_contextual_configurations(evaluated):
+    """Return a read-only, index-preserving scope projection over NVD trees.
+
+    The original configurations and their complete evaluated AND/OR/NOT trees
+    are never removed, flattened or modified. This selector deliberately
+    does NOT aggregate the final Hardware-CVE verdict (phase 3).
+    """
+    rows = evaluated.get("configurations", []) if isinstance(evaluated, dict) else []
+    projection = {
+        "pertinent_indexes": [],
+        "foreign_indexes": [],
+        "uncertain_indexes": [],
+        "configurations": [],
+    }
+    reasons = {
+        SCOPE_PERTINENT: (
+            "Existe una ruta lógica vinculada al hardware o al software "
+            "instalado mediante identidad CPE confirmada."
+        ),
+        SCOPE_FOREIGN: (
+            "Todas las rutas de esta configuración requieren una plataforma "
+            "demostradamente distinta o incompatible."
+        ),
+        SCOPE_UNCERTAIN: (
+            "No existe evidencia suficiente para acreditar o descartar la "
+            "relación de esta configuración con el hardware."
+        ),
+    }
+    bucket = {
+        SCOPE_PERTINENT: "pertinent_indexes",
+        SCOPE_FOREIGN: "foreign_indexes",
+        SCOPE_UNCERTAIN: "uncertain_indexes",
+    }
+    for index, row in enumerate(rows):
+        scope = _configuration_scope_state(row)
+        if scope == _SCOPE_UNSCOPED:
+            scope = SCOPE_UNCERTAIN
+        projection[bucket[scope]].append(index)
+        projection["configurations"].append({
+            "index": index, "position": index + 1,
+            "relation": scope, "reason": reasons[scope],
+            "technical_result": row.get("result", INDETERMINATE),
+        })
+    return projection
+
+
 def evaluate_configurations(configurations, hardware_cpes, installed_software):
     """Returns annotated original NVD logic; alternatives are OR at CVE level."""
     if not isinstance(configurations, list) or not configurations:
-        return {"result": INDETERMINATE, "configurations": []}
+        return {
+            "result": INDETERMINATE,
+            "configurations": [],
+            "contextual_selection": select_contextual_configurations(
+                {"configurations": []}
+            ),
+        }
     rows = [_evaluate_group(config, hardware_cpes, installed_software)
             for config in configurations]
-    return {"result": _combine([row["result"] for row in rows], "OR"),
-            "configurations": rows}
+    result = {"result": _combine([row["result"] for row in rows], "OR"),
+              "configurations": rows}
+    # Scope classification is an additional derived projection. Phase 2 does
+    # not change established applicability or legacy automatic audit results.
+    result["contextual_selection"] = select_contextual_configurations(result)
+    return result
