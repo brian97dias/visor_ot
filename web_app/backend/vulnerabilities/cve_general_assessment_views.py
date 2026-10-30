@@ -17,6 +17,7 @@ class GeneralCveDecisionSerializer(serializers.Serializer):
     software_installation_id = serializers.IntegerField(
         min_value=1, allow_null=True, required=False, default=None,
     )
+    selected_nvd_criterion = serializers.CharField(required=False, allow_blank=True, default="", max_length=2048)
     inventory_declared_complete = serializers.BooleanField(default=False)
     technical_override_acknowledged = serializers.BooleanField(default=False)
     platform_unverified_acknowledged = serializers.BooleanField(default=False)
