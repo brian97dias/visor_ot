@@ -119,7 +119,13 @@ def ensure_system_cve_assessment(cve_id, hardware_id):
     )
     proof = automatic_positive_evidence(technical)
     if proof is None:
-        negatives = verified_negative_configurations(technical)
+        pertinent_indexes = set(
+            technical["contextual_selection"]["pertinent_indexes"]
+        )
+        negatives = [
+            row for row in verified_negative_configurations(technical)
+            if row["configuration_index"] in pertinent_indexes
+        ]
         global_exclusion = automatic_negative_evidence(technical) is not None
         if not global_exclusion:
             # Document directly verified vulnerable-version exclusions without
