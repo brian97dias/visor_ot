@@ -1,7 +1,7 @@
-"""CVE-by-asset contextualization: Siemens CPU vs PLCSIM alternative.
+"""CVE-by-asset contextualization: Siemens CPU and matched software.
 
-The data below reproduces the relevant NVD *shapes*, not a downloaded copy
-of all 96 configurations. The live NVD JSON is still stored unchanged.
+Includes synthetic NVD AND/OR edge cases plus pinned original configuration
+trees for CVE-2019-10943, CVE-2021-44695 and CVE-2021-42029.
 """
 import json
 from pathlib import Path
@@ -19,8 +19,9 @@ from vulnerabilities.services.cve_configuration_evaluator import (
     SCOPE_PERTINENT, SCOPE_FOREIGN, SCOPE_UNCERTAIN, SCOPE_OUT_OF_SCOPE,
 )
 from vulnerabilities.services.cve_applicability import (
-    automatic_negative_evidence, verified_negative_configurations,
-    project_configuration_decisions, scoped_applicability,
+    automatic_negative_evidence, automatic_positive_evidence,
+    verified_negative_configurations, project_configuration_decisions,
+    scoped_applicability,
 )
 from vulnerabilities.services.cve_general_assessment import (
     general_assessment_context, summarize_hardware_cve_review,
@@ -345,6 +346,7 @@ class ContextualNvdConfigurationScopeTests(SimpleTestCase):
             matched_software["contextual_selection"]["out_of_scope_indexes"], [0]
         )
         self.assertEqual(matched_software["contextual_result"], INDETERMINATE)
+        self.assertIsNone(automatic_positive_evidence(matched_software))
 
     def test_nested_or_does_not_discard_a_matching_hardware_path(self):
         other_hw = PLCSIM_HW
@@ -603,6 +605,21 @@ class ContextualHardwareCveConsolidationTests(SimpleTestCase):
                 technical, {}, global_decision="PENDING_REVIEW"
             ),
             {"status": "IN_REVIEW", "source": "NONE"},
+        )
+
+    def test_historic_analyst_choice_on_unanchored_software_cannot_vote(self):
+        software_only = {"operator": "OR", "cpeMatch": [
+            {"criteria": STEP7, "vulnerable": True},
+        ]}
+        pertinent = nvd_platform_firmware(
+            CPU_HW, CPU_FW_CRITERION, before="4.4"
+        )
+        technical = self.evaluate([software_only, pertinent])
+        self.assertEqual(technical["contextual_selection"]["pertinent_indexes"], [1])
+        self.assertEqual(technical["contextual_result"], EXCLUDED)
+        self.assertEqual(
+            project_configuration_decisions(technical, {0: "APPLIES"}),
+            {"status": "NOT_APPLICABLE", "source": "SYSTEM"},
         )
 
     def test_no_pertinent_branch_is_pending_not_automatically_safe(self):
