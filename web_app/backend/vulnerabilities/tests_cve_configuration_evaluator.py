@@ -86,6 +86,40 @@ class NvdVersionEvaluatorTests(SimpleTestCase):
         self.assertEqual(evaluate_version("4.0", "-")[0], INDETERMINATE)
         self.assertEqual(evaluate_version("4.0", "*")[0], COMPATIBLE)
 
+    def test_unrestricted_firmware_version_explains_why_installed_version_matches(self):
+        result, reason = evaluate_version(
+            "4.5.2", "*", software_type="FIRMWARE",
+        )
+        self.assertEqual(result, COMPATIBLE)
+        self.assertEqual(
+            reason,
+            "La condición NVD admite cualquier versión de este firmware. "
+            "La versión instalada (4.5.2) cumple esta condición.",
+        )
+
+    def test_unrestricted_version_without_inventory_version_is_still_allowed(self):
+        result, reason = evaluate_version(
+            "", "*", software_type="FIRMWARE",
+        )
+        self.assertEqual(result, COMPATIBLE)
+        self.assertIn("no es necesario conocer la versión instalada", reason)
+        result, reason = evaluate_version("4.5.2", "*")
+        self.assertEqual(result, COMPATIBLE)
+        self.assertIn("este producto", reason)
+
+    def test_version_bounded_criterion_keeps_range_evaluation(self):
+        result, reason = evaluate_version(
+            "4.5.2", "*", {"versionEndExcluding": "4.6.0"},
+            software_type="FIRMWARE",
+        )
+        self.assertEqual(result, COMPATIBLE)
+        self.assertEqual(reason, "La versión satisface todos los límites NVD evaluados.")
+        result, _ = evaluate_version(
+            "4.5.2", "*", {"versionEndExcluding": "4.4.0"},
+            software_type="FIRMWARE",
+        )
+        self.assertEqual(result, EXCLUDED)
+
     def test_exact_match_requires_specific_product_not_generic_prefix(self):
         generic = "cpe:2.3:o:siemens:simatic_s7-1200_cpu_firmware:4.0:*:*:*:*:*:*:*"
         item = scenario()["nodes"][0]["cpeMatch"][0]
