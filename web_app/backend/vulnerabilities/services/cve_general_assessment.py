@@ -534,6 +534,10 @@ def general_assessment_context(cve_id, hardware_id):
         row["configuration_index"]: row
         for row in verified_negative_configurations(technical)
     }
+    scope_selection = technical["contextual_selection"]
+    scope_by_index = {
+        row["index"]: row for row in scope_selection["configurations"]
+    }
     configs = []
     for index, config in enumerate(cve.configurations):
         cfg_fp = _digest(config)
@@ -638,6 +642,8 @@ def general_assessment_context(cve_id, hardware_id):
                 and not _has_nvd_negation(config)
             ),
             "technical_result": observation["result"],
+            "contextual_scope": scope_by_index[index]["relation"],
+            "contextual_scope_reason": scope_by_index[index]["reason"],
             "evaluated_software": evaluated_software,
             "review_supported": bool(supported),
             "review_reason": "" if supported else (
@@ -775,6 +781,9 @@ def general_assessment_context(cve_id, hardware_id):
         "installed_software": installed,
         "technical_result": technical["result"],
         "technical_configuration_counts": technical_counts,
+        # Phase 2: read-only contextual classification. Global technical and
+        # applicability conclusions remain unchanged until phase 3.
+        "contextual_selection": scope_selection,
         "applicability": applicability,
         "automatic_audit_pending": (
             audit_pending and global_record is None
