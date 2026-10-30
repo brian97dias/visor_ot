@@ -63,7 +63,7 @@ def _source(hardware_id, assoc, origin, identity, installation=None):
     return source
 
 
-def has_hardware_discovery_source(sources):
+def has_hardware_discovery_source(sources, hardware_id=None):
     """Current discovery candidates require explicit hardware h:CPE provenance.
 
     Historical SOFTWARE-only findings remain in storage for audit.
@@ -72,6 +72,10 @@ def has_hardware_discovery_source(sources):
         isinstance(source, dict)
         and source.get("origin") == "HARDWARE"
         and _valid_part(source.get("cpe_name"), "HARDWARE")
+        and (hardware_id is None or (
+            source.get("hardware_id") == hardware_id
+            and source.get("asset_id") == hardware_id
+        ))
         for source in sources
     )
 
@@ -85,7 +89,7 @@ def hardware_discovery_pairs(cve_ids):
         for cve_pk, hardware_pk, sources in AssetCveFinding.objects.filter(
             cve_id__in=cve_ids
         ).values_list("cve_id", "hardware_id", "sources")
-        if has_hardware_discovery_source(sources)
+        if has_hardware_discovery_source(sources, hardware_pk)
     }
 
 
