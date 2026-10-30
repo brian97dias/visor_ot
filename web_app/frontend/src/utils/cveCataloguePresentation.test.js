@@ -534,6 +534,51 @@ test("operational detail hides unrelated hardware even with automatic history", 
   }).reviewPool, []);
 });
 
+test("only the hardware-anchored NVD config is operational among 96", () => {
+  const other = Array.from({length: 96}, (_, index) => ({
+    index, position: index + 1, hardware_scope: "UNVERIFIED",
+    technical_result: "INDETERMINATE",
+  }));
+  const relevant = {...other[8], hardware_scope: "MATCHED",
+    contextual_scope: "PERTINENT", technical_result: "COMPATIBLE"};
+  const context = {
+    configurations: other,
+    relevant_configurations: [relevant],
+    hardware_software_configurations: [relevant],
+    contextual_selection: {pertinent_indexes: [8], evaluated_indexes: [8]},
+  };
+  const result = selectCveOperationalGroups(context);
+  assert.deepEqual(result.reviewPool.map(row => row.position), [9]);
+  assert.deepEqual(result.hardwareSoftware.map(row => row.position), [9]);
+  assert.equal(context.configurations.length, 96);
+});
+
+test("STEP 7 OR exposes eight selectable software choices inside matched hardware", () => {
+  const step7 = Array.from({length: 8}, (_, index) => ({
+    kind: "CRITERION", part: "a", vulnerable: true,
+    criteria: "cpe:2.3:a:siemens:simatic_step_7:17:update" + index +
+      ":*:*:*:*:*:*",
+    match_criteria_id: "STEP7-" + index,
+    technical_identity: "UNKNOWN",
+  }));
+  const or = {kind: "GROUP", operator: "OR", children: step7};
+  const original = JSON.stringify(or);
+  const initial = operationalNvdGroupBranches(or);
+  assert.equal(initial.shown.length, 1);
+  assert.equal(initial.hidden.length, 7);
+  assert.equal(nvdAlternativeGroupLabel(initial.hidden),
+    "Otras alternativas de software NVD");
+  const selected = operationalNvdGroupBranches(or, "STEP7-5");
+  assert.equal(selected.shown[0].match_criteria_id, "STEP7-5");
+  assert.equal(selected.hidden.length, 7);
+  assert.equal(displayedNvdSoftwareCriterion(or, "STEP7-5").match_criteria_id,
+    "STEP7-5");
+  assert.equal(canSelectNvdCriterionSoftware(selected.shown[0], "STEP7-5"), true);
+  assert.equal(canSelectNvdCriterionSoftware(initial.hidden[0], "STEP7-5", true),
+    false);
+  assert.equal(JSON.stringify(or), original);
+});
+
 test("hardware detail hides unscoped software even when it is present in NVD", () => {
   const standalone = {
     index: 0, hardware_scope: "UNSCOPED", technical_result: "COMPATIBLE",
