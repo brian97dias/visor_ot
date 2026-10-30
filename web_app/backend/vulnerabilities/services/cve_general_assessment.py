@@ -1126,7 +1126,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
             and previous_software_id == software_installation_id):
         raise ValidationError({"verdict":
             "La evaluación Hardware–CVE ya tiene este estado y criterio vigentes."})
-    if global_scope and global_previous is None:
+    if global_scope and global_previous is None and verdict != "UNKNOWN":
         auto_state = (
             "APPLIES" if automatic_positive_evidence(whole) is not None
             else "NOT_APPLICABLE"
