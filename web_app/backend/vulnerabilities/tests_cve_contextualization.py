@@ -12,6 +12,7 @@ from vulnerabilities.models import (
 )
 from vulnerabilities.services.cve_configuration_evaluator import (
     COMPATIBLE, EXCLUDED, INDETERMINATE, evaluate_configurations,
+    SCOPE_PERTINENT, SCOPE_FOREIGN, SCOPE_UNCERTAIN,
 )
 from vulnerabilities.services.cve_applicability import (
     automatic_negative_evidence, verified_negative_configurations,
@@ -268,6 +269,168 @@ class ManualFirmwareProductIdentityTests(SimpleTestCase):
             self.assertEqual(_manual_firmware_installations(tree, [{
                 **installation, "manufacturer": "Different Vendor",
             }]), [])
+
+
+class ContextualNvdConfigurationScopeTests(SimpleTestCase):
+    """Phase 2: scope classification only, not the phase-3 global verdict."""
+
+    def evaluate(self, scenarios, *, inventory=None):
+        return evaluate_configurations(
+            scenarios, [CPU_HW], installed() if inventory is None else inventory
+        )
+
+    def test_version_excluded_firmware_still_has_pertinent_hardware_scope(self):
+        config = nvd_platform_firmware(
+            CPU_HW, CPU_FW_CRITERION, before="4.4"
+        )
+        result = self.evaluate([config])
+        self.assertEqual(result["result"], EXCLUDED)
+        scope = result["contextual_selection"]
+        self.assertEqual(scope["pertinent_indexes"], [0])
+        self.assertEqual(scope["foreign_indexes"], [])
+        self.assertEqual(scope["uncertain_indexes"], [])
+        self.assertEqual(scope["configurations"][0]["technical_result"], EXCLUDED)
+        self.assertEqual(scope["configurations"][0]["relation"], SCOPE_PERTINENT)
+
+    def test_other_confirmed_physical_controller_is_foreign(self):
+        excluded = nvd_platform_firmware(PLCSIM_HW, PLCSIM_FW, before="5.0")
+        result = self.evaluate([excluded])
+        self.assertEqual(result["contextual_selection"]["foreign_indexes"], [0])
+        self.assertEqual(result["contextual_selection"]["configurations"][0]["relation"],
+                         SCOPE_FOREIGN)
+
+    def test_family_or_unknown_hardware_never_proves_foreign(self):
+        ambiguous = "cpe:2.3:h:siemens:simatic_s7-1200:-:*:*:*:*:*:*:*"
+        et200sp = (
+            "cpe:2.3:h:siemens:"
+            "simatic_et_200sp_open_controller_cpu_1515sp_pc:-:*:*:*:*:*:*:*"
+        )
+        for hardware in (ambiguous, et200sp):
+            with self.subTest(hardware=hardware):
+                config = nvd_platform_firmware(hardware, CPU_FW_CRITERION)
+                result = self.evaluate([config])
+                self.assertEqual(result["contextual_selection"]["uncertain_indexes"], [0])
+                self.assertEqual(result["contextual_selection"]["foreign_indexes"], [])
+
+    def test_software_only_match_is_pertinent_but_absence_is_uncertain(self):
+        application = {"operator": "OR", "cpeMatch": [{
+            "criteria": STEP7, "vulnerable": True
+        }]}
+        self.assertEqual(
+            self.evaluate([application])["contextual_selection"]["uncertain_indexes"],
+            [0],
+        )
+        installed_app = [{
+            "installation_id": 88, "software_asset_id": 99,
+            "software_name": "STEP 7", "software_type": "APPLICATION",
+            "version": "16", "confirmed_cpes": [
+                STEP7.replace(":*:*:*:*:*:*:*:*", ":16:*:*:*:*:*:*:*")
+            ],
+        }]
+        self.assertEqual(
+            self.evaluate([application], inventory=installed_app)
+                ["contextual_selection"]["pertinent_indexes"],
+            [0],
+        )
+
+    def test_nested_or_does_not_discard_a_matching_hardware_path(self):
+        other_hw = PLCSIM_HW
+        condition = {"operator": "OR", "nodes": [
+            {"operator": "AND", "cpeMatch": [
+                {"criteria": other_hw, "vulnerable": False},
+                {"criteria": STEP7, "vulnerable": True},
+            ]},
+            {"operator": "AND", "cpeMatch": [
+                {"criteria": CPU_HW, "vulnerable": False},
+                {"criteria": STEP7, "vulnerable": True},
+            ]},
+        ]}
+        result = self.evaluate([condition])
+        self.assertEqual(result["contextual_selection"]["pertinent_indexes"], [0])
+        self.assertEqual(result["result"], INDETERMINATE)
+
+    def test_and_with_proven_other_hardware_is_foreign_even_if_software_unknown(self):
+        config = {"operator": "AND", "cpeMatch": [
+            {"criteria": PLCSIM_HW, "vulnerable": False},
+            {"criteria": STEP7, "vulnerable": True},
+        ]}
+        self.assertEqual(
+            self.evaluate([config])["contextual_selection"]["foreign_indexes"],
+            [0],
+        )
+
+    def test_nvd_negation_is_uncertain_for_scope_not_a_false_exclusion(self):
+        nested = {"operator": "AND", "nodes": [
+            {"operator": "OR", "negate": True, "cpeMatch": [{
+                "criteria": CPU_HW, "vulnerable": False
+            }]},
+            {"operator": "OR", "cpeMatch": [{
+                "criteria": STEP7, "vulnerable": True
+            }]},
+        ]}
+        self.assertEqual(
+            self.evaluate([nested])["contextual_selection"]["uncertain_indexes"],
+            [0],
+        )
+
+    def test_cve_2019_10943_shape_keeps_other_platform_uncertainties(self):
+        # Representative NVD branches, not a substitute for the stored JSON:
+        # #1 unknown ET200SP model, #6 CPU1215C out of range,
+        # #11 OR of incompatible Software Controller and unverified PLCSIM.
+        et200sp = (
+            "cpe:2.3:h:siemens:"
+            "simatic_et_200sp_open_controller_cpu_1515sp_pc:-:*:*:*:*:*:*:*"
+        )
+        software_controller = (
+            "cpe:2.3:a:siemens:"
+            "simatic_s7-1500_software_controller:*:*:*:*:*:*:*:*"
+        )
+        plcsim_app = (
+            "cpe:2.3:a:siemens:"
+            "simatic_s7_plcsim_advanced:*:*:*:*:*:*:*:*"
+        )
+        unrelated = nvd_platform_firmware(PLCSIM_HW, PLCSIM_FW)
+        configs = [unrelated for _ in range(11)]
+        configs[0] = nvd_platform_firmware(et200sp, CPU_FW_CRITERION)
+        configs[5] = nvd_platform_firmware(CPU_HW, CPU_FW_CRITERION, before="4.4")
+        configs[10] = {"operator": "OR", "cpeMatch": [
+            {"criteria": software_controller, "vulnerable": True},
+            {"criteria": plcsim_app, "vulnerable": True},
+        ]}
+        original = __import__("copy").deepcopy(configs)
+        result = self.evaluate(configs)
+        self.assertEqual(result["contextual_selection"]["pertinent_indexes"], [5])
+        self.assertEqual(result["contextual_selection"]["uncertain_indexes"], [0, 10])
+        self.assertEqual(len(result["contextual_selection"]["foreign_indexes"]), 8)
+        self.assertEqual(result["configurations"][5]["result"], EXCLUDED)
+        # Phase 3 is responsible for contextual applicability consolidation.
+        self.assertEqual(result["result"], INDETERMINATE)
+        self.assertEqual(configs, original)
+
+    def test_regression_cpu1215c_firmware452_positive_among_other_branches(self):
+        unrelated = nvd_platform_firmware(PLCSIM_HW, PLCSIM_FW)
+        pertinent = nvd_platform_firmware(
+            CPU_HW, CPU_FW_CRITERION, before="4.6.0"
+        )
+        configs = [unrelated for _ in range(12)]
+        configs[8] = pertinent
+        result = self.evaluate(configs)
+        self.assertEqual(result["result"], COMPATIBLE)
+        self.assertEqual(result["contextual_selection"]["pertinent_indexes"], [8])
+        self.assertEqual(len(result["contextual_selection"]["foreign_indexes"]), 11)
+
+    def test_external_step7_requires_review_without_excluding_cpu_platform(self):
+        config = {"operator": "AND", "nodes": [
+            {"operator": "OR", "cpeMatch": [
+                {"criteria": CPU_HW, "vulnerable": False}
+            ]},
+            {"operator": "OR", "cpeMatch": [
+                {"criteria": STEP7, "vulnerable": True}
+            ]},
+        ]}
+        result = self.evaluate([config])
+        self.assertEqual(result["result"], INDETERMINATE)
+        self.assertEqual(result["contextual_selection"]["pertinent_indexes"], [0])
 
 
 class SiemensContextualLogicTests(SimpleTestCase):
