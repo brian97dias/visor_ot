@@ -6,7 +6,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from vulnerabilities.models import (
-    AssetCveAssessment, AssetCveFinding, Cve,
+    AssetCveAssessment, AssetCveFinding, Cve, CveDiscoveryRun,
 )
 from vulnerabilities.services.cve_discovery_worker import (
     enqueue_cve_discovery, execute_cve_discovery_run,
@@ -166,6 +166,58 @@ class CveCatalogueHttpTests(TestCase):
         self.assertEqual(results.data["results"][0]["selected_assets_count"], 1)
         related = self.client.get(self.BASE + source.cve_id + "/hardware/")
         self.assertEqual(related.data["count"], 1)
+
+    def test_software_only_legacy_finding_is_historical_not_current_candidate(self):
+        from django.utils import timezone
+
+        old_cve = Cve.objects.create(
+            cve_id="CVE-2025-12346",
+            fetch_status=Cve.FetchStatus.COMPLETED,
+            retrieved_at=timezone.now(),
+            configurations=[],
+        )
+        run = CveDiscoveryRun.objects.create(
+            requested_by=self.user,
+            status=CveDiscoveryRun.Status.COMPLETED,
+            selected_hardware_ids=[self.hardware.pk],
+        )
+        finding = AssetCveFinding.objects.create(
+            hardware=self.hardware, cve=old_cve,
+            first_discovery_run=run, last_discovery_run=run,
+            sources=[{
+                "origin": "SOFTWARE",
+                "hardware_id": self.hardware.pk,
+                "asset_id": 25,
+                "asset_cpe_id": 99,
+                "cpe_name": "cpe:2.3:o:vendor:firmware:4.5.2:*:*:*:*:*:*:*",
+            }],
+        )
+        listed = self.client.get(self.BASE)
+        self.assertEqual(listed.status_code, 200, listed.data)
+        row = next(row for row in listed.data["results"]
+                   if row["cve_id"] == old_cve.cve_id)
+        self.assertEqual(row["hardware_count"], 0)
+        self.assertEqual(row["related_assets"], [])
+        hw = self.client.get(self.BASE + old_cve.cve_id + "/hardware/")
+        self.assertEqual(hw.status_code, 200, hw.data)
+        self.assertEqual(hw.data["count"], 0)
+        finding.refresh_from_db()
+        self.assertEqual(finding.sources[0]["origin"], "SOFTWARE")
+        self.assertTrue(Cve.objects.filter(pk=old_cve.pk).exists())
+
+        # A prior human decision remains readable but is not an active finding.
+        AssetCveAssessment.objects.create(
+            hardware=self.hardware, cve=old_cve, configuration_index=0,
+            configuration_snapshot={}, configuration_fingerprint="a" * 64,
+            inventory_fingerprint="b" * 64,
+            status=AssetCveAssessment.Status.PENDING_REVIEW,
+            justification="Revisión histórica", decided_by=self.user,
+        )
+        assessed = self.client.get(self.BASE + old_cve.cve_id + "/hardware/")
+        self.assertEqual(assessed.data["count"], 1)
+        self.assertIsNone(assessed.data["results"][0]["finding_id"])
+        self.assertEqual(assessed.data["results"][0]["candidate_status"],
+                         "PREVIOUSLY_ASSESSED")
 
     def test_not_yet_fetched_record_is_not_presented_as_official(self):
         Cve.objects.create(cve_id="CVE-2024-65432")
