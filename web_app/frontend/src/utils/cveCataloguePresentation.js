@@ -407,7 +407,10 @@ export function cveApplicabilityExplanation(context) {
     : "El analista registró «Aplica» para este hardware. Su fundamento y la evidencia técnica original permanecen en el historial.";
   if (status === "NOT_APPLICABLE") return origin === "SYSTEM"
     ? scope
-      ? `Las ${scope.pertinentCount} configuración(es) NVD pertinentes quedaron descartadas por evidencia técnica. «No aplica» se limita a este hardware y su inventario; no demuestra ausencia de otros productos ni sustituye los avisos del fabricante.`
+      ? `${scope.pertinentCount === 1
+        ? "La configuración NVD pertinente quedó excluida"
+        : `Las ${scope.pertinentCount} configuraciones NVD pertinentes quedaron excluidas`
+      } por evidencia técnica. «No aplica» se limita a este hardware y su inventario; no demuestra ausencia de otros productos ni sustituye los avisos del fabricante.`
       : "Las alternativas NVD quedaron descartadas con evidencia técnica para este hardware."
     : "El analista registró una conclusión de no aplicabilidad para este hardware. La justificación está en el historial.";
   if (status === "APPLIES_CONDITIONAL") {
