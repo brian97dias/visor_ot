@@ -115,7 +115,7 @@ test("scope summary preserves all original NVD branches and distinguishes 2019-1
   assert.equal(summary.contextualResult, "EXCLUDED");
   assert.equal(summary.proof.proof_scope, "NVD_HARDWARE_CONTEXT");
   assert.deepEqual(branches, originals);
-  assert.match(cveApplicabilityExplanation(context), /1 configuración\(es\).*descartadas/);
+  assert.match(cveApplicabilityExplanation(context), /La configuración NVD pertinente quedó excluida/);
   assert.match(cveApplicabilityExplanation(context), /no demuestra ausencia/);
   assert.equal(CVE_CONTEXTUAL_SCOPE.OUT_OF_SCOPE.label, "Software sin anclaje");
 });
