@@ -220,6 +220,9 @@ def _cve_brief(cve, hardware_count=0, evaluation_status="PENDING_REVIEW",
             "status", "PENDING_REVIEW"
         ),
         "applicability_source": (applicability or {}).get("source", "NONE"),
+        "revalidation_required": bool(
+            (applicability or {}).get("revalidation_required")
+        ),
         # Contract for future hardening reporting: no false confirmed counts.
         "hardening_category": (
             "CONFIRMED" if (applicability or {}).get("status") == "APPLIES"
