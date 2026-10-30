@@ -123,7 +123,7 @@ def _catalogue_applicability(analyst_status, related_assets):
         # A current HUMAN review with no proven positive is not an untouched
         # candidate. Preserve its audit lifecycle in the catalogue and filters.
         if analyst_status == "IN_REVIEW" and conclusion == "PENDING_REVIEW":
-            return {"status": "IN_REVIEW", "source": "NONE"}
+            return {"status": "PENDING_REVIEW", "source": "NONE"}
         # Never resurrect a historical analyst verdict when the scoped
         # evaluator cannot substantiate it. The common fingerprint validator
         # must establish its currency first.
