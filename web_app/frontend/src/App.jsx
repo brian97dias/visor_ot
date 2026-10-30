@@ -20,7 +20,6 @@ import AssetImport from "./pages/AssetImport";
 import AssetDetail from "./pages/AssetDetail";
 import AssetCpeDiscovery from "./pages/AssetCpeDiscovery";
 import CpeOverview from "./pages/CpeOverview";
-import CveAnalysis from "./pages/CveAnalysis";
 import CveOverview from "./pages/CveOverview";
 import CveDetail from "./pages/CveDetail";
 import CveDiscoveryRun from "./pages/CveDiscoveryRun";
@@ -124,7 +123,8 @@ function App() {
           <Route path="/assets/:assetId/cpe" element={<AssetCpeDiscovery />} />
           <Route path="/vulnerabilities/cpe" element={<CpeOverview />} />
           <Route path="/vulnerabilities/cve" element={<CveOverview />} />
-          <Route path="/vulnerabilities/cve/experimental" element={<CveAnalysis />} />
+          <Route path="/vulnerabilities/cve/experimental"
+            element={<Navigate to="/vulnerabilities/cve/CVE-2021-33540?hardware=2" replace />} />
           <Route path="/vulnerabilities/cve/discoveries/:runId" element={<CveDiscoveryRun />} />
           <Route path="/vulnerabilities/cve/:cveId" element={<CveDetail />} />
 
