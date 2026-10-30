@@ -302,6 +302,14 @@ def _serialize_assessment(item, inventory_fp, config_fp, installed=None):
         "effective_status": "PENDING_REVIEW" if stale else item.status,
         "stale": stale, "justification": item.justification,
         "software_installation_id": item.software_installation_id,
+        "selected_nvd_criterion": (
+            item.criteria_evidence.get("selected_nvd_criterion")
+            if isinstance(item.criteria_evidence, dict) else None
+        ),
+        "reviewed_software": (
+            item.criteria_evidence.get("reviewed_software", [])
+            if isinstance(item.criteria_evidence, dict) else []
+        ),
         "software_display": _assessment_software_display(
             item, inventory_fp, config_fp, installed,
         ),
@@ -848,6 +856,7 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
             "NVD no identifica un componente vulnerable en la configuración seleccionada."})
 
     selected_criteria = []
+    reviewed_other_software = []
     if installation_id is not None:
         # A manual association is not an NVD/CPE confirmation. Only an active
         # installation on this hardware, of the correct software class, may
@@ -868,9 +877,16 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
             and (allow_excluded or item.get("technical_result") != "EXCLUDED")
         ]
         if not matching_parts:
-            raise ValidationError({"software_installation_id":
-                "La instalación seleccionada no corresponde al tipo de componente "
-                "vulnerable indicado por NVD."})
+            # A manually reviewed component is not necessarily the vulnerable
+            # product. Never turn a mismatched type into an identity assertion.
+            reviewed_other_software = [{
+                "installation_id": installation_id,
+                "software_asset_id": installation["software_asset_id"],
+                "link_source": "ANALYST_REVIEW_ONLY",
+                "identity_verified": False,
+                "version_verified": False,
+                "reason": "El producto/tipo NVD no está verificado para este componente.",
+            }]
         proven = next((
             item for item in matching_parts
             if item.get("technical_identity") == "MATCHED"
@@ -912,7 +928,8 @@ def _conditional_evidence(cve, hardware, config_index, confirmed, installed,
             "matched_cpe": item.get("technical_matched_cpe"),
             "bounds": item.get("bounds", {}),
         } for item in vulnerable],
-        "linked_software": selected_criteria,
+        "linked_software": selected_criteria if matching_parts or installation_id is None else [],
+        "reviewed_software": reviewed_other_software,
         "pending_condition": evaluation["result"] != "COMPATIBLE",
         "pending_criteria": [{
             "criteria": item["criteria"], "reason": item.get("technical_reason"),
@@ -930,7 +947,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
                               technical_override_acknowledged=False,
                               platform_unverified_acknowledged=False,
                               justification="", inventory_fingerprint="",
-                              configuration_fingerprint=""):
+                              configuration_fingerprint="", selected_nvd_criterion=""):
     hw, cve, confirmed, installed, actual_fp = _context(cve_id, hardware_id, lock=True)
     if (type(configuration_index) is not int or configuration_index < 0
             or configuration_index >= len(cve.configurations)):
@@ -965,6 +982,25 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         leaf.get("part") == "h" and leaf.get("technical_identity") == "MATCHED"
         for leaf in _flatten_technical_tree(annotated)
     )
+    selected_leaf = next((
+        leaf for leaf in _flatten_technical_tree(annotated)
+        if selected_nvd_criterion and leaf.get("kind") == "CRITERION"
+        and leaf.get("vulnerable") is True
+        and leaf.get("part") in ("a", "o")
+        and selected_nvd_criterion in (
+            leaf.get("match_criteria_id"), leaf.get("criteria"),
+        )
+    ), None)
+    if selected_nvd_criterion and selected_leaf is None:
+        raise ValidationError({"selected_nvd_criterion":
+            "La alternativa seleccionada no pertenece a esta configuración NVD."})
+    selected_nvd_evidence = ({
+        "key": selected_nvd_criterion,
+        "criteria": selected_leaf["criteria"],
+        "match_criteria_id": selected_leaf.get("match_criteria_id"),
+        "part": selected_leaf.get("part"),
+        "bounds": selected_leaf.get("bounds") or {},
+    } if selected_leaf is not None else None)
     global_scope = matched_hardware and (
         verdict != "UNKNOWN" or global_previous is not None
     )
@@ -1149,7 +1185,8 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         # A partial assessment may remember a reviewed component, but does
         # not retain any positive CVE-to-software association.
         conditional_evidence["reviewed_software"] = (
-            conditional_evidence.pop("linked_software", []) or []
+            conditional_evidence.get("reviewed_software", []) +
+            (conditional_evidence.pop("linked_software", []) or [])
         )
     if global_scope:
         # The human decision supersedes *all* alternative NVD branches only
