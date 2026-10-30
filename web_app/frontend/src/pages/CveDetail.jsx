@@ -87,6 +87,11 @@ function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, inst
           {currentInstallations.map(sw => {
             const isChecked = linkedCriterion === criterionKey &&
               installId === String(sw.installation_id);
+            const typeMatches = item.part === "a" ? sw.software_type === "APPLICATION"
+              : ["FIRMWARE", "OS"].includes(sw.software_type);
+            const identityProven = item.technical_identity === "MATCHED" &&
+              Number(item.technical_software_installation_id) ===
+                Number(sw.installation_id);
             const persisted = isChecked && savedLink?.installationId ===
               String(sw.installation_id) && savedLink.criterionKey === criterionKey;
             return <div className="cve-installed-software-entry" key={sw.installation_id}>
@@ -96,7 +101,11 @@ function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, inst
                   <small>Software #{sw.software_asset_id} · Instalación #{sw.installation_id}
                     {" · Versión "}{sw.version || "desconocida"}</small>
                 </div>
-                <span className="cve-software-status is-installed">Instalado</span>
+                <span className="cve-software-status is-installed">
+                  {identityProven ? "Identidad CPE comprobada" :
+                    typeMatches ? "Instalado · CPE sin comprobar" :
+                      "Instalado · tipo diferente"}
+                </span>
               </div>
               <label className="cve-criterion-selection cve-software-association">
                 <input type="checkbox" disabled={!canDecide} checked={isChecked}
@@ -311,9 +320,6 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     config.manual_confirm_supported || config.hardware_scope === "MATCHED" ||
     (reviewOpen && config.technical_result === "COMPATIBLE");
   const linkedInstallationId = checked ? installId : "";
-  const eligible = (config.candidate_installation_ids || []).includes(Number(linkedInstallationId)) ||
-    (config.manual_firmware_installation_ids || []).includes(Number(linkedInstallationId)) ||
-    config.review_installation_id === Number(linkedInstallationId);
   const positiveConflict = (
     config.technical_result === "COMPATIBLE" ||
     (context?.technical_result === "COMPATIBLE")
