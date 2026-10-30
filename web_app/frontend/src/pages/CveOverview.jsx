@@ -8,6 +8,7 @@ import {
 import {
   CVE_EVALUATION_STATE, CVE_CATALOGUE_FILTER_STATES,
   displayCveApplicability, cveAssetRoleLabel,
+  cveHardwareApplicabilityLabel,
   CVE_APPLICABILITY_SOURCE,
 
   CVE_SEVERITY, cveHardwareCandidates,
@@ -213,6 +214,10 @@ export default function CveOverview() {
                   <div className="cve-catalogue-asset-context" key={context.hardware_id}>
                     <div className="cve-catalogue-asset-context-heading">
                       <span>Hardware #{context.hardware_id}</span>
+                      {cveHardwareApplicabilityLabel(context) &&
+                        <small className="cve-catalogue-hardware-verdict">
+                          {cveHardwareApplicabilityLabel(context)}
+                        </small>}
                     </div>
                     {context.assets?.length ? context.assets.map(asset =>
                       <div key={asset.asset_id} className="cve-catalogue-asset-item">
@@ -242,6 +247,13 @@ export default function CveOverview() {
                   {CVE_APPLICABILITY_SOURCE[row.applicability_source] ||
                     CVE_APPLICABILITY_SOURCE.NONE}
                 </small>
+                <small className="cve-catalogue-secondary">
+                  {row.applicability_source === "SYSTEM"
+                    ? "Según condiciones NVD pertinentes al hardware"
+                    : row.applicability_source === "ANALYST"
+                      ? "Decisión justificada del analista"
+                      : "Revisión contextual pendiente"}
+                </small>
               </td>
               <td><Link className="button-secondary"
                 to={"/vulnerabilities/cve/" + encodeURIComponent(row.cve_id) +
@@ -263,10 +275,13 @@ export default function CveOverview() {
     </div>
 
     <p className="cve-overview-disclaimer">
-      Una búsqueda por CPE identifica CVE candidatos. El sistema solo confirma
-      automáticamente «Aplica» cuando comprueba las condiciones NVD con evidencia
-      vigente; los demás casos requieren revisión. Abre «Ver» para consultar el
-      motivo y el historial.
+      Una búsqueda por CPE de hardware identifica CVE candidatos.
+      VISOR OT evalúa sus configuraciones pertinentes con el inventario vigente:
+      puede concluir «Aplica», «No aplica» o dejar la evaluación pendiente.
+      «No aplica» automático se limita al alcance NVD del hardware y no demuestra
+      ausencia de otro software ni sustituye los avisos del fabricante.
+      El analista puede revisar la conclusión con justificación e historial.
+      Abre «Ver» para consultar las condiciones y la evidencia.
     </p>
 
     {dialogOpen && <div className="cpe-bulk-overlay">
