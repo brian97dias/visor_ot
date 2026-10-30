@@ -656,7 +656,14 @@ def general_assessment_context(cve_id, hardware_id):
             "latest_assessment": current,
             "history": [_serialize_assessment(row, inventory_fp, cfg_fp, installed) for row in history],
         })
-    pertinent = _relevance_summary(configs, technical["configurations"])
+    # The operational detail is restricted to configurations that contain
+    # the confirmed CPE of THIS hardware. Matching only an installed software
+    # CPE, or an uncertain other hardware model, never selects a branch.
+    anchored_indexes = set(scope_selection["pertinent_indexes"])
+    pertinent = [
+        row for row in _relevance_summary(configs, technical["configurations"])
+        if row["index"] in anchored_indexes
+    ]
     pertinent_indexes = {row["index"] for row in pertinent}
     # Only configurations whose platform is actually matched by the confirmed
     # hardware can offer firmware/software alternatives for THIS controller.
@@ -671,8 +678,9 @@ def general_assessment_context(cve_id, hardware_id):
             for leaf in _flatten_technical_tree(row["tree"])
         )
     ]
-    # Unscoped applications can remain relevant to an asset, but do not
-    # implicitly belong to the firmware of a particular controller.
+    # Retain legacy/unanchored evidence for internal audit only. These
+    # candidates cannot change the hardware-scoped result or appear in the
+    # analyst's operational list.
     candidates = [
         row for row in configs
         if row["technical_result"] == "INDETERMINATE"
@@ -687,7 +695,7 @@ def general_assessment_context(cve_id, hardware_id):
         and row["hardware_scope"] == "UNVERIFIED"
         and row["index"] not in pertinent_indexes
     ]
-    analyst = summarize_hardware_cve_review(configs)
+    analyst = summarize_hardware_cve_review(pertinent)
     applicability = scoped_applicability(
         technical, analyst["status"], inventory_fingerprint=inventory_fp,
         cve=cve, hardware_id=hw.pk,
@@ -712,7 +720,7 @@ def general_assessment_context(cve_id, hardware_id):
             global_assessment["effective_status"] = "PENDING_REVIEW"
     current_human = {
         row["index"]: row["latest_assessment"]["status"]
-        for row in configs
+        for row in pertinent
         if row.get("latest_assessment")
         and not row["latest_assessment"]["stale"]
         and row["latest_assessment"]["source"] == "ANALYST"
@@ -721,7 +729,7 @@ def general_assessment_context(cve_id, hardware_id):
         row.get("latest_assessment")
         and row["latest_assessment"]["stale"]
         and row["latest_assessment"]["source"] == "ANALYST"
-        for row in configs
+        for row in pertinent
     )
     if global_record is not None or current_human or has_stale_human:
         projected = project_configuration_decisions(
