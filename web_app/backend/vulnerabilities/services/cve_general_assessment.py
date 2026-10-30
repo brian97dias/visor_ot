@@ -226,6 +226,35 @@ def _context(cve_id, hardware_id, *, lock=False):
     return hardware, cve, confirmed_cpes, installed, inventory_fp
 
 
+def _recorded_installation_id(assessment):
+    """Recover the installation actually evaluated, not just a positive link.
+
+    Negative and hardware-wide conditional decisions intentionally keep the
+    software_installation FK null. Their reviewed installation lives in the
+    immutable evidence JSON and must still count for duplicate detection.
+    """
+    if assessment is None:
+        return None
+    if assessment.software_installation_id is not None:
+        return assessment.software_installation_id
+    evidence = assessment.criteria_evidence
+    if not isinstance(evidence, dict):
+        return None
+    for field in ("reviewed_software", "evaluated_software", "linked_software"):
+        entries = evidence.get(field)
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if isinstance(entry, dict):
+                installation_id = (
+                    entry.get("installation_id") or
+                    entry.get("software_installation_id")
+                )
+                if installation_id is not None:
+                    return installation_id
+    return None
+
+
 def _software_snapshot(installation):
     """Immutable display evidence for an installed component at decision time.
 
@@ -1046,17 +1075,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         if global_previous is not None and
         isinstance(global_previous.criteria_evidence, dict) else None
     )
-    previous_reviewed = (
-        global_previous.criteria_evidence.get("reviewed_software", [])
-        if global_previous is not None and
-        isinstance(global_previous.criteria_evidence, dict) else []
-    )
-    previous_software_id = (
-        global_previous.software_installation_id or
-        ((previous_reviewed[0].get("installation_id") or
-          previous_reviewed[0].get("software_installation_id"))
-         if previous_reviewed else None)
-    ) if global_previous else None
+    previous_software_id = _recorded_installation_id(global_previous)
     if (global_scope and global_current and global_previous.status == target
             and (previous_choice or {}).get("key", "") == selected_nvd_criterion
             and previous_software_id == software_installation_id):
@@ -1077,9 +1096,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
             and latest.status == target
             and (latest.criteria_evidence.get("selected_nvd_criterion") or {}).get(
                 "key", "") == selected_nvd_criterion
-            and (latest.software_installation_id or
-                 ((latest.criteria_evidence.get("reviewed_software") or [{}])[0]
-                  .get("installation_id"))) == software_installation_id):
+            and _recorded_installation_id(latest) == software_installation_id):
         raise ValidationError({"verdict":
             "La evaluación ya tiene este estado vigente. No se registran reconfirmaciones."})
 
@@ -1108,11 +1125,12 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         and software_installation_id in manual_firmware_ids
         and not _has_nvd_negation(config)
     )
-    # Manual Hardware-CVE conclusions are permitted without manufacturing a
-    # product/CPE match for a reviewed, possibly unrelated installation.
+    # A hardware-wide manual confirmation is only available when no software
+    # installation is selected. A selected but unrelated product must never
+    # be accepted as a confirmed vulnerable software association.
     manual_hardware_confirm = (
-        verdict == "CONFIRMED" and matched_hardware
-        and not software_proven and not manual_confirm
+        verdict == "CONFIRMED" and software_installation_id is None
+        and matched_hardware and not software_proven and not manual_confirm
         and not _has_nvd_negation(config)
     )
     if manual_hardware_confirm and not technical_override_acknowledged:
@@ -1122,8 +1140,10 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
     if (verdict == "CONFIRMED" and not software_proven
             and not manual_confirm and not manual_hardware_confirm):
         raise ValidationError({"verdict":
-            "La confirmación exige identidad técnica de software o una "
-            "plataforma de hardware comprobada con decisión manual."})
+            "La instalación seleccionada no corresponde al producto/versión "
+            "NVD ni al firmware validado para este modelo de hardware. "
+            "Puedes registrarla en una revisión parcial, pero no confirmarla "
+            "como software afectado."})
     if verdict == "NOT_MATCH":
         if _has_nvd_negation(config):
             raise ValidationError({"verdict":
