@@ -274,6 +274,25 @@ export function cveHistorySoftwareLabel(item) {
 }
 
 
+/** NVD suitability decides whether an installed-software check can be
+ * confirmed. Otherwise the available positive decision remains conditional.
+ * A checkbox alone never proves that another product is vulnerable.
+ */
+export function preferredCveCorrespondenceVerdict(installationId, eligibleIds = []) {
+  return installationId &&
+    eligibleIds.some(id => Number(id) === Number(installationId))
+    ? "CONFIRMED" : "CONDITIONAL";
+}
+
+/** A changed checkbox must update an open positive form, not submit a stale
+ * verdict for the opposite software-selection state. Negative remains
+ * independent of the checkbox.
+ */
+export function updatedCveReviewChoice(currentChoice, newPreferredVerdict) {
+  return ["CONFIRMED", "CONDITIONAL"].includes(currentChoice)
+    ? newPreferredVerdict : currentChoice;
+}
+
 /** Reopening must propose a DIFFERENT state, never reaffirm a verdict. */
 export function allowedCveDecisionTransitions(currentStatus) {
   const actions = ["CONFIRMED", "CONDITIONAL", "NOT_MATCH"];
