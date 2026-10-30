@@ -13,6 +13,7 @@ import {
   cveApplicabilityExplanation, cveConfigurationHighlights,
   CVE_CONTEXTUAL_SCOPE, cveContextualScopeSummary,
   cveScopeCriterionLabels, cveHardwareApplicabilityLabel,
+  canConfirmCveWithExternalEvidence,
   relevantNvdChildren, displayNvdGroupBranches, operationalNvdGroupBranches,
   displayedNvdSoftwareCriterion, canSelectNvdCriterionSoftware,
   nvdAlternativeGroupLabel,
@@ -140,6 +141,29 @@ test("scope facts show distinct platforms but never assert software absence", ()
     ]},
   }), /No se ha acreditado ninguna/);
   assert.equal(cveContextualScopeSummary({}), null);
+});
+
+test("manual vendor advisory override is available only for excluded matched hardware", () => {
+  const config = {
+    hardware_scope: "MATCHED", contextual_scope: "PERTINENT",
+    technical_result: "EXCLUDED",
+  };
+  const context = {applicability: {status: "NOT_APPLICABLE", source: "SYSTEM"}};
+  assert.equal(canConfirmCveWithExternalEvidence(config, context, true), true);
+  assert.equal(canConfirmCveWithExternalEvidence(config, context, false), false);
+  assert.equal(canConfirmCveWithExternalEvidence(
+    {...config, hardware_scope: "DISTINCT", contextual_scope: "FOREIGN"},
+    context, true
+  ), false);
+  assert.equal(canConfirmCveWithExternalEvidence(
+    {...config, technical_result: "INDETERMINATE"}, context, true
+  ), false);
+  assert.equal(canConfirmCveWithExternalEvidence(
+    config, {applicability: {status: "PENDING_REVIEW"}}, true
+  ), false);
+  assert.equal(canConfirmCveWithExternalEvidence(
+    config, {applicability: {status: "NOT_APPLICABLE", source: "ANALYST"}}, true
+  ), true);
 });
 
 test("NVD criterion titles are grounded in the tree, not inferred device matching", () => {
