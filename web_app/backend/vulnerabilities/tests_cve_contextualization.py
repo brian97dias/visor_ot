@@ -1068,8 +1068,8 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(data["configurations"][45]["hardware_scope"], "DISTINCT")
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
-    def test_system_negative_audits_of_47_other_cpus_never_become_relevant(self):
-        """Automatic decision history must not select an unrelated NVD CPU."""
+    def test_system_negative_audits_only_the_one_hardware_relevant_cpu(self):
+        """Only pertinent firmware exclusions get new SYSTEM audit rows."""
         self.cve.cve_id = "CVE-2021-37205"
         self.cve.configurations = nvd_2021_37205_configurations()
         self.cve.save(update_fields=["cve_id", "configurations"])
@@ -1084,10 +1084,11 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(data["technical_result"], EXCLUDED)
         self.assertEqual(data["applicability"]["status"], "NOT_APPLICABLE")
         self.assertEqual(data["applicability"]["source"], "SYSTEM")
-        self.assertTrue(any(
-            row["history"] for row in data["configurations"]
-            if row["position"] != 13
-        ))
+        self.assertEqual(
+            [row["position"] for row in data["configurations"] if row["history"]],
+            [13],
+        )
+        self.assertEqual(AssetCveAssessment.objects.count(), 1)
         self.assertEqual(
             [row["position"] for row in data["relevant_configurations"]], [13]
         )
