@@ -16,6 +16,7 @@ import {
   nvdAlternativeGroupLabel,
   currentCveSoftwareLink, currentCveEvaluatedSoftware,
   allowedCveDecisionTransitions, isSavedCveLinkSelection,
+  preferredCveCorrespondenceVerdict, updatedCveReviewChoice,
   cveHistoryDecisionDescription, cveHistorySoftwareLabel,
   cveAssetRoleLabel,
   displayCveApplicability, CVE_CATALOGUE_FILTER_STATES,
@@ -668,4 +669,23 @@ test("only the examined alternative allows software checkboxes", () => {
     kind:"CRITERION",part:"h",vulnerable:false,criteria:"siemens-s7-1200"
   },"siemens-s7-1200"),false);
   assert.equal(canSelectNvdCriterionSoftware(first,""),false);
+});
+
+test("correspondence buttons follow checkbox and verified NVD installation", () => {
+  const eligible = [5, 8];
+  // Unmarked: a conditional review, no installed software presumed.
+  assert.equal(preferredCveCorrespondenceVerdict("", eligible), "CONDITIONAL");
+  assert.equal(preferredCveCorrespondenceVerdict(null, eligible), "CONDITIONAL");
+  // A checked NVD-compatible installation is eligible for confirmation.
+  assert.equal(preferredCveCorrespondenceVerdict("5", eligible), "CONFIRMED");
+  assert.equal(preferredCveCorrespondenceVerdict(8, eligible), "CONFIRMED");
+  // A checked, but unrelated application/firmware remains a partial review.
+  assert.equal(preferredCveCorrespondenceVerdict("25", eligible), "CONDITIONAL");
+  // Switching the checkbox updates any open positive form.
+  assert.equal(updatedCveReviewChoice("CONFIRMED", "CONDITIONAL"), "CONDITIONAL");
+  assert.equal(updatedCveReviewChoice("CONDITIONAL", "CONFIRMED"), "CONFIRMED");
+  // "No corresponde" is available with or without a checked installation.
+  assert.equal(updatedCveReviewChoice("NOT_MATCH", "CONFIRMED"), "NOT_MATCH");
+  assert.equal(updatedCveReviewChoice("NOT_MATCH", "CONDITIONAL"), "NOT_MATCH");
+  assert.equal(updatedCveReviewChoice("", "CONFIRMED"), "");
 });
