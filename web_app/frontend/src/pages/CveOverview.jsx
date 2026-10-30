@@ -8,7 +8,7 @@ import {
 import {
   CVE_EVALUATION_STATE, CVE_CATALOGUE_FILTER_STATES,
   displayCveApplicability, cveAssetRoleLabel,
-  cveHardwareApplicabilityLabel,
+
   CVE_APPLICABILITY_SOURCE,
 
   CVE_SEVERITY, cveHardwareCandidates,
@@ -214,10 +214,7 @@ export default function CveOverview() {
                   <div className="cve-catalogue-asset-context" key={context.hardware_id}>
                     <div className="cve-catalogue-asset-context-heading">
                       <span>Hardware #{context.hardware_id}</span>
-                      {cveHardwareApplicabilityLabel(context) &&
-                        <small className="cve-catalogue-hardware-verdict">
-                          {cveHardwareApplicabilityLabel(context)}
-                        </small>}
+
                     </div>
                     {context.assets?.length ? context.assets.map(asset =>
                       <div key={asset.asset_id} className="cve-catalogue-asset-item">
@@ -247,13 +244,7 @@ export default function CveOverview() {
                   {CVE_APPLICABILITY_SOURCE[row.applicability_source] ||
                     CVE_APPLICABILITY_SOURCE.NONE}
                 </small>
-                <small className="cve-catalogue-secondary">
-                  {row.applicability_source === "SYSTEM"
-                    ? "Según condiciones NVD pertinentes al hardware"
-                    : row.applicability_source === "ANALYST"
-                      ? "Decisión justificada del analista"
-                      : "Revisión contextual pendiente"}
-                </small>
+
               </td>
               <td><Link className="button-secondary"
                 to={"/vulnerabilities/cve/" + encodeURIComponent(row.cve_id) +
