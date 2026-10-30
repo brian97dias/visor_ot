@@ -213,7 +213,7 @@ class CveScopedProjectionTests(SimpleTestCase):
     def test_reopening_proved_exclusion_does_not_restore_no_aplica(self):
         self.assertEqual(project_configuration_decisions(
             self.negative, {0: "PENDING_REVIEW"},
-        ), {"status": "IN_REVIEW", "source": "NONE"})
+        ), {"status": "PENDING_REVIEW", "source": "NONE"})
 
     def test_current_human_negative_and_conditional_override_their_branch(self):
         self.assertEqual(project_configuration_decisions(
@@ -226,10 +226,12 @@ class CveScopedProjectionTests(SimpleTestCase):
     def test_stale_human_verdict_is_neither_current_positive_nor_negative(self):
         self.assertEqual(project_configuration_decisions(
             self.positive, {}, stale_human_evidence=True,
-        ), {"status": "STALE", "source": "NONE"})
+        ), {"status": "PENDING_REVIEW", "source": "NONE",
+            "revalidation_required": True})
         self.assertEqual(project_configuration_decisions(
             self.negative, {}, stale_human_evidence=True,
-        ), {"status": "STALE", "source": "NONE"})
+        ), {"status": "PENDING_REVIEW", "source": "NONE",
+            "revalidation_required": True})
 
 
 class ManualFirmwareProductIdentityTests(SimpleTestCase):
@@ -604,7 +606,7 @@ class ContextualHardwareCveConsolidationTests(SimpleTestCase):
             project_configuration_decisions(
                 technical, {}, global_decision="PENDING_REVIEW"
             ),
-            {"status": "IN_REVIEW", "source": "NONE"},
+            {"status": "PENDING_REVIEW", "source": "NONE"},
         )
 
     def test_historic_analyst_choice_on_unanchored_software_cannot_vote(self):
@@ -1585,7 +1587,7 @@ class SiemensContextualHttpTests(TestCase):
         reopened = self.client.post(self.url, payload, format="json")
         self.assertEqual(reopened.status_code, 201, reopened.data)
         context = self.client.get(self.url).data
-        self.assertEqual(context["applicability"]["status"], "IN_REVIEW")
+        self.assertEqual(context["applicability"]["status"], "PENDING_REVIEW")
         self.assertEqual(context["assessment_summary"]["status"], "IN_REVIEW")
         self.assertEqual(AssetCveAssessment.objects.count(), 2)
     def test_verified_positive_requires_documented_technical_override_for_no_match(self):
