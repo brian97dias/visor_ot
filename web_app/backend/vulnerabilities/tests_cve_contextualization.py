@@ -3,6 +3,8 @@
 The data below reproduces the relevant NVD *shapes*, not a downloaded copy
 of all 96 configurations. The live NVD JSON is still stored unchanged.
 """
+import json
+from pathlib import Path
 from types import SimpleNamespace
 
 from django.test import SimpleTestCase, TestCase
@@ -1224,6 +1226,99 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(found[1]["version"], "4.5.2")
         self.assertEqual(found[0]["role"], "PLATFORM")
         self.assertEqual(found[1]["role"], "VULNERABLE")
+
+    def test_real_nvd_cve_2019_10943_fixture_is_scoped_and_audited(self):
+        """11 authentic NVD branches, not the synthetic representative shape.
+
+        Snapshot: olbat/nvdcve/nvdcve/CVE-2019-10943.json, copied from
+        the archived NVD 2.0 record. No external API or database dependency.
+        """
+        path = (
+            Path(__file__).resolve().parent / "fixtures" /
+            "nvd_CVE-2019-10943.json"
+        )
+        with path.open(encoding="utf-8") as handle:
+            official = json.load(handle)
+        self.assertEqual(official["id"], "CVE-2019-10943")
+        self.assertEqual(len(official["configurations"]), 11)
+        original = json.dumps(official["configurations"], sort_keys=True)
+
+        self.cve.cve_id = official["id"]
+        self.cve.configurations = official["configurations"]
+        self.cve.save(update_fields=["cve_id", "configurations"])
+        path_api = (
+            "/api/vulnerabilities/cves/CVE-2019-10943/hardware/"
+            + str(self.hw.pk) + "/assessment/"
+        )
+        detail = self.client.get(path_api)
+        self.assertEqual(detail.status_code, 200, detail.data)
+        data = detail.data
+        scope = data["contextual_selection"]
+
+        self.assertEqual(len(data["configurations"]), 11)
+        self.assertEqual(scope["pertinent_indexes"], [5])
+        self.assertEqual(scope["foreign_indexes"], [0, 1, 2, 3, 4, 6, 7, 8, 9])
+        self.assertEqual(scope["out_of_scope_indexes"], [10])
+        self.assertEqual(scope["uncertain_indexes"], [])
+        self.assertEqual(scope["evaluated_indexes"], [5])
+        self.assertEqual(data["configurations"][5]["technical_result"], EXCLUDED)
+        self.assertEqual(data["nvd_technical_result"], INDETERMINATE)
+        self.assertEqual(data["technical_result"], EXCLUDED)
+        self.assertEqual(data["applicability"]["status"], "NOT_APPLICABLE")
+        self.assertEqual(data["applicability"]["source"], "SYSTEM")
+        proof = data["applicability"]["automatic_evidence"]
+        self.assertEqual(
+            [item["configuration_index"] for item in proof["configurations"]],
+            [5],
+        )
+        self.assertEqual(proof["out_of_scope_configuration_indexes"], [10])
+        self.assertIn("hardware", proof["scope_limitation"])
+        self.assertEqual(json.dumps(self.cve.configurations, sort_keys=True),
+                         original)
+        self.assertEqual(AssetCveAssessment.objects.count(), 0)
+
+        catalog = self.client.get("/api/vulnerabilities/cves/")
+        self.assertEqual(catalog.status_code, 200, catalog.data)
+        row = catalog.data["results"][0]
+        self.assertEqual(row["technical_result"], EXCLUDED)
+        self.assertEqual(row["applicability_status"], "NOT_APPLICABLE")
+        self.assertEqual(row["applicability_source"], "SYSTEM")
+
+        sync = self.client.post(path_api + "automatic/", {}, format="json")
+        self.assertEqual(sync.status_code, 200, sync.data)
+        self.assertTrue(sync.data["created"])
+        audits = list(AssetCveAssessment.objects.all())
+        self.assertEqual(len(audits), 1)
+        self.assertEqual(audits[0].configuration_index, 5)
+        self.assertEqual(audits[0].status, "NOT_APPLICABLE")
+        self.assertIsNone(audits[0].decided_by_id)
+
+        # Manufacturer evidence can justify a different human Hardware-CVE
+        # verdict without changing the original NVD result or SYSTEM audit.
+        current = self.client.get(path_api).data
+        positive = self.client.post(path_api, {
+            "configuration_index": 5,
+            "verdict": "CONFIRMED",
+            "software_installation_id": None,
+            "technical_override_acknowledged": True,
+            "justification": (
+                "Siemens ProductCERT SSA-232418 señala la afectación de "
+                "CVE-2019-10943 también en firmware S7-1200 4.4.0 o posterior; "
+                "la exclusión NVD se limita a su configuración de versión."
+            ),
+            "inventory_fingerprint": current["inventory_fingerprint"],
+            "configuration_fingerprint": current["configurations"][5]["fingerprint"],
+        }, format="json")
+        self.assertEqual(positive.status_code, 201, positive.data)
+        final = self.client.get(path_api).data
+        self.assertEqual(final["technical_result"], EXCLUDED)
+        self.assertEqual(final["applicability"]["status"], "APPLIES")
+        self.assertEqual(final["applicability"]["source"], "ANALYST")
+        self.assertEqual(AssetCveAssessment.objects.count(), 2)
+        self.assertEqual(
+            self.client.post(path_api + "automatic/", {},
+                             format="json").data["created"], False
+        )
 
     def test_contextual_result_is_shared_by_hardware_detail_and_catalogue(self):
         # Same 2019-10943 representative shape used in the pure evaluator
