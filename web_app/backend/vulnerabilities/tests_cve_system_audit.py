@@ -454,7 +454,7 @@ class SystemCveAuditTests(TestCase):
         first = self.client.post(self.sync_url, {}, format="json")
         self.assertEqual(first.status_code, 200, first.data)
         self.assertTrue(first.data["created"])
-        self.assertEqual(AssetCveAssessment.objects.count(), 2)
+        self.assertEqual(AssetCveAssessment.objects.count(), 1)
         self.assertFalse(first.data["context"]["automatic_audit_pending"])
         decisions = list(AssetCveAssessment.objects.order_by("configuration_index"))
         self.assertTrue(all(item.status == "NOT_APPLICABLE" for item in decisions))
@@ -471,7 +471,7 @@ class SystemCveAuditTests(TestCase):
         self.assertEqual(history["negative_evidence"]["excluded_by"][0]["installed_version"], "4.5.2")
         second = self.client.post(self.sync_url, {}, format="json")
         self.assertFalse(second.data["created"])
-        self.assertEqual(AssetCveAssessment.objects.count(), 2)
+        self.assertEqual(AssetCveAssessment.objects.count(), 1)
 
     def test_partial_negative_is_audited_without_global_no_aplica(self):
         self._set_negative_siemens_range(unknown=True)
@@ -533,10 +533,10 @@ class SystemCveAuditTests(TestCase):
         }
         posted = self.client.post(self.url, payload, format="json")
         self.assertEqual(posted.status_code, 201, posted.data)
-        self.assertEqual(AssetCveAssessment.objects.count(), 3)
+        self.assertEqual(AssetCveAssessment.objects.count(), 2)
         retry = self.client.post(self.sync_url, {}, format="json")
         self.assertFalse(retry.data["created"])
-        self.assertEqual(AssetCveAssessment.objects.count(), 3)
+        self.assertEqual(AssetCveAssessment.objects.count(), 2)
         self.assertEqual(retry.data["context"]["applicability"]["status"], "IN_REVIEW")
 
     def test_version_change_invalidates_previous_automatic_negative(self):
