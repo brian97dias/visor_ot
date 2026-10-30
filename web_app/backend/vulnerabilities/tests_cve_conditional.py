@@ -224,21 +224,14 @@ class ConditionalSiemensTests(TestCase):
         self.assertIn("technical_override_acknowledged", response.data)
         self.assertFalse(AssetCveAssessment.objects.exists())
 
-    def test_confirm_with_unrelated_firmware_keeps_review_but_no_positive_link(self):
+    def test_confirm_with_unrelated_firmware_is_rejected_even_with_acknowledgement(self):
         data = self.payload(software_installation_id=self.installation.pk)
         data.update(verdict="CONFIRMED", selected_nvd_criterion=fixtures.STEP7,
                     technical_override_acknowledged=True)
-        saved = self.client.post(self.url, data, format="json")
-        self.assertEqual(saved.status_code, 201, saved.data)
-        record = AssetCveAssessment.objects.get()
-        self.assertEqual(record.status, "APPLIES")
-        self.assertIsNone(record.software_installation_id)
-        self.assertEqual(
-            record.criteria_evidence["reviewed_software"][0]["installation_id"],
-            self.installation.pk,
-        )
-        self.assertFalse(record.criteria_evidence["reviewed_software"][0]
-                         ["identity_verified"])
+        refused = self.client.post(self.url, data, format="json")
+        self.assertEqual(refused.status_code, 400, refused.data)
+        self.assertIn("verdict", refused.data)
+        self.assertFalse(AssetCveAssessment.objects.exists())
 
     def test_analyst_selects_exact_or_criterion_and_is_audited(self):
         alternative = (
