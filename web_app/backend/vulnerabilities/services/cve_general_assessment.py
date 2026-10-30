@@ -758,7 +758,11 @@ def general_assessment_context(cve_id, hardware_id):
     if positive is not None:
         system_candidates = [positive["configuration_index"]]
     else:
-        negatives = verified_negative_configurations(technical)
+        pertinent_indexes = set(scope_selection["pertinent_indexes"])
+        negatives = [
+            row for row in verified_negative_configurations(technical)
+            if row["configuration_index"] in pertinent_indexes
+        ]
         if automatic_negative_evidence(technical) is None:
             negatives = [
                 row for row in negatives
