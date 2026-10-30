@@ -98,14 +98,17 @@ def _current_linked_installation(cve, hardware, inventory_fp, eligible_indexes=N
     decisions = AssetCveAssessment.objects.filter(
         cve=cve, hardware=hardware
     ).order_by("-decided_at", "-pk")
+    from .cve_applicability import assessment_evidence_is_current
     allowed = set(eligible_indexes) if eligible_indexes is not None else None
     for row in decisions:
         if allowed is not None and row.configuration_index not in allowed:
             continue
-        if (row.inventory_fingerprint != inventory_fp or
-                row.configuration_index >= len(cve.configurations) or
-                row.configuration_fingerprint !=
-                _digest(cve.configurations[row.configuration_index])):
+        if (row.configuration_index < 0
+                or row.configuration_index >= len(cve.configurations)
+                or not assessment_evidence_is_current(
+                    row, cve, hardware, inventory_fp,
+                    _digest(cve.configurations[row.configuration_index])
+                )):
             # Never resurrect an earlier link after a newer stale assessment.
             return None, None, None
         if (isinstance(row.criteria_evidence, dict)
@@ -141,14 +144,17 @@ def _scoped_status_with_current_audits(cve, hardware, inventory_fp, analysed):
         if row.configuration_index in eligible:
             newest.setdefault(row.configuration_index, row)
 
+    from .cve_applicability import assessment_evidence_is_current
     current, stale = {}, False
     for index, row in newest.items():
         system = (isinstance(row.criteria_evidence, dict)
                   and row.criteria_evidence.get("origin") == "SYSTEM")
         is_current = (
             0 <= index < len(cve.configurations)
-            and row.inventory_fingerprint == inventory_fp
-            and row.configuration_fingerprint == _digest(cve.configurations[index])
+            and assessment_evidence_is_current(
+                row, cve, hardware, inventory_fp,
+                _digest(cve.configurations[index])
+            )
         )
         if system:
             continue
