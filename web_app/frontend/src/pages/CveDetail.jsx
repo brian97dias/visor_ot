@@ -308,17 +308,18 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
   const eligible = (config.candidate_installation_ids || []).includes(Number(linkedInstallationId)) ||
     (config.manual_firmware_installation_ids || []).includes(Number(linkedInstallationId)) ||
     config.review_installation_id === Number(linkedInstallationId);
-    const positiveConflict = (
+  const positiveConflict = (
     config.technical_result === "COMPATIBLE" ||
     (context?.technical_result === "COMPATIBLE")
   ) && ["NOT_MATCH", "CONDITIONAL"].includes(choice);
   const canDiscard = canDecide &&
     ["MATCHED", "UNSCOPED"].includes(config.hardware_scope) &&
-    (config.technical_result !== "EXCLUDED" ||
+    (config.hardware_scope === "MATCHED" ||
+      config.technical_result !== "EXCLUDED" ||
       (last?.source === "ANALYST" && !last?.stale &&
         ["APPLIES", "APPLIES_CONDITIONAL"].includes(last.status))) &&
     (canReview || canConditional || config.technical_result === "COMPATIBLE");
-    // A non-empty explanation is required, but its quality cannot be judged
+  // A non-empty explanation is required, but its quality cannot be judged
   // by character count. The backend still verifies hardware/software scope.
   const invalid = !justification.trim() ||
     (unverifiedPlatform && choice === "CONDITIONAL" && !linkedInstallationId);
@@ -741,11 +742,8 @@ export default function CveDetail() {
             </div>
             <span className="cve-catalogue-evaluation-status"
               data-status={context.applicability?.status || "PENDING_REVIEW"}>
-              {context.applicability?.status === "PENDING_REVIEW" &&
-                (context.technical_configuration_counts?.EXCLUDED || 0) > 0
-                ? "Validación parcial" :
-                (CVE_EVALUATION_STATE[context.applicability?.status] ||
-                  CVE_EVALUATION_STATE.PENDING_REVIEW)}
+              {CVE_EVALUATION_STATE[context.applicability?.status] ||
+                  CVE_EVALUATION_STATE.PENDING_REVIEW}
               {" · "}{CVE_APPLICABILITY_SOURCE[context.applicability?.source] ||
                 CVE_APPLICABILITY_SOURCE.NONE}
             </span>
