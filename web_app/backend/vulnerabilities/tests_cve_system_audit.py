@@ -538,7 +538,7 @@ class SystemCveAuditTests(TestCase):
         retry = self.client.post(self.sync_url, {}, format="json")
         self.assertFalse(retry.data["created"])
         self.assertEqual(AssetCveAssessment.objects.count(), 2)
-        self.assertEqual(retry.data["context"]["applicability"]["status"], "IN_REVIEW")
+        self.assertEqual(retry.data["context"]["applicability"]["status"], "PENDING_REVIEW")
 
     def test_version_change_invalidates_previous_automatic_negative(self):
         self._set_negative_siemens_range()
