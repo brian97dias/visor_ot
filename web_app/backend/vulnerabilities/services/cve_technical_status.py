@@ -42,7 +42,7 @@ def technical_statuses(cves):
                 _, _, hardware_cpes, installed, _ = _context(cve.cve_id, hw_id)
                 technical.append(evaluate_configurations(
                     cve.configurations, list(hardware_cpes), installed
-                )["result"])
+                )["contextual_result"])
             except (Http404, NotFound, ValidationError, ValueError, AttributeError):
                 technical.append(INDETERMINATE)
         if not technical:
@@ -249,7 +249,8 @@ def related_assets_for_cves(cves):
                         seen.add(row["asset_id"])
                 result[cve.pk].append({
                     "hardware_id": hw_id,
-                    "technical_result": analysed["result"],
+                    "technical_result": analysed["contextual_result"],
+                    "nvd_technical_result": analysed["result"],
                     "automatic_evidence": proof,
                     "automatic_negative_evidence": negative,
                     "scoped_applicability": scoped_status,
