@@ -12,7 +12,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from vulnerabilities.models import AssetCveAssessment, AssetCveFinding, Cve
-from .services.cve_discovery import build_cve_discovery_plan
+from .services.cve_discovery import (
+    build_cve_discovery_plan, hardware_discovery_pairs,
+    has_hardware_discovery_source,
+)
 from .services.cve_catalogue_status import CATALOGUE_STATES, catalogue_statuses
 from .services.cve_applicability import resolve_applicability
 from .services.cve_technical_status import (
@@ -71,9 +74,7 @@ def _asset_counts(cves):
     """Count distinct hardware IDs in findings OR historical assessments."""
     ids = [item.pk for item in cves]
     counts = {pk: set() for pk in ids}
-    for cve_pk, hardware_pk in AssetCveFinding.objects.filter(
-        cve_id__in=ids
-    ).values_list("cve_id", "hardware_id"):
+    for cve_pk, hardware_pk in hardware_discovery_pairs(ids):
         counts[cve_pk].add(hardware_pk)
     for cve_pk, hardware_pk in AssetCveAssessment.objects.filter(
         cve_id__in=ids
@@ -340,6 +341,7 @@ class CveCatalogueHardwareView(APIView):
             for finding in AssetCveFinding.objects.filter(
                 cve__cve_id=cve_id,
             ).select_related("hardware__asset")
+            if has_hardware_discovery_source(finding.sources)
         }
         reviewed_ids = set(AssetCveAssessment.objects.filter(
             cve__cve_id=cve_id,
