@@ -427,8 +427,10 @@ class ContextualNvdConfigurationScopeTests(SimpleTestCase):
         self.assertEqual(len(result["configurations"]), 48)
         # Positions are the original order, not an index of filtered branches.
         self.assertEqual(scope["pertinent_indexes"], [12])
-        self.assertEqual(scope["uncertain_indexes"], [5])
-        self.assertEqual(len(scope["foreign_indexes"]), 46)
+        # The software-only S7-1500 Software Controller branch is known to
+        # require a PC/IPC, so its platform is also foreign to a physical CPU.
+        self.assertEqual(scope["uncertain_indexes"], [])
+        self.assertEqual(len(scope["foreign_indexes"]), 47)
         self.assertEqual(scope["configurations"][12]["position"], 13)
         self.assertEqual(result["configurations"][12]["result"], EXCLUDED)
 
