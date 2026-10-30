@@ -15,6 +15,7 @@ import {
   currentCveEvaluatedSoftware, allowedCveDecisionTransitions,
   cveHistoryDecisionDescription, cveHistorySoftwareLabel,
   isSavedCveLinkSelection, cveAuditJustification,
+  preferredCveCorrespondenceVerdict, updatedCveReviewChoice,
   operationalNvdGroupBranches, nvdAlternativeGroupLabel,
   displayedNvdSoftwareCriterion, canSelectNvdCriterionSoftware,
 } from "../utils/cveCataloguePresentation";
@@ -312,8 +313,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     return compatibleType && (!config.review_installation_id ||
       sw.installation_id === config.review_installation_id);
   });
-  const selectedId = installId || (installations.length === 1 && choice === "NOT_MATCH"
-    ? String(installations[0].installation_id) : "");
+  // Never infer an evaluated installation from inventory size. Only a
+  // manually checked software item is submitted; negatives remain optional.
+  const selectedId = installId;
   const currentStatus = last && !last.stale ? last.effective_status : null;
   const lockedDecision = Boolean(currentStatus &&
     ["APPLIES", "APPLIES_CONDITIONAL", "NOT_APPLICABLE"].includes(currentStatus));
@@ -328,6 +330,14 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     config.manual_confirm_supported || config.hardware_scope === "MATCHED" ||
     (reviewOpen && config.technical_result === "COMPATIBLE");
   const linkedInstallationId = checked ? installId : "";
+  const eligibleInstallationIds = [
+    ...(config.candidate_installation_ids || []),
+    ...(config.manual_firmware_installation_ids || []),
+    ...(config.review_installation_id ? [config.review_installation_id] : []),
+  ];
+  const primaryVerdict = preferredCveCorrespondenceVerdict(
+    linkedInstallationId, eligibleInstallationIds
+  );
   const positiveConflict = (
     config.technical_result === "COMPATIBLE" ||
     (context?.technical_result === "COMPATIBLE")
@@ -372,7 +382,11 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     }
     setDraftLink({ criterionKey, installationId });
     setReviewOpen(true);
-    setChoice(""); setJustification(""); setError("");
+    setChoice(previous => updatedCveReviewChoice(
+      previous,
+      preferredCveCorrespondenceVerdict(installationId, eligibleInstallationIds)
+    ));
+    setJustification(""); setError("");
   }
   async function submit(event) {
     event.preventDefault();
@@ -476,18 +490,19 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         className="cve-nvd-action" onClick={beginReopen}>
         Reabrir evaluación</button>}
       {showChoices && <>
-        {canConfirm && allowedChanges.includes("CONFIRMED") && <button type="button"
-          className={"cve-nvd-action" + (choice === "CONFIRMED" ? " selected" : "")}
-          onClick={() => { setChoice("CONFIRMED"); setReviewOpen(true); setJustification(""); }}>
-          Confirmar correspondencia</button>}
-        {allowedChanges.includes("CONDITIONAL") &&
-          (canConditional || canConfirm || canReopen) && <button type="button"
-          className={"cve-nvd-action" + (choice === "CONDITIONAL" ? " selected" : "")}
+        {(primaryVerdict === "CONFIRMED"
+          ? canConfirm : (canConditional || canConfirm || canReopen)) &&
+          allowedChanges.includes(primaryVerdict) && <button type="button"
+          className={"cve-nvd-action" +
+            (choice === primaryVerdict ? " selected" : "")}
           onClick={() => {
-            setChoice("CONDITIONAL"); setReviewOpen(true); setJustification("");
-            if (savedLink && !draftLink) setDraftLink({criterionKey:"", installationId:""});
+            setChoice(primaryVerdict);
+            setReviewOpen(true);
+            setJustification("");
           }}>
-          Correspondencia parcial</button>}
+          {primaryVerdict === "CONFIRMED"
+            ? "Confirmar correspondencia" : "Correspondencia parcial"}
+        </button>}
         {canDiscard && allowedChanges.includes("NOT_MATCH") &&
           <button type="button" className={"cve-nvd-action" +
           (choice === "NOT_MATCH" ? " selected" : "")}
