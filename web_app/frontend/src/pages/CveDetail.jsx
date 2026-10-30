@@ -16,7 +16,7 @@ import {
   cveHistoryDecisionDescription, cveHistorySoftwareLabel,
   isSavedCveLinkSelection, cveAuditJustification,
   operationalNvdGroupBranches, nvdAlternativeGroupLabel,
-  displayedNvdSoftwareCriterion,
+  displayedNvdSoftwareCriterion, canSelectNvdCriterionSoftware,
 } from "../utils/cveCataloguePresentation";
 import {
   localizedTimestamp, versionConstraintsText,
@@ -54,6 +54,7 @@ function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, inst
     const identityBadge = nvdCriterionIdentityBadge(item);
     const currentInstallations = installedSoftware || [];
     const criterionKey = item.match_criteria_id || item.criteria;
+    const isActive = canSelectNvdCriterionSoftware(item, selection, isAlternative);
     return <div className="cve-nvd-condition cve-general-criterion">
       <div className="cve-nvd-condition-summary">
         <div className="cve-nvd-condition-heading">
@@ -78,7 +79,7 @@ function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, inst
             onClick={() => onChooseCriterion(criterionKey)}>
             Examinar esta alternativa NVD
           </button>}
-        {!isAlternative && selection === criterionKey && <>
+        {isActive && <>
           <p className="cve-review-note">
             Alternativa NVD examinada: <code>{item.criteria}</code>
           </p>
@@ -142,8 +143,7 @@ function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, inst
       </div>}
 
       <details className="cve-nvd-proof"
-        open={isAlternative || (isSoftware && item.vulnerable &&
-          !isAlternative && selection === criterionKey)}>
+        open={isAlternative || isActive}>
         <summary>Ver evidencia técnica NVD</summary>
         <div className="cve-nvd-proof-content">
           <div className="cve-nvd-criterion">
@@ -440,8 +440,12 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
       onChooseSoftware={onChooseSoftware}
       onChooseCriterion={key => {
         setFocusedCriterion(key);
+        // Changing NVD alternative must not silently reuse the old software link.
+        setDraftLink({ criterionKey: "", installationId: "" });
         setReviewOpen(true);
         setChoice("");
+        setJustification("");
+        setError("");
       }}/>
     <div className="panel cve-nvd-decision">
     <div className="cve-nvd-joint-title">
