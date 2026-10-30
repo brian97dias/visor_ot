@@ -14,7 +14,7 @@ from vulnerabilities.models import (
 )
 from vulnerabilities.services.cve_configuration_evaluator import (
     COMPATIBLE, EXCLUDED, INDETERMINATE, evaluate_configurations,
-    SCOPE_PERTINENT, SCOPE_FOREIGN, SCOPE_UNCERTAIN,
+    SCOPE_PERTINENT, SCOPE_FOREIGN, SCOPE_UNCERTAIN, SCOPE_OUT_OF_SCOPE,
 )
 from vulnerabilities.services.cve_applicability import (
     automatic_negative_evidence, verified_negative_configurations,
@@ -303,23 +303,29 @@ class ContextualNvdConfigurationScopeTests(SimpleTestCase):
 
     def test_family_or_unknown_hardware_never_proves_foreign(self):
         ambiguous = "cpe:2.3:h:siemens:simatic_s7-1200:-:*:*:*:*:*:*:*"
-        et200sp = (
-            "cpe:2.3:h:siemens:"
-            "simatic_et_200sp_open_controller_cpu_1515sp_pc:-:*:*:*:*:*:*:*"
-        )
-        for hardware in (ambiguous, et200sp):
+        unknown_cpu = "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1213c:-:*:*:*:*:*:*:*"
+        for hardware in (ambiguous, unknown_cpu):
             with self.subTest(hardware=hardware):
                 config = nvd_platform_firmware(hardware, CPU_FW_CRITERION)
                 result = self.evaluate([config])
                 self.assertEqual(result["contextual_selection"]["uncertain_indexes"], [0])
                 self.assertEqual(result["contextual_selection"]["foreign_indexes"], [])
 
-    def test_software_only_match_is_pertinent_but_absence_is_uncertain(self):
+    def test_explicit_et200sp_pc_is_distinct_from_cpu1215c(self):
+        et200sp = (
+            "cpe:2.3:h:siemens:"
+            "simatic_et_200sp_open_controller_cpu_1515sp_pc:-:*:*:*:*:*:*:*"
+        )
+        result = self.evaluate([nvd_platform_firmware(et200sp, CPU_FW_CRITERION)])
+        self.assertEqual(result["contextual_selection"]["foreign_indexes"], [0])
+        self.assertEqual(result["contextual_selection"]["uncertain_indexes"], [])
+
+    def test_software_only_match_is_pertinent_but_unanchored_is_out_of_scope(self):
         application = {"operator": "OR", "cpeMatch": [{
             "criteria": STEP7, "vulnerable": True
         }]}
         self.assertEqual(
-            self.evaluate([application])["contextual_selection"]["uncertain_indexes"],
+            self.evaluate([application])["contextual_selection"]["out_of_scope_indexes"],
             [0],
         )
         installed_app = [{
@@ -402,11 +408,12 @@ class ContextualNvdConfigurationScopeTests(SimpleTestCase):
         original = __import__("copy").deepcopy(configs)
         result = self.evaluate(configs)
         self.assertEqual(result["contextual_selection"]["pertinent_indexes"], [5])
-        self.assertEqual(result["contextual_selection"]["uncertain_indexes"], [0, 10])
-        self.assertEqual(len(result["contextual_selection"]["foreign_indexes"]), 8)
+        self.assertEqual(result["contextual_selection"]["uncertain_indexes"], [])
+        self.assertEqual(result["contextual_selection"]["out_of_scope_indexes"], [10])
+        self.assertEqual(len(result["contextual_selection"]["foreign_indexes"]), 9)
         self.assertEqual(result["configurations"][5]["result"], EXCLUDED)
-        # Phase 3 is responsible for contextual applicability consolidation.
         self.assertEqual(result["result"], INDETERMINATE)
+        self.assertEqual(result["contextual_result"], EXCLUDED)
         self.assertEqual(configs, original)
 
     def test_regression_cpu1215c_firmware452_positive_among_other_branches(self):
@@ -484,7 +491,8 @@ class ContextualHardwareCveConsolidationTests(SimpleTestCase):
         self.assertEqual(scope["ignored_foreign_indexes"], [0, 2])
         evidence = automatic_negative_evidence(technical)
         self.assertIsNotNone(evidence)
-        self.assertEqual(len(evidence["configurations"]), 3)
+        self.assertEqual(len(evidence["configurations"]), 1)
+        self.assertEqual(evidence["configurations"][0]["configuration_index"], 1)
         self.assertEqual(evidence["foreign_configuration_indexes"], [0, 2])
         self.assertEqual(evidence["evaluated_configuration_indexes"], [1])
         verdict = self.application(technical, configs)
@@ -505,7 +513,7 @@ class ContextualHardwareCveConsolidationTests(SimpleTestCase):
         ]}
         technical = self.evaluate([config])
         self.assertEqual(technical["contextual_selection"]["foreign_indexes"], [0])
-        self.assertEqual(technical["contextual_result"], EXCLUDED)
+        self.assertEqual(technical["contextual_result"], INDETERMINATE)
         self.assertIsNone(automatic_negative_evidence(technical))
         self.assertEqual(
             self.application(technical, [config])["status"], "PENDING_REVIEW"
@@ -515,10 +523,9 @@ class ContextualHardwareCveConsolidationTests(SimpleTestCase):
             "PENDING_REVIEW",
         )
 
-    def test_uncertain_et200sp_or_external_plcsim_prevents_global_negative(self):
+    def test_uncertain_hardware_family_prevents_global_negative(self):
         uncertain_hardware = (
-            "cpe:2.3:h:siemens:"
-            "simatic_et_200sp_open_controller_cpu_1515sp_pc:-:*:*:*:*:*:*:*"
+            "cpe:2.3:h:siemens:simatic_s7-1200:-:*:*:*:*:*:*:*"
         )
         pending = nvd_platform_firmware(uncertain_hardware, CPU_FW_CRITERION)
         relevant = nvd_platform_firmware(CPU_HW, CPU_FW_CRITERION, before="4.4")
@@ -1246,12 +1253,17 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(detail.status_code, 200, detail.data)
         data = detail.data
         self.assertEqual(data["contextual_selection"]["pertinent_indexes"], [5])
-        self.assertEqual(data["contextual_selection"]["uncertain_indexes"], [0, 10])
-        self.assertEqual(len(data["contextual_selection"]["foreign_indexes"]), 8)
+        self.assertEqual(data["contextual_selection"]["uncertain_indexes"], [])
+        self.assertEqual(data["contextual_selection"]["out_of_scope_indexes"], [10])
+        self.assertEqual(len(data["contextual_selection"]["foreign_indexes"]), 9)
         self.assertEqual(data["configurations"][5]["technical_result"], EXCLUDED)
-        self.assertEqual(data["technical_result"], INDETERMINATE)
+        self.assertEqual(data["technical_result"], EXCLUDED)
         self.assertEqual(data["nvd_technical_result"], INDETERMINATE)
-        self.assertEqual(data["applicability"]["status"], "PENDING_REVIEW")
+        self.assertEqual(data["applicability"]["status"], "NOT_APPLICABLE")
+        self.assertEqual(data["applicability"]["source"], "SYSTEM")
+        self.assertEqual(
+            data["applicability"]["automatic_evidence"]["evaluated_configuration_indexes"], [5]
+        )
         self.assertEqual(
             data["applicability"]["technical_result"], data["technical_result"]
         )
