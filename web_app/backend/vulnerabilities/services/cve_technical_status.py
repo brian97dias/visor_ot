@@ -9,6 +9,7 @@ from django.http import Http404
 from rest_framework.exceptions import NotFound, ValidationError
 
 from vulnerabilities.models import AssetCveAssessment, AssetCveFinding
+from .cve_discovery import hardware_discovery_pairs
 from .cve_general_assessment import _context, _digest
 from .cve_applicability import (
     automatic_positive_evidence, automatic_negative_evidence,
@@ -27,9 +28,7 @@ def technical_statuses(cves):
         return {}
     ids = [row.pk for row in items]
     related = defaultdict(set)
-    for cve_id, hw_id in AssetCveFinding.objects.filter(
-        cve_id__in=ids
-    ).values_list("cve_id", "hardware_id"):
+    for cve_id, hw_id in hardware_discovery_pairs(ids):
         related[cve_id].add(hw_id)
     for cve_id, hw_id in AssetCveAssessment.objects.filter(
         cve_id__in=ids
@@ -168,9 +167,7 @@ def related_assets_for_cves(cves):
         return result
     ids = [cve.pk for cve in items]
     related = defaultdict(set)
-    for cve_pk, hw_pk in AssetCveFinding.objects.filter(
-        cve_id__in=ids
-    ).values_list("cve_id", "hardware_id"):
+    for cve_pk, hw_pk in hardware_discovery_pairs(ids):
         related[cve_pk].add(hw_pk)
     for cve_pk, hw_pk in AssetCveAssessment.objects.filter(
         cve_id__in=ids
