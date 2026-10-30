@@ -242,9 +242,15 @@ class NvdVersionIntegrationTests(TestCase):
             requested_by=self.user, selected_hardware_ids=[self.hw.pk],
             status=CveDiscoveryRun.Status.COMPLETED,
         )
+        from vulnerabilities.services.cve_discovery import build_cve_discovery_plan
+
+        plan = build_cve_discovery_plan([self.hw.pk])
+        self.assertEqual(len(plan["queries"]), 1)
         return AssetCveFinding.objects.create(
             hardware=self.hw, cve=self.cve,
             first_discovery_run=run, last_discovery_run=run,
+            sources=plan["queries"][0]["sources"],
+            evidence_fingerprint=plan["evidence_fingerprints"][str(self.hw.pk)],
         )
 
     def test_http_filter_shows_technical_result_but_not_a_human_verdict(self):
