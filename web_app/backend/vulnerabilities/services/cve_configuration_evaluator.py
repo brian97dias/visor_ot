@@ -465,6 +465,31 @@ def _configuration_scope_state(node):
     return _SCOPE_UNSCOPED
 
 
+def _has_confirmed_hardware_anchor(node, *, negated=False):
+    """Only positive NVD hardware CPE criteria confirmed for this asset.
+
+    Never infer the anchor from a matched firmware/application CPE, a family
+    resemblance, or a hardware criterion under NVD NOT. Retain the entire
+    NVD expression for later AND/OR evaluation if an anchor exists.
+    """
+    if not isinstance(node, dict):
+        return False
+    if node.get("kind") == "CRITERION":
+        return bool(
+            not negated and node.get("part") == "h"
+            and node.get("identity") == "MATCHED"
+            and node.get("matched_cpe")
+        )
+    if node.get("kind") != "GROUP":
+        return False
+    if node.get("negate"):
+        negated = not negated
+    return any(
+        _has_confirmed_hardware_anchor(child, negated=negated)
+        for child in node.get("children", [])
+    )
+
+
 def select_contextual_configurations(evaluated):
     """Return a read-only, index-preserving scope projection over NVD trees.
 
@@ -483,8 +508,8 @@ def select_contextual_configurations(evaluated):
     }
     reasons = {
         SCOPE_PERTINENT: (
-            "Existe una ruta lógica vinculada al hardware o al software "
-            "instalado mediante identidad CPE confirmada."
+            "Esta configuración contiene un CPE de hardware confirmado "
+            "para el activo seleccionado; se evalúan todas sus condiciones."
         ),
         SCOPE_FOREIGN: (
             "Todas las rutas de esta configuración requieren una plataforma "
@@ -508,31 +533,36 @@ def select_contextual_configurations(evaluated):
         SCOPE_OUT_OF_SCOPE: "out_of_scope_indexes",
     }
     for index, row in enumerate(rows):
-        scope = _configuration_scope_state(row)
-        if scope == _SCOPE_UNSCOPED:
-            scope = SCOPE_OUT_OF_SCOPE
+        # Product scope is fixed by a verified hardware CPE anchor, not by
+        # standalone software matches or uncertainty about other devices.
+        # This limits the operative query to the specific hardware the user
+        # selected. Non-matching alternatives remain untouched NVD evidence.
+        if _has_confirmed_hardware_anchor(row):
+            scope = SCOPE_PERTINENT
+        else:
+            scope = _configuration_scope_state(row)
+            if scope in (SCOPE_PERTINENT, _SCOPE_UNSCOPED):
+                scope = SCOPE_OUT_OF_SCOPE
         projection[bucket[scope]].append(index)
         projection["configurations"].append({
             "index": index, "position": index + 1,
             "relation": scope, "reason": reasons[scope],
             "technical_result": row.get("result", INDETERMINATE),
         })
-    included = projection["pertinent_indexes"] + projection["uncertain_indexes"]
-    # FOREIGN and unanchored software-only branches are retained as NVD
-    # evidence, but do not participate in this hardware-scoped OR. A missing
-    # pertinent branch cannot by itself establish a negative.
-    # Never claim a negative applicability without at least one positively
-    # anchored NVD configuration for the selected hardware.
+    # Evaluate complete NVD conditions exclusively for configurations
+    # containing this confirmed hardware CPE. An unanchored unknown platform
+    # is irrelevant to the chosen device, not an extra analyst assignment.
+    included = projection["pertinent_indexes"]
     contextual = (
         _combine([rows[index]["result"] for index in included], "OR")
-        if projection["pertinent_indexes"] else INDETERMINATE
+        if included else INDETERMINATE
     )
-    projection["evaluated_indexes"] = sorted(included)
+    projection["evaluated_indexes"] = list(included)
     projection["ignored_foreign_indexes"] = list(projection["foreign_indexes"])
     projection["ignored_out_of_scope_indexes"] = list(
         projection["out_of_scope_indexes"]
     )
-    projection["scope_basis"] = "CONFIRMED_HARDWARE_CPE"
+    projection["scope_basis"] = "CONFIRMED_HARDWARE_CPE_ONLY"
     projection["result"] = contextual
     return projection
 
