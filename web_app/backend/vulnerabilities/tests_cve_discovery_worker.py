@@ -124,20 +124,44 @@ class CveDiscoveryWorkerTests(TestCase):
         fetched.assert_called_once()
         self.assertEqual(AssetCveFinding.objects.count(), 2)
 
-    def test_same_cve_found_from_hardware_and_firmware_keeps_both_sources(self):
+    def test_firmware_cpe_is_not_a_worker_query_or_finding_source(self):
         self.fixtures.link()
         self.fixtures.confirm(self.firmware.asset, SW_CPE)
         run, _ = self.enqueue()
-        self.assertEqual(len(run.queries), 2)
+        self.assertEqual(len(run.queries), 1)
+        self.assertEqual(run.queries[0]["cpe_name"], HW_CPE)
+        self.assertTrue(all(
+            source["origin"] == "HARDWARE"
+            for source in run.queries[0]["sources"]
+        ))
         fetcher = Mock(return_value=page([record()], size=2))
         done = execute_cve_discovery_run(run, Mock(), fetcher=fetcher)
         self.assertEqual(done.status, CveDiscoveryRun.Status.COMPLETED)
-        self.assertEqual(fetcher.call_count, 2)
+        self.assertEqual(fetcher.call_count, 1)
         finding = AssetCveFinding.objects.get()
-        self.assertEqual(len(finding.sources), 2)
-        self.assertEqual({source["origin"] for source in finding.sources},
-                         {"HARDWARE", "SOFTWARE"})
+        self.assertEqual(len(finding.sources), 1)
+        self.assertEqual(finding.sources[0]["origin"], "HARDWARE")
         self.assertEqual(finding.first_discovery_run_id, run.pk)
+
+    def test_legacy_queued_software_search_is_rejected_before_network(self):
+        self.fixtures.link()
+        self.fixtures.confirm(self.firmware.asset, SW_CPE)
+        run, _ = self.enqueue()
+        stale = list(run.queries)
+        copy = dict(stale[0])
+        copy["cpe_name"] = SW_CPE
+        copy["sources"] = [{
+            **stale[0]["sources"][0], "origin": "SOFTWARE",
+            "cpe_name": SW_CPE,
+        }]
+        run.queries = stale + [copy]
+        run.save(update_fields=["queries"])
+        fetcher = Mock()
+        failed = execute_cve_discovery_run(run, Mock(), fetcher=fetcher)
+        fetcher.assert_not_called()
+        self.assertEqual(failed.status, CveDiscoveryRun.Status.FAILED)
+        self.assertEqual(failed.error_code, "STALE_EVIDENCE")
+        self.assertEqual(AssetCveFinding.objects.count(), 0)
 
     def test_zero_results_is_complete_without_not_applicable_decision(self):
         run, _ = self.enqueue()
