@@ -305,6 +305,18 @@ export function allowedCveDecisionTransitions(currentStatus) {
 }
 
 
+/** Explicit analyst route to contradict a contextual SYSTEM exclusion.
+ * This is a hardware-wide manual conclusion, NEVER a software CPE match.
+ * The backend still validates the evidence, acknowledgement and justification.
+ */
+export function canConfirmCveWithExternalEvidence(config, context, canDecide) {
+  return Boolean(canDecide &&
+    config?.hardware_scope === "MATCHED" &&
+    config?.contextual_scope !== "FOREIGN" &&
+    config?.technical_result === "EXCLUDED" &&
+    context?.applicability?.status === "NOT_APPLICABLE");
+}
+
 /** NVD branch scope is independent from the final Hardware-CVE verdict.
  * OUT_OF_SCOPE describes missing linkage, NOT demonstrated software absence.
  */
