@@ -421,6 +421,23 @@ class ContextualNvdConfigurationScopeTests(SimpleTestCase):
         self.assertEqual(result["contextual_result"], EXCLUDED)
         self.assertEqual(configs, original)
 
+    def test_multiple_configurations_with_same_cpu_cpe_are_all_evaluated(self):
+        earlier = nvd_platform_firmware(
+            CPU_HW, CPU_FW_CRITERION, before="4.4"
+        )
+        current = nvd_platform_firmware(
+            CPU_HW, CPU_FW_CRITERION, before="4.6"
+        )
+        unrelated = nvd_platform_firmware(PLCSIM_HW, PLCSIM_FW)
+        scenarios = [earlier, unrelated, current]
+        result = self.evaluate(scenarios)
+        self.assertEqual(result["contextual_selection"]["pertinent_indexes"], [0, 2])
+        self.assertEqual(result["contextual_selection"]["evaluated_indexes"], [0, 2])
+        self.assertEqual(result["configurations"][0]["result"], EXCLUDED)
+        self.assertEqual(result["configurations"][2]["result"], COMPATIBLE)
+        self.assertEqual(result["contextual_result"], COMPATIBLE)
+        self.assertIsNone(automatic_negative_evidence(result))
+
     def test_regression_cpu1215c_firmware452_positive_among_other_branches(self):
         unrelated = nvd_platform_firmware(PLCSIM_HW, PLCSIM_FW)
         pertinent = nvd_platform_firmware(
