@@ -12,6 +12,7 @@ import {
   groupCveEvidence, selectCveOperationalGroups, cveHumanReviewMessage,
   cveApplicabilityExplanation, cveConfigurationHighlights,
   relevantNvdChildren, displayNvdGroupBranches, operationalNvdGroupBranches,
+  displayedNvdSoftwareCriterion, canSelectNvdCriterionSoftware,
   nvdAlternativeGroupLabel,
   currentCveSoftwareLink, currentCveEvaluatedSoftware,
   allowedCveDecisionTransitions, isSavedCveLinkSelection,
@@ -639,4 +640,32 @@ test("software NVD OR remains reachable within a hardware AND constraint", () =>
   assert.deepEqual(operationalNvdGroupBranches(children.shown[0],"software16").shown,
     [step7[1]]);
   assert.deepEqual(operationalNvdGroupBranches(children.shown[1]).shown,[cpu]);
+});
+
+test("only the examined alternative allows software checkboxes", () => {
+  const first = {kind:"CRITERION", part:"a", vulnerable:true,
+    criteria:"cpe:2.3:a:siemens:step_7:16:update1:*:*:*:*:*:*",
+    match_criteria_id:"step7-u1"};
+  const second = {...first,
+    criteria:"cpe:2.3:a:siemens:step_7:16:update4:*:*:*:*:*:*",
+    match_criteria_id:"step7-u4"};
+  const or={kind:"GROUP", operator:"OR", children:[first,second]};
+  const and={kind:"GROUP",operator:"AND",children:[
+    or,{kind:"GROUP",operator:"OR",children:[{
+      kind:"CRITERION",part:"h",vulnerable:false,criteria:"siemens-s7-1200",
+      technical_identity:"MATCHED",technical_matched_cpe:"cpe:hw"
+    }]}
+  ]};
+  assert.equal(displayedNvdSoftwareCriterion(and).match_criteria_id,"step7-u1");
+  assert.equal(displayedNvdSoftwareCriterion(and,"step7-u4").match_criteria_id,
+    "step7-u4");
+  assert.equal(canSelectNvdCriterionSoftware(first,"step7-u1"),true);
+  assert.equal(canSelectNvdCriterionSoftware(first,"step7-u1",true),false);
+  assert.equal(canSelectNvdCriterionSoftware(second,"step7-u1"),false);
+  assert.equal(canSelectNvdCriterionSoftware(second,"step7-u4"),true);
+  assert.equal(canSelectNvdCriterionSoftware(second,"step7-u4",true),false);
+  assert.equal(canSelectNvdCriterionSoftware({
+    kind:"CRITERION",part:"h",vulnerable:false,criteria:"siemens-s7-1200"
+  },"siemens-s7-1200"),false);
+  assert.equal(canSelectNvdCriterionSoftware(first,""),false);
 });
