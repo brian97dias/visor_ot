@@ -526,6 +526,15 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
             }}>
             Confirmar CVE con evidencia externa
           </button>}
+        {allowedChanges.includes("UNKNOWN") && (lockedDecision || last?.stale ||
+            status === "APPLIES_CONDITIONAL") &&
+          <button type="button" className={"cve-nvd-action" +
+            (choice === "UNKNOWN" ? " selected" : "")}
+            onClick={() => {
+              setDraftLink({criterionKey: "", installationId: ""});
+              setChoice("UNKNOWN"); setReviewOpen(true);
+              setJustification(""); setError("");
+            }}>Dejar por verificar</button>}
         {canDiscard && allowedChanges.includes("NOT_MATCH") &&
           <button type="button" className={"cve-nvd-action" +
           (choice === "NOT_MATCH" ? " selected" : "")}
@@ -600,6 +609,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         <button type="submit" className="button-primary"
           disabled={saving || invalid}>{saving ? "Guardando..." :
           choice === "NOT_MATCH" ? "Guardar No corresponde" :
+            choice === "UNKNOWN" ? "Guardar Por verificar" :
             choice === "CONDITIONAL" ? "Guardar correspondencia parcial" :
             choice === "CONFIRMED" && canExternalOverride && !linkedInstallationId
             ? "Confirmar CVE por evidencia externa" :
@@ -633,9 +643,11 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
             !item.software_installation_id &&
             !cveHistorySoftwareLabel(item).length &&
             <p className="cve-muted">Sin software vinculado.</p>}
-          <p className="cve-history-reason">
-            {cveHistoryDecisionDescription(item)}
-          </p>
+          {(!item.justification || item.source === "SYSTEM") &&
+            cveHistoryDecisionDescription(item) &&
+            <p className="cve-history-reason">
+              {cveHistoryDecisionDescription(item)}
+            </p>}
           {item.selected_nvd_criterion && <p className="cve-review-note">
             Alternativa NVD revisada: <code>{item.selected_nvd_criterion.criteria}</code>
           </p>}
@@ -649,7 +661,9 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
               item.technical_override.technical_result}). Ambos quedan registrados.
           </p>}
           {item.stale && <p className="cve-review-note">
-            Evidencia histórica: el inventario o las condiciones NVD cambiaron.
+            Evaluación histórica: revisar la evidencia antes de utilizar
+            esta conclusión. El inventario, NVD o el esquema de validación
+            pueden haber cambiado.
           </p>}
           {(item.justification || item.conditional_evidence) &&
             <div className="cve-nvd-history-detail">
