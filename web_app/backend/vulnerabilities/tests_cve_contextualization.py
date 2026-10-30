@@ -675,7 +675,11 @@ class AutomaticNegativeProofTests(SimpleTestCase):
         self.assertEqual(result["result"], EXCLUDED)
         proof = automatic_negative_evidence(result)
         self.assertIsNotNone(proof)
-        self.assertEqual(len(proof["configurations"]), 2)
+        # Global contextual proof covers only the CPU1215C branch; the
+        # foreign PLCSIM branch remains independently auditable as NVD data.
+        self.assertEqual(len(proof["configurations"]), 1)
+        self.assertEqual(proof["evaluated_configuration_indexes"], [0])
+        self.assertEqual(proof["foreign_configuration_indexes"], [1])
         software = proof["configurations"][0]["excluded_by"][0]
         self.assertEqual(software["reason"], "FIRMWARE_OR_SOFTWARE_VERSION_EXCLUDED")
         self.assertEqual(software["installed_version"], "4.5.2")
@@ -683,7 +687,9 @@ class AutomaticNegativeProofTests(SimpleTestCase):
         self.assertEqual(
             software["version_constraints"]["versionEndExcluding"], "4.5.2"
         )
-        other_proof = proof["configurations"][1]["excluded_by"][0]
+        foreign_observations = verified_negative_configurations(result)
+        self.assertEqual(len(foreign_observations), 2)
+        other_proof = foreign_observations[1]["excluded_by"][0]
         self.assertEqual(other_proof["reason"], "DISTINCT_PLATFORM_VERIFIED")
         self.assertTrue(other_proof["confirmed_hardware_cpes"])
 
@@ -759,18 +765,23 @@ class SiemensHardwareIdentityExclusions(SimpleTestCase):
         hardware = evaluated["configurations"][0]["children"][1]["children"][0]
         self.assertEqual(hardware["identity"], "DISTINCT")
         self.assertEqual(hardware["result"], EXCLUDED)
-        proof = automatic_negative_evidence(evaluated)
-        self.assertIsNotNone(proof)
         self.assertEqual(
-            proof["configurations"][0]["excluded_by"][0]["reason"],
+            evaluated["contextual_selection"]["foreign_indexes"], [0]
+        )
+        self.assertIsNone(automatic_negative_evidence(evaluated))
+        branch_proof = verified_negative_configurations(evaluated)
+        self.assertEqual(
+            branch_proof[0]["excluded_by"][0]["reason"],
             "FIRMWARE_OR_SOFTWARE_VERSION_EXCLUDED",
         )
-        # Even with unknown firmware, the *platform* itself excludes the AND.
+        # Even with unknown firmware, the distinct platform excludes the
+        # configuration, not the full Hardware-CVE contextual relationship.
         no_firmware = evaluate_configurations([scenario], [CPU_HW], [])
         self.assertEqual(no_firmware["result"], EXCLUDED)
+        self.assertIsNone(automatic_negative_evidence(no_firmware))
         self.assertEqual(
-            automatic_negative_evidence(no_firmware)["configurations"][0]
-            ["excluded_by"][0]["reason"], "DISTINCT_PLATFORM_VERIFIED"
+            verified_negative_configurations(no_firmware)[0]["excluded_by"][0]
+            ["reason"], "DISTINCT_PLATFORM_VERIFIED"
         )
 
     def test_explicit_other_cpu_family_is_distinct(self):
@@ -778,8 +789,10 @@ class SiemensHardwareIdentityExclusions(SimpleTestCase):
         scenario = nvd_platform_firmware(s7_1500, STEP7)
         assessed = evaluate_configurations([scenario], [CPU_HW], installed())
         self.assertEqual(assessed["result"], EXCLUDED)
-        evidence = automatic_negative_evidence(assessed)
-        self.assertEqual(evidence["configurations"][0]["excluded_by"][0]
+        self.assertEqual(assessed["contextual_selection"]["foreign_indexes"], [0])
+        self.assertIsNone(automatic_negative_evidence(assessed))
+        evidence = verified_negative_configurations(assessed)
+        self.assertEqual(evidence[0]["excluded_by"][0]
                          ["reason"], "DISTINCT_PLATFORM_VERIFIED")
 
     def test_explicit_other_siemens_controller_models_are_distinct(self):
@@ -797,8 +810,12 @@ class SiemensHardwareIdentityExclusions(SimpleTestCase):
                 )
                 self.assertEqual(technical["result"], EXCLUDED)
                 self.assertEqual(
-                    automatic_negative_evidence(technical)
-                    ["configurations"][0]["excluded_by"][0]["reason"],
+                    technical["contextual_selection"]["foreign_indexes"], [0]
+                )
+                self.assertIsNone(automatic_negative_evidence(technical))
+                self.assertEqual(
+                    verified_negative_configurations(technical)
+                    [0]["excluded_by"][0]["reason"],
                     "DISTINCT_PLATFORM_VERIFIED",
                 )
 
@@ -811,9 +828,12 @@ class SiemensHardwareIdentityExclusions(SimpleTestCase):
                 scenario = nvd_platform_firmware(other, STEP7)
                 result = evaluate_configurations([scenario], [CPU_HW], installed())
                 self.assertEqual(result["result"], EXCLUDED)
-                proof = automatic_negative_evidence(result)
-                self.assertIsNotNone(proof)
-                self.assertEqual(proof["configurations"][0]["excluded_by"][0]
+                self.assertEqual(
+                    result["contextual_selection"]["foreign_indexes"], [0]
+                )
+                self.assertIsNone(automatic_negative_evidence(result))
+                proof = verified_negative_configurations(result)
+                self.assertEqual(proof[0]["excluded_by"][0]
                                  ["reason"], "DISTINCT_PLATFORM_VERIFIED")
 
     def test_pc_only_s7_1500_software_controller_is_platform_distinct(self):
@@ -823,9 +843,10 @@ class SiemensHardwareIdentityExclusions(SimpleTestCase):
         ]}
         result = evaluate_configurations([scenario], [CPU_HW], installed())
         self.assertEqual(result["result"], EXCLUDED)
-        proof = automatic_negative_evidence(result)
-        self.assertIsNotNone(proof)
-        self.assertEqual(proof["configurations"][0]["excluded_by"][0]
+        self.assertEqual(result["contextual_selection"]["foreign_indexes"], [0])
+        self.assertIsNone(automatic_negative_evidence(result))
+        proof = verified_negative_configurations(result)
+        self.assertEqual(proof[0]["excluded_by"][0]
                          ["reason"], "SOFTWARE_PLATFORM_DISTINCT")
         unknown = evaluate_configurations([scenario], [], installed())
         self.assertEqual(unknown["result"], INDETERMINATE)
@@ -1379,7 +1400,7 @@ class SiemensContextualHttpTests(TestCase):
         self.assertEqual(
             data["applicability"]["technical_result"], data["technical_result"]
         )
-        self.assertIsNone(data["applicability"]["automatic_evidence"])
+        self.assertIsNotNone(data["applicability"]["automatic_evidence"])
         catalog = self.client.get("/api/vulnerabilities/cves/")
         self.assertEqual(catalog.status_code, 200, catalog.data)
         self.assertEqual(catalog.data["results"][0]["technical_result"],
@@ -1511,19 +1532,22 @@ class SiemensContextualHttpTests(TestCase):
         )
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
-    def test_plcsim_only_exclusion_is_read_only_system_no_aplica(self):
+    def test_only_foreign_plcsim_is_pending_without_a_hardware_anchor(self):
         self.cve.configurations = [
             nvd_platform_firmware(PLCSIM_HW, PLCSIM_FW, before="5.0")
         ]
         self.cve.save(update_fields=["configurations"])
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(response.data["technical_result"], EXCLUDED)
-        self.assertEqual(response.data["applicability"]["status"], "NOT_APPLICABLE")
-        self.assertEqual(response.data["applicability"]["source"], "SYSTEM")
+        self.assertEqual(response.data["nvd_technical_result"], EXCLUDED)
+        self.assertEqual(response.data["technical_result"], INDETERMINATE)
+        self.assertEqual(response.data["applicability"]["status"], "PENDING_REVIEW")
+        self.assertEqual(response.data["applicability"]["source"], "NONE")
         self.assertEqual(response.data["relevant_configurations"], [])
-        self.assertTrue(response.data["automatic_audit_pending"])
-        # GET evaluates NVD but does not append audit records.
+        self.assertEqual(response.data["contextual_selection"]["foreign_indexes"], [0])
+        self.assertFalse(response.data["automatic_audit_pending"])
+        # A foreign-only NVD branch cannot produce an automatic hardware
+        # conclusion or create a SYSTEM audit for the selected controller.
         self.assertEqual(AssetCveAssessment.objects.count(), 0)
 
     def test_status_filters_include_system_positive_before_pagination(self):
