@@ -1131,7 +1131,8 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
     selected = installed_by_id.get(software_installation_id)
     if software_installation_id is not None and selected is None:
         raise ValidationError({"software_installation_id": "La instalación no está vigente."})
-    if selected is not None and supported and verdict == "CONFIRMED":
+    if (selected is not None and supported and verdict == "CONFIRMED"
+            and not manual_hardware_confirm):
         part = supported["software_criterion"].split(":")[2]
         permitted = ("FIRMWARE", "OS") if part == "o" else ("APPLICATION",)
         if selected["software_type"] not in permitted:
@@ -1141,14 +1142,14 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         raise ValidationError({"software_installation_id":
             "Selecciona una instalación de software vigente."})
     if (supported and supported["required_installation_id"] is not None
-            and verdict == "CONFIRMED"
+            and verdict == "CONFIRMED" and not manual_hardware_confirm
             and software_installation_id != supported["required_installation_id"]):
         raise ValidationError({"software_installation_id":
             "Selecciona la instalación concreta verificada contra NVD."})
     conditional_evidence = None
     if (verdict == "CONDITIONAL" or override or manual_hardware_confirm
             or (manual_confirm and not supported)):
-        if override and verdict == "CONFIRMED" and selected is None:
+        if override and verdict == "CONFIRMED" and selected is None and not manual_hardware_confirm:
             raise ValidationError({"software_installation_id":
                 "La confirmación discrepante requiere una instalación vigente vinculada."})
         conditional_evidence = _conditional_evidence(
@@ -1175,7 +1176,7 @@ def record_general_assessment(cve_id, hardware_id, actor, *,
         status = "APPLIES_CONDITIONAL"
     elif verdict == "CONFIRMED" and (
             manual_hardware_confirm or
-            ((supported or override or manual_confirm) and selected is not None)):
+            ((supported or override or manual_confirm or software_proven) and selected is not None)):
         status = "APPLIES"
     elif verdict == "NOT_MATCH" and (global_scope or inventory_declared_complete):
         status = "NOT_APPLICABLE"
