@@ -81,7 +81,8 @@ class SoftwarePayloadTests(TestCase):
     def test_hardware_without_hardware_data_is_invalid(self):
         serializer = AssetCreateSerializer(data={
             "name": "PLC",
-            "asset_type": "HARDWARE",
+            "asset_type": "HARDWARE", "criticality": "MEDIUM",
+            "system_ids": [self.system.pk],
         })
         self.assertFalse(serializer.is_valid())
         self.assertIn("hardware", serializer.errors)
