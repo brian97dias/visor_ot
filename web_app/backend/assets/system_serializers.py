@@ -2,6 +2,7 @@
 from rest_framework import serializers
 
 from .models import OTSystem
+from .inventory_integrity import has_valid_criticality
 
 
 class OTSystemReadSerializer(serializers.ModelSerializer):
@@ -46,6 +47,15 @@ class OTSystemWriteSerializer(serializers.ModelSerializer):
                     "non_field_errors": "Campos no permitidos: " + ", ".join(sorted(forbidden))
                 })
         return super().to_internal_value(data)
+
+    def validate(self, attrs):
+        if (self.instance is None or "criticality" in attrs) and not (
+            has_valid_criticality(attrs.get("criticality"))
+        ):
+            raise serializers.ValidationError({
+                "criticality": "Selecciona Baja, Media o Alta."
+            })
+        return attrs
 
     def validate_name(self, value):
         value = value.strip()
