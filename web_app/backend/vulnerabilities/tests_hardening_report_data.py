@@ -14,8 +14,8 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from assets.models import Asset, NetworkInterface, OTSystem, SystemMembership
-from vulnerabilities.models import AssetCveAssessment
+from assets.models import Asset, Hardware, NetworkInterface, OTSystem, SystemMembership
+from vulnerabilities.models import AssetCveAssessment, AssetCveFinding
 from vulnerabilities.services.hardening_report_data import collect_hardening_report_data
 from vulnerabilities.tests_cve_contextualization import (
     SiemensContextualHttpTests, CPU_HW, CPU_FW, CPU_FW_CRITERION,
@@ -91,6 +91,40 @@ class HardeningReportDataTests(TestCase):
         self.assertEqual(finding["evaluated_software"][0]["version"], "4.5.2")
         self.assertEqual(finding["justifications"], [])
         self.assertIsNotNone(finding["automatic_nvd_evidence"])
+
+    def test_one_cve_is_reported_only_for_hardware_with_verified_positive(self):
+        second_asset = Asset.objects.create(
+            name="Segundo PLC", asset_type="HARDWARE", criticality="LOW",
+            created_by=self.user, updated_by=self.user,
+        )
+        second = Hardware.objects.create(
+            asset=second_asset, manufacturer="Siemens",
+            model="SIMATIC S7-1200 CPU 1215C", role="PLC",
+        )
+        SystemMembership.objects.create(
+            system=self.system, hardware=second, registered_by=self.user,
+        )
+        # This is a real, currently confirmed platform CPE, but the second
+        # CPU has no verified vulnerable firmware installation.
+        assoc = self.fixture.confirm(second_asset, CPU_HW)
+        source = dict(self.finding.sources[0])
+        source.update({
+            "hardware_id": second.pk, "asset_id": second.pk,
+            "asset_cpe_id": assoc.pk,
+        })
+        AssetCveFinding.objects.create(
+            hardware=second, cve=self.cve,
+            first_discovery_run=self.run, last_discovery_run=self.run,
+            sources=[source], evidence_fingerprint="candidate-only",
+        )
+        report = collect_hardening_report_data()
+        self.assertEqual(report["summary"]["hardware"], 2)
+        self.assertEqual(report["summary"]["applicable_hardware_cve_pairs"], 1)
+        self.assertEqual(
+            [(row["cve_id"], row["hardware_id"]) for row
+             in report["applicable_vulnerabilities"]],
+            [(self.cve.cve_id, self.hw.pk)],
+        )
 
     def test_verified_version_exclusion_does_not_create_report_finding(self):
         self.cve.configurations = [
