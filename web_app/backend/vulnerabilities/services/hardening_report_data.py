@@ -252,6 +252,10 @@ def collect_hardening_report_data(*, generated_at=None):
     hardware_rows = [{
         "id": a.pk, "name": a.name, "description": a.description,
         "criticality": a.criticality, "impact": a.impact,
+        "replacement_cost": (
+            str(a.replacement_cost) if a.replacement_cost is not None else None
+        ),
+        "replacement_currency": a.replacement_currency or None,
         "manufacturer": a.hardware.manufacturer, "model": a.hardware.model,
         "cpu_model": a.hardware.cpu_model, "role": a.hardware.role,
         "serial_number": a.hardware.serial_number,
@@ -265,6 +269,10 @@ def collect_hardening_report_data(*, generated_at=None):
     software_rows = [{
         "id": a.pk, "name": a.name, "description": a.description,
         "criticality": a.criticality, "impact": a.impact,
+        "replacement_cost": (
+            str(a.replacement_cost) if a.replacement_cost is not None else None
+        ),
+        "replacement_currency": a.replacement_currency or None,
         "software_type": a.software.software_type,
         "manufacturer": a.software.manufacturer,
         "product": a.software.product, "version": a.software.version,
