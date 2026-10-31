@@ -33,7 +33,14 @@ class HardeningPdfDownloadView(APIView):
         author = request.user.get_full_name().strip() or request.user.get_username()
 
         output = BytesIO()
-        render_hardening_pdf(report, output, author=author)
+        try:
+            render_hardening_pdf(report, output, author=author)
+        except ValueError as error:
+            # Invalid report contracts must not become a corrupted download.
+            raise ValidationError({
+                "detail": "El diagnóstico contiene datos no válidos para "
+                          "generar el informe. Revisa la integridad del inventario."
+            }) from error
         filename = "VISOR_OT_diagnostico_{}.pdf".format(
             timezone.now().strftime("%Y%m%d_%H%M%S")
         )
