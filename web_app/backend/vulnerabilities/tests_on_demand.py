@@ -10,6 +10,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from vulnerabilities.models import CpeSearchRun, CpeQuerySnapshot
+from assets.models import OTSystem
 
 
 class AnalystInitiatedSearchTests(TestCase):
@@ -23,17 +24,23 @@ class AnalystInitiatedSearchTests(TestCase):
         )
         self.client = APIClient()
         self.client.force_authenticate(self.operator)
+        self.system = OTSystem.objects.create(
+            name="Laboratorio OT", criticality="MEDIUM",
+            created_by=self.operator, updated_by=self.operator,
+        )
 
     def test_register_and_update_assets_never_queue_cpe_or_call_nvd(self):
         with patch("vulnerabilities.services.nvd_client.fetch_page") as fetcher:
             hardware = self.client.post("/api/assets/", {
                 "asset_type": "HARDWARE", "name": "PLC de prueba",
+                "criticality": "MEDIUM", "system_ids": [self.system.pk],
                 "hardware": {"manufacturer": "Siemens",
                              "model": "SIMATIC S7-1200", "role": "PLC"},
             }, format="json")
             self.assertEqual(hardware.status_code, 201, hardware.data)
             software = self.client.post("/api/assets/", {
                 "asset_type": "SOFTWARE", "name": "IOS de prueba",
+                "criticality": "MEDIUM",
                 "software": {"software_type": "OS", "manufacturer": "Cisco",
                              "product": "IOS", "version": "12.1"},
             }, format="json")
@@ -51,6 +58,7 @@ class AnalystInitiatedSearchTests(TestCase):
     def test_explicit_search_queues_without_running_nvd(self):
         hardware = self.client.post("/api/assets/", {
             "asset_type": "HARDWARE", "name": "PLC bajo demanda",
+                "criticality": "MEDIUM", "system_ids": [self.system.pk],
             "hardware": {"manufacturer": "Siemens",
                          "model": "SIMATIC S7-1200", "role": "PLC"},
         }, format="json")
