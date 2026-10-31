@@ -18,14 +18,15 @@ class OTSystemAPITests(TestCase):
 
     def register(self, **data):
         return self.client.post("/api/assets/systems/", {
-            "name": "Entorno experimental 4SICS Geek Lounge", **data,
+            "name": "Entorno experimental 4SICS Geek Lounge",
+            "criticality": "MEDIUM", **data,
         }, format="json")
 
-    def test_create_with_no_hardware_and_default_criticality(self):
+    def test_create_with_no_hardware_and_explicit_criticality(self):
         response = self.register()
         self.assertEqual(response.status_code, 201, response.data)
         system = OTSystem.objects.get(pk=response.data["id"])
-        self.assertEqual(system.criticality, OTSystem.Criticality.UNDEFINED)
+        self.assertEqual(system.criticality, OTSystem.Criticality.MEDIUM)
         self.assertEqual(system.status, OTSystem.Status.ACTIVE)
         self.assertEqual(system.created_by, self.operator)
         self.assertEqual(system.updated_by, self.operator)
