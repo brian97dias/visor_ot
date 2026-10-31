@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from .models import Asset, Hardware, Software, SoftwareInstallation
 from .interface_serializers import NetworkInterfaceCreateSerializer
+from .inventory_integrity import has_valid_criticality
 
 
 class HardwareSerializer(serializers.ModelSerializer):
@@ -158,12 +159,37 @@ class AssetCreateSerializer(serializers.ModelSerializer):
         )
 
     def validate(self, attrs):
+        if not self.context.get("import_preview_existing"):
+            if not has_valid_criticality(attrs.get("criticality")):
+                raise serializers.ValidationError({
+                    "criticality": "Selecciona Baja, Media o Alta."
+                })
         kind = attrs.get("asset_type")
         if kind == Asset.AssetType.HARDWARE:
             if "hardware" not in attrs:
                 raise serializers.ValidationError({
                     "hardware": "Indica los datos del hardware."
                 })
+            details = attrs["hardware"]
+            for field in ("manufacturer", "model", "role"):
+                if not (details.get(field) or "").strip():
+                    raise serializers.ValidationError({
+                        "hardware": {field: "Campo obligatorio para hardware activo."}
+                    })
+            if not self.context.get("import_preview"):
+                systems = attrs.get("system_ids", [])
+                if not systems:
+                    raise serializers.ValidationError({
+                        "system_ids": "Asocia al menos un sistema OT activo."
+                    })
+                from .models import OTSystem
+                valid = OTSystem.objects.filter(
+                    pk__in=systems, status=OTSystem.Status.ACTIVE
+                ).count()
+                if valid != len(set(systems)):
+                    raise serializers.ValidationError({
+                        "system_ids": "Selecciona únicamente sistemas OT activos."
+                    })
             if "software" in self.initial_data:
                 raise serializers.ValidationError({
                     "software": "No envíes datos de software para un hardware."
@@ -220,6 +246,10 @@ class AssetUpdateSerializer(serializers.ModelSerializer):
         )
 
     def validate(self, attrs):
+        if "criticality" in attrs and not has_valid_criticality(attrs["criticality"]):
+            raise serializers.ValidationError({
+                "criticality": "Selecciona Baja, Media o Alta."
+            })
         if "asset_type" in self.initial_data:
             raise serializers.ValidationError({
                 "asset_type": "El tipo de activo no se puede modificar."
