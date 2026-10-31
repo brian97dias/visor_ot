@@ -208,7 +208,8 @@ class SoftwareAssetAPITests(TestCase):
         second = self.client.post("/api/assets/", {
             "name": "ENG-02", "asset_type": "HARDWARE",
             "criticality": "MEDIUM", "system_ids": [self.system.pk],
-            "hardware": {"role": "WORKSTATION"},
+            "hardware": {"role": "WORKSTATION",
+                         "manufacturer": "Siemens", "model": "ENG-02"},
         }, format="json")
         self.assertEqual(second.status_code, 201, second.data)
         url = f"/api/assets/{second.data['id']}/software-installations/"
