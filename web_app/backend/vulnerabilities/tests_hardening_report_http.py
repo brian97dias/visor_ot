@@ -108,6 +108,20 @@ class HardeningReportHttpTests(TestCase):
         self.assertIn("application/json", response["Content-Type"])
         self.assertIn("inventory", response.data)
 
+    def test_invalid_diagnosis_does_not_return_a_partial_pdf(self):
+        self.client.force_authenticate(self.admin)
+        with patch(
+            "vulnerabilities.hardening_report_views.collect_hardening_report_data",
+            return_value=diagnosis_fixture(),
+        ), patch(
+            "vulnerabilities.hardening_report_views.render_hardening_pdf",
+            side_effect=ValueError("Contrato inválido"),
+        ):
+            response = self.client.post(self.url)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("application/json", response["Content-Type"])
+        self.assertIn("detail", response.data)
+
     def test_rejects_client_options_to_prevent_forged_author(self):
         self.client.force_authenticate(self.admin)
         with patch(
