@@ -12,6 +12,7 @@ from .cve_general_assessment_views import (
 from .cve_catalogue_views import (
     CveCatalogueView, CveCatalogueDetailView, CveCatalogueHardwareView,
 )
+from .hardening_report_views import HardeningPdfDownloadView
 from .cve_discovery_views import (
     CveDiscoveryListCreateView, CveDiscoveryDetailView,
     CveDiscoveryFindingListView,
@@ -19,6 +20,8 @@ from .cve_discovery_views import (
 
 app_name = "vulnerabilities"
 urlpatterns = [
+    path("reports/hardening.pdf", HardeningPdfDownloadView.as_view(),
+         name="hardening-pdf-download"),
     path("cves/", CveCatalogueView.as_view(), name="cve-catalogue"),
     path("cves/<str:cve_id>/hardware/<int:hardware_id>/assessment/",
          GeneralCveAssessmentView.as_view(), name="cve-general-assessment"),
