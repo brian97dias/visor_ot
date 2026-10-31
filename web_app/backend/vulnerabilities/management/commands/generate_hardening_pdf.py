@@ -28,6 +28,10 @@ class Command(BaseCommand):
             "--input-json", dest="input_json", default=None,
             help="Usa un corte JSON existente sin acceder a la base de datos.",
         )
+        parser.add_argument(
+            "--legacy", action="store_true",
+            help="Conserva el PDF anterior de inventario para comparación.",
+        )
 
     def handle(self, *args, **options):
         if options["input_json"]:
@@ -55,7 +59,7 @@ class Command(BaseCommand):
                 dir=target.parent, delete=False,
             ) as stream:
                 temporary = Path(stream.name)
-                render_hardening_pdf(data, stream)
+                render_hardening_pdf(data, stream, legacy=options["legacy"])
                 stream.flush()
                 os.fsync(stream.fileno())
             os.replace(temporary, target)
