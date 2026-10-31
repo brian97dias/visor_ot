@@ -172,7 +172,8 @@ class AssetCreateSerializer(serializers.ModelSerializer):
                 })
             details = attrs["hardware"]
             for field in ("manufacturer", "model", "role"):
-                if not (details.get(field) or "").strip():
+                if (not self.context.get("import_preview_existing")
+                        and not (details.get(field) or "").strip()):
                     raise serializers.ValidationError({
                         "hardware": {field: "Campo obligatorio para hardware activo."}
                     })
