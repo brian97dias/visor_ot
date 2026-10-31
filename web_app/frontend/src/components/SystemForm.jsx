@@ -16,7 +16,7 @@ export default function SystemForm({system,saving,error,onSave,back,onDirtyChang
     event.preventDefault();
     if (saving) return;
     const payload=systemPayload(values);
-    if (!payload.name) return;
+    if (!payload.name || !["LOW", "MEDIUM", "HIGH"].includes(payload.criticality)) return;
     onSave(payload);
   }
   return <section className="panel">
@@ -42,13 +42,17 @@ export default function SystemForm({system,saving,error,onSave,back,onDirtyChang
         <h2>Valoración operacional</h2>
         <div className="assets-form-grid">
           <div className="assets-field">
-            <label htmlFor="sys-criticality">Criticidad</label>
+            <label htmlFor="sys-criticality">Criticidad *</label>
             <select id="sys-criticality" value={values.criticality} disabled={saving}
               onChange={e=>update("criticality",e.target.value)}>
               {Object.entries(SYSTEM_CRITICALITY_LABELS).map(([value,label])=>
-                <option key={value} value={value}>{label}</option>)}
+                <option key={value} value={value}
+                  disabled={!system && value === "UNDEFINED"}>
+                  {!system && value === "UNDEFINED" ? "Selecciona criticidad *" : label}
+                </option>)}
             </select>
-            <small>Si no se conoce la criticidad, conserva «Sin definir».</small>
+            <small>La criticidad debe ser Baja, Media o Alta.
+              Los sistemas históricos sin definir se pueden regularizar desde la edición.</small>
           </div>
           <div className="assets-field">
             <label htmlFor="sys-justification">Justificación de criticidad</label>
@@ -67,7 +71,9 @@ export default function SystemForm({system,saving,error,onSave,back,onDirtyChang
       <div className="assets-form-actions">
         <Link className="button-secondary" to={back.to} state={back.state}
           onClick={confirmBack}>Cancelar</Link>
-        <button className="button-primary" type="submit" disabled={saving||!values.name.trim()}>
+        <button className="button-primary" type="submit"
+          disabled={saving || !values.name.trim() ||
+            !["LOW", "MEDIUM", "HIGH"].includes(values.criticality)}>
           {saving?"Guardando...":"Guardar sistema"}
         </button>
       </div>
