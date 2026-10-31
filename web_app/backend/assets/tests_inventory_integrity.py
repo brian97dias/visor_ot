@@ -154,6 +154,24 @@ class InventoryIntegrityPhaseOneTests(TestCase):
         old.refresh_from_db()
         self.assertEqual(old.criticality, "UNDEFINED")
 
+    def test_integrity_command_reports_legacy_gaps_without_writing(self):
+        from io import StringIO
+        from django.core.management import call_command
+        asset = Asset.objects.create(
+            name="Hardware incompleto", asset_type="HARDWARE",
+            criticality="UNDEFINED", created_by=self.operator,
+        )
+        Hardware.objects.create(asset=asset, role="PLC")
+        output = StringIO()
+        call_command("audit_inventory_integrity", "--json", stdout=output)
+        data = json.loads(output.getvalue())
+        self.assertFalse(data["valid"])
+        fields = {row["field"] for row in data["issues"]
+                  if row["entity"] == "asset" and row["id"] == asset.pk}
+        self.assertTrue({"criticality", "manufacturer", "model", "system_ids"} <= fields)
+        asset.refresh_from_db()
+        self.assertEqual(asset.criticality, "UNDEFINED")
+
     def test_excel_hardware_create_needs_explicit_system_in_actions(self):
         body = {
             "nombre_activo": "PLC importado", "fabricante": "Siemens",
