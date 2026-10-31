@@ -163,6 +163,36 @@ class HardeningReportDataTests(TestCase):
                          "Pendiente verificar condición operacional en terreno.")
         self.assertEqual(report["summary"]["conditional_hardware_cve_pairs"], 1)
 
+    def test_current_analyst_exclusion_overrides_automatic_positive_in_report(self):
+        current = self.client.get(self.url)
+        self.assertEqual(current.status_code, 200, current.data)
+        result = self.client.post(self.url, {
+            "configuration_index": 8,
+            "configuration_fingerprint": current.data["configurations"][8]["fingerprint"],
+            "inventory_fingerprint": current.data["inventory_fingerprint"],
+            "verdict": "NOT_MATCH",
+            "software_installation_id": self.installation.pk,
+            "inventory_declared_complete": True,
+            "technical_override_acknowledged": True,
+            "justification": "Evidencia adicional para descartar la aplicabilidad.",
+        }, format="json")
+        self.assertEqual(result.status_code, 201, result.data)
+        report = collect_hardening_report_data()
+        self.assertEqual(report["applicable_vulnerabilities"], [])
+        self.assertEqual(report["conditional_vulnerabilities"], [])
+        self.assertEqual(report["summary"]["applicable_hardware_cve_pairs"], 0)
+        self.assertEqual(report["summary"]["conditional_hardware_cve_pairs"], 0)
+
+    def test_deprecated_confirmed_cpe_is_not_claimed_in_current_inventory(self):
+        hardware_cpe = self.hw.asset.cpe_associations.get(
+            cpe__cpe_name=CPU_HW,
+        )
+        hardware_cpe.cpe.deprecated = True
+        hardware_cpe.cpe.save(update_fields=["deprecated"])
+        report = collect_hardening_report_data()
+        self.assertEqual(report["hardware"][0]["confirmed_cpes"], [])
+        self.assertEqual(report["applicable_vulnerabilities"], [])
+
     def test_identity_change_invalidates_cpe_and_positive_proof(self):
         self.hw.model = "Modelo corregido"
         self.hw.save(update_fields=["model"])
