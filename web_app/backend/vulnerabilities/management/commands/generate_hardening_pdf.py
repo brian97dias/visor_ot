@@ -32,6 +32,10 @@ class Command(BaseCommand):
             "--legacy", action="store_true",
             help="Conserva el PDF anterior de inventario para comparación.",
         )
+        parser.add_argument(
+            "--author", default=None,
+            help="Nombre del responsable que solicita la generación del informe.",
+        )
 
     def handle(self, *args, **options):
         if options["input_json"]:
@@ -59,7 +63,9 @@ class Command(BaseCommand):
                 dir=target.parent, delete=False,
             ) as stream:
                 temporary = Path(stream.name)
-                render_hardening_pdf(data, stream, legacy=options["legacy"])
+                render_hardening_pdf(
+                    data, stream, legacy=options["legacy"], author=options["author"]
+                )
                 stream.flush()
                 os.fsync(stream.fileno())
             os.replace(temporary, target)
