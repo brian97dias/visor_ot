@@ -76,8 +76,9 @@ def _current_justifications(cves):
     latest = {}
     for row in AssetCveAssessment.objects.filter(
         cve_id__in=ids,
-    ).order_by("cve_id", "hardware_id", "configuration_index",
-               "-decided_at", "-pk"):
+    ).select_related("decided_by").order_by(
+        "cve_id", "hardware_id", "configuration_index", "-decided_at", "-pk"
+    ):
         key = (row.cve_id, row.hardware_id, row.configuration_index)
         latest.setdefault(key, row)
     by_cve = {cve.pk: cve for cve in cves}
@@ -164,6 +165,13 @@ def _report_findings(cves, hardware_by_id, software_installations):
                     "assessment_id": row.pk,
                     "configuration_index": row.configuration_index,
                     "justification": row.justification,
+                    "decided_by": (
+                        row.decided_by.username if row.decided_by_id else None
+                    ),
+                    "selected_nvd_criterion": (
+                        row.criteria_evidence.get("selected_nvd_criterion")
+                        if isinstance(row.criteria_evidence, dict) else None
+                    ),
                     "decided_at": _date(row.decided_at),
                 } for row in records],
                 "evaluated_software": evidence_software,
