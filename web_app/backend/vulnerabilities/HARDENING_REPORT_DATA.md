@@ -79,9 +79,9 @@ si no existe una auditoría manual actual, `justifications` es `[]`.
 4. Si el inventario activo tiene faltantes, el recolector devuelve un error
    con sus registros. Primero ejecutar
    `python manage.py audit_inventory_integrity`.
-5. No se inventan datos de red, versión, riesgos, medidas implementadas ni
-   recomendaciones de hardening. La selección de comunicaciones corresponde a
-   la fase 3 y la redacción/maquetación al PDF de la fase 4.
+5. No se inventan datos de red, versiones, riesgos, medidas implementadas
+   ni recomendaciones de hardening. La fase 3 aporta únicamente evidencia
+   observada; la redacción y maquetación corresponde al PDF de la fase 4.
 
 **Limitación:** el corte se calcula con lecturas de la base de datos. En estas
 fases no se crea una instantánea persistida ni un documento legalmente sellado.
