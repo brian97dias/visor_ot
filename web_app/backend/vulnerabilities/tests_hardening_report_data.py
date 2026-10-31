@@ -6,7 +6,6 @@ python manage.py test vulnerabilities.tests_hardening_report_data \\
 """
 import json
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from io import StringIO
 from unittest.mock import patch
 
