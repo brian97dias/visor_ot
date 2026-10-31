@@ -35,6 +35,12 @@ SNAPSHOT_MODELS = (
 class HardeningFullRegressionTests(TestCase):
     """Real collector, real network aggregation, real PDF, real HTTP view."""
 
+    def _ingestion(self, prefix, status):
+        # The reused fixture calls self._ingestion() during setUp().
+        return _fixtures.DiagnosticCommunicationTests._ingestion(
+            self, prefix, status
+        )
+
     def setUp(self):
         # Reuse the proven Siemens CPE, firmware and active/excluded PCAP fixture.
         _fixtures.DiagnosticCommunicationTests.setUp(self)
@@ -114,6 +120,8 @@ class HardeningFullRegressionTests(TestCase):
         self.assertTrue(response.content.startswith(b"%PDF-"))
         self.assertIn(b"%%EOF", response.content[-128:])
         self.assertEqual(render.call_count, 1)
+        self.assertEqual(render.call_args.kwargs["author"],
+                         self.user.get_full_name().strip() or self.user.get_username())
         report = render.call_args.args[0]
         self.assertEqual(report["schema_version"], 1)
         self.assertEqual(report["summary"]["applicable_hardware_cve_pairs"], 1)
