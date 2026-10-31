@@ -180,7 +180,7 @@ def _footer(canvas, document):
     canvas.restoreState()
 
 
-def render_hardening_pdf(data, destination):
+def render_legacy_hardening_pdf(data, destination):
     """Write a complete PDF from an immutable-in-practice snapshot, not ORM."""
     required = ("summary", "systems", "hardware", "software",
                 "communications", "applicable_vulnerabilities",
@@ -419,3 +419,17 @@ def render_hardening_pdf(data, destination):
     )
     document.build(story, onFirstPage=_footer, onLaterPages=_footer)
     return destination
+
+
+
+def render_hardening_pdf(data, destination, *, legacy=False):
+    """Render device-first diagnosis or explicitly preserve the previous PDF.
+
+    Old schema-v1 JSON snapshots without a diagnosis block retain the legacy
+    renderer. New snapshots use the approved hardware-centred presentation.
+    The pure renderers never access the Django ORM.
+    """
+    if legacy or (isinstance(data, dict) and "diagnosis" not in data):
+        return render_legacy_hardening_pdf(data, destination)
+    from .hardening_pdf_diagnosis import render_diagnostic_hardening_pdf
+    return render_diagnostic_hardening_pdf(data, destination)
