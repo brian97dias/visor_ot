@@ -131,6 +131,26 @@ class HardeningReportDataTests(TestCase):
             len(device["installed_software"][0]["confirmed_cpes"]), 1
         )
 
+    def test_stored_nvd_spanish_description_is_exported_only_when_present(self):
+        self.cve.descriptions = [
+            {"lang": "en", "value": "Original technical description."},
+            {"lang": "es", "value": "Descripción técnica oficial almacenada."},
+        ]
+        self.cve.save(update_fields=["descriptions"])
+        report = collect_hardening_report_data()
+        item = report["diagnosis"]["prioritized_hardware"][0]["findings"][0]
+        self.assertEqual(
+            item["description_es"], "Descripción técnica oficial almacenada."
+        )
+        self.assertEqual(item["description"], self.cve.description)
+        self.cve.descriptions = [
+            {"lang": "en", "value": "Original technical description."},
+        ]
+        self.cve.save(update_fields=["descriptions"])
+        report = collect_hardening_report_data()
+        item = report["diagnosis"]["prioritized_hardware"][0]["findings"][0]
+        self.assertIsNone(item["description_es"])
+
     def test_one_cve_is_reported_only_for_hardware_with_verified_positive(self):
         second_asset = Asset.objects.create(
             name="Segundo PLC", asset_type="HARDWARE", criticality="LOW",
