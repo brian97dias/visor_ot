@@ -3,7 +3,7 @@ import { Link, useNavigate, useOutletContext, useSearchParams } from "react-rout
 
 import { getCpeOverview } from "../api/vulnerabilities";
 import {
-  enqueueCveDiscovery, listCveCatalogue,
+  downloadHardeningPdf, enqueueCveDiscovery, listCveCatalogue,
 } from "../api/vulnerabilities";
 import {
   CVE_EVALUATION_STATE, CVE_CATALOGUE_FILTER_STATES,
@@ -43,6 +43,9 @@ export default function CveOverview() {
   const [selected, setSelected] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [selectionError, setSelectionError] = useState("");
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [reportError, setReportError] = useState("");
+  const [reportNotice, setReportNotice] = useState("");
   const modalFocus = useRef(null);
 
   function changeFilter(name, value) {
@@ -92,6 +95,36 @@ export default function CveOverview() {
     }
   }
 
+  async function generateReport() {
+    if (!canSearch || generatingReport) return;
+    setGeneratingReport(true);
+    setReportError("");
+    setReportNotice("");
+    try {
+      const { blob, filename } = await downloadHardeningPdf();
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const anchor = document.createElement("a");
+        anchor.href = objectUrl;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        try {
+          anchor.click();
+          setReportNotice("La descarga del informe PDF se ha iniciado.");
+        } finally {
+          anchor.remove();
+        }
+      } finally {
+        // Give the browser time to start saving before releasing the blob.
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
+      }
+    } catch (err) {
+      setReportError(err.message || "No se pudo descargar el informe.");
+    } finally {
+      setGeneratingReport(false);
+    }
+  }
+
   function refreshAll() {
     setError("");
     setReload(prev => prev + 1);
@@ -132,10 +165,19 @@ export default function CveOverview() {
         <h1>Análisis CVE</h1>
         <p>Vulnerabilidades oficiales de NVD y hardware relacionado mediante CPE confirmados.</p>
       </div>
-      {canSearch && <button type="button" className="button-primary"
-        onClick={openDialog}>Buscar CVE</button>}
+      {canSearch && <div className="cve-catalogue-heading-actions">
+        <button type="button" className="button-secondary"
+          onClick={generateReport} disabled={generatingReport}
+          aria-busy={generatingReport}>
+          {generatingReport ? "Generando informe..." : "Generar informe"}
+        </button>
+        <button type="button" className="button-primary"
+          onClick={openDialog}>Buscar CVE</button>
+      </div>}
     </header>
 
+    {reportError && <p className="error-message" role="alert">{reportError}</p>}
+    {reportNotice && <p className="cve-catalogue-report-notice" role="status">{reportNotice}</p>}
     {error && <p className="error-message" role="alert">{error}</p>}
 
     <div className="cve-catalogue-stats" aria-label="Resumen de aplicabilidad CVE">
