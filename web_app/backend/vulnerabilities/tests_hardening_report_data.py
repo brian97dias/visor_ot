@@ -237,6 +237,18 @@ class HardeningReportDataTests(TestCase):
         self.assertEqual(data["summary"]["applicable_hardware_cve_pairs"], 1)
         self.assertFalse(AssetCveAssessment.objects.exists())
 
+    def test_print_json_flag_respects_django_stdout_redirection(self):
+        # Django call_command must not confuse its stdout= stream
+        # with the CLI flag after --print-json becomes the primary name.
+        output = StringIO()
+        with patch.object(Path, "write_text", autospec=True) as write_text:
+            call_command("preview_hardening_data", "--print-json", stdout=output)
+        write_text.assert_not_called()
+        self.assertEqual(
+            json.loads(output.getvalue())["summary"]["applicable_hardware_cve_pairs"],
+            1,
+        )
+
     def test_preview_command_rejects_stdout_and_output_together(self):
         with self.assertRaises(CommandError), patch.object(
             Path, "write_text", autospec=True
