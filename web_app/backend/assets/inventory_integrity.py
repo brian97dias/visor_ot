@@ -59,6 +59,11 @@ def inventory_integrity_issues():
         system__status=OTSystem.Status.ACTIVE,
     ).values_list("hardware_id", flat=True))
     for asset in hardware:
+        if not (asset.name or "").strip():
+            issues.append({
+                "entity": "asset", "id": asset.pk, "field": "name",
+                "message": "Identifica el hardware con un nombre.",
+            })
         try:
             device = asset.hardware
         except Asset.hardware.RelatedObjectDoesNotExist:
