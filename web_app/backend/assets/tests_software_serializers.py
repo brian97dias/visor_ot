@@ -1,16 +1,25 @@
 """DRF Software payload validation without a temporary database."""
 
-from django.test import SimpleTestCase
+from django.test import TestCase
+from django.contrib.auth import get_user_model
+from .models import OTSystem
 
 from .serializers import AssetCreateSerializer, AssetUpdateSerializer
 from .models import Asset
 
 
-class SoftwarePayloadTests(SimpleTestCase):
+class SoftwarePayloadTests(TestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user("software-payload-test")
+        self.system = OTSystem.objects.create(
+            name="Pruebas de serializador", criticality="MEDIUM",
+            created_by=user, updated_by=user,
+        )
+
     def software_payload(self, **overrides):
         data = {
             "name": "TIA Portal V18",
-            "asset_type": "SOFTWARE",
+            "asset_type": "SOFTWARE", "criticality": "MEDIUM",
             "hardware_asset_id": 5,
             "software": {
                 "software_type": "APPLICATION",
@@ -63,8 +72,9 @@ class SoftwarePayloadTests(SimpleTestCase):
     def test_hardware_registration_still_valid(self):
         serializer = AssetCreateSerializer(data={
             "name": "PLC-01",
-            "asset_type": "HARDWARE",
-            "hardware": {"role": "PLC"},
+            "asset_type": "HARDWARE", "criticality": "MEDIUM",
+            "system_ids": [self.system.pk],
+            "hardware": {"role": "PLC", "manufacturer": "Siemens", "model": "1215C"},
         })
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
@@ -79,8 +89,9 @@ class SoftwarePayloadTests(SimpleTestCase):
     def test_hardware_rejects_software_payload(self):
         serializer = AssetCreateSerializer(data={
             "name": "PLC",
-            "asset_type": "HARDWARE",
-            "hardware": {"role": "PLC"},
+            "asset_type": "HARDWARE", "criticality": "MEDIUM",
+            "system_ids": [self.system.pk],
+            "hardware": {"role": "PLC", "manufacturer": "Siemens", "model": "1215C"},
             "software": {"software_type": "APPLICATION", "product": "App"},
         })
         self.assertFalse(serializer.is_valid())
@@ -122,8 +133,9 @@ class SoftwarePayloadTests(SimpleTestCase):
     def test_hardware_asset_rejects_initial_software_host(self):
         serializer = AssetCreateSerializer(data={
             "name": "PLC-01",
-            "asset_type": "HARDWARE",
-            "hardware": {"role": "PLC"},
+            "asset_type": "HARDWARE", "criticality": "MEDIUM",
+            "system_ids": [self.system.pk],
+            "hardware": {"role": "PLC", "manufacturer": "Siemens", "model": "1215C"},
             "hardware_asset_id": 5,
         })
         self.assertFalse(serializer.is_valid())
