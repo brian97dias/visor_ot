@@ -1,5 +1,5 @@
 import { authenticatedFetch } from "./client";
-import { reportFilename, reportErrorMessage } from "../utils/hardeningReportDownload";
+import { parseHardeningPdfResponse } from "../utils/hardeningReportDownload";
 
 async function request(path, options) {
   const response = await authenticatedFetch(path, options);
@@ -168,21 +168,5 @@ export async function downloadHardeningPdf() {
   const response = await authenticatedFetch(
     "/api/vulnerabilities/reports/hardening.pdf", { method: "POST" }
   );
-  if (!response.ok) {
-    let problem = null;
-    try { problem = await response.json(); } catch { /* Not a JSON error. */ }
-    throw new Error(reportErrorMessage(problem, response.status));
-  }
-  if (!(response.headers.get("Content-Type") || "")
-    .toLowerCase().startsWith("application/pdf")) {
-    throw new Error("El servidor no devolvió un archivo PDF válido.");
-  }
-  const blob = await response.blob();
-  if (!blob.size) {
-    throw new Error("El servidor devolvió un informe PDF vacío.");
-  }
-  return {
-    blob,
-    filename: reportFilename(response.headers.get("Content-Disposition")),
-  };
+  return parseHardeningPdfResponse(response);
 }
