@@ -1,6 +1,6 @@
-# VISOR OT — Informe de hardening, fase 2 (datos)
+# VISOR OT — Informe de hardening, fases 2 y 3 (datos)
 
-Esta fase **solo recopila datos**. No genera PDF, no incorpora una pantalla o API
+Estas fases **solo recopilan datos**. No genera PDF, no incorpora una pantalla o API
 pública nueva, no ejecuta consultas NVD y no registra evaluaciones CVE.
 
 ## Ejecución
@@ -44,7 +44,15 @@ convierten a texto). No guarda nada en la base de datos.
 - `conditional_vulnerabilities`: parejas Hardware–CVE vigentes con
   `APPLIES_CONDITIONAL`; se reservan para un apéndice, **no** se suman a
   los hallazgos confirmados.
-- `communications`: vacío en fase 2; se construirá en la fase 3.
+- `communications`: fase 3, máximo tres firmas de mayor volumen observado
+  (`packet_count` sumado solo en ingestas `ACTIVE`). Se recuperan por SQL
+  antes de resolver extremos, sin cargar todas las comunicaciones en Python.
+  Incluye IP, puerto, transporte, servicio, clasificación, fechas y paquetes.
+  La resolución de hardware exige evidencia ARP y asociación vigente; no se
+  deduce solo por IP. Si una firma tiene más de 1000 observaciones activas,
+  conserva las IP y marca la identidad `NOT_EVALUATED_VOLUME` para limitar
+  memoria en la resolución. Se trata de un resumen GLOBAL de tráfico, no una
+  lista de flujos necesariamente habituales ni de ataques detectados.
 
 Los conteos de `*_hardware_cve_pairs` **no equivalen** a conteos de CVE
 únicos: un CVE puede aplicar a varios equipos. Los campos
@@ -75,6 +83,6 @@ si no existe una auditoría manual actual, `justifications` es `[]`.
    recomendaciones de hardening. La selección de comunicaciones corresponde a
    la fase 3 y la redacción/maquetación al PDF de la fase 4.
 
-**Limitación:** el corte se calcula con lecturas de la base de datos. En esta
-fase no se crea una instantánea persistida ni un documento legalmente sellado.
+**Limitación:** el corte se calcula con lecturas de la base de datos. En estas
+fases no se crea una instantánea persistida ni un documento legalmente sellado.
 La evidencia refleja el estado disponible al ejecutar el recolector.

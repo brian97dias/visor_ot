@@ -19,6 +19,7 @@ from .cve_general_assessment import _context, _digest
 from .cve_applicability import assessment_evidence_is_current
 from .cve_technical_status import related_assets_for_cves
 from .identity import fingerprint, hardware_identity, software_identity
+from .hardening_report_communications import collect_top_communications
 
 
 def _date(value):
@@ -325,5 +326,5 @@ def collect_hardening_report_data(*, generated_at=None):
         "software": software_rows,
         "applicable_vulnerabilities": main,
         "conditional_vulnerabilities": conditional,
-        "communications": [],  # Phase 3: top-3 observed active traffic.
+        "communications": collect_top_communications(hardware_by_id),
     }
