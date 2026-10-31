@@ -16,6 +16,12 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from .hardening_pdf_locale import (
+    ASSESSMENT, CLASSIFICATIONS, EVALUATOR, METRIC_LABELS,
+    NETWORK_STATUSES, ROLES, SEVERITY, SOFTWARE_TYPES,
+    interpret_cvss, label, metric_value,
+)
+
 from reportlab.platypus import (
     HRFlowable, KeepTogether, LongTable, PageBreak, Paragraph,
     SimpleDocTemplate, Spacer, TableStyle,
@@ -55,6 +61,7 @@ def _styles():
             name, fontName=bold if weight else font, fontSize=size,
             leading=leading, textColor=color, spaceBefore=before,
             spaceAfter=after, splitLongWords=True,
+            keepWithNext=name in ("diagnosis-h1", "diagnosis-h2", "diagnosis-h3"),
         )
     return {
         "cover": make("diagnosis-cover", 24, 31, after=16, weight=True),
@@ -151,15 +158,26 @@ def _linked_numbers(devices, styles):
 
 
 def _metric(value):
-    names = {
-        "attackVector": "Vector de ataque", "attackComplexity": "Complejidad",
-        "privilegesRequired": "Privilegios requeridos", "userInteraction": "Interacción humana",
-        "scope": "Alcance", "confidentialityImpact": "Confidencialidad",
-        "integrityImpact": "Integridad", "availabilityImpact": "Disponibilidad",
-        "accessVector": "Vector de acceso", "accessComplexity": "Complejidad de acceso",
-        "authentication": "Autenticación",
-    }
-    return names.get(value, value)
+    return METRIC_LABELS.get(value, value)
+
+
+def _endpoint(value, side, styles, anchor_ids):
+    """Render the IP and verified equipment name in the same table cell.
+
+    A link is possible only when the hardware has a named destination in
+    this PDF; otherwise keep the grounded name without a broken hyperlink.
+    """
+    ip = _xml(value.get(side + "_ip"))
+    hardware = value.get(side + "_hardware")
+    if not isinstance(hardware, dict) or not hardware.get("id"):
+        return Paragraph(ip, styles["cell"])
+    name = _xml(hardware.get("name"))
+    hid = hardware.get("id")
+    if hid in anchor_ids:
+        name = '<link href="#hw-{}" color="#1263A3"><u>{}</u></link>'.format(
+            int(hid), name
+        )
+    return Paragraph("{}<br/>{}".format(ip, name), styles["cell"])
 
 
 def _relevant_references(finding, limit=2):
@@ -193,14 +211,32 @@ def _relevant_references(finding, limit=2):
 def _cve(story, finding, styles, references):
     identifier = _value(finding.get("cve_id"))
     story.append(Paragraph(_xml(identifier), styles["h3"]))
-    _field(story, "Severidad CVSS / puntuación",
-           "{} / {}".format(_value(finding.get("severity")),
-                            _value(finding.get("cvss_base_score"))), styles)
-    _field(story, "Evaluación vigente",
-           "{} ({})".format(_value(finding.get("applicability_status")),
-                            _value(finding.get("applicability_source"))), styles)
-    story.append(_paragraph(finding.get("description") or "Descripción no disponible en NVD local.",
-                            styles["body"]))
+    story.append(KeepTogether([
+        Paragraph("<b>Severidad CVSS / puntuación:</b> {} / {}".format(
+            _xml(label(finding.get("severity"), SEVERITY)),
+            _xml(finding.get("cvss_base_score"))), styles["small"]),
+        Paragraph("<b>Resultado de evaluación:</b> {}".format(
+            _xml(label(finding.get("applicability_status"), ASSESSMENT))),
+            styles["small"]),
+        Paragraph("<b>Evaluado por:</b> {}".format(
+            _xml(label(finding.get("applicability_source"), EVALUATOR))),
+            styles["small"]),
+        Paragraph("<b>Fecha de publicación:</b> {}".format(
+            _xml(_date(finding.get("published")))), styles["small"]),
+        Paragraph("<b>Última modificación del CVE:</b> {}".format(
+            _xml(_date(finding.get("last_modified")))), styles["small"]),
+    ]))
+    spanish = finding.get("description_es")
+    story.append(_paragraph(
+        spanish or finding.get("description") or "Descripción no disponible en el catálogo local.",
+        styles["body"],
+    ))
+    if spanish:
+        story.append(_paragraph("Descripción en español disponible en el registro NVD almacenado.",
+                                styles["muted"]))
+    else:
+        story.append(_paragraph("Descripción original almacenada en NVD (inglés).",
+                                styles["muted"]))
     cvss = finding.get("cvss") or {}
     if cvss:
         _field(story, "CVSS versión / vector",
@@ -208,13 +244,22 @@ def _cve(story, finding, styles, references):
                                 _value(cvss.get("vector"))), styles)
         metrics = cvss.get("metrics") or {}
         if metrics:
-            summary = "; ".join("{}: {}".format(_metric(k), v)
-                                for k, v in metrics.items())
-            _field(story, "Métricas reportadas por NVD", summary, styles)
-        story.append(_paragraph(
-            "Las métricas CVSS describen condiciones de evaluación del registro; "
-            "no prueban una ruta de explotación real en esta instalación.",
-            styles["muted"]))
+            rows = [
+                [_metric(k), metric_value(k, v)] for k, v in metrics.items()
+            ]
+            story.append(_paragraph("Métricas CVSS interpretadas", styles["h3"]))
+            story.append(_table(["Métrica", "Valor reportado"], rows,
+                                [159*mm*.54, 159*mm*.46], styles))
+        interpretation = interpret_cvss(cvss)
+        if interpretation:
+            story.append(KeepTogether([
+                _paragraph("Lectura orientativa del vector CVSS", styles["h3"]),
+                _paragraph(interpretation, styles["body"]),
+            ]))
+        else:
+            story.append(_paragraph(
+                "Las métricas CVSS no permiten inferir una ruta de ataque comprobada.",
+                styles["muted"]))
     else:
         story.append(_paragraph("No se dispone del vector CVSS en el corte.",
                                 styles["muted"]))
@@ -252,20 +297,20 @@ def _cve(story, finding, styles, references):
     story.append(Spacer(1, 2*mm))
 
 
-def _device(story, device, styles, references, width):
+def _device(story, device, styles, references, width, anchor_ids):
     hw = device["hardware"]
     anchor = _ref(device)
     # Paragraph creates the PDF named destination at the actual page location.
     story.append(Paragraph('<a name="{}"/>[{}] {}'.format(
         anchor, int(device["display_number"]), _xml(hw.get("name"))), styles["h2"]))
-    _field(story, "Prioridad de revisión", device.get("priority") or "Sin clasificar", styles)
+    _field(story, "Prioridad de revisión", device.get("priority") or "Pendiente de datos", styles)
     _field(story, "Criticidad hardware / severidad máxima",
            "{} / {} (CVSS máximo {})".format(
-               _value(hw.get("criticality")),
-               _value(device.get("priority_basis", {}).get("max_cvss_severity")),
+               label(hw.get("criticality"), SEVERITY),
+               label(device.get("priority_basis", {}).get("max_cvss_severity"), SEVERITY),
                _value(device.get("priority_basis", {}).get("max_cvss_base_score"))), styles)
     _field(story, "Hardware / rol / ubicación",
-           "#{} / {} / {}".format(hw.get("id"), _value(hw.get("role")),
+           "#{} / {} / {}".format(hw.get("id"), label(hw.get("role"), ROLES),
                                 _value(hw.get("physical_location"))), styles)
     _field(story, "Fabricante / modelo / CPU",
            "{} / {} / {}".format(_value(hw.get("manufacturer")),
@@ -285,7 +330,7 @@ def _device(story, device, styles, references, width):
         story.append(_table(["Software / producto", "Tipo", "Versión"], [
             ["{} / {}".format(_value(item.get("software_name")),
                               _value(item.get("product"))),
-             item.get("software_type"), item.get("version")]
+             label(item.get("software_type"), SOFTWARE_TYPES), item.get("version")]
             for item in installs], [width*.57, width*.19, width*.24], styles))
     else:
         story.append(_paragraph("Sin software instalado registrado.", styles["muted"]))
@@ -308,41 +353,55 @@ def _device(story, device, styles, references, width):
     story.append(_paragraph("Comunicaciones atribuibles observadas", styles["h3"]))
     traffic = device.get("attributed_communications") or []
     if traffic:
-        story.append(_table(["Origen → destino", "Servicio / puerto",
-                             "Paquetes", "Clasificación"], [
-            ["{} → {}".format(_value(c.get("source_ip")),
-                              _value(c.get("destination_ip"))),
-             "{} / {}:{}".format(_value(c.get("service")),
-                                  _value(c.get("transport_protocol")),
-                                  _value(c.get("service_port"))),
-             "{:,}".format(c.get("packets_observed") or 0),
-             c.get("classification_status")]
-            for c in traffic], [width*.37, width*.27, width*.15, width*.21], styles))
-        _field(story, "Alcance de atribución",
-               "Identificación mediante ARP de captura y vínculo manual vigente; "
-               "no equivale a IP declarada del inventario.", styles)
-        for c in traffic:
-            _field(story, "Estado de extremos (origen / destino)",
-                   "{} / {}".format(_value(c.get("source_resolution_status")),
-                                     _value(c.get("destination_resolution_status"))), styles)
-    else:
+        rows = []
+        for communication in traffic:
+            rows.append([
+                _endpoint(communication, "source", styles, anchor_ids),
+                _endpoint(communication, "destination", styles, anchor_ids),
+                "{} / {}:{}".format(
+                    _value(communication.get("service"), "Sin identificar"),
+                    _value(communication.get("transport_protocol")),
+                    _value(communication.get("service_port")),
+                ),
+                "{:,}".format(communication.get("packets_observed") or 0),
+                label(communication.get("classification_status"), CLASSIFICATIONS),
+            ])
+        story.append(_table(
+            ["Origen (IP / equipo)", "Destino (IP / equipo)",
+             "Servicio / puerto", "Paquetes", "Clasificación"],
+            rows,
+            [width*.245, width*.245, width*.205, width*.105, width*.20],
+            styles,
+        ))
         story.append(_paragraph(
-            "No se identificaron comunicaciones atribuibles con evidencia suficiente "
-            "en la consulta acotada. Esto NO demuestra ausencia de tráfico.",
-            styles["muted"]))
+            "Los nombres se muestran únicamente para extremos identificados "
+            "mediante ARP en capturas activas y asociación manual vigente. "
+            "Si solo aparece la IP, la identidad del dispositivo no se ha confirmado. "
+            "La clasificación es administrativa y no equivale a detectar un ataque.",
+            styles["muted"],
+        ))
+    else:
+        reason = NETWORK_STATUSES.get(
+            device.get("communications_evidence_status"),
+            "No se identificaron comunicaciones atribuibles en este corte.",
+        )
+        story.append(_paragraph(
+            reason + " La falta de atribución no demuestra ausencia de tráfico.",
+            styles["muted"],
+        ))
     if device.get("communications_search_limited"):
-        story.append(_paragraph("La búsqueda de comunicaciones alcanzó un límite "
-                                "de volumen; selección potencialmente parcial.",
-                                styles["muted"]))
-    _field(story, "Estado de evidencia de red",
-           device.get("communications_evidence_status"), styles)
+        story.append(_paragraph(
+            "La selección de comunicaciones puede ser parcial por límites de volumen.",
+            styles["muted"],
+        ))
 
     story.append(_paragraph("Vulnerabilidades aplicables y evidencia", styles["h3"]))
     findings = device.get("findings") or []
     if findings:
         story.append(_table(["CVE", "Severidad", "CVSS", "Origen"], [
-            [f.get("cve_id"), f.get("severity"), f.get("cvss_base_score"),
-             f.get("applicability_source")] for f in findings],
+            [f.get("cve_id"), label(f.get("severity"), SEVERITY),
+             f.get("cvss_base_score"), label(f.get("applicability_source"), EVALUATOR)]
+            for f in findings],
             [width*.31, width*.23, width*.17, width*.29], styles))
     for finding in findings:
         _cve(story, finding, styles, references)
@@ -365,7 +424,7 @@ def _footer(canvas, document):
     canvas.restoreState()
 
 
-def render_diagnostic_hardening_pdf(data, destination):
+def render_diagnostic_hardening_pdf(data, destination, *, author=None):
     """Render the approved device-first diagnosis projection from snapshot JSON."""
     if not isinstance(data, dict) or data.get("schema_version") != 1:
         raise ValueError("Contrato JSON inválido: schema_version=1 requerido.")
@@ -400,7 +459,12 @@ def render_diagnostic_hardening_pdf(data, destination):
                   "aplicables, prioridades de revisión y evidencia técnica", s["subtitle"]),
         Spacer(1, 21*mm),
     ])
-    _field(story, "Fecha del corte", _date(data.get("generated_at")), s)
+    _field(story, "Fecha de generación del corte", _date(data.get("generated_at")), s)
+    _field(story, "Generado por",
+           author or "No indicado (generación desde consola)", s)
+    _field(story, "Origen temporal de las comunicaciones",
+           "Capturas de red históricas; las fechas de observación se muestran "
+           "en el inventario de evidencias, cuando están disponibles.", s)
     _field(story, "Fuente", "Inventario VISOR OT, evaluaciones CVE locales, "
            "NVD almacenada y observaciones de PCAP activos.", s)
     story.append(_paragraph(
@@ -421,27 +485,26 @@ def render_diagnostic_hardening_pdf(data, destination):
         ("Sistemas con dispositivos priorizados", summary.get("systems_with_prioritized_hardware")),
         ("Pares hardware-CVE aplicables", summary.get("applicable_hardware_cve_pairs")),
         ("Pares hardware-CVE condicionados (apéndice)", summary.get("conditional_hardware_cve_pairs")),
-        ("P1 / P2 / P3 / sin clasificar", "{} / {} / {} / {}".format(
-            counts.get("P1", 0), counts.get("P2", 0), counts.get("P3", 0),
-            counts.get("UNCLASSIFIED", 0))),
+        ("P1 / P2 / P3", "{} / {} / {}".format(
+            counts.get("P1", 0), counts.get("P2", 0), counts.get("P3", 0))),
     ]
     story.append(_table(["Indicador", "Corte"], rows,
                         [width*.75, width*.25], s))
     story.append(_paragraph(
         "P1, P2 y P3 indican una prioridad ORIENTATIVA de revisión de "
         "hardware, no riesgo calculado ni severidad CVSS nueva. Los equipos "
-        "sin hallazgos APPLIES identificados no se consideran libres de vulnerabilidades.",
+        "sin hallazgos evaluados como aplicables no se consideran libres de vulnerabilidades.",
         s["muted"]))
 
     _section(story, "2. Matriz de priorización", s)
     story.append(_paragraph(
         "Cada número abre la ficha del dispositivo. La clasificación cruza "
-        "criticidad del hardware y máxima severidad CVSS de sus CVE APPLIES.",
+        "criticidad del hardware y máxima severidad CVSS de sus CVE aplicables.",
         s["small"]))
     by_id = {d["hardware_id"]: d for d in devices}
     matrix_rows = []
     for entry in diagnosis["priority_matrix"]:
-        cells = [entry["hardware_criticality"]]
+        cells = [label(entry["hardware_criticality"], SEVERITY)]
         for cell in entry["cells"]:
             members = [by_id[hid] for hid in cell.get("hardware_ids") or []
                        if hid in by_id]
@@ -453,7 +516,7 @@ def render_diagnostic_hardening_pdf(data, destination):
                 )
             cells.append(Paragraph(html, s["cell"]))
         matrix_rows.append(cells)
-    story.append(_table(["Criticidad / CVSS", "CRITICAL", "HIGH", "MEDIUM", "LOW"],
+    story.append(_table(["Criticidad / CVSS", "Crítica", "Alta", "Media", "Baja"],
                         matrix_rows, [width*.29]+[width*.1775]*4, s))
     story.append(_paragraph(
         "La clasificación es del equipo, nunca de cada CVE individual.", s["muted"]))
@@ -470,12 +533,12 @@ def render_diagnostic_hardening_pdf(data, destination):
                 _jump(device, s),
                 "{} (#{}); {}".format(_value(hw.get("name")),
                                      device["hardware_id"], system_names),
-                hw.get("criticality"),
+                label(hw.get("criticality"), SEVERITY),
                 "{} / {}".format(
-                    _value(device.get("priority_basis", {}).get("max_cvss_severity")),
+                    label(device.get("priority_basis", {}).get("max_cvss_severity"), SEVERITY),
                     _value(device.get("priority_basis", {}).get("max_cvss_base_score"))),
                 str(device.get("applicable_cve_count", 0)),
-                device.get("priority") or "Sin clasificar",
+                device.get("priority") or "Pendiente de datos",
             ])
         story.append(_table(["Nº", "Equipo y sistema", "Crit.", "Mayor CVSS",
                              "CVE", "Prior."], table_rows,
@@ -491,7 +554,7 @@ def render_diagnostic_hardening_pdf(data, destination):
     rendered = set()
     for system in diagnosis["prioritized_systems"]:
         story.append(_paragraph(system.get("name"), s["h2"]))
-        _field(story, "Criticidad del sistema", system.get("criticality"), s)
+        _field(story, "Criticidad del sistema", label(system.get("criticality"), SEVERITY), s)
         _field(story, "Justificación", system.get("criticality_justification"), s)
         _field(story, "Descripción", system.get("description"), s)
         _field(story, "Impacto", system.get("impact"), s)
@@ -506,22 +569,28 @@ def render_diagnostic_hardening_pdf(data, destination):
                     s["small"]))
                 continue
             rendered.add(hid)
-            _device(story, by_id[hid], s, references, width)
+            _device(story, by_id[hid], s, references, width, set(by_id))
     for device in devices:
         if device["hardware_id"] not in rendered:
-            _device(story, device, s, references, width)
+            _device(story, device, s, references, width, set(by_id))
             rendered.add(device["hardware_id"])
 
     _section(story, "Apéndice A. CVE de aplicabilidad condicionada", s)
     conditional = diagnosis["conditional_vulnerabilities"]
     story.append(_paragraph(
-        "Los hallazgos condicionados no cuentan como APPLIES, ni generan "
+        "Los hallazgos condicionados no se cuentan como aplicables, ni generan "
         "prioridad de revisión por sí solos.", s["muted"]))
     if not conditional:
         story.append(_paragraph("No se registraron hallazgos condicionados.", s["muted"]))
     for finding in conditional:
         _cve(story, finding, s, references)
 
+    if counts.get("UNCLASSIFIED", 0):
+        story.append(_paragraph(
+            "Equipos con hallazgo aplicable y datos insuficientes para asignar "
+            "P1/P2/P3: {}. Deben revisarse sin inventar una prioridad.".format(
+                counts["UNCLASSIFIED"]
+            ), s["muted"]))
     _section(story, "Apéndice B. Cobertura del inventario", s)
     coverage = diagnosis["inventory_coverage"]
     story.append(_table(["Cobertura", "Cantidad"], [
@@ -529,7 +598,7 @@ def render_diagnostic_hardening_pdf(data, destination):
         ("Software registrado", coverage.get("active_software", 0)),
         ("Sistemas OT registrados", coverage.get("registered_systems", 0)),
         ("CPE confirmados en inventario", coverage.get("confirmed_cpes", 0)),
-        ("Hardware sin APPLIES identificado en este corte",
+        ("Hardware sin CVE aplicables identificados en este corte",
          summary.get("hardware_without_identified_applies", 0)),
     ], [width*.74, width*.26], s))
     story.append(_paragraph(
@@ -542,10 +611,16 @@ def render_diagnostic_hardening_pdf(data, destination):
     if not observations:
         story.append(_paragraph("No se generaron observaciones adicionales.",
                                 s["muted"]))
+    observation_labels = {
+        "BRIEF_ANALYST_JUSTIFICATION": "Justificación humana breve",
+        "CONDITIONAL_VERSION_REVIEW": "Versión por corroborar",
+        "PRIORITY_UNCLASSIFIED": "Priorización pendiente",
+    }
     for item in observations:
         _field(story, "{} / HW-{} / {}".format(
-            _value(item.get("code")), _value(item.get("hardware_id")),
-            _value(item.get("cve_id"))), item.get("description"), s)
+            observation_labels.get(item.get("code"), "Observación técnica"),
+            _value(item.get("hardware_id")), _value(item.get("cve_id"))),
+            item.get("description"), s)
     story.append(_paragraph(
         "Estas observaciones no sustituyen decisiones de analistas, "
         "no alteran veredictos y no constituyen hallazgos CVE adicionales.", s["muted"]))
@@ -587,7 +662,7 @@ def render_diagnostic_hardening_pdf(data, destination):
         destination, pagesize=A4, leftMargin=19*mm, rightMargin=19*mm,
         topMargin=22*mm, bottomMargin=22*mm,
         title="VISOR OT - Diagnóstico de exposición por dispositivos",
-        author="VISOR OT",
+        author=author or "VISOR OT",
     )
     document.build(story, onFirstPage=_footer, onLaterPages=_footer)
     return destination
