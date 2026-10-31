@@ -300,15 +300,15 @@ function AssetForm({ asset = null, user, onSave, saving, error, onErrorClear, in
         <h2>Datos del hardware</h2>
         <div className="assets-form-grid">
           <div className="assets-field">
-            <label htmlFor="asset-manufacturer">Fabricante</label>
-            <input id="asset-manufacturer" maxLength={200}
+            <label htmlFor="asset-manufacturer">Fabricante{!editing ? " *" : ""}</label>
+            <input id="asset-manufacturer" maxLength={200} required={!editing}
               value={values.hardware.manufacturer}
               onChange={(event) => changeHardware("manufacturer", event.target.value)}
               placeholder="Ej. AutomationDirect" />
           </div>
           <div className="assets-field">
-            <label htmlFor="asset-model">Modelo / familia</label>
-            <input id="asset-model" maxLength={200}
+            <label htmlFor="asset-model">Modelo / familia{!editing ? " *" : ""}</label>
+            <input id="asset-model" maxLength={200} required={!editing}
               value={values.hardware.model}
               onChange={(event) => changeHardware("model", event.target.value)}
               placeholder="Ej. DirectLOGIC DL205" />
