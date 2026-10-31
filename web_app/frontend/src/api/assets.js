@@ -66,9 +66,11 @@ export function archiveAsset(assetId) {
   });
 }
 
-export function restoreAsset(assetId) {
+export function restoreAsset(assetId, systemIds = []) {
   return requestAssets("/api/assets/" + assetId + "/restore/", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ system_ids: systemIds }),
   });
 }
 
