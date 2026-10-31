@@ -227,12 +227,25 @@ class HardeningReportDataTests(TestCase):
 
     def test_preview_command_outputs_json_without_creating_audit_rows(self):
         output = StringIO()
-        with patch("vulnerabilities.services.nvd_client.fetch_page") as nvd:
+        with patch("vulnerabilities.services.nvd_client.fetch_page") as nvd, patch.object(
+            Path, "write_text", autospec=True
+        ) as write_text:
             call_command("preview_hardening_data", "--stdout", stdout=output)
         nvd.assert_not_called()
+        write_text.assert_not_called()
         data = json.loads(output.getvalue())
         self.assertEqual(data["summary"]["applicable_hardware_cve_pairs"], 1)
         self.assertFalse(AssetCveAssessment.objects.exists())
+
+    def test_preview_command_rejects_stdout_and_output_together(self):
+        with self.assertRaises(CommandError), patch.object(
+            Path, "write_text", autospec=True
+        ) as write_text:
+            call_command(
+                "preview_hardening_data", "--stdout", "--output", "test-output.json",
+                stdout=StringIO(),
+            )
+        write_text.assert_not_called()
 
     def test_preview_command_defaults_to_project_output_without_side_effects(self):
         from vulnerabilities.management.commands import preview_hardening_data as command
@@ -240,10 +253,9 @@ class HardeningReportDataTests(TestCase):
         self.assertEqual(
             command.DEFAULT_OUTPUT_FILE.parent.parent.name, "vulnerabilities"
         )
-        # Intercept filesystem methods rather than patching the module constant:
-        # Django loads management commands by app registry and may hold another
-        # module instance in certain test configurations. Never overwrite a
-        # developer's real JSON with the test database snapshot.
+        # Django uses stdout=StringIO() to redirect command output. It must
+        # not trigger the explicit CLI --stdout flag. Mock disk writes so
+        # the test database snapshot cannot overwrite the developer's JSON.
         with patch.object(Path, "mkdir", autospec=True), patch.object(
             Path, "write_text", autospec=True
         ) as write_text:
