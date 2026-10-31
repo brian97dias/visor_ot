@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import { confirmAssetsExcel, previewAssetsExcel } from "../api/assets";
+import { getSystems } from "../api/systems";
 import { canCreateAssets } from "../utils/assetPermissions";
 
 const LABELS = {CREATE:"Nuevo", UPDATE:"Con diferencias", SAME:"Sin cambios",
@@ -21,6 +22,7 @@ export default function AssetImport() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
+  const [systems, setSystems] = useState([]);
   const selected = useMemo(() => Object.values(actions)
     .filter((item) => item.action !== "SKIP").length, [actions]);
 
@@ -33,11 +35,15 @@ export default function AssetImport() {
     setError("");
     setResult(null);
     try {
-      const data = await previewAssetsExcel(file);
+      const [data, availableSystems] = await Promise.all([
+        previewAssetsExcel(file), getSystems("ACTIVE"),
+      ]);
+      setSystems(availableSystems);
       setPreview(data);
       setActions(Object.fromEntries(data.rows.map((row) => [row.key, {
         action: row.status === "CREATE" ? "CREATE" : "SKIP",
         fields: [], correction_reason: "", confirm_shared_correction: false,
+        system_ids: [],
       }])));
     } catch (err) {
       setPreview(null);
@@ -48,12 +54,18 @@ export default function AssetImport() {
     if (!preview || busy) return;
     const invalid = preview.rows.find((row) => {
       const choice = actions[row.key];
+      if (choice.action === "CREATE" && row.sheet === "Hardware") {
+        return !choice.system_ids?.length || choice.system_ids.some(
+          id => !systems.some(system => system.id === id)
+        );
+      }
       return choice.action === "UPDATE" && (!choice.fields.length ||
         (row.sheet === "Software" && choice.fields.some((f) => TECH.has(f)) &&
           !choice.correction_reason.trim()));
     });
     if (invalid) {
-      setError("Selecciona campos y motivo de corrección para " + invalid.key + ".");
+      setError("Revisa los campos, el motivo de corrección y los sistemas OT activos de " +
+        invalid.key + ".");
       return;
     }
     setBusy(true);
@@ -169,6 +181,26 @@ export default function AssetImport() {
                   {row.status === "UPDATE" && <option value="UPDATE">Actualizar campos elegidos</option>}
                 </select>
               </label>
+              {row.status === "CREATE" && row.sheet === "Hardware" &&
+                choice.action === "CREATE" && <div className="asset-import-correction">
+                  <p className="interface-hint">Sistemas OT activos asociados al hardware *</p>
+                  {systems.length === 0 &&
+                    <p className="asset-import-warning">
+                      No hay sistemas OT activos. <Link to="/assets/systems/new">
+                      Registra un sistema antes de importar hardware.</Link>
+                    </p>}
+                  {systems.map(system => <label className="system-initial-choice"
+                    key={system.id}>
+                    <input type="checkbox" disabled={busy}
+                      checked={(choice.system_ids || []).includes(system.id)}
+                      onChange={event => modify(row.key, {
+                        system_ids: event.target.checked
+                          ? [...(choice.system_ids || []), system.id]
+                          : (choice.system_ids || []).filter(id => id !== system.id),
+                      })}/>
+                    {system.name}
+                  </label>)}
+                </div>}
               {choice.action === "UPDATE" && needsReason && <div className="asset-import-correction">
                 <label htmlFor={"reason-" + row.key}>Motivo de corrección técnica *</label>
                 <textarea id={"reason-" + row.key} rows={2}
