@@ -192,8 +192,17 @@ function AssetForm({ asset = null, user, onSave, saving, error, onErrorClear, in
       return;
     }
 
+    if ((!editing || values.criticality !== "UNDEFINED") &&
+        !["LOW", "MEDIUM", "HIGH"].includes(values.criticality)) {
+      setLocalError("Selecciona una criticidad Baja, Media o Alta.");
+      return;
+    }
+    if (!editing && values.asset_type === "HARDWARE" && !selectedSystemIds.length) {
+      setLocalError("Selecciona al menos un sistema OT activo para el hardware.");
+      return;
+    }
     const payload = buildPayload(values, asset, editing, canEditCriticality);
-    if (!editing && values.asset_type === "HARDWARE" && selectedSystemIds.length) {
+    if (!editing && values.asset_type === "HARDWARE") {
       if (systemError || selectedSystemIds.some(id=>!systemChoices.some(s=>s.id===id))) {
         setLocalError("Uno de los sistemas seleccionados ya no está disponible.");
         return;
@@ -341,15 +350,17 @@ function AssetForm({ asset = null, user, onSave, saving, error, onErrorClear, in
       </div>
 
       {!editing && <div className="assets-form-section">
-        <h2>Sistemas OT (opcional)</h2>
+        <h2>Sistemas OT *</h2>
         <p className="interface-hint">
-          Puedes asociar este hardware a uno o varios sistemas registrados.
-          También puedes hacerlo después desde el detalle del Hardware o del Sistema.
+          Selecciona al menos un sistema OT activo para registrar el hardware.
+          Puedes añadir otros sistemas posteriormente.
         </p>
         {loadingSystems && <p className="interface-hint">Cargando sistemas...</p>}
         {systemError && <p className="error-message" role="alert">{systemError}</p>}
         {!loadingSystems && !systemError && systemChoices.length===0 &&
-          <p className="interface-hint">Todavía no hay sistemas activos disponibles.</p>}
+          <p className="interface-hint">Todavía no hay sistemas activos disponibles.
+            <Link to="/assets/systems/new"> Crear sistema OT</Link>
+          </p>}
         {systemChoices.map(system=>(
           <label className="system-initial-choice" key={system.id}>
             <input type="checkbox" checked={selectedSystemIds.includes(system.id)}
@@ -569,9 +580,11 @@ function AssetForm({ asset = null, user, onSave, saving, error, onErrorClear, in
             <select id="asset-criticality" value={values.criticality}
               disabled={!canEditCriticality}
               onChange={(event) => change("criticality", event.target.value)}>
-              {Object.entries(CRITICALITY_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
+              {Object.entries(CRITICALITY_LABELS)
+                .filter(([value]) => editing || value !== "UNDEFINED")
+                .map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
             </select>
             {!canEditCriticality && <small>Solo el operador de planta o el administrador pueden cambiar la criticidad.</small>}
           </div>
