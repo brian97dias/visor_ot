@@ -4,7 +4,8 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from .models import OTSystem
+from .models import OTSystem, Asset, SystemMembership
+from .inventory_integrity import has_valid_criticality
 
 
 def save_system(instance):
@@ -29,7 +30,13 @@ def register_system(*, data, user):
 def update_system(*, system_id, data, user):
     system = OTSystem.objects.select_for_update().get(pk=system_id)
     if system.status != OTSystem.Status.ACTIVE:
-        raise ValidationError({"status": "Restaura el sistema antes de editarlo."})
+        # Legacy archived systems may have UNDEFINED criticality; allow
+        # explicit regularization before restoring, but no other edits.
+        if set(data) != {"criticality"}:
+            raise ValidationError({
+                "status": "Para editar un sistema archivado, restáuralo. "
+                          "Solo puedes corregir su criticidad antes."
+            })
     for field, value in data.items():
         setattr(system, field, value)
     system.updated_by = user
@@ -44,9 +51,31 @@ def change_system_status(*, system_id, new_status, user):
     if system.status == new_status:
         raise ValidationError({"status": "El sistema ya tiene ese estado."})
     if new_status == OTSystem.Status.ARCHIVED:
+        # Keep the active Hardware->System invariant. Lock the involved
+        # hardware rows so concurrent membership changes serialize.
+        hardware_ids = sorted(set(SystemMembership.objects.filter(
+            system=system, unlinked_at__isnull=True,
+            hardware__asset__inventory_status=Asset.InventoryStatus.ACTIVE,
+        ).values_list("hardware_id", flat=True)))
+        list(Asset.objects.select_for_update().filter(pk__in=hardware_ids).order_by("pk"))
+        stranded = [hardware_id for hardware_id in hardware_ids
+            if not SystemMembership.objects.filter(
+                hardware_id=hardware_id, unlinked_at__isnull=True,
+                system__status=OTSystem.Status.ACTIVE,
+            ).exclude(system_id=system.pk).exists()]
+        if stranded:
+            raise ValidationError({
+                "system": "No puedes archivar este sistema: dejaría hardware "
+                          "activo sin sistema OT. Hardware: "
+                          + ", ".join(map(str, stranded))
+            })
         system.archived_at = timezone.now()
         system.archived_by = user
     else:
+        if not has_valid_criticality(system.criticality):
+            raise ValidationError({
+                "criticality": "Define criticidad Baja, Media o Alta antes de restaurar."
+            })
         system.archived_at = None
         system.archived_by = None
     system.status = new_status
