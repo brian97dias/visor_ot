@@ -108,10 +108,23 @@ def build_hardening_diagnosis(report, communication_by_hardware=None):
         max_score = max((_score(f.get("cvss_base_score")) for f in findings), default=-1)
         system_ids = sorted(sid for sid in set(hw.get("system_ids") or []) if sid in systems)
         traffic = communication_by_hardware.get(hid, {})
+        installed_software = [
+            {
+                **installation,
+                "confirmed_cpes": software.get(
+                    installation.get("software_asset_id"), {}
+                ).get("confirmed_cpes", []),
+                "software_description": software.get(
+                    installation.get("software_asset_id"), {}
+                ).get("description"),
+            }
+            for installation in hw.get("software_installations") or []
+        ]
         device = {
             "hardware_id": hid,
             "device_ref": f"HW-{hid}",
             "hardware": hw,
+            "installed_software": installed_software,
             "system_ids": system_ids,
             "systems": [systems[sid] for sid in system_ids],
             "priority": priority,
