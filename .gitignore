@@ -13,3 +13,6 @@ __pycache__/
 .env
 
 b4e3d1af39deaad6.json
+
+# JSON de informe de hardening (artefactos locales, no versionar)
+web_app/backend/vulnerabilities/output/
