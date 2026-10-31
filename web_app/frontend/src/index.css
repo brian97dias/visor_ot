@@ -3093,6 +3093,13 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 /* CVE catalogue, generic detail and queued discovery progress. */
 .cve-catalogue-heading { display: flex; gap: 18px; flex-wrap: wrap;
   align-items: flex-start; justify-content: space-between; }
+.cve-catalogue-heading-actions {
+  display: flex; align-items: center; justify-content: flex-end;
+  flex-wrap: wrap; gap: 10px;
+}
+.cve-catalogue-heading-actions > button { white-space: nowrap; }
+.cve-catalogue-report-notice { margin: 10px 0; color: #86efac; font-size: .85rem; }
+
 .cve-catalogue-stats { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 20px; }
 .cve-catalogue-stats > div { flex: 1 1 150px; }
 .cve-catalogue-panel, .cve-catalogue-jobs { margin-top: 18px; }
@@ -3169,7 +3176,8 @@ a.entity-link:focus-visible { color: #bae6fd; outline: 2px solid #38bdf8; outlin
 .cve-catalogue-eval-link { display: block; font-size: .8rem; margin-top: 9px; }
 .cve-catalogue-query { font-size: .75rem; overflow-wrap: anywhere; }
 @media (max-width: 740px) {
-  .cve-catalogue-heading > button { width: 100%; }
+  .cve-catalogue-heading-actions { width: 100%; justify-content: stretch; }
+  .cve-catalogue-heading-actions > button { flex: 1 1 100%; }
   .cve-catalogue-control, .cve-catalogue-control input,
   .cve-catalogue-control select { width: 100%; }
   .cve-catalogue-detail-panel { padding: 15px; }
