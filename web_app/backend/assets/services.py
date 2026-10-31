@@ -92,7 +92,7 @@ def update_hardware_asset(*, asset, data, user):
     return asset
 
 @transaction.atomic
-def change_inventory_status(*, asset, new_status, user):
+def change_inventory_status(*, asset, new_status, user, system_ids=None):
     # Bloquea la fila para que dos solicitudes concurrentes no cambien
     # simultáneamente el estado del mismo activo.
     asset = Asset.objects.select_for_update().get(pk=asset.pk)
@@ -109,10 +109,27 @@ def change_inventory_status(*, asset, new_status, user):
         asset.archived_by = user
     elif new_status == Asset.InventoryStatus.ACTIVE:
         if asset.asset_type == Asset.AssetType.HARDWARE:
-            if not current_active_system_links(asset.pk).exists():
+            if system_ids is not None and (
+                not isinstance(system_ids, list)
+                or any(type(pk) is not int or pk < 1 for pk in system_ids)
+                or len(system_ids) != len(set(system_ids))
+            ):
                 raise APIValidationError({
-                    "system_ids": "Antes de restaurar, asocia el hardware a un sistema OT activo."
+                    "system_ids": "Selecciona identificadores de sistemas OT válidos y sin repetir."
                 })
+            if not current_active_system_links(asset.pk).exists():
+                if not system_ids:
+                    raise APIValidationError({
+                        "system_ids": "Para restaurar, selecciona un sistema OT activo."
+                    })
+                from .models import OTSystem
+                valid = OTSystem.objects.filter(
+                    pk__in=system_ids, status=OTSystem.Status.ACTIVE
+                ).count()
+                if valid != len(system_ids):
+                    raise APIValidationError({
+                        "system_ids": "Los sistemas seleccionados deben estar activos."
+                    })
             device = asset.hardware
             if any(not (getattr(device, field) or "").strip()
                    for field in ("manufacturer", "model", "role")):
@@ -137,4 +154,15 @@ def change_inventory_status(*, asset, new_status, user):
         "updated_by",
         "updated_at",
     ])
+    if new_status == Asset.InventoryStatus.ACTIVE and (
+        asset.asset_type == Asset.AssetType.HARDWARE and system_ids
+    ):
+        for system_id in system_ids:
+            # Validation and membership creation share the same transaction.
+            if not current_active_system_links(asset.pk).filter(
+                system_id=system_id
+            ).exists():
+                associate_hardware_to_system(
+                    system_id=system_id, hardware_asset_id=asset.pk, user=user,
+                )
     return asset
