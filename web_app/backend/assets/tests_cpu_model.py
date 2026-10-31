@@ -10,7 +10,7 @@ from rest_framework.test import APIClient
 from openpyxl import Workbook
 
 from .asset_excel import HARDWARE_COLUMNS, SOFTWARE_COLUMNS
-from .models import Asset, Hardware
+from .models import Asset, Hardware, OTSystem
 from .tests_excel_export import worksheet_rows
 from .tests_excel_import import upload, xlsx, PREVIEW, CONFIRM
 import json
@@ -24,6 +24,10 @@ class CpuModelTests(TestCase):
         )
         self.client = APIClient()
         self.client.force_authenticate(self.operator)
+        self.system = OTSystem.objects.create(
+            name="Sistema de CPU", criticality="MEDIUM",
+            created_by=self.operator, updated_by=self.operator,
+        )
 
     def register(self, role="PLC", cpu_model=None):
         hardware = {
@@ -36,6 +40,8 @@ class CpuModelTests(TestCase):
         return self.client.post("/api/assets/", {
             "name": "PLC-01",
             "asset_type": "HARDWARE",
+            "criticality": "MEDIUM",
+            "system_ids": [self.system.pk],
             "hardware": hardware,
         }, format="json")
 
@@ -115,12 +121,15 @@ class CpuModelTests(TestCase):
             "modelo": "S7-1200",
             "rol": "PLC",
             "modelo_cpu": "1215C",
+            "criticidad": "MEDIUM",
         }
         blob = xlsx([row])
         preview = self.client.post(PREVIEW, {"file": upload(blob)}, format="multipart")
         self.assertEqual(preview.status_code, 200, preview.data)
         self.assertEqual(preview.data["summary"]["CREATE"], 1)
-        actions = {"Hardware:2": {"action": "CREATE"}}
+        actions = {"Hardware:2": {
+            "action": "CREATE", "system_ids": [self.system.pk],
+        }}
         result = self.client.post(CONFIRM, {
             "file": upload(blob),
             "token": preview.data["token"],
@@ -145,7 +154,7 @@ class CpuModelTests(TestCase):
         software.append([key for key, _ in SOFTWARE_COLUMNS])
         hardware.append([
             None, "PLC legado", None, "Siemens", "SIMATIC S7-1200",
-            "PLC", None, None, None, None, None, None, "ACTIVE",
+            "PLC", None, None, "MEDIUM", None, None, None, "ACTIVE",
         ])
         stream = BytesIO()
         workbook.save(stream)
