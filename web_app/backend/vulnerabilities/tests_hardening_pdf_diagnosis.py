@@ -12,7 +12,11 @@ from django.test import SimpleTestCase
 from vulnerabilities.services.hardening_diagnosis import build_hardening_diagnosis
 from vulnerabilities.services.hardening_pdf import render_hardening_pdf
 from vulnerabilities.services.hardening_pdf_diagnosis import (
-    _jump, _relevant_references, _ref, _styles, render_diagnostic_hardening_pdf,
+    _endpoint, _jump, _relevant_references, _ref, _styles,
+    render_diagnostic_hardening_pdf,
+)
+from vulnerabilities.services.hardening_pdf_locale import (
+    CLASSIFICATIONS, SEVERITY, interpret_cvss, label, metric_value,
 )
 from vulnerabilities.tests_hardening_pdf import REPORT
 
@@ -118,6 +122,68 @@ class HardeningDiagnosisPdfTests(SimpleTestCase):
         self.assertEqual(len(set(refs)), 2)
         self.assertIn("https://cert-portal.siemens.com/a", refs)
         self.assertIn("https://www.openssl.org/news/a", refs)
+
+    def test_translation_and_interpretation_do_not_change_source_values(self):
+        self.assertEqual(label("CRITICAL", SEVERITY), "Crítica")
+        self.assertEqual(label("HIGH", SEVERITY), "Alta")
+        self.assertEqual(label("NO_CLASIFICADA", CLASSIFICATIONS), "Sin clasificar")
+        self.assertEqual(metric_value("userInteraction", "NONE"), "No requerida")
+        self.assertEqual(metric_value("availabilityImpact", "NONE"), "Sin impacto")
+        interpretation = interpret_cvss({"metrics": {
+            "attackVector": "NETWORK", "attackComplexity": "LOW",
+            "privilegesRequired": "NONE", "userInteraction": "NONE",
+            "availabilityImpact": "HIGH",
+        }})
+        self.assertIn("a través de la red", interpretation)
+        self.assertIn("disponibilidad", interpretation)
+        self.assertIn("no demuestra", interpretation)
+        self.assertIsNone(interpret_cvss(None))
+
+    def test_linked_network_endpoint_displays_ip_and_grounded_name(self):
+        evidence = {
+            "source_ip": "192.168.2.133", "destination_ip": "192.168.88.30",
+            "source_hardware": None,
+            "destination_hardware": {"id": 21, "name": "PLC Siemens"},
+        }
+        origin = _endpoint(evidence, "source", _styles(), {21})
+        dest = _endpoint(evidence, "destination", _styles(), {21})
+        self.assertIn("192.168.2.133", origin.text)
+        self.assertNotIn("<link ", origin.text)
+        self.assertIn("192.168.88.30", dest.text)
+        self.assertIn("PLC Siemens", dest.text)
+        self.assertIn('href="#hw-21"', dest.text)
+        without_anchor = _endpoint(evidence, "destination", _styles(), set())
+        self.assertNotIn("<link ", without_anchor.text)
+        self.assertIn("PLC Siemens", without_anchor.text)
+
+    def test_spanish_description_and_author_are_supported(self):
+        report = diagnosis_fixture()
+        record = report["diagnosis"]["prioritized_hardware"][0]["findings"][0]
+        record["description_es"] = "Descripción técnica en español."
+        output = BytesIO()
+        render_diagnostic_hardening_pdf(report, output, author="Responsable OT")
+        self.assertTrue(output.getvalue().startswith(b"%PDF-"))
+
+    def test_command_passes_explicit_author_without_using_database(self):
+        with TemporaryDirectory() as temp:
+            snapshot = Path(temp) / "snapshot.json"
+            pdf = Path(temp) / "report.pdf"
+            snapshot.write_text(json.dumps(diagnosis_fixture()), encoding="utf-8")
+            with patch(
+                "vulnerabilities.management.commands.generate_hardening_pdf."
+                "render_hardening_pdf"
+            ) as renderer:
+                def stub(data, stream, **kwargs):
+                    stream.write(b"%PDF-test\n%%EOF\n")
+                renderer.side_effect = stub
+                call_command(
+                    "generate_hardening_pdf", "--input-json", str(snapshot),
+                    "--output", str(pdf), "--author", "Responsable OT",
+                    stdout=StringIO(),
+                )
+            self.assertEqual(renderer.call_args.kwargs["author"], "Responsable OT")
+            self.assertFalse(renderer.call_args.kwargs["legacy"])
+            self.assertTrue(pdf.read_bytes().startswith(b"%PDF-"))
 
     def test_command_supports_default_and_legacy_modes_from_one_snapshot(self):
         with TemporaryDirectory() as temp:
