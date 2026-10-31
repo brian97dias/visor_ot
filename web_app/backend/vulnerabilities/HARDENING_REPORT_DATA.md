@@ -9,10 +9,17 @@ Desde `web_app/backend` con el entorno virtual activo:
 
 ```bash
 python manage.py audit_inventory_integrity
-python manage.py preview_hardening_data --output /tmp/visor_ot_hardening_data.json
-python -m json.tool /tmp/visor_ot_hardening_data.json > /dev/null
+python manage.py preview_hardening_data
+python -m json.tool vulnerabilities/output/visor_ot_hardening_data.json > /dev/null
 python manage.py test vulnerabilities.tests_hardening_report_data --settings=config.settings_test_sqlite
 ```
+
+La salida predeterminada se guarda dentro del proyecto en
+`web_app/backend/vulnerabilities/output/visor_ot_hardening_data.json`.
+La carpeta `output/` se crea automáticamente y está excluida de Git para
+evitar versionar datos reales del inventario. El comando acepta también
+`--stdout` para mostrar JSON en terminal o `--output ruta/archivo.json`
+para una ubicación explícita elegida por el operador. No mezclar ambas opciones.
 
 La función principal es
 `vulnerabilities.services.hardening_report_data.collect_hardening_report_data()`.
