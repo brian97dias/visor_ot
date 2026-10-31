@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from .models import Asset, Software
+from .models import Asset, Software, OTSystem
 from .software_services import associate_software
 from .services import register_hardware_asset
 
@@ -26,11 +26,16 @@ class SoftwareAssetAPITests(TestCase):
         )
         self.client = APIClient()
         self.client.force_authenticate(self.operator)
+        self.system = OTSystem.objects.create(
+            name="Sistema de pruebas software", criticality="MEDIUM",
+            created_by=self.operator, updated_by=self.operator,
+        )
         self.host = register_hardware_asset(
             data={
                 "name": "Hardware principal",
                 "asset_type": Asset.AssetType.HARDWARE,
-                "hardware": {"role": "PLC"},
+                "hardware": {"role": "PLC",
+                         "manufacturer": "Siemens", "model": "1215C"},
             },
             user=self.operator,
         )
@@ -41,6 +46,7 @@ class SoftwareAssetAPITests(TestCase):
             "asset_type": "SOFTWARE",
             "hardware_asset_id": self.host.pk,
             "description": "Software OT inventariado",
+            "criticality": "MEDIUM",
             "software": {
                 "software_type": "APPLICATION",
                 "manufacturer": "Siemens",
@@ -112,7 +118,9 @@ class SoftwareAssetAPITests(TestCase):
         software = self.client.post("/api/assets/", self.payload(), format="json").data
         hardware = self.client.post("/api/assets/", {
             "name": "ENG-01", "asset_type": "HARDWARE",
-            "hardware": {"role": "WORKSTATION"},
+            "criticality": "MEDIUM", "system_ids": [self.system.pk],
+            "hardware": {"role": "WORKSTATION",
+                         "manufacturer": "Siemens", "model": "Estación"},
         }, format="json")
         self.assertEqual(hardware.status_code, 201, hardware.data)
         associate_software(
@@ -159,7 +167,9 @@ class SoftwareAssetAPITests(TestCase):
     def test_hardware_api_continues_to_work(self):
         response = self.client.post("/api/assets/", {
             "name": "PLC del laboratorio", "asset_type": "HARDWARE",
-            "hardware": {"role": "PLC", "manufacturer": "AutomationDirect"},
+            "criticality": "MEDIUM", "system_ids": [self.system.pk],
+            "hardware": {"role": "PLC", "manufacturer": "AutomationDirect",
+                         "model": "DL205"},
         }, format="json")
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(response.data["hardware"]["role"], "PLC")
@@ -197,6 +207,7 @@ class SoftwareAssetAPITests(TestCase):
         software = self.client.post("/api/assets/", self.payload(), format="json")
         second = self.client.post("/api/assets/", {
             "name": "ENG-02", "asset_type": "HARDWARE",
+            "criticality": "MEDIUM", "system_ids": [self.system.pk],
             "hardware": {"role": "WORKSTATION"},
         }, format="json")
         self.assertEqual(second.status_code, 201, second.data)
@@ -296,7 +307,9 @@ class SoftwareAssetAPITests(TestCase):
         created = self.client.post("/api/assets/", self.payload(), format="json")
         second = self.client.post("/api/assets/", {
             "name": "ENG-02", "asset_type": "HARDWARE",
-            "hardware": {"role": "PLC"},
+            "criticality": "MEDIUM", "system_ids": [self.system.pk],
+            "hardware": {"role": "PLC",
+                         "manufacturer": "Siemens", "model": "1215C"},
         }, format="json")
         self.assertEqual(second.status_code, 201, second.data)
         self.assertEqual(self.client.post(
@@ -367,6 +380,7 @@ class SoftwareAssetAPITests(TestCase):
         self.assertEqual(sw.status_code, 201, sw.data)
         host_two = self.client.post("/api/assets/", {
             "name": "PLC secundario", "asset_type": "HARDWARE",
+            "criticality": "MEDIUM", "system_ids": [self.system.pk],
             "hardware": {
                 "role": "PLC", "manufacturer": "AutomationDirect",
                 "model": "DL205",
@@ -469,7 +483,9 @@ class SoftwareAssetAPITests(TestCase):
         self.assertEqual(sw.status_code, 201, sw.data)
         other = self.client.post("/api/assets/", {
             "name": "Hardware archivado", "asset_type": "HARDWARE",
-            "hardware": {"role": "PLC"},
+            "criticality": "MEDIUM", "system_ids": [self.system.pk],
+            "hardware": {"role": "PLC",
+                         "manufacturer": "Siemens", "model": "1215C"},
         }, format="json")
         self.assertEqual(other.status_code, 201, other.data)
         url = f"/api/assets/{sw.data['id']}/hardware-installations/"
