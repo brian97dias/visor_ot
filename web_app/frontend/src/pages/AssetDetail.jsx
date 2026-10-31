@@ -61,7 +61,7 @@ function AssetDetail() {
     navigate(location.pathname + location.search, { replace: true, state: preserved });
   }, [location.state, location.pathname, navigate]);
 
-  async function confirmInventoryStatusChange() {
+  async function confirmInventoryStatusChange(systemIds = []) {
     if (busy) return;
     const archived = asset.inventory_status === "ARCHIVED";
 
@@ -69,7 +69,9 @@ function AssetDetail() {
     setError("");
     setNotice("");
     try {
-      const updated = archived ? await restoreAsset(asset.id) : await archiveAsset(asset.id);
+      const updated = archived
+        ? await restoreAsset(asset.id, systemIds)
+        : await archiveAsset(asset.id);
       setAsset(updated);
       setNotice(archived ? "Activo restaurado correctamente." : "Activo archivado correctamente.");
     } catch (err) {
