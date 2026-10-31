@@ -31,6 +31,7 @@ class SoftwareDomainTests(TestCase):
                  product="TIA Portal", version="V18", software_type="APPLICATION"):
         return register_software_asset(data={
             "name": name,
+            "criticality": "MEDIUM",
             "software": {
                 "software_type": software_type,
                 "manufacturer": manufacturer,
