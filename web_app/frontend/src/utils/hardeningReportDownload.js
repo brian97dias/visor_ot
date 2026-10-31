@@ -22,3 +22,29 @@ export function reportErrorMessage(payload, status) {
   if (status === 400) return "El inventario no cumple los requisitos para generar el informe.";
   return "No se pudo generar el informe (HTTP " + status + ").";
 }
+
+
+/** Validate the actual HTTP/Blob contract before triggering a browser download.
+ * This remains independent from React and the JWT client, so it can be
+ * regression-tested without a running Django or a browser DOM.
+ */
+export async function parseHardeningPdfResponse(response) {
+  if (!response.ok) {
+    let problem = null;
+    try { problem = await response.json(); }
+    catch { /* Non-JSON HTTP errors still receive a readable message. */ }
+    throw new Error(reportErrorMessage(problem, response.status));
+  }
+  if (!(response.headers.get("Content-Type") || "")
+    .toLowerCase().startsWith("application/pdf")) {
+    throw new Error("El servidor no devolvió un archivo PDF válido.");
+  }
+  const blob = await response.blob();
+  if (blob.size < 5 || await blob.slice(0, 5).text() !== "%PDF-") {
+    throw new Error("El servidor devolvió un PDF vacío o no válido.");
+  }
+  return {
+    blob,
+    filename: reportFilename(response.headers.get("Content-Disposition")),
+  };
+}
