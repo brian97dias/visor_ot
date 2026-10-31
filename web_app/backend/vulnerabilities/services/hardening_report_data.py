@@ -20,6 +20,8 @@ from .cve_applicability import assessment_evidence_is_current
 from .cve_technical_status import related_assets_for_cves
 from .identity import fingerprint, hardware_identity, software_identity
 from .hardening_report_communications import collect_top_communications
+from .hardening_diagnosis import build_hardening_diagnosis, extract_nvd_cvss
+from .hardening_diagnostic_communications import collect_prioritized_communications
 
 
 def _date(value):
@@ -156,6 +158,7 @@ def _report_findings(cves, hardware_by_id, software_installations):
                     str(cve.base_score) if cve.base_score is not None else None
                 ),
                 "description": cve.description,
+                "cvss": extract_nvd_cvss(cve.metrics),
                 "published": _date(cve.published),
                 "last_modified": _date(cve.last_modified),
                 "nvd_retrieved_at": _date(cve.retrieved_at),
@@ -305,7 +308,7 @@ def collect_hardening_report_data(*, generated_at=None):
     ).order_by("cve_id"))
     hardware_by_id = {row["id"]: row for row in hardware_rows}
     main, conditional = _report_findings(cves, hardware_by_id, install_by_id)
-    return {
+    report = {
         "schema_version": 1,
         "generated_at": _date(generated_at),
         "scope": "ACTIVE_INVENTORY",
@@ -328,3 +331,11 @@ def collect_hardening_report_data(*, generated_at=None):
         "conditional_vulnerabilities": conditional,
         "communications": collect_top_communications(hardware_by_id),
     }
+    # Additive phase-A projection: the old JSON/PDF contract is untouched.
+    # Only hardware with a current APPLIES result participates in ranking.
+    prioritized_ids = {row["hardware_id"] for row in main}
+    evidence = collect_prioritized_communications(
+        hardware_by_id, prioritized_ids
+    )
+    report["diagnosis"] = build_hardening_diagnosis(report, evidence)
+    return report
