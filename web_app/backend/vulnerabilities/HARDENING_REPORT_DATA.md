@@ -17,9 +17,11 @@ python manage.py test vulnerabilities.tests_hardening_report_data --settings=con
 La salida predeterminada se guarda dentro del proyecto en
 `web_app/backend/vulnerabilities/output/visor_ot_hardening_data.json`.
 La carpeta `output/` se crea automáticamente y está excluida de Git para
-evitar versionar datos reales del inventario. El comando acepta también
-`--stdout` para mostrar JSON en terminal o `--output ruta/archivo.json`
-para una ubicación explícita elegida por el operador. No mezclar ambas opciones.
+evitar versionar datos reales del inventario. El comando acepta `--print-json` (alias compatible: `--stdout`) para
+mostrar JSON en terminal y `--output ruta/archivo.json` para elegir una ruta
+de salida. No combinar impresión y archivo. `--print-json` es el nombre
+principal para no confundir el argumento especial `stdout` de Django
+cuando se usa `call_command()` en pruebas.
 
 La función principal es
 `vulnerabilities.services.hardening_report_data.collect_hardening_report_data()`.
