@@ -3,8 +3,6 @@
 Existing rows remain untouched. Reports and operators may inspect deficiencies
 without silently assigning criticality or inventing a system association.
 """
-from django.db.models import Q
-
 from .models import Asset, OTSystem, SystemMembership
 
 
