@@ -422,7 +422,7 @@ def render_legacy_hardening_pdf(data, destination):
 
 
 
-def render_hardening_pdf(data, destination, *, legacy=False):
+def render_hardening_pdf(data, destination, *, legacy=False, author=None):
     """Render device-first diagnosis or explicitly preserve the previous PDF.
 
     Old schema-v1 JSON snapshots without a diagnosis block retain the legacy
@@ -432,4 +432,4 @@ def render_hardening_pdf(data, destination, *, legacy=False):
     if legacy or (isinstance(data, dict) and "diagnosis" not in data):
         return render_legacy_hardening_pdf(data, destination)
     from .hardening_pdf_diagnosis import render_diagnostic_hardening_pdf
-    return render_diagnostic_hardening_pdf(data, destination)
+    return render_diagnostic_hardening_pdf(data, destination, author=author)
