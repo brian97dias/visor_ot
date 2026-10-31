@@ -17,7 +17,8 @@ from ingestion.models import (
 )
 from network.models import Communication
 from vulnerabilities.models import (
-    AssetCpe, AssetCveAssessment, AssetCveFinding, Cve, CveDiscoveryRun,
+    AssetCpe, AssetCveAssessment, AssetCveFinding, Cpe, CpeSearchRun,
+    Cve, CveDiscoveryRun,
 )
 from vulnerabilities.services.hardening_pdf import render_hardening_pdf
 from vulnerabilities import tests_hardening_diagnostic_network as _fixtures
@@ -26,7 +27,8 @@ from vulnerabilities import tests_hardening_diagnostic_network as _fixtures
 SNAPSHOT_MODELS = (
     Asset, NetworkInterface, OTSystem, SoftwareInstallation, SystemMembership,
     Ingestion, InterfaceObservation, Communication, CommunicationObservation,
-    AssetCpe, AssetCveAssessment, AssetCveFinding, Cve, CveDiscoveryRun,
+    AssetCpe, AssetCveAssessment, AssetCveFinding, Cpe, CpeSearchRun,
+    Cve, CveDiscoveryRun,
 )
 
 
@@ -36,6 +38,28 @@ class HardeningFullRegressionTests(TestCase):
     def setUp(self):
         # Reuse the proven Siemens CPE, firmware and active/excluded PCAP fixture.
         _fixtures.DiagnosticCommunicationTests.setUp(self)
+        # A real NVD-style CVSS 3.1 source, without calling an external API.
+        self.cve.description = "Packets targeting TCP/102 can cause denial of service."
+        self.cve.descriptions = [
+            {"lang": "en", "value": self.cve.description},
+            {"lang": "es", "value": "Paquetes dirigidos a TCP/102 pueden provocar denegación de servicio."},
+        ]
+        self.cve.metrics = {"cvssMetricV31": [{
+            "type": "Primary",
+            "cvssData": {
+                "version": "3.1", "baseScore": 7.5, "baseSeverity": "HIGH",
+                "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                "attackVector": "NETWORK", "attackComplexity": "LOW",
+                "privilegesRequired": "NONE", "userInteraction": "NONE",
+                "scope": "UNCHANGED", "confidentialityImpact": "NONE",
+                "integrityImpact": "NONE", "availabilityImpact": "HIGH",
+            },
+        }]}
+        self.cve.severity = "HIGH"
+        self.cve.base_score = "7.5"
+        self.cve.save(update_fields=[
+            "description", "descriptions", "metrics", "severity", "base_score"
+        ])
         self.url = reverse("vulnerabilities:hardening-pdf-download")
 
     def _capture_persisted_state(self):
@@ -96,6 +120,10 @@ class HardeningFullRegressionTests(TestCase):
         self.assertEqual(report["summary"]["conditional_hardware_cve_pairs"], 0)
         device = report["diagnosis"]["prioritized_hardware"][0]
         self.assertEqual(device["hardware_id"], self.hw.pk)
+        self.assertEqual(device["priority"], "P1")
+        self.assertEqual(device["findings"][0]["description_es"],
+                         "Paquetes dirigidos a TCP/102 pueden provocar denegación de servicio.")
+        self.assertEqual(device["findings"][0]["cvss"]["version"], "3.1")
         self.assertEqual(
             [finding["cve_id"] for finding in device["findings"]],
             [self.cve.cve_id],
