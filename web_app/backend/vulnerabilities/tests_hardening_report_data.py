@@ -93,6 +93,44 @@ class HardeningReportDataTests(TestCase):
         self.assertEqual(finding["justifications"], [])
         self.assertIsNotNone(finding["automatic_nvd_evidence"])
 
+    def test_phase_a_device_diagnosis_adds_to_legacy_contract(self):
+        self.cve.metrics = {
+            "cvssMetricV31": [{
+                "type": "Primary",
+                "cvssData": {
+                    "version": "3.1", "baseScore": 7.5,
+                    "baseSeverity": "HIGH",
+                    "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                    "attackVector": "NETWORK",
+                },
+            }],
+        }
+        self.cve.severity = "HIGH"
+        self.cve.base_score = "7.5"
+        self.cve.save(update_fields=["metrics", "severity", "base_score"])
+        report = collect_hardening_report_data()
+        json.dumps(report)
+        self.assertEqual(report["schema_version"], 1)
+        self.assertEqual(report["communications"], [])
+        self.assertEqual(len(report["applicable_vulnerabilities"]), 1)
+        self.assertEqual(
+            report["applicable_vulnerabilities"][0]["cvss"]["version"], "3.1"
+        )
+        diagnosis = report["diagnosis"]
+        self.assertEqual(diagnosis["summary"]["hardware_with_applicable_cves"], 1)
+        self.assertEqual(diagnosis["summary"]["applicable_hardware_cve_pairs"], 1)
+        device = diagnosis["prioritized_hardware"][0]
+        self.assertEqual(device["hardware_id"], self.hw.pk)
+        self.assertEqual(device["priority"], "P1")
+        self.assertEqual(device["device_ref"], f"HW-{self.hw.pk}")
+        self.assertEqual(device["communications_evidence_status"],
+                         "INSUFFICIENT_ATTRIBUTION_EVIDENCE")
+        self.assertEqual(len(device["findings"]), 1)
+        self.assertEqual(len(device["installed_software"]), 1)
+        self.assertEqual(
+            len(device["installed_software"][0]["confirmed_cpes"]), 1
+        )
+
     def test_one_cve_is_reported_only_for_hardware_with_verified_positive(self):
         second_asset = Asset.objects.create(
             name="Segundo PLC", asset_type="HARDWARE", criticality="LOW",
