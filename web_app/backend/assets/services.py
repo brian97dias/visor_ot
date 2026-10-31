@@ -87,6 +87,13 @@ def update_hardware_asset(*, asset, data, user):
 
 @transaction.atomic
 def change_inventory_status(*, asset, new_status, user, system_ids=None):
+    # Lock related systems before the asset to keep the same lock ordering
+    # as membership creation, unlinking and system archival.
+    if new_status == Asset.InventoryStatus.ACTIVE and system_ids:
+        from .models import OTSystem
+        list(OTSystem.objects.select_for_update().filter(
+            pk__in=system_ids
+        ).order_by("pk").values_list("pk", flat=True))
     # Bloquea la fila para que dos solicitudes concurrentes no cambien
     # simultáneamente el estado del mismo activo.
     asset = Asset.objects.select_for_update().get(pk=asset.pk)
