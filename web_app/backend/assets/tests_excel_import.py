@@ -14,7 +14,7 @@ from rest_framework.test import APIClient
 from openpyxl import Workbook
 
 from .asset_excel import HARDWARE_COLUMNS, SOFTWARE_COLUMNS
-from .models import Asset, AssetImportBatch, Software, SoftwareCorrection, SoftwareInstallation
+from .models import Asset, AssetImportBatch, Software, SoftwareCorrection, SoftwareInstallation, OTSystem
 from .services import register_hardware_asset
 from .software_services import register_installed_software_asset
 
@@ -56,6 +56,10 @@ class ExcelImportTests(TestCase):
         )
         self.client = APIClient()
         self.client.force_authenticate(self.operator)
+        self.system = OTSystem.objects.create(
+            name="Sistema para importaciones", criticality="MEDIUM",
+            created_by=self.operator, updated_by=self.operator,
+        )
         self.hw = register_hardware_asset(data={
             "name": "DirectLogic 205", "asset_type": "HARDWARE",
             "description": "Anterior", "hardware": {
@@ -114,6 +118,7 @@ class ExcelImportTests(TestCase):
                 "action": "CREATE" if row["status"] == "CREATE" else "SKIP",
                 "fields": [], "correction_reason": "",
                 "confirm_shared_correction": False,
+                "system_ids": [self.system.pk] if row["sheet"] == "Hardware" else [],
             } for row in preview["rows"]
         }
 
