@@ -262,7 +262,13 @@ def _validate_row(sheet, row):
         errors.append("moneda: no puede existir sin costo.")
     if data.get("costo_reposicion") is not None and not data.get("moneda"):
         errors.append("costo_reposicion: debe tener moneda.")
-    serializer = AssetCreateSerializer(data=_payload(sheet, data))
+    # Preview cannot know the systems selected later in the confirmation UI.
+    # Existing rows remain correctable even if they are legacy-incomplete.
+    serializer = AssetCreateSerializer(
+        data=_payload(sheet, data),
+        context={"import_preview": True,
+                 "import_preview_existing": data.get("id_visor_ot") is not None},
+    )
     if not serializer.is_valid():
         errors.extend(f"{key}: {val}" for key, val in serializer.errors.items())
     return errors
@@ -459,6 +465,10 @@ def confirm(file_bytes, *, token, actions, user):
             continue
         if action == "CREATE" and info["status"] == "CREATE":
             payload = _payload(info["sheet"], lookup[key]["data"])
+            if info["sheet"] == "Hardware":
+                # Explicit systems are supplied in the reviewed actions,
+                # not guessed from Excel columns, names, IPs or MAC addresses.
+                payload["system_ids"] = decision.get("system_ids", [])
             serializer = AssetCreateSerializer(data=payload)
             serializer.is_valid(raise_exception=True)
             if info["sheet"] == "Hardware":
