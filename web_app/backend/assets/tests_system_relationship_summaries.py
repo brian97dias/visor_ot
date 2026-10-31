@@ -96,9 +96,10 @@ class SystemRelationshipSummaryTests(TestCase):
     def test_unlinked_membership_is_not_counted_but_relink_counts_once(self):
         first = self.join(self.hardware_a)
         self.assertEqual(self.systems()[self.system.pk]["hardware_count"], 1)
+        self.join(self.hardware_a, self.other_system)
         unlink_hardware_from_system(membership_id=first.pk, user=self.user)
         self.assertEqual(self.systems()[self.system.pk]["hardware_count"], 0)
-        self.assertEqual(self.assets()[self.hardware_a.pk]["system_count"], 0)
+        self.assertEqual(self.assets()[self.hardware_a.pk]["system_count"], 1)
         self.join(self.hardware_a)
         self.assertEqual(self.systems()[self.system.pk]["hardware_count"], 1)
 
