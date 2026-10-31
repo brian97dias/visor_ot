@@ -580,11 +580,12 @@ function AssetForm({ asset = null, user, onSave, saving, error, onErrorClear, in
             <select id="asset-criticality" value={values.criticality}
               disabled={!canEditCriticality}
               onChange={(event) => change("criticality", event.target.value)}>
-              {Object.entries(CRITICALITY_LABELS)
-                .filter(([value]) => editing || value !== "UNDEFINED")
-                .map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
+              {Object.entries(CRITICALITY_LABELS).map(([value, label]) => (
+                <option key={value} value={value}
+                  disabled={!editing && value === "UNDEFINED"}>
+                  {value === "UNDEFINED" && !editing ? "Selecciona criticidad *" : label}
+                </option>
+              ))}
             </select>
             {!canEditCriticality && <small>Solo el operador de planta o el administrador pueden cambiar la criticidad.</small>}
           </div>
