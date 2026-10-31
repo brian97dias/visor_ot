@@ -30,12 +30,21 @@ def register_system(*, data, user):
 def update_system(*, system_id, data, user):
     system = OTSystem.objects.select_for_update().get(pk=system_id)
     if system.status != OTSystem.Status.ACTIVE:
-        # Legacy archived systems may have UNDEFINED criticality; allow
-        # explicit regularization before restoring, but no other edits.
-        if set(data) != {"criticality"}:
+        # The existing form sends the complete payload. Permit only a
+        # criticality correction on an archived legacy record: other values
+        # must remain identical, so restoration is not made impossible.
+        changed = {
+            key for key, value in data.items()
+            if getattr(system, key) != value
+        }
+        if changed - {"criticality"}:
             raise ValidationError({
-                "status": "Para editar un sistema archivado, restáuralo. "
-                          "Solo puedes corregir su criticidad antes."
+                "status": "Para editar otros datos de un sistema archivado, "
+                          "restáuralo primero."
+            })
+        if not has_valid_criticality(data.get("criticality", system.criticality)):
+            raise ValidationError({
+                "criticality": "Registra criticidad Baja, Media o Alta."
             })
     for field, value in data.items():
         setattr(system, field, value)
