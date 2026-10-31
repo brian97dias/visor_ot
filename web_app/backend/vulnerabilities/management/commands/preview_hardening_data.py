@@ -1,4 +1,4 @@
-"""Inspect Phase 2 report data in JSON without generating a PDF or writing DB."""
+"""Inspect Phase 2-3 report data in JSON without generating a PDF or writing DB."""
 import json
 from pathlib import Path
 
@@ -24,12 +24,12 @@ class Command(BaseCommand):
             help="Ruta de salida alternativa; por defecto vulnerabilities/output/.",
         )
         parser.add_argument(
-            "--stdout", action="store_true",
+            "--stdout", action="store_true", dest="print_json",
             help="Muestra el JSON en la terminal en lugar de crear un archivo.",
         )
 
     def handle(self, *args, **options):
-        if options["stdout"] and options["output"]:
+        if options["print_json"] and options["output"]:
             raise CommandError("Usa --stdout o --output, pero no ambos.")
         try:
             data = collect_hardening_report_data()
@@ -40,7 +40,7 @@ class Command(BaseCommand):
             ) from error
 
         output = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
-        if options["stdout"]:
+        if options["print_json"]:
             self.stdout.write(output.rstrip("\n"))
             return
 
