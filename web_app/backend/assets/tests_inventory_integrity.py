@@ -135,6 +135,31 @@ class InventoryIntegrityPhaseOneTests(TestCase):
             ).count(), 1
         )
 
+    def test_archived_legacy_system_can_fix_criticality_then_restore(self):
+        archive = self.client.post(
+            f"/api/assets/systems/{self.system.pk}/archive/"
+        )
+        self.assertEqual(archive.status_code, 200, archive.data)
+        OTSystem.objects.filter(pk=self.system.pk).update(criticality="UNDEFINED")
+        invalid = self.client.post(
+            f"/api/assets/systems/{self.system.pk}/restore/"
+        )
+        self.assertEqual(invalid.status_code, 400, invalid.data)
+        repair = self.client.patch(
+            f"/api/assets/systems/{self.system.pk}/", {
+                "name": self.system.name, "description": self.system.description,
+                "criticality": "LOW",
+                "criticality_justification": self.system.criticality_justification,
+                "impact": self.system.impact,
+            }, format="json"
+        )
+        self.assertEqual(repair.status_code, 200, repair.data)
+        restored = self.client.post(
+            f"/api/assets/systems/{self.system.pk}/restore/"
+        )
+        self.assertEqual(restored.status_code, 200, restored.data)
+        self.assertEqual(restored.data["criticality"], "LOW")
+
     def test_legacy_incomplete_records_are_reported_not_reclassified(self):
         old = Asset.objects.create(
             name="Activo histórico", asset_type="HARDWARE",
