@@ -158,6 +158,7 @@ class AssetRestoreView(APIView):
             asset=asset,
             new_status=Asset.InventoryStatus.ACTIVE,
             user=request.user,
+            system_ids=request.data.get("system_ids"),
         )
         return Response(AssetReadSerializer(asset).data)
 
