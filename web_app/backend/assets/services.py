@@ -6,6 +6,7 @@ from rest_framework.exceptions import ValidationError as APIValidationError
 from .models import Asset, Hardware
 from .interface_assignment import identify_interface, create_identified_interface
 from .system_membership_services import associate_hardware_to_system
+from .inventory_integrity import current_active_system_links, has_valid_criticality
 
 
 def save_validated(instance):
@@ -27,6 +28,15 @@ def register_hardware_asset(*, data, user):
     hardware_values = values.pop("hardware")
     assignment = values.pop("interface_assignment", None)
     system_ids = values.pop("system_ids", [])
+    if not has_valid_criticality(values.get("criticality")):
+        raise APIValidationError({"criticality": "Selecciona Baja, Media o Alta."})
+    if not system_ids:
+        raise APIValidationError({"system_ids": "Asocia al menos un sistema OT activo."})
+    for field in ("manufacturer", "model", "role"):
+        if not (hardware_values.get(field) or "").strip():
+            raise APIValidationError({
+                "hardware": {field: "Campo obligatorio para hardware activo."}
+            })
 
     asset = Asset(
         **values,
@@ -66,6 +76,8 @@ def update_hardware_asset(*, asset, data, user):
     values = data.copy()
     hardware_values = values.pop("hardware", None)
 
+    if "criticality" in values and not has_valid_criticality(values["criticality"]):
+        raise APIValidationError({"criticality": "Selecciona Baja, Media o Alta."})
     for field, value in values.items():
         setattr(asset, field, value)
     asset.updated_by = user
@@ -96,6 +108,21 @@ def change_inventory_status(*, asset, new_status, user):
         asset.archived_at = timezone.now()
         asset.archived_by = user
     elif new_status == Asset.InventoryStatus.ACTIVE:
+        if asset.asset_type == Asset.AssetType.HARDWARE:
+            if not current_active_system_links(asset.pk).exists():
+                raise APIValidationError({
+                    "system_ids": "Antes de restaurar, asocia el hardware a un sistema OT activo."
+                })
+            device = asset.hardware
+            if any(not (getattr(device, field) or "").strip()
+                   for field in ("manufacturer", "model", "role")):
+                raise APIValidationError({
+                    "hardware": "Completa fabricante, modelo y rol antes de restaurar."
+                })
+        if not has_valid_criticality(asset.criticality):
+            raise APIValidationError({
+                "criticality": "Define criticidad Baja, Media o Alta antes de restaurar."
+            })
         asset.inventory_status = Asset.InventoryStatus.ACTIVE
         asset.archived_at = None
         asset.archived_by = None
