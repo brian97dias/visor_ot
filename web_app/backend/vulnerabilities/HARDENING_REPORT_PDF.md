@@ -93,3 +93,51 @@ referencias y congruencia con `diagnosis`.
 
 **Puerta B → C:** no se añade todavía API, botón React ni descarga:
 primero se revisa visualmente el documento generado con datos reales.
+
+## Revisión de legibilidad en español (fase B)
+
+- El PDF orientado a dispositivos muestra la criticidad y la severidad CVSS
+  en español (Crítica/Alta/Media/Baja), sin alterar las métricas NVD.
+- Los hallazgos exportan `description_es` solo cuando `Cve.descriptions`
+  contiene una descripción `es` realmente almacenada. Si no existe, el
+  informe conserva la descripción original en inglés. **No traduce en línea**.
+- Publicación, última modificación y fecha de recuperación NVD se muestran
+  por separado en cada CVE. Las condiciones del vector CVSS se acompañan
+  de etiquetas y lectura orientativa en español, sin afirmar rutas de ataque
+  verificadas ni incidentes.
+- Las comunicaciones presentan IP de origen e IP de destino, más el nombre
+  de hardware en la misma celda solo cuando existe atribución confirmada.
+  Los nombres enlazan a fichas del PDF si esos equipos fueron priorizados.
+  Se eliminan los estados internos `UNKNOWN/IDENTIFIED/ATTRIBUTED`
+  redundantes.
+- El resumen ejecutivo muestra únicamente P1/P2/P3. Si faltan datos
+  para la matriz, la situación se describe aparte como pendiente, sin
+  asignar una nueva prioridad ni eliminar el hallazgo.
+- El responsable debe identificarse en CLI explícitamente, ya que un
+  comando Django no conoce el usuario web autenticado:
+
+```bash
+python manage.py preview_hardening_data
+python manage.py generate_hardening_pdf \
+  --input-json vulnerabilities/output/visor_ot_hardening_data.json \
+  --author "Nombre del responsable" \
+  --output vulnerabilities/output/diagnostico_dispositivos.pdf
+```
+
+Cuando `--author` no se proporciona, la portada indica
+"No indicado (generación desde consola)". El informe lleva una fecha
+de corte y aclara que la evidencia de PCAP puede corresponder a fechas
+históricas distintas de la generación. La API web, prevista para una
+fase posterior, deberá proporcionar el autor desde el usuario autenticado.
+
+El argumento `--legacy` conserva el formato anterior; no incorpora
+la nueva maquetación ni las opciones visuales de autor.
+
+Pruebas específicas:
+
+```bash
+python manage.py test \
+  vulnerabilities.tests_hardening_pdf_diagnosis \
+  vulnerabilities.tests_hardening_report_data \
+  --settings=config.settings_test_sqlite
+```
