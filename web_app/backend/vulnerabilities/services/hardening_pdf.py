@@ -49,8 +49,7 @@ def _styles():
             textColor=color, spaceAfter=space, splitLongWords=True, **kw
         )
     return {
-        "cover": p("ot-cover", 25, 33, space=18, fontName=bold) if False else
-                 ParagraphStyle("ot-cover", fontName=bold, fontSize=25,
+        "cover": ParagraphStyle("ot-cover", fontName=bold, fontSize=25,
                                 leading=33, textColor=INK, spaceAfter=18),
         "kicker": ParagraphStyle("ot-kicker", fontName=bold, fontSize=11,
                                  leading=15, textColor=BLUE, spaceAfter=12),
