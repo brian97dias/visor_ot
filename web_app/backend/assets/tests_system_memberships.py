@@ -22,8 +22,8 @@ class SystemMembershipAPITests(TestCase):
         )
         self.client = APIClient()
         self.client.force_authenticate(self.operator)
-        self.system = register_system(data={"name": "Sistema A"}, user=self.operator)
-        self.system_b = register_system(data={"name": "Sistema B"}, user=self.operator)
+        self.system = register_system(data={"name": "Sistema A", "criticality": "HIGH"}, user=self.operator)
+        self.system_b = register_system(data={"name": "Sistema B", "criticality": "MEDIUM"}, user=self.operator)
         self.hardware = self.make_hardware("PLC-01")
         self.hardware_b = self.make_hardware("HMI-01")
 
@@ -66,6 +66,9 @@ class SystemMembershipAPITests(TestCase):
         self.assertEqual(self.attach().status_code, 400)
         self.assertEqual(SystemMembership.objects.count(), 1)
         url = f"{self.system_path()}{created.data['id']}/"
+        # Last membership cannot be unlinked from active hardware.
+        self.assertEqual(self.client.delete(url).status_code, 400)
+        self.assertEqual(self.attach(system=self.system_b).status_code, 201)
         self.assertEqual(self.client.delete(url).status_code, 204)
         self.assertEqual(self.client.delete(url).status_code, 400)
         again = self.attach()
@@ -83,6 +86,7 @@ class SystemMembershipAPITests(TestCase):
         self.assertEqual(result.status_code, 201, result.data)
         self.assertEqual(result.data["hardware_asset_id"], self.hardware.pk)
         self.assertEqual(result.data["system_id"], self.system.pk)
+        self.assertEqual(self.attach(system=self.system_b).status_code, 201)
         self.assertEqual(self.client.delete(
             f"{self.hardware_path()}{result.data['id']}/",
         ).status_code, 204)
@@ -91,6 +95,7 @@ class SystemMembershipAPITests(TestCase):
     def test_archiving_preserves_memberships_and_blocks_new_links(self):
         first = self.attach()
         self.assertEqual(first.status_code, 201, first.data)
+        self.assertEqual(self.attach(system=self.system_b).status_code, 201)
         change_system_status(
             system_id=self.system.pk, new_status=OTSystem.Status.ARCHIVED,
             user=self.operator,
@@ -157,9 +162,9 @@ class SystemMembershipAPITests(TestCase):
 
     def test_atomic_optional_memberships_on_new_hardware(self):
         payload = {
-            "name": "RTU opcional",
-            "asset_type": "HARDWARE",
-            "hardware": {"role": "RTU"},
+            "name": "RTU asociado",
+            "asset_type": "HARDWARE", "criticality": "LOW",
+            "hardware": {"role": "RTU", "manufacturer": "Factory", "model": "RTU"},
             "system_ids": [self.system.pk, self.system_b.pk],
         }
         created = self.client.post("/api/assets/", payload, format="json")
@@ -175,14 +180,16 @@ class SystemMembershipAPITests(TestCase):
         start = Asset.objects.count()
         bad = self.client.post("/api/assets/", {
             "name": "No debe persistir", "asset_type": "HARDWARE",
-            "hardware": {"role": "PLC"},
+            "criticality": "LOW",
+            "hardware": {"role": "PLC", "manufacturer": "Siemens", "model": "1215C"},
             "system_ids": [self.system.pk, 999999],
         }, format="json")
         self.assertEqual(bad.status_code, 400, bad.data)
         self.assertEqual(Asset.objects.count(), start)
         duplicate = self.client.post("/api/assets/", {
             "name": "Repetido", "asset_type": "HARDWARE",
-            "hardware": {"role": "PLC"},
+            "criticality": "LOW",
+            "hardware": {"role": "PLC", "manufacturer": "Siemens", "model": "1215C"},
             "system_ids": [self.system.pk, self.system.pk],
         }, format="json")
         self.assertEqual(duplicate.status_code, 400, duplicate.data)
