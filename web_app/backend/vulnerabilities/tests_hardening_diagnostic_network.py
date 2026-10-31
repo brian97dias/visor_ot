@@ -8,14 +8,14 @@ from network.models import Communication
 from vulnerabilities.services.hardening_diagnostic_communications import (
     collect_prioritized_communications,
 )
-from vulnerabilities.tests_hardening_report_data import HardeningReportDataTests
+from vulnerabilities import tests_hardening_report_data as _fixtures
 
 
 class DiagnosticCommunicationTests(TestCase):
     def setUp(self):
         # Current context and manual interface assignment from the existing
         # successful Siemens inventory/CVE fixture.
-        HardeningReportDataTests.setUp(self)
+        _fixtures.HardeningReportDataTests.setUp(self)
         self.hardware_id = self.hw.asset_id
         self.hardware_by_id = {
             self.hardware_id: {"id": self.hardware_id, "name": self.hw.asset.name}
