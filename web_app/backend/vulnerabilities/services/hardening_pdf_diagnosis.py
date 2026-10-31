@@ -370,16 +370,16 @@ def _device(story, device, styles, references, width, anchor_ids):
             ["Origen (IP / equipo)", "Destino (IP / equipo)",
              "Servicio / puerto", "Paquetes", "Clasificación"],
             rows,
-            [width*.245, width*.245, width*.205, width*.105, width*.20],
+            [width*.23, width*.23, width*.20, width*.14, width*.20],
             styles,
         ))
-        story.append(_paragraph(
+        story.append(KeepTogether([_paragraph(
             "Los nombres se muestran únicamente para extremos identificados "
             "mediante ARP en capturas activas y asociación manual vigente. "
             "Si solo aparece la IP, la identidad del dispositivo no se ha confirmado. "
             "La clasificación es administrativa y no equivale a detectar un ataque.",
             styles["muted"],
-        ))
+        )]))
     else:
         reason = NETWORK_STATUSES.get(
             device.get("communications_evidence_status"),
@@ -568,10 +568,14 @@ def render_diagnostic_hardening_pdf(data, destination, *, author=None):
                         _ref(by_id[hid]), _xml(by_id[hid]["hardware"].get("name"))),
                     s["small"]))
                 continue
+            if rendered:
+                story.append(PageBreak())
             rendered.add(hid)
             _device(story, by_id[hid], s, references, width, set(by_id))
     for device in devices:
         if device["hardware_id"] not in rendered:
+            if rendered:
+                story.append(PageBreak())
             _device(story, device, s, references, width, set(by_id))
             rendered.add(device["hardware_id"])
 
