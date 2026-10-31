@@ -158,6 +158,14 @@ def _report_findings(cves, hardware_by_id, software_installations):
                     str(cve.base_score) if cve.base_score is not None else None
                 ),
                 "description": cve.description,
+                # Source-only translation: never generate or infer Spanish text.
+                "description_es": next((
+                    entry["value"] for entry in (cve.descriptions or [])
+                    if isinstance(entry, dict)
+                    and str(entry.get("lang", "")).lower().startswith("es")
+                    and isinstance(entry.get("value"), str)
+                    and entry["value"].strip()
+                ), None),
                 "cvss": extract_nvd_cvss(cve.metrics),
                 "published": _date(cve.published),
                 "last_modified": _date(cve.last_modified),
