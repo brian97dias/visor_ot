@@ -1,6 +1,6 @@
 """Read-only, JSON-serializable source for the future OT hardening PDF.
 
-Phase 2 does not generate a PDF, contact NVD, create CVE assessments or
+Phases 2-3 do not generate a PDF, contact NVD, create CVE assessments or
 infer vulnerability from a candidate CPE. Applicability is scoped to each
 current Hardware-CVE pair using the *existing* catalogue evaluator.
 """
