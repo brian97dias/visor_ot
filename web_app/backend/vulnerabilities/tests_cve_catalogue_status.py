@@ -85,7 +85,7 @@ class CveCatalogueEvaluationStatusTests(TestCase):
         self.assess(cve, "UNKNOWN")
         self.assertEqual(self.current_state(cve.cve_id), "IN_REVIEW")
         self.assertEqual(self.client.get(self.BASE, {"status": "APPLIES"}).data["count"], 0)
-        self.assertEqual(self.client.get(self.BASE, {"status": "IN_REVIEW"}).data["count"], 1)
+        self.assertEqual(self.client.get(self.BASE, {"status": "PENDING_REVIEW"}).data["count"], 1)
         self.assertEqual(AssetCveAssessment.objects.count(), 2)
 
     def test_all_configurations_negative_may_be_not_applicable(self):
@@ -109,7 +109,7 @@ class CveCatalogueEvaluationStatusTests(TestCase):
         self.hardware.model = "Changed Hardware Model"
         self.hardware.save(update_fields=["model"])
         self.assertEqual(self.current_state(cve.cve_id), "STALE")
-        self.assertEqual(self.client.get(self.BASE, {"status": "STALE"}).data["count"], 1)
+        self.assertEqual(self.client.get(self.BASE, {"status": "PENDING_REVIEW"}).data["count"], 1)
         self.assertEqual(self.client.get(self.BASE, {"status": "APPLIES"}).data["count"], 0)
 
     def test_changed_nvd_configuration_marks_old_decision_stale(self):
@@ -180,7 +180,7 @@ class CveCatalogueEvaluationStatusTests(TestCase):
         self.assertEqual(reply.data["count"], 1)
         self.assertEqual(reply.data["summary"]["pending_review"], 1)
         self.assertEqual(reply.data["summary"]["applies"], 0)
-        self.assertEqual(reply.data["results"][0]["applicability_status"], "STALE")
+        self.assertEqual(reply.data["results"][0]["applicability_status"], "PENDING_REVIEW")
 
     def test_operator_can_filter_but_cannot_create_assessments(self):
         self.make_cve()
@@ -228,7 +228,7 @@ class LegacyCveCatalogueStatusTests(TestCase):
         self.fixture.hw.model = "Updated model"
         self.fixture.hw.save(update_fields=["model"])
         response = self.fixture.client.get(
-            "/api/vulnerabilities/cves/?status=STALE"
+            "/api/vulnerabilities/cves/?status=PENDING_REVIEW"
         )
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["count"], 1)
