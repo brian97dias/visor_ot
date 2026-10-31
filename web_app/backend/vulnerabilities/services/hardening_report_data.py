@@ -7,7 +7,8 @@ current Hardware-CVE pair using the *existing* catalogue evaluator.
 from collections import defaultdict
 
 from django.utils import timezone
-from rest_framework.exceptions import ValidationError
+from django.http import Http404
+from rest_framework.exceptions import ValidationError, NotFound
 
 from assets.inventory_integrity import inventory_integrity_issues
 from assets.models import (
@@ -40,7 +41,7 @@ def _confirmed_cpes(assets):
         asset_id__in=identities,
         validation_status=AssetCpe.Validation.CONFIRMED,
         cpe__deprecated=False,
-    ).select_related("cpe").order_by("asset_id", "pk"):
+    ).select_related("asset", "cpe").order_by("asset_id", "pk"):
         if association.validated_identity_fingerprint != identities[association.asset_id]:
             continue
         part = "h" if association.asset.asset_type == "HARDWARE" else None
@@ -95,13 +96,7 @@ def _current_justifications(cves):
             try:
                 hardware, _, _, _, inventory_fp = _context(cve.cve_id, hardware_id)
                 contexts[key] = (hardware, inventory_fp)
-            except (ValueError, AttributeError, ValidationError):
-                contexts[key] = (None, None)
-            except Exception as exc:
-                # A removed/not-found hardware is not evidence of currency.
-                from django.http import Http404
-                if not isinstance(exc, Http404):
-                    raise
+            except (ValueError, AttributeError, ValidationError, NotFound, Http404):
                 contexts[key] = (None, None)
         hardware, inventory_fp = contexts[key]
         if hardware is None or not assessment_evidence_is_current(
