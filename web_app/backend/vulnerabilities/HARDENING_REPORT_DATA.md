@@ -1,0 +1,73 @@
+# VISOR OT — Informe de hardening, fase 2 (datos)
+
+Esta fase **solo recopila datos**. No genera PDF, no incorpora una pantalla o API
+pública nueva, no ejecuta consultas NVD y no registra evaluaciones CVE.
+
+## Ejecución
+
+Desde `web_app/backend` con el entorno virtual activo:
+
+```bash
+python manage.py audit_inventory_integrity
+python manage.py preview_hardening_data --output /tmp/visor_ot_hardening_data.json
+python -m json.tool /tmp/visor_ot_hardening_data.json > /dev/null
+python manage.py test vulnerabilities.tests_hardening_report_data --settings=config.settings_test_sqlite
+```
+
+La función principal es
+`vulnerabilities.services.hardening_report_data.collect_hardening_report_data()`.
+Devuelve un diccionario de tipos JSON (el timestamp y los decimales se
+convierten a texto). No guarda nada en la base de datos.
+
+## Contrato (schema_version: 1)
+
+- `generated_at`: fecha del corte de datos (ISO 8601).
+- `scope`: `ACTIVE_INVENTORY`. Se excluyen activos y sistemas archivados,
+  instalaciones desvinculadas y sistemas OT sin asociación vigente.
+- `summary`: conteos de sistemas, hardware, variantes de software,
+  instalaciones, interfaces, CPE confirmados y parejas Hardware–CVE.
+- `systems`: sistema, criticidad y su justificación, impacto, IDs de hardware
+  activo asociado.
+- `hardware`: identificación y clasificación del activo, sistemas activos,
+  interfaces registradas, instalaciones actuales y CPE confirmados vigentes.
+- `software`: variantes activas, versión registrada, IDs de hardware donde
+  está instalado, CPE confirmados vigentes.
+- `applicable_vulnerabilities`: exclusivamente parejas Hardware–CVE cuya
+  **aplicabilidad contextual efectiva vigente** es `APPLIES`.
+- `conditional_vulnerabilities`: parejas Hardware–CVE vigentes con
+  `APPLIES_CONDITIONAL`; se reservan para un apéndice, **no** se suman a
+  los hallazgos confirmados.
+- `communications`: vacío en fase 2; se construirá en la fase 3.
+
+Los conteos de `*_hardware_cve_pairs` **no equivalen** a conteos de CVE
+únicos: un CVE puede aplicar a varios equipos. Los campos
+`distinct_*_cves` cuentan identificadores CVE distintos.
+
+Cada hallazgo conserva: ID CVE, hardware evaluado, criticidad, severidad,
+CVSS base, descripción, fechas/fuentes NVD ya almacenadas, procedencia del
+veredicto (`SYSTEM` o `ANALYST`), software relacionado con **esa**
+evaluación, prueba técnica automática cuando corresponde y justificaciones
+de auditorías humanas **vigentes**. Una justificación no se inventa:
+si no existe una auditoría manual actual, `justifications` es `[]`.
+
+## Reglas de seguridad semántica
+
+1. Los CPE solo se incorporan con estado `CONFIRMED`, huella de identidad
+   coincidente con el activo actual y producto no obsoleto en la base NVD
+   local; un CPE encontrado sin confirmar no demuestra vulnerabilidad.
+2. Las relaciones candidatas y las auditorías antiguas/no vigentes no son
+   hallazgos. Se utiliza la evaluación contextual del catálogo ya existente,
+   sin reimplementar el evaluador de versiones.
+3. Un software instalado **no** es automáticamente vulnerable. El software
+   incluido en cada hallazgo procede de la evidencia concreta de la pareja
+   hardware–CVE.
+4. Si el inventario activo tiene faltantes, el recolector devuelve un error
+   con sus registros. Primero ejecutar
+   `python manage.py audit_inventory_integrity`.
+5. No se inventan datos de red, versión, riesgos, medidas implementadas ni
+   recomendaciones de hardening. La selección de comunicaciones corresponde a
+   la fase 3 y la redacción/maquetación al PDF de la fase 4.
+
+**Limitación:** el corte se calcula con lecturas de la base de datos. En esta
+fase no se crea una instantánea persistida ni un documento legalmente sellado.
+La evidencia refleja el estado disponible al ejecutar el recolector.
