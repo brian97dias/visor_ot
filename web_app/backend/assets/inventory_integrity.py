@@ -39,7 +39,7 @@ def inventory_integrity_issues():
         ).select_related("hardware").order_by("pk")
     )
     all_active = Asset.objects.filter(inventory_status=Asset.InventoryStatus.ACTIVE)
-    for asset in all_active.only("pk", "asset_type", "criticality"):
+    for asset in all_active.only("pk", "asset_type", "criticality").order_by("pk"):
         if not has_valid_criticality(asset.criticality):
             issues.append({
                 "entity": "asset", "id": asset.pk, "field": "criticality",
@@ -47,7 +47,7 @@ def inventory_integrity_issues():
             })
     for system in OTSystem.objects.filter(status=OTSystem.Status.ACTIVE).only(
         "pk", "criticality"
-    ):
+    ).order_by("pk"):
         if not has_valid_criticality(system.criticality):
             issues.append({
                 "entity": "system", "id": system.pk, "field": "criticality",
