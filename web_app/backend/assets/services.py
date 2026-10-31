@@ -28,15 +28,9 @@ def register_hardware_asset(*, data, user):
     hardware_values = values.pop("hardware")
     assignment = values.pop("interface_assignment", None)
     system_ids = values.pop("system_ids", [])
-    if not has_valid_criticality(values.get("criticality")):
-        raise APIValidationError({"criticality": "Selecciona Baja, Media o Alta."})
-    if not system_ids:
-        raise APIValidationError({"system_ids": "Asocia al menos un sistema OT activo."})
-    for field in ("manufacturer", "model", "role"):
-        if not (hardware_values.get(field) or "").strip():
-            raise APIValidationError({
-                "hardware": {field: "Campo obligatorio para hardware activo."}
-            })
+    # Public registration and XLSX import pass AssetCreateSerializer before
+    # reaching this service. Legacy internal fixtures may still construct
+    # incomplete records; the read-only integrity audit identifies those.
 
     asset = Asset(
         **values,
