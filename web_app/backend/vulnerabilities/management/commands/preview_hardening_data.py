@@ -24,8 +24,8 @@ class Command(BaseCommand):
             help="Ruta de salida alternativa; por defecto vulnerabilities/output/.",
         )
         parser.add_argument(
-            "--stdout", action="store_true", dest="print_json",
-            help="Muestra el JSON en la terminal en lugar de crear un archivo.",
+            "--print-json", "--stdout", action="store_true", dest="print_json",
+            help="Imprime JSON en terminal (alias anterior: --stdout).",
         )
 
     def handle(self, *args, **options):
