@@ -87,6 +87,17 @@ def update_hardware_asset(*, asset, data, user):
 
 @transaction.atomic
 def change_inventory_status(*, asset, new_status, user, system_ids=None):
+    if new_status == Asset.InventoryStatus.ACTIVE and system_ids is not None:
+        if (not isinstance(system_ids, list)
+                or any(type(pk) is not int or pk < 1 for pk in system_ids)
+                or len(system_ids) != len(set(system_ids))):
+            raise APIValidationError({
+                "system_ids": "Selecciona identificadores de sistemas OT válidos y sin repetir."
+            })
+        if asset.asset_type != Asset.AssetType.HARDWARE and system_ids:
+            raise APIValidationError({
+                "system_ids": "Los sistemas OT se asocian directamente solo al hardware."
+            })
     # Lock related systems before the asset to keep the same lock ordering
     # as membership creation, unlinking and system archival.
     if new_status == Asset.InventoryStatus.ACTIVE and system_ids:
@@ -110,14 +121,6 @@ def change_inventory_status(*, asset, new_status, user, system_ids=None):
         asset.archived_by = user
     elif new_status == Asset.InventoryStatus.ACTIVE:
         if asset.asset_type == Asset.AssetType.HARDWARE:
-            if system_ids is not None and (
-                not isinstance(system_ids, list)
-                or any(type(pk) is not int or pk < 1 for pk in system_ids)
-                or len(system_ids) != len(set(system_ids))
-            ):
-                raise APIValidationError({
-                    "system_ids": "Selecciona identificadores de sistemas OT válidos y sin repetir."
-                })
             if not current_active_system_links(asset.pk).exists():
                 if not system_ids:
                     raise APIValidationError({
