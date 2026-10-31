@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { getSystems } from "../api/systems";
 
 function ConfirmAssetStatusModal({ asset, busy, onCancel, onConfirm }) {
   const titleId = useId();
@@ -7,6 +8,19 @@ function ConfirmAssetStatusModal({ asset, busy, onCancel, onConfirm }) {
   const cancelRef = useRef(null);
 
   const restoring = asset.inventory_status === "ARCHIVED";
+  const [systems, setSystems] = useState([]);
+  const [selectedSystemIds, setSelectedSystemIds] = useState([]);
+  const [systemError, setSystemError] = useState("");
+  useEffect(() => {
+    if (!restoring || asset.asset_type !== "HARDWARE") return;
+    let active = true;
+    getSystems("ACTIVE").then(items => {
+      if (active) setSystems(items);
+    }).catch(err => {
+      if (active) setSystemError(err.message);
+    });
+    return () => { active = false; };
+  }, [restoring, asset.asset_type]);
 
   useEffect(() => {
     const previouslyFocused = document.activeElement;
@@ -88,6 +102,20 @@ function ConfirmAssetStatusModal({ asset, busy, onCancel, onConfirm }) {
             : <>El activo <strong>{asset.name}</strong> dejará de aparecer en el inventario actual. Sus datos se conservarán y podrás restaurarlo después.</>}
         </p>
 
+        {restoring && asset.asset_type === "HARDWARE" &&
+          <div className="asset-import-correction">
+            <p className="interface-hint">Sistemas OT activos (opcional si ya
+              existe una asociación válida). Selecciónalos para restaurar un
+              hardware cuya asociación anterior dejó de estar vigente.</p>
+            {systemError && <p role="alert" className="error-message">{systemError}</p>}
+            {systems.map(system => <label key={system.id} className="system-initial-choice">
+              <input type="checkbox" disabled={busy}
+                checked={selectedSystemIds.includes(system.id)}
+                onChange={event => setSelectedSystemIds(current => event.target.checked
+                  ? [...current, system.id] : current.filter(id => id !== system.id))}/>
+              {system.name}
+            </label>)}
+          </div>}
         <div className="asset-confirm-actions">
           <button
             ref={cancelRef}
@@ -105,7 +133,7 @@ function ConfirmAssetStatusModal({ asset, busy, onCancel, onConfirm }) {
                 ? "asset-confirm-submit asset-confirm-submit-restore"
                 : "asset-confirm-submit"
             }
-            onClick={onConfirm}
+            onClick={() => onConfirm(selectedSystemIds)}
             disabled={busy}
           >
             {busy
