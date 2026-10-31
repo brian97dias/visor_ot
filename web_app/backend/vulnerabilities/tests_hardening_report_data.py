@@ -5,6 +5,8 @@ python manage.py test vulnerabilities.tests_hardening_report_data \\
   --settings=config.settings_test_sqlite
 """
 import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from io import StringIO
 from unittest.mock import patch
 
@@ -227,8 +229,23 @@ class HardeningReportDataTests(TestCase):
     def test_preview_command_outputs_json_without_creating_audit_rows(self):
         output = StringIO()
         with patch("vulnerabilities.services.nvd_client.fetch_page") as nvd:
-            call_command("preview_hardening_data", stdout=output)
+            call_command("preview_hardening_data", "--stdout", stdout=output)
         nvd.assert_not_called()
         data = json.loads(output.getvalue())
         self.assertEqual(data["summary"]["applicable_hardware_cve_pairs"], 1)
+        self.assertFalse(AssetCveAssessment.objects.exists())
+
+    def test_preview_command_defaults_to_project_output_without_side_effects(self):
+        from vulnerabilities.management.commands import preview_hardening_data as command
+        self.assertEqual(command.DEFAULT_OUTPUT_FILE.parent.name, "output")
+        self.assertEqual(
+            command.DEFAULT_OUTPUT_FILE.parent.parent.name, "vulnerabilities"
+        )
+        with TemporaryDirectory() as tmp:
+            target = Path(tmp) / "output" / "visor_ot_hardening_data.json"
+            with patch.object(command, "DEFAULT_OUTPUT_FILE", target):
+                call_command("preview_hardening_data", stdout=StringIO())
+            self.assertTrue(target.exists())
+            data = json.loads(target.read_text(encoding="utf-8"))
+            self.assertEqual(data["summary"]["applicable_hardware_cve_pairs"], 1)
         self.assertFalse(AssetCveAssessment.objects.exists())
