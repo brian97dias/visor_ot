@@ -115,6 +115,7 @@ class SystemSoftwareAPITests(TestCase):
         self.assertEqual([r["software_asset_id"] for r in self.read()["results"]], [keep.pk])
         # Re-installation is current, but no longer in the system after member unlink.
         self.install(self.hw1, old)
+        self.membership(self.hw1, self.system2)
         unlink_hardware_from_system(membership_id=membership.pk, user=self.operator)
         self.assertEqual([r["software_asset_id"] for r in self.read()["results"]], [keep.pk])
 
