@@ -73,7 +73,7 @@ class ExcelImportTests(TestCase):
                 "software_type": "FIRMWARE", "manufacturer": "AutomationDirect",
                 "product": "DL205 Firmware", "version": "V18",
             },
-            "hardware_asset_id": self.hw.pk,
+            "hardware_asset_id": self.hw.pk, "criticality": "MEDIUM",
         }, user=self.operator)
 
     def _hw(self, **overrides):
@@ -97,7 +97,7 @@ class ExcelImportTests(TestCase):
             "id_visor_ot": self.sw.pk, "nombre_activo": "Firmware DL205",
             "tipo_software": "FIRMWARE", "fabricante": "AutomationDirect",
             "producto": "DL205 Firmware", "version": "V18",
-            "criticidad": "UNDEFINED",
+            "criticidad": "MEDIUM",
             "estado_inventario": "ACTIVE",
             **overrides,
         }
@@ -111,8 +111,7 @@ class ExcelImportTests(TestCase):
             "actions": json.dumps(actions),
         }, format="multipart")
 
-    @staticmethod
-    def _choices(preview):
+    def _choices(self, preview):
         return {
             row["key"]: {
                 "action": "CREATE" if row["status"] == "CREATE" else "SKIP",
