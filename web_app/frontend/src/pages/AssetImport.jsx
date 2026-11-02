@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import { confirmAssetsExcel, previewAssetsExcel } from "../api/assets";
-import { getSystems } from "../api/systems";
 import { canCreateAssets } from "../utils/assetPermissions";
 
 const LABELS = {CREATE:"Nuevo", UPDATE:"Con diferencias", SAME:"Sin cambios",
@@ -22,7 +21,6 @@ export default function AssetImport() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
-  const [systems, setSystems] = useState([]);
   const selected = useMemo(() => Object.values(actions)
     .filter((item) => item.action !== "SKIP").length, [actions]);
 
@@ -35,15 +33,11 @@ export default function AssetImport() {
     setError("");
     setResult(null);
     try {
-      const [data, availableSystems] = await Promise.all([
-        previewAssetsExcel(file), getSystems("ACTIVE"),
-      ]);
-      setSystems(availableSystems);
+      const data = await previewAssetsExcel(file);
       setPreview(data);
       setActions(Object.fromEntries(data.rows.map((row) => [row.key, {
         action: row.status === "CREATE" ? "CREATE" : "SKIP",
         fields: [], correction_reason: "", confirm_shared_correction: false,
-        system_ids: [],
       }])));
     } catch (err) {
       setPreview(null);
@@ -54,18 +48,12 @@ export default function AssetImport() {
     if (!preview || busy) return;
     const invalid = preview.rows.find((row) => {
       const choice = actions[row.key];
-      if (choice.action === "CREATE" && row.sheet === "Hardware") {
-        return !choice.system_ids?.length || choice.system_ids.some(
-          id => !systems.some(system => system.id === id)
-        );
-      }
       return choice.action === "UPDATE" && (!choice.fields.length ||
         (row.sheet === "Software" && choice.fields.some((f) => TECH.has(f)) &&
           !choice.correction_reason.trim()));
     });
     if (invalid) {
-      setError("Revisa los campos, el motivo de corrección y los sistemas OT activos de " +
-        invalid.key + ".");
+      setError("Revisa los campos y el motivo de corrección de " + invalid.key + ".");
       return;
     }
     setBusy(true);
@@ -96,7 +84,7 @@ export default function AssetImport() {
         <div className="interface-panel-padding">
           <p className="interface-hint">Se requieren las hojas Hardware y Software, con
             los encabezados exportados por Visor OT. Máximo 2 MB y 500 filas.
-            Los campos vacíos no borran datos y no se importan instalaciones ni interfaces.</p>
+            Los campos vacíos no borran datos. Las relaciones con sistemas OT, las instalaciones de software y las interfaces se gestionan manualmente después de importar.</p>
           <input type="file" accept=".xlsx" aria-label="Excel de inventario"
             disabled={busy} onChange={(event) => {
               setFile(event.target.files?.[0] || null);
@@ -182,25 +170,10 @@ export default function AssetImport() {
                 </select>
               </label>
               {row.status === "CREATE" && row.sheet === "Hardware" &&
-                choice.action === "CREATE" && <div className="asset-import-correction">
-                  <p className="interface-hint">Sistemas OT activos asociados al hardware *</p>
-                  {systems.length === 0 &&
-                    <p className="asset-import-warning">
-                      No hay sistemas OT activos. <Link to="/assets/systems/new">
-                      Registra un sistema antes de importar hardware.</Link>
-                    </p>}
-                  {systems.map(system => <label className="system-initial-choice"
-                    key={system.id}>
-                    <input type="checkbox" disabled={busy}
-                      checked={(choice.system_ids || []).includes(system.id)}
-                      onChange={event => modify(row.key, {
-                        system_ids: event.target.checked
-                          ? [...(choice.system_ids || []), system.id]
-                          : (choice.system_ids || []).filter(id => id !== system.id),
-                      })}/>
-                    {system.name}
-                  </label>)}
-                </div>}
+                choice.action === "CREATE" && <p className="interface-hint">
+                  Se importará sin sistema OT asociado. Puedes vincularlo
+                  posteriormente desde el detalle del hardware.
+                </p>}
               {choice.action === "UPDATE" && needsReason && <div className="asset-import-correction">
                 <label htmlFor={"reason-" + row.key}>Motivo de corrección técnica *</label>
                 <textarea id={"reason-" + row.key} rows={2}
