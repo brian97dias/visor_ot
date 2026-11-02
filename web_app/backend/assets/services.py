@@ -121,11 +121,7 @@ def change_inventory_status(*, asset, new_status, user, system_ids=None):
         asset.archived_by = user
     elif new_status == Asset.InventoryStatus.ACTIVE:
         if asset.asset_type == Asset.AssetType.HARDWARE:
-            if not current_active_system_links(asset.pk).exists():
-                if not system_ids:
-                    raise APIValidationError({
-                        "system_ids": "Para restaurar, selecciona un sistema OT activo."
-                    })
+            if system_ids:
                 from .models import OTSystem
                 valid = OTSystem.objects.filter(
                     pk__in=system_ids, status=OTSystem.Status.ACTIVE
