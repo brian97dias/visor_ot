@@ -177,12 +177,10 @@ class AssetCreateSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError({
                         "hardware": {field: "Campo obligatorio para hardware activo."}
                     })
-            if not self.context.get("import_preview"):
-                systems = attrs.get("system_ids", [])
-                if not systems:
-                    raise serializers.ValidationError({
-                        "system_ids": "Asocia al menos un sistema OT activo."
-                    })
+            # A hardware asset can be inventoried before its operational
+            # system is known. Explicit selections must still be active.
+            systems = attrs.get("system_ids", [])
+            if systems:
                 from .models import OTSystem
                 valid = OTSystem.objects.filter(
                     pk__in=systems, status=OTSystem.Status.ACTIVE
