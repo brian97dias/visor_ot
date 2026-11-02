@@ -67,17 +67,8 @@ def change_system_status(*, system_id, new_status, user):
             hardware__asset__inventory_status=Asset.InventoryStatus.ACTIVE,
         ).values_list("hardware_id", flat=True)))
         list(Asset.objects.select_for_update().filter(pk__in=hardware_ids).order_by("pk"))
-        stranded = [hardware_id for hardware_id in hardware_ids
-            if not SystemMembership.objects.filter(
-                hardware_id=hardware_id, unlinked_at__isnull=True,
-                system__status=OTSystem.Status.ACTIVE,
-            ).exclude(system_id=system.pk).exists()]
-        if stranded:
-            raise ValidationError({
-                "system": "No puedes archivar este sistema: dejaría hardware "
-                          "activo sin sistema OT. Hardware: "
-                          + ", ".join(map(str, stranded))
-            })
+        # System archival may leave devices without an active OT context.
+        # Historical membership records remain available for auditing.
         system.archived_at = timezone.now()
         system.archived_by = user
     else:
