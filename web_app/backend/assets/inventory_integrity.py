@@ -53,11 +53,8 @@ def inventory_integrity_issues():
                 "entity": "system", "id": system.pk, "field": "criticality",
                 "message": "Registra una criticidad Baja, Media o Alta.",
             })
-    linked = set(SystemMembership.objects.filter(
-        hardware_id__in=[asset.pk for asset in hardware],
-        unlinked_at__isnull=True,
-        system__status=OTSystem.Status.ACTIVE,
-    ).values_list("hardware_id", flat=True))
+    # Missing system membership is a contextualization gap, not an inventory
+    # integrity failure. It is reported separately in the hardening appendix.
     for asset in hardware:
         if not (asset.name or "").strip():
             issues.append({
@@ -78,9 +75,4 @@ def inventory_integrity_issues():
                     "entity": "asset", "id": asset.pk, "field": key,
                     "message": "Completa la identificación del hardware.",
                 })
-        if asset.pk not in linked:
-            issues.append({
-                "entity": "asset", "id": asset.pk, "field": "system_ids",
-                "message": "Asocia el hardware a un sistema OT activo.",
-            })
     return issues
