@@ -41,14 +41,8 @@ def unlink_hardware_from_system(*, membership_id, user, system_id=None, hardware
         raise ValidationError({"system": "Restaura el sistema antes de desvincular hardware."})
     if membership.unlinked_at is not None:
         raise ValidationError({"membership": "La asociación ya fue desvinculada."})
-    from .inventory_integrity import current_active_system_links
-    if membership.hardware.asset.inventory_status == Asset.InventoryStatus.ACTIVE:
-        if not current_active_system_links(
-            membership.hardware_id, exclude_membership_id=membership.pk
-        ).exists():
-            raise ValidationError({
-                "membership": "No puedes desvincular el último sistema OT activo del hardware."
-            })
+    # The last active membership may be removed; the hardware remains
+    # inventoried and will be flagged as not contextualized in reports.
     membership.unlinked_at = timezone.now()
     membership.unlinked_by = user
     membership.save(update_fields=["unlinked_at", "unlinked_by"])
