@@ -15,7 +15,8 @@ import {
   currentCveEvaluatedSoftware, allowedCveDecisionTransitions,
   cveHistoryDecisionDescription, cveHistorySoftwareLabel,
   isSavedCveLinkSelection, cveAuditJustification,
-  preferredCveCorrespondenceVerdict, updatedCveReviewChoice,
+  preferredCveCorrespondenceVerdict, cveCorrespondenceButtonLabel,
+  updatedCveReviewChoice,
   canConfirmCveWithExternalEvidence,
   operationalNvdGroupBranches, nvdAlternativeGroupLabel,
   displayedNvdSoftwareCriterion, canSelectNvdCriterionSoftware,
@@ -510,8 +511,7 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
             setReviewOpen(true);
             setJustification("");
           }}>
-          {primaryVerdict === "CONFIRMED"
-            ? "Confirmar correspondencia" : "Correspondencia parcial"}
+          {cveCorrespondenceButtonLabel(linkedInstallationId, primaryVerdict)}
         </button>}
         {canExternalOverride && allowedChanges.includes("CONFIRMED") &&
           <button type="button" className={"cve-nvd-action" +
@@ -549,6 +549,12 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         un software como vulnerable. Explica la evidencia externa (por ejemplo,
         un aviso oficial del fabricante) y por qué modifica la exclusión NVD.
         La conclusión automática y tu decisión quedarán en el historial.
+      </p>}
+    {linkedInstallationId && primaryVerdict !== "CONFIRMED" && showChoices &&
+      <p className="cve-review-note" role="status">
+        Has seleccionado el software instalado, pero aún falta acreditar
+        su identidad CPE o versión. Puedes documentar una correspondencia
+        parcial y justificarla; marcar la casilla no confirma el CVE.
       </p>}
     {choice === "CONDITIONAL" && <p className="cve-review-note" role="status">
       Correspondencia parcial: {linkedInstallationId
