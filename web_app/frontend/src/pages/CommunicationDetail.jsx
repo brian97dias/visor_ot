@@ -360,12 +360,12 @@ function CommunicationDetail() {
 
 
         <div>
-          <span>Puerto</span>
+          <span>Puerto de servicio</span>
 
           <strong>
-            {
-              communication.service_port
-            }
+            {communication.transport_protocol === "ETHERNET"
+              ? "No aplica (Ethernet)"
+              : communication.service_port}
           </strong>
         </div>
 
