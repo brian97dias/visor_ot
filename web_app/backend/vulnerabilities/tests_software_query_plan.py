@@ -212,6 +212,39 @@ class SoftwareCpePlanPhase1Tests(SimpleTestCase):
         )
         self.assertEqual(plan, build_software_cpe_match_plan(inventory))
 
+    def test_phoenix_il_pn_bk_pac_113_is_bounded_without_losing_priority(self):
+        # Regression for FW-PHX-ILPN-1.13: the three vendor spellings,
+        # product variants, version branch and short series formerly produced
+        # more than 30 requests and rejected the identity before enqueue.
+        from vulnerabilities.services.identity import (
+            MAX_CPE_PLAN_QUERIES, vendor_variants,
+        )
+        identity = {
+            "asset_type": "SOFTWARE", "software_type": "FIRMWARE",
+            "manufacturer": "Phoenix Contact",
+            "product": "IL PN BK-PAC Firmware", "version": "1.13",
+        }
+        plan = build_software_cpe_match_plan(identity)
+        self.assertLessEqual(len(plan), MAX_CPE_PLAN_QUERIES)
+        self.assertEqual(len(plan), MAX_CPE_PLAN_QUERIES)
+        self.assertEqual(plan, build_software_cpe_match_plan(identity))
+        by_scope = [entry["version_scope"] for entry in plan]
+        self.assertEqual(by_scope.count("RECORDED_VERSION"), 7)
+        self.assertEqual(by_scope.count("PRODUCT_CATALOGUE"), 7)
+        # NVD product-catalogue probes cover branch prefixes for the
+        # same product; only the least-preferred redundant ones are dropped.
+        self.assertEqual(by_scope.count("BRANCH_PREFIX"), 4)
+        self.assertEqual(by_scope.count("MANUFACTURER_CATALOGUE"), 3)
+        params = [row["parameter"] for row in plan]
+        primary = "cpe:2.3:o:phoenixcontact:il_pn_bk-pac_firmware:"
+        self.assertIn(primary + "1.13", params)
+        self.assertIn(primary + "1.13*", params)
+        self.assertIn(primary + "*", params)
+        for vendor in vendor_variants("Phoenix Contact"):
+            self.assertIn(f"cpe:2.3:o:{vendor}:*", params)
+        self.assertTrue(all(row["requires_local_version_filter"]
+                            for row in plan if row["level"] == "MANUFACTURER"))
+
     def test_short_series_is_not_inferred_from_generic_software_or_short_names(self):
         self.assertEqual(software_short_series_prefixes("IOS", "Cisco"), [])
         self.assertEqual(software_short_series_prefixes("FL", "Phoenix Contact"), [])
