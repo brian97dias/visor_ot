@@ -78,6 +78,19 @@ class Command(BaseCommand):
                 "Faltan tablas; ejecuta primero las migraciones. "
                 + ", ".join(sorted(missing))
             )
+        # Do not silently leave old lab tables behind. A legacy/unmanaged
+        # table must be reviewed explicitly before running a destructive reset.
+        unexpected = sorted(
+            table for table in existing_tables
+            if table.startswith(tuple(f"{app}_" for app in LAB_APPS))
+            and table not in model_tables
+        )
+        if unexpected:
+            raise CommandError(
+                "Existen tablas OT fuera de la lista segura: "
+                + ", ".join(unexpected)
+                + ". Revisa estas tablas antes del reinicio."
+            )
 
         counts = {
             table: model.objects.count()
