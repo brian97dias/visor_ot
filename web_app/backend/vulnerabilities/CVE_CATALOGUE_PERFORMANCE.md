@@ -104,5 +104,64 @@ No tomar el número de segundos que tarda en desaparecer la palabra
 5. Guardar mediciones antes/después y ejecutar
    `python manage.py test vulnerabilities --settings=config.settings_test_sqlite`.
 
-Esta entrega incorpora **solo instrumentación y pruebas**, no una
-optimización prematura basada en la cifra no desglosada de 8 segundos.
+## Línea base medida (3 de noviembre de 2026)
+
+El operador confirmó con PostgreSQL real:
+
+| Solicitud | Mediana | SQL | Contextos consultados | Filas |
+| --- | ---: | ---: | ---: | ---: |
+| Catálogo completo | 9955.6 ms | 2310 | 244 | 122 |
+| Búsqueda PLC-TRA-01 | 6341.8 ms | 1617 | 170 | 16 |
+
+Las dos ejecuciones del catálogo completo mostraron
+`proyeccion_hardware_cve` **dos veces**, con 2174 SQL; el recálculo de
+indicadores por sí solo consumía entre 4645 y 4707 ms.
+
+## Corrección de rendimiento aplicada (pendiente de medición local)
+
+Se realizaron **dos optimizaciones sin cambiar los contratos públicos**:
+
+1. La vista proyecta una vez los **todos** CVE completados. El resumen,
+   los filtros y las filas paginadas usan `related` y `statuses`
+   ya calculados. La búsqueda por nombre de software también usa ese
+   mapa en memoria, evitando una tercera proyección.
+2. Dentro de esa única proyección, se reutiliza un mapa de evidencias
+   **por hardware, exclusivo de la petición**: hardware activo, CPE
+   confirmados, instalaciones vigentes y huella de inventario. También
+   se utiliza el objeto `Cve` previamente cargado para evitar
+   consultar sus configuraciones repetidamente desde PostgreSQL.
+
+No hay caché persistente, caché entre usuarios, reevaluaciones guardadas
+ni reglas de aplicabilidad nuevas. La validación del inventario y de la
+evidencia sigue haciéndose al empezar **cada petición**; los métodos de
+detalle y escritura siguen recibiendo datos frescos.
+
+La cantidad de pasadas de `proyeccion_hardware_cve` debe reducirse
+de **2 a 1**. El objetivo es reducir los 2310 SQL observados, pero
+**ninguna cifra nueva se considera medida antes de ejecutar el comando
+en la máquina del operador**.
+
+Para medir el resultado, repetir exactamente:
+
+```bash
+git switch fix/general
+git pull --ff-only
+python manage.py test \
+  vulnerabilities.tests_cve_catalogue_profile \
+  vulnerabilities.tests_cve_catalogue_context_rows \
+  vulnerabilities.tests_cve_catalogue_http \
+  --settings=config.settings_test_sqlite
+python manage.py profile_cve_catalogue --username analista-brian --runs 2
+python manage.py profile_cve_catalogue --username analista-brian \
+  --q PLC-TRA-01 --runs 2
+```
+
+La corrección es satisfactoria si mantiene los conteos
+88 CVE / 122 evaluaciones y los filtros dan 16 evaluaciones para
+PLC-TRA-01 (suponiendo inventario sin cambios), mientras caen el
+tiempo, consultas SQL y proyecciones ejecutadas. Si persiste una
+latencia considerable, investigar lecturas por evaluación, caché
+por hardware y NVD sin alterar las decisiones.
+
+**No se ejecutó Django ni PostgreSQL localmente por el agente**; todas
+las pruebas y mediciones requieren la máquina del operador.
