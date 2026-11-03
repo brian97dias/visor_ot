@@ -104,6 +104,39 @@ def _parse_cpe(raw):
     return fields
 
 
+# Two different official NVD CPE product identifiers refer to the Siemens
+# S7-1200 CPU 1214C firmware. Never treat this as a general prefix rule:
+# https://nvd.nist.gov/products/cpe/detail/696056
+# https://nvd.nist.gov/vuln/detail/CVE-2021-44695 (configuration 6)
+_SIEMENS_1214C_FIRMWARE_ALIAS = (
+    "simatic_s7-1200_cpu_1214c_firmware",
+    "s7-1200_cpu_1214c_firmware",
+)
+_SIEMENS_1214C_HARDWARE = (
+    "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1214c:-:*:*:*:*:*:*:*"
+)
+
+
+def _verified_siemens_1214c_firmware_alias(criterion, confirmed, hardware_cpes):
+    """Accept one documented product-name variant, never a fuzzy match.
+
+    The confirmed dictionary CPE has version '-' (not applicable). We use it
+    solely for *product identity*. A separately inventoried numeric firmware
+    version must satisfy the CVE's actual NVD range.
+    """
+    if (criterion[2:4] != ["o", "siemens"]
+            or confirmed[2:4] != ["o", "siemens"]
+            or (criterion[4], confirmed[4]) != _SIEMENS_1214C_FIRMWARE_ALIAS
+            or criterion[5] != "*" or confirmed[5] != "-"):
+        return False
+    if _SIEMENS_1214C_HARDWARE not in hardware_cpes:
+        return False
+    return all(
+        criterion[index] == "*" or criterion[index] == confirmed[index]
+        for index in range(6, 13)
+    )
+
+
 def _product_match(criterion, confirmed):
     """Compare CPE vendor/product literally, never using fuzzy family names."""
     if criterion[2:5] != confirmed[2:5]:
@@ -321,12 +354,21 @@ def evaluate_criterion(criterion, hardware_cpes, installed_software):
             unknown = True
             continue
         candidate = next((name for name in names if _product_match(cpe, name)), None)
+        alias_verified = False
+        if candidate is None:
+            candidate = next((
+                name for name in names
+                if _verified_siemens_1214c_firmware_alias(
+                    cpe, name, hardware_cpes
+                )
+            ), None)
+            alias_verified = candidate is not None
         if not candidate:
             # Lack of a specific installed software name does not attest an
             # exhaustive software inventory. This is never an absence proof.
             unknown = True
             continue
-        matching.append((sw, candidate))
+        matching.append((sw, candidate, alias_verified))
 
     if not matching:
         # No installed CPE matched: distinguish only a documented impossible
@@ -344,7 +386,7 @@ def evaluate_criterion(criterion, hardware_cpes, installed_software):
             "No hay correspondencia exacta con un CPE vigente confirmado del producto instalado.")
 
     exclusions = []
-    for sw, candidate in matching:
+    for sw, candidate, alias_verified in matching:
         result, reason = evaluate_version(
             sw.get("version", ""), cpe[5], bounds,
             software_type=sw.get("software_type"),
@@ -352,6 +394,17 @@ def evaluate_criterion(criterion, hardware_cpes, installed_software):
         if candidate[5] not in ("*", "-", sw.get("version", "")):
             result, reason = INDETERMINATE, (
                 "La versión del CPE confirmado difiere de la versión inventariada."
+            )
+        # The curated alias only proves the product identity, not a version.
+        # A missing/unparseable inventoried version never proves its range.
+        if alias_verified and _version_tuple(sw.get("version", "")) is None:
+            result, reason = INDETERMINATE, (
+                "La versión inventariada no es numérica o no está disponible."
+            )
+        if alias_verified:
+            reason += (
+                " Identidad de producto verificada mediante equivalencia "
+                "específica Siemens 1214C; la versión proviene del inventario."
             )
         if result == COMPATIBLE:
             return _trace(COMPATIBLE, reason, identity="MATCHED",
@@ -361,7 +414,7 @@ def evaluate_criterion(criterion, hardware_cpes, installed_software):
         else:
             exclusions.append((sw, candidate, reason))
     if unknown:
-        sw, candidate = matching[0]
+        sw, candidate, _alias_verified = matching[0]
         return _trace(INDETERMINATE,
             "No puede resolverse la versión o existen otras instalaciones sin verificar.",
             identity="MATCHED", cpe=candidate, asset=sw)
