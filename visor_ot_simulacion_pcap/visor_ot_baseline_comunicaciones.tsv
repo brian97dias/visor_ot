@@ -1,0 +1,15 @@
+origen	destino	ip_origen	ip_destino	transporte	puerto_destino	dias	funcion	estado_propuesto_por_analista
+HMI-LIN-01	PLC-MEZ-01	192.168.88.52	192.168.88.30	TCP	102	1, 2	S7 supervisión de mezcla	AUTORIZADA
+HMI-LIN-01	PLC-TRA-01	192.168.88.52	192.168.88.15	TCP	102	1, 2	S7 supervisión de transferencia	AUTORIZADA
+HMI-LIN-01	PLC-ENV-01	192.168.88.52	192.168.88.85	TCP	102	1, 2	S7 supervisión de envasado	AUTORIZADA
+PLC-TRA-01	IO-TRA-01	192.168.88.15	192.168.88.25	TCP	502	1, 2	Modbus TCP transferencia	AUTORIZADA
+PLC-ENV-01	GW-CAU-01	192.168.88.85	192.168.88.50	TCP	502	1, 2	Modbus TCP lectura de caudal	AUTORIZADA
+ENG-01	IO-MEZ-01	192.168.88.130	192.168.88.20	TCP	80	1, 2	HTTP administración Phoenix mezcla	AUTORIZADA
+ENG-01	IO-ENV-01	192.168.88.130	192.168.88.105	TCP	80	1, 2	HTTP administración Phoenix envasado	AUTORIZADA
+ENG-01	SW-MEZ-01	192.168.88.130	192.168.88.60	TCP	22	1, 2	SSH mantenimiento switch mezcla	AUTORIZADA
+ENG-01	SW-ENV-01	192.168.88.130	192.168.88.61	TCP	22	1, 2	SSH mantenimiento switch envasado	AUTORIZADA
+ENG-01	FW-OT-01	192.168.88.130	192.168.88.75	TCP	443	1, 2	HTTPS administración firewall	AUTORIZADA
+ENG-01	PLC-MEZ-01	192.168.88.130	192.168.88.30	TCP	102	2	S7 mantenimiento programado nuevo	AUTORIZADA
+192.168.2.64	PLC-MEZ-01	192.168.2.64	192.168.88.30	TCP	102	2	S7 desde red cliente no aprobada	NO_AUTORIZADA
+192.168.2.64	IO-MEZ-01	192.168.2.64	192.168.88.20	TCP	80	2	HTTP desde red cliente no aprobada	NO_AUTORIZADA
+192.168.2.64	SW-ENV-01	192.168.2.64	192.168.88.61	TCP	23	2	Telnet desde red cliente no aprobada	NO_AUTORIZADA

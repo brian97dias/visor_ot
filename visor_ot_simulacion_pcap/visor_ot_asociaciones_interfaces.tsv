@@ -1,0 +1,13 @@
+hardware	ip	mac	software_asociado	sistemas_ot
+PLC-MEZ-01	192.168.88.30	00:1c:06:01:d4:23	FW-S7-1200-V4.4.0	Sistema de preparación y mezcla
+IO-MEZ-01	192.168.88.20	00:0e:8c:a3:4e:cf	FW-PHX-ILPN-1.13	Sistema de preparación y mezcla
+PLC-TRA-01	192.168.88.15	00:0c:29:51:a9:47	FW-S7-1200-V4.5.2	Sistema de preparación y mezcla, Sistema de transferencia y envasado
+IO-TRA-01	192.168.88.25	00:0a:dc:64:85:c2	FW-ADAM-5550	Sistema de preparación y mezcla, Sistema de transferencia y envasado
+PLC-ENV-01	192.168.88.85	28:63:36:89:59:82	FW-S7-1200-V4.5.0	Sistema de transferencia y envasado
+IO-ENV-01	192.168.88.105	00:11:22:7b:c5:50	FW-PHX-ILPN-1.13	Sistema de transferencia y envasado
+GW-CAU-01	192.168.88.50	00:05:e4:01:24:d3	FW-REDLION-DSP	Sistema de transferencia y envasado
+SW-MEZ-01	192.168.88.60	00:90:e8:10:af:c8	FW-MOXA-EDS508A-3.11	Sistema de preparación y mezcla
+SW-ENV-01	192.168.88.61	00:90:e8:27:8c:37	FW-MOXA-EDS508A-3.10	Sistema de transferencia y envasado
+FW-OT-01	192.168.88.75	00:80:63:b5:b6:bb	FW-TOFINO-EAGLE20	Sistema de preparación y mezcla, Sistema de transferencia y envasado
+HMI-LIN-01	192.168.88.52	28:cf:e9:18:b5:ed	FW-DELL-7090-1.19.0, SO-UBUNTU-20.04, APP-FUXA-1.1.12	Sistema de preparación y mezcla, Sistema de transferencia y envasado
+ENG-01	192.168.88.130	00:40:9d:28:ee:0d	FW-LENOVO-M70Q-M2WKT56A, SO-WIN10-22H2, APP-TIA-PORTAL-V16	Sistema de preparación y mezcla, Sistema de transferencia y envasado
