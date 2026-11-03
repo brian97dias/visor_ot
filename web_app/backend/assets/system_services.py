@@ -60,8 +60,8 @@ def change_system_status(*, system_id, new_status, user):
     if system.status == new_status:
         raise ValidationError({"status": "El sistema ya tiene ese estado."})
     if new_status == OTSystem.Status.ARCHIVED:
-        # Keep the active Hardware->System invariant. Lock the involved
-        # hardware rows so concurrent membership changes serialize.
+        # Lock involved hardware to serialize archival with membership edits;
+        # a hardware asset may legitimately become system-free.
         hardware_ids = sorted(set(SystemMembership.objects.filter(
             system=system, unlinked_at__isnull=True,
             hardware__asset__inventory_status=Asset.InventoryStatus.ACTIVE,
