@@ -108,7 +108,11 @@ function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, inst
                     {" · Versión "}{sw.version || "desconocida"}</small>
                 </div>
                 <span className="cve-software-status is-installed">
-                  {identityProven ? "Identidad CPE comprobada" :
+                  {identityProven ?
+                    (item.technical_identity_basis ===
+                      "CURATED_SIEMENS_1214C_FIRMWARE_PRODUCT_EQUIVALENCE"
+                      ? "Identidad por equivalencia Siemens · versión evaluada"
+                      : "Identidad CPE comprobada") :
                     typeMatches ? "Instalado · CPE sin comprobar" :
                       "Instalado · tipo diferente"}
                 </span>
