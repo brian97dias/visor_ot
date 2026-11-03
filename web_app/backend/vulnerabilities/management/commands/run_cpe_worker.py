@@ -3,6 +3,7 @@ import time
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
+from django.db.models import Q
 from django.utils import timezone
 
 from vulnerabilities.models import CpeSearchRun, CpeQuerySnapshot, Cve, CveDiscoveryRun
@@ -10,6 +11,7 @@ from vulnerabilities.services.cpe_search import execute_run
 from vulnerabilities.services.external_cpe import EXTERNAL_CPE_TRIGGER, execute_external_cpe
 from vulnerabilities.services.cpe_catalogue import (
     execute_catalogue_snapshot, recover_interrupted_catalogue_snapshots,
+    retry_failed_snapshot, snapshot_retry_scheduled,
 )
 from vulnerabilities.services.nvd_client import PublicNvdPacer
 from vulnerabilities.services.worker_lock import ADVISORY_LOCK_ID
@@ -53,6 +55,32 @@ def oldest_work_kind(run, snapshot, cve, discovery=None):
     ):
         return "CVE_DISCOVERY"
     return previous[0] if previous else None
+
+
+def next_runnable_cpe_run():
+    """Skip asset jobs blocked on snapshots without starving later jobs.
+
+    All worker invocations are serialized by the same PostgreSQL advisory
+    lock. Only a completed catalogue (or terminal failure) unblocks a run.
+    """
+    queued = CpeSearchRun.objects.filter(
+        status=CpeSearchRun.Status.QUEUED
+    ).order_by("created_at", "pk")
+    for run in queued.iterator(chunk_size=100):
+        previous = (run.queries or [])[-1:]
+        if previous and previous[0].get("status") == "WAITING_CATALOGUE":
+            snapshot_id = previous[0].get("snapshot_id")
+            snapshot = (CpeQuerySnapshot.objects.filter(pk=snapshot_id).first()
+                        if snapshot_id else None)
+            if snapshot is not None and snapshot.status != CpeQuerySnapshot.Status.COMPLETED:
+                # Terminal failure can be propagated to the run; transient
+                # failure with scheduled retry must not be marked terminal.
+                if (snapshot.status == CpeQuerySnapshot.Status.FAILED
+                        and not snapshot_retry_scheduled(snapshot)):
+                    return run
+                continue
+        return run
+    return None
 
 
 class Command(BaseCommand):
@@ -99,15 +127,21 @@ class Command(BaseCommand):
                 # Stop rather than risk issuing requests without exclusivity.
                 if connection.connection is not session or connection.connection.closed:
                     raise CommandError("Se perdió la sesión de bloqueo NVD; reinicia el trabajador.")
-                run = CpeSearchRun.objects.filter(
-                    status=CpeSearchRun.Status.QUEUED
-                ).order_by("created_at", "pk").first()
+                run = next_runnable_cpe_run()
+                now = timezone.now()
                 snapshot = CpeQuerySnapshot.objects.filter(
-                    status__in=(
+                    Q(status__in=(
                         CpeQuerySnapshot.Status.QUEUED,
                         CpeQuerySnapshot.Status.INCOMPLETE,
+                    )) | Q(
+                        status=CpeQuerySnapshot.Status.FAILED,
+                        error_code="FETCH_FAILED",
+                        retry_after__lte=now,
+                        automatic_retry_count__gte=1,
                     )
                 ).select_related("cache").order_by("created_at", "pk").first()
+                # Delayed snapshots are not eligible until their deadline;
+                # other queued jobs can make progress in the meantime.
                 cve = Cve.objects.filter(
                     fetch_status=Cve.FetchStatus.QUEUED
                 ).order_by("queued_at", "pk").first()
@@ -122,8 +156,21 @@ class Command(BaseCommand):
                 if kind == "ASSET":
                     self.stdout.write(f"Buscando CPE: trabajo #{run.pk}, activo #{run.asset_id}")
                     dispatch_cpe_run(run, pacer)
-                    self.stdout.write(f"Trabajo #{run.pk}: {run.status}, {len(run.candidates)} candidatos")
+                    self.stdout.write(
+                        f"Trabajo #{run.pk}: {run.status}, {len(run.candidates)} candidatos"
+                        + (f" — {run.error_message}" if run.status == CpeSearchRun.Status.FAILED
+                           and run.error_message else "")
+                    )
                 elif kind == "SNAPSHOT":
+                    if snapshot.status == CpeQuerySnapshot.Status.FAILED:
+                        # Never discard completed pages or reset the persistent
+                        # retry count; only FETCH_FAILED snapshots with a due
+                        # scheduled retry can enter this branch.
+                        snapshot = retry_failed_snapshot(snapshot.pk)
+                        self.stdout.write(
+                            f"Reintentando snapshot #{snapshot.pk}, "
+                            f"intento {snapshot.automatic_retry_count} de 3"
+                        )
                     self.stdout.write(
                         f"Recuperando catálogo: snapshot #{snapshot.pk}, "
                         f"{snapshot.cache.strategy}={snapshot.cache.parameter} "
@@ -134,6 +181,11 @@ class Command(BaseCommand):
                         f"Snapshot #{snapshot.pk}: {result.status}, "
                         f"{result.unique_products_count} productos, "
                         f"checkpoint={result.next_start_index}"
+                        + (f" — {result.error_code}: {result.error_message}"
+                           if result.error_code and result.status == CpeQuerySnapshot.Status.FAILED
+                           else "")
+                        + (f" — próximo reintento: {result.retry_after.isoformat()}"
+                           if snapshot_retry_scheduled(result) else "")
                     )
                 elif kind == "CVE":
                     self.stdout.write(f"Recuperando CVE: {cve.cve_id}")
