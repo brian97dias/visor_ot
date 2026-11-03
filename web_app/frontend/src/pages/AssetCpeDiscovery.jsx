@@ -184,11 +184,15 @@ export default function AssetCpeDiscovery() {
               Las solicitudes HTTP 200 solamente consultan el estado: no ejecutan la búsqueda.
             </p>}
             {run.catalogue_retry && <p className="cpe-warning" role="status">
-              Una consulta del catálogo NVD falló temporalmente.
-              Reintento automático {run.catalogue_retry.attempt} de
-              {" "}{run.catalogue_retry.maximum} programado para
-              {" "}{new Date(run.catalogue_retry.retry_after).toLocaleString("es-CO")}.
-              Las consultas completadas y sus resultados se conservan.
+              {run.catalogue_retry.state === "RESUMING"
+                ? <>Retomando consulta NVD. Reintento automático
+                    {" "}{run.catalogue_retry.attempt} de
+                    {" "}{run.catalogue_retry.maximum}.</>
+                : <>Una consulta NVD falló temporalmente.
+                    Reintento automático {run.catalogue_retry.attempt} de
+                    {" "}{run.catalogue_retry.maximum} programado para
+                    {" "}{new Date(run.catalogue_retry.retry_after).toLocaleString("es-CO")}.</>}
+              {" "}Las consultas completadas y sus resultados se conservan.
             </p>}
             {run.worker_active === true && run.status === "QUEUED" &&
               !run.catalogue_retry &&
