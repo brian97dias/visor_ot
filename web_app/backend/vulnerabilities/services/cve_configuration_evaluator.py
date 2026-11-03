@@ -280,8 +280,10 @@ def _identity(criterion, candidates):
 
 
 def _trace(result, reason, *, identity="UNKNOWN", cpe=None, asset=None, version=None,
-           distinct_cpes=None):
+           distinct_cpes=None, identity_basis=None):
     observation = {"result": result, "reason": reason, "identity": identity}
+    if identity_basis:
+        observation["identity_basis"] = identity_basis
     if cpe:
         observation["matched_cpe"] = ":".join(cpe)
     if distinct_cpes:
@@ -407,8 +409,13 @@ def evaluate_criterion(criterion, hardware_cpes, installed_software):
                 "específica Siemens 1214C; la versión proviene del inventario."
             )
         if result == COMPATIBLE:
-            return _trace(COMPATIBLE, reason, identity="MATCHED",
-                          cpe=candidate, asset=sw)
+            return _trace(
+                COMPATIBLE, reason, identity="MATCHED", cpe=candidate, asset=sw,
+                identity_basis=(
+                    "CURATED_SIEMENS_1214C_FIRMWARE_PRODUCT_EQUIVALENCE"
+                    if alias_verified else None
+                ),
+            )
         if result == INDETERMINATE:
             unknown = True
         else:
