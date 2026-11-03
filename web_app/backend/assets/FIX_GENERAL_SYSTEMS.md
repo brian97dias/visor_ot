@@ -9,12 +9,16 @@ siguen siendo obligatorios para hardware activo nuevo.
 
 ## Registro manual
 
-Al pulsar **Registrar activo** para hardware, se abre una selección
-de sistemas OT activos (lista desplegable, sin checkboxes). El operador
-puede elegir ninguno, uno o varios mediante **Añadir** y **Quitar**.
-La confirmación envía `system_ids: []` si no seleccionó ninguno.
+El formulario de creación presenta el campo **Asociar sistema** con
+una lista desplegable de sistemas OT activos, sin checkboxes ni modal.
+La primera opción es **Sin registrar sistema** (seleccionada inicialmente).
+Cuando se elige un sistema, el formulario envía `system_ids: [id]`;
+si se mantiene la primera opción, envía `system_ids: []`.
+El botón **Registrar activo** guarda directamente el hardware.
+El formulario permite una asociación inicial; las asociaciones adicionales
+se pueden gestionar después desde el detalle de hardware, manteniendo
+las relaciones múltiples del modelo.
 Las selecciones inválidas o los sistemas archivados siguen rechazándose.
-Desde el detalle de hardware se pueden vincular posteriormente.
 
 ## Excel: no se importan asociaciones
 
@@ -65,8 +69,9 @@ npm run lint
 npm run build
 ```
 
-Pruebas manuales: crear hardware sin sistemas, con dos sistemas,
-importar Excel sin asociación, vincular desde detalle, quitar el último
+Pruebas manuales: crear hardware sin sistema desde el desplegable,
+crear hardware con un sistema seleccionado, añadir un segundo sistema
+manualmente desde el detalle, importar Excel sin asociación, quitar el último
 vínculo, archivar/restaurar y exportar diagnóstico con un CVE aplicable
 del hardware sin sistema. Revisar que el apéndice D lo muestre y que
 la matriz principal no lo incluya. No alterar la base real de la tesis
