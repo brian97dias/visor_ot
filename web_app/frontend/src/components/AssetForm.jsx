@@ -101,9 +101,7 @@ function AssetForm({ asset = null, user, onSave, saving, error, onErrorClear, in
   const [localError, setLocalError] = useState("");
   const [interfaceAssignment, setInterfaceAssignment] = useState(null);
   const [systemChoices, setSystemChoices] = useState([]);
-  const [selectedSystemIds, setSelectedSystemIds] = useState([]);
-  const [systemToAdd, setSystemToAdd] = useState("");
-  const [pendingHardwarePayload, setPendingHardwarePayload] = useState(null);
+  const [selectedSystemId, setSelectedSystemId] = useState("");
   const [systemError, setSystemError] = useState("");
   const [loadingSystems, setLoadingSystems] = useState(false);
   const [pendingInterface, setPendingInterface] = useState(null);
@@ -111,7 +109,7 @@ function AssetForm({ asset = null, user, onSave, saving, error, onErrorClear, in
   const dirty = JSON.stringify(values) !== JSON.stringify(initialValues(asset, initialType))
     || (!editing && hardwareAssetId !== String(initialHardwareId || ""))
     || (!editing && interfaceAssignment !== null)
-    || (!editing && values.asset_type === "HARDWARE" && selectedSystemIds.length > 0);
+    || (!editing && values.asset_type === "HARDWARE" && selectedSystemId !== "");
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
   useEffect(() => {
@@ -201,7 +199,15 @@ function AssetForm({ asset = null, user, onSave, saving, error, onErrorClear, in
       return;
     }
     const payload = buildPayload(values, asset, editing, canEditCriticality);
-    // Hardware memberships are selected in the confirmation dialog.
+    // The optional OT system is chosen before submitting the form.
+    if (!editing && values.asset_type === "HARDWARE") {
+      if (selectedSystemId &&
+          !systemChoices.some(system => system.id === Number(selectedSystemId))) {
+        setLocalError("El sistema seleccionado ya no está disponible.");
+        return;
+      }
+      payload.system_ids = selectedSystemId ? [Number(selectedSystemId)] : [];
+    }
     if (!editing && values.asset_type === "SOFTWARE" && hardwareAssetId) {
       if (!hardwareChoices.some((item) => item.id === Number(hardwareAssetId))) {
         setLocalError("El hardware seleccionado no está disponible.");
@@ -242,23 +248,7 @@ function AssetForm({ asset = null, user, onSave, saving, error, onErrorClear, in
       }
       payload.interface_assignment = interfaceAssignment;
     }
-    if (!editing && values.asset_type === "HARDWARE") {
-      setPendingHardwarePayload(payload);
-      return;
-    }
     await onSave(payload);
-  }
-
-  async function confirmHardwareRegistration() {
-    if (!pendingHardwarePayload || saving) return;
-    if (selectedSystemIds.some(id =>
-      !systemChoices.some(s => s.id === id))) {
-      setLocalError("Un sistema seleccionado ya no está disponible. Actualiza la página.");
-      return;
-    }
-    const data = { ...pendingHardwarePayload, system_ids: selectedSystemIds };
-    setPendingHardwarePayload(null);
-    await onSave(data);
   }
 
   return (
@@ -291,7 +281,7 @@ function AssetForm({ asset = null, user, onSave, saving, error, onErrorClear, in
                   change("asset_type", kind);
                   setInterfaceAssignment(null);
                   setPendingInterface(null);
-                  setSelectedSystemIds([]);
+                  setSelectedSystemId("");
                   setShowCreateSelector(false);
                   setLocalError("");
                 }}>
@@ -358,16 +348,29 @@ function AssetForm({ asset = null, user, onSave, saving, error, onErrorClear, in
         </div>
       </div>
 
-      {!editing && <div className="assets-form-section">
-         <h2>Sistemas OT (opcional)</h2>
-         <p className="interface-hint">
-           Al pulsar Registrar activo podrás seleccionar los sistemas OT
-           disponibles o guardar el hardware sin asociación.
-           También podrás vincularlo después desde su detalle.
-         </p>
-       </div>}
+      {!editing && values.asset_type === "HARDWARE" && (
+        <div className="assets-form-section">
+          <h2>Asociar sistema</h2>
+          <div className="assets-field">
+            <label htmlFor="asset-system">Sistema OT</label>
+            <select id="asset-system" value={selectedSystemId}
+              disabled={saving || loadingSystems || Boolean(systemError)}
+              onChange={event => setSelectedSystemId(event.target.value)}>
+              <option value="">Sin registrar sistema</option>
+              {systemChoices.map(system => (
+                <option key={system.id} value={String(system.id)}>{system.name}</option>
+              ))}
+            </select>
+            {loadingSystems && <small>Cargando sistemas disponibles...</small>}
+            {systemError && <small role="alert">
+              No fue posible cargar los sistemas: {systemError}.
+              Puedes registrar el hardware sin asociación.
+            </small>}
+          </div>
+        </div>
+      )}
 
-       {editing ? (
+      {editing ? (
         <AssetInterfacesSection asset={asset} user={user} embedded />
       ) : (
         <div className="assets-form-section">
@@ -613,67 +616,6 @@ function AssetForm({ asset = null, user, onSave, saving, error, onErrorClear, in
       </div>
 
       {(localError || error) && <div className="error-message assets-form-error">{localError || error}</div>}
-
-      {pendingHardwarePayload && <div className="assets-system-dialog-overlay">
-        <div role="dialog" aria-modal="true" aria-labelledby="assets-system-dialog-title"
-          className="assets-system-dialog panel">
-          <h2 id="assets-system-dialog-title">Asociar sistemas OT</h2>
-          <p className="interface-hint">
-            La asociación es opcional. Puedes registrar este hardware sin sistema
-            y vincularlo posteriormente desde su detalle.
-          </p>
-          {loadingSystems && <p className="interface-hint">Cargando sistemas...</p>}
-          {systemError && <p className="error-message" role="alert">
-            No fue posible cargar los sistemas: {systemError}. Puedes registrar
-            sin asociación y vincular un sistema más adelante.
-          </p>}
-          {!loadingSystems && !systemError && systemChoices.length === 0 &&
-            <p className="interface-hint">No hay sistemas OT activos disponibles.</p>}
-          {!loadingSystems && !systemError && systemChoices.length > 0 && <>
-            <label htmlFor="asset-optional-system">Sistema disponible</label>
-            <div className="assets-system-dialog-picker">
-              <select id="asset-optional-system" value={systemToAdd}
-                disabled={saving}
-                onChange={event => setSystemToAdd(event.target.value)}>
-                <option value="">Seleccionar sistema...</option>
-                {systemChoices.filter(s => !selectedSystemIds.includes(s.id))
-                  .map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-              <button type="button" className="button-secondary"
-                disabled={!systemToAdd || saving} onClick={() => {
-                  const id = Number(systemToAdd);
-                  if (systemChoices.some(s => s.id === id) &&
-                      !selectedSystemIds.includes(id)) {
-                    setSelectedSystemIds(current => [...current, id]);
-                  }
-                  setSystemToAdd("");
-                }}>Añadir</button>
-            </div>
-          </>}
-          {selectedSystemIds.length > 0 && <ul className="assets-system-dialog-selected">
-            {selectedSystemIds.map(id => {
-              const system = systemChoices.find(s => s.id === id);
-              return <li key={id}>
-                <span>{system?.name || "Sistema no disponible"}</span>
-                <button type="button" className="button-secondary" disabled={saving}
-                  onClick={() => setSelectedSystemIds(rows => rows.filter(x => x !== id))}>
-                  Quitar
-                </button>
-              </li>;
-            })}
-          </ul>}
-          {selectedSystemIds.length === 0 &&
-            <p className="interface-hint">El hardware se registrará sin sistema OT asociado.</p>}
-          <div className="assets-form-actions">
-            <button type="button" className="button-secondary" disabled={saving}
-              onClick={() => setPendingHardwarePayload(null)}>Volver al formulario</button>
-            <button type="button" className="button-primary" disabled={saving}
-              onClick={confirmHardwareRegistration}>
-              {saving ? "Guardando..." : "Confirmar registro"}
-            </button>
-          </div>
-        </div>
-      </div>}
 
       <div className="assets-form-actions">
         <Link className="button-link" to={backTo || (editing ? "/assets/" + asset.id : "/assets")}
