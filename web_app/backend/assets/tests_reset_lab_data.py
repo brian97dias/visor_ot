@@ -40,7 +40,7 @@ class ResetLabDataTests(TestCase):
     def test_preview_does_not_delete_users_or_ot_system(self):
         system = OTSystem.objects.create(
             name="Sistema de prueba", description="Temporal",
-            criticality="HIGH",
+            criticality="HIGH", created_by=self.user,
         )
         output = StringIO()
         call_command("reset_lab_data", stdout=output)
