@@ -19,6 +19,7 @@ import {
   displayedNvdSoftwareCriterion, canSelectNvdCriterionSoftware,
   nvdAlternativeGroupLabel,
   currentCveSoftwareLink, currentCveEvaluatedSoftware,
+  currentCveScopedEvaluatedSoftware,
   allowedCveDecisionTransitions, isSavedCveLinkSelection,
   preferredCveCorrespondenceVerdict, updatedCveReviewChoice,
   cveHistoryDecisionDescription, cveHistorySoftwareLabel,
@@ -694,6 +695,103 @@ test("negative system decision marks evaluated firmware but never a positive lin
     },
   };
   assert.equal(currentCveEvaluatedSoftware(reopened, context), null);
+});
+
+test("analyst NOT_APPLICABLE rechecks reviewed firmware only for its recorded STEP 7 alternative", () => {
+  // The actual CVE-2021-42029 assessment for PLC-TRA-01 has no positive
+  // software link. Its negative review records installation #3 (firmware 4.5.2)
+  // against application-type NVD criterion STEP 7. The mismatch is precisely
+  // what the analyst reviewed, and must not be silently discarded by React.
+  const step7 = {
+    kind: "CRITERION", vulnerable: true, part: "a",
+    criteria: "cpe:2.3:a:siemens:simatic_step_7:*:*:*:*:*:*:*:*",
+    match_criteria_id: "BBCA2BFB-EEEB-4722-AC33-CBBFE92289BC",
+  };
+  const second = {
+    kind: "CRITERION", vulnerable: true, part: "a",
+    criteria: "cpe:2.3:a:siemens:other_application:*:*:*:*:*:*:*:*",
+    match_criteria_id: "OTHER-STEP-7-ALTERNATIVE",
+  };
+  const config = {
+    index: 0, tree: {kind:"GROUP",operator:"OR",children:[step7,second]},
+    latest_assessment: null,
+  };
+  const decision = {
+    configuration_index: 0,
+    status: "NOT_APPLICABLE", effective_status: "NOT_APPLICABLE",
+    source: "ANALYST", stale: false, software_installation_id: null,
+    evaluated_software: [
+      {software_installation_id:3, software_asset_id:6, installed_version:"4.5.2"},
+    ],
+    selected_nvd_criterion: {
+      key: step7.match_criteria_id, criteria: step7.criteria, part:"a",
+    },
+  };
+  const context = {
+    hardware_asset_id: 5, hardware_cve_decision: decision,
+    installed_software: [
+      {installation_id:3,software_asset_id:6,software_type:"FIRMWARE",
+       version:"4.5.2"},
+    ],
+  };
+  // Preserve the negative conclusion and do NOT fabricate a vulnerable link.
+  assert.equal(currentCveSoftwareLink(config, context), null);
+  const saved = currentCveScopedEvaluatedSoftware(config, context);
+  assert.deepEqual(saved, {
+    installationId:"3",criterionKey:step7.match_criteria_id,
+    source:"ANALYST",evidenceOnly:true,
+  });
+  assert.ok(isSavedCveLinkSelection(saved, step7.match_criteria_id,"3"));
+  assert.equal(isSavedCveLinkSelection(saved, second.match_criteria_id,"3"),false);
+  assert.equal(currentCveScopedEvaluatedSoftware({...config,index:1},context),
+    null, "a verdict for NVD configuration 1 must not check configuration 2");
+});
+
+test("saved negative review stays unchecked when stale, removed, mismatched, or reopened", () => {
+  const key = "NVD-STEP7";
+  const config = {index:0,tree:{kind:"GROUP",children:[{
+    kind:"CRITERION",part:"a",vulnerable:true,
+    match_criteria_id:key, criteria:"cpe:2.3:a:siemens:simatic_step_7:*",
+  }]}};
+  const global = {
+    configuration_index:0,source:"ANALYST",status:"NOT_APPLICABLE",
+    effective_status:"NOT_APPLICABLE",stale:false,
+    selected_nvd_criterion:{key,criteria:"cpe:2.3:a:siemens:simatic_step_7:*"},
+    evaluated_software:[{
+      software_installation_id:3, software_asset_id:6,installed_version:"4.5.2",
+    }],
+  };
+  const software = [{
+    installation_id:3,software_asset_id:6,software_type:"FIRMWARE",version:"4.5.2",
+  }];
+  const context = {installed_software:software,hardware_cve_decision:global};
+  assert.ok(currentCveScopedEvaluatedSoftware(config,context));
+  assert.equal(currentCveScopedEvaluatedSoftware(config,{
+    ...context,hardware_cve_decision:{...global,stale:true},
+  }),null);
+  assert.equal(currentCveScopedEvaluatedSoftware(config,{
+    ...context,hardware_cve_decision:{...global,effective_status:"PENDING_REVIEW",
+      status:"PENDING_REVIEW"},
+  }),null);
+  assert.equal(currentCveScopedEvaluatedSoftware(config,{
+    ...context,installed_software:[],
+  }),null);
+  assert.equal(currentCveScopedEvaluatedSoftware(config,{
+    ...context,installed_software:[{...software[0],version:"4.6.0"}],
+  }),null);
+  assert.equal(currentCveScopedEvaluatedSoftware(config,{
+    ...context,installed_software:[{...software[0],software_asset_id:42}],
+  }),null);
+  assert.equal(currentCveScopedEvaluatedSoftware(config,{
+    ...context,hardware_cve_decision:{
+      ...global,selected_nvd_criterion:{key:"other-leaf"},
+    },
+  }),null, "never check an unrelated NVD alternative");
+  assert.equal(currentCveScopedEvaluatedSoftware(config,{
+    ...context,hardware_cve_decision:{
+      ...global,evaluated_software:[],
+    },
+  }),null, "no stored reviewed software means no checked box");
 });
 
 test("saved SYSTEM software association is visible without a new analyst action", () => {
