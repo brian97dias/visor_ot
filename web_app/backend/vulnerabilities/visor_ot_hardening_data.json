@@ -1,0 +1,2190 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-31T14:11:29.355075+00:00",
+  "scope": "ACTIVE_INVENTORY",
+  "summary": {
+    "systems": 2,
+    "hardware": 24,
+    "software_variants": 18,
+    "current_installations": 22,
+    "network_interfaces": 22,
+    "confirmed_cpes": 7,
+    "applicable_hardware_cve_pairs": 6,
+    "conditional_hardware_cve_pairs": 1,
+    "distinct_applicable_cves": 6,
+    "distinct_conditional_cves": 1
+  },
+  "systems": [
+    {
+      "id": 1,
+      "name": "Entorno experimental 4SICS Geek Lounge",
+      "description": "Entorno experimental utilizado para validar la gestión y visibilidad de activos OT.",
+      "criticality": "LOW",
+      "criticality_justification": "Es un entorno de pruebas",
+      "impact": "",
+      "hardware_ids": [
+        2,
+        3,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41
+      ]
+    },
+    {
+      "id": 2,
+      "name": "segundo sistema de prueba",
+      "description": "solo para asociar dos sistemas a un mismo hardware y viceversa",
+      "criticality": "LOW",
+      "criticality_justification": "es una prueba",
+      "impact": "ninguna",
+      "hardware_ids": [
+        1,
+        7
+      ]
+    }
+  ],
+  "hardware": [
+    {
+      "id": 1,
+      "name": "DirectLogic 205",
+      "description": "PLC de la familia DirectLOGIC DL205 identificado en el laboratorio 4SICS 2015. El modelo D2-06B-1 corresponde a una base de seis ranuras compatible con la familia; no se ha identificado la referencia exacta de la CPU. sin CPE",
+      "criticality": "MEDIUM",
+      "impact": "Podría interrumpir la ejecución de la lógica de control y las comunicaciones asociadas. No se conoce un proceso productivo específico que permita cuantificar el impacto.",
+      "replacement_cost": "400000.00",
+      "replacement_currency": "COP",
+      "manufacturer": "AutomationDirect",
+      "model": "DirectLOGIC DL205",
+      "cpu_model": "",
+      "role": "PLC",
+      "serial_number": "",
+      "physical_location": "Rack #1",
+      "system_ids": [
+        2
+      ],
+      "interfaces": [
+        {
+          "id": 112,
+          "mac": "00:e0:62:00:17:0a",
+          "declared_ip": null,
+          "identified_at": "2026-10-15T04:00:49.375276+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 3,
+          "hardware_id": 1,
+          "software_asset_id": 6,
+          "software_name": "Firmware DirectLOGIC DL205",
+          "software_type": "FIRMWARE",
+          "manufacturer": "AutomationDirect",
+          "product": "DirectLOGIC DL205 CPU",
+          "version": "",
+          "registered_at": "2026-10-16T01:43:02.631087+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 2,
+      "name": "Phoenix Contact IL PN BK-PAC",
+      "description": "Acoplador de bus Ethernet para entradas y salidas remotas, referencia comercial 2862314, compatible con comunicaciones Modbus/TCP. Identificado en el laboratorio 4SICS 2015.",
+      "criticality": "LOW",
+      "impact": "Podría impedir el intercambio de señales con módulos de entradas y salidas conectados. No se ha determinado su dependencia respecto de un proceso físico.",
+      "replacement_cost": "120.00",
+      "replacement_currency": "USD",
+      "manufacturer": "Phoenix Contact",
+      "model": "IL PN BK-PAC",
+      "cpu_model": "",
+      "role": "IO_MODULE",
+      "serial_number": "2403696",
+      "physical_location": "Rack #1",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 109,
+          "mac": "00:a0:45:6f:4b:83",
+          "declared_ip": null,
+          "identified_at": "2026-10-15T18:14:35.330277+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 4,
+          "hardware_id": 2,
+          "software_asset_id": 4,
+          "software_name": "Phoenix Contact IL PN BK-PAC Firmware",
+          "software_type": "FIRMWARE",
+          "manufacturer": "Phoenix Contact",
+          "product": "IL PN BK-PAC Firmware",
+          "version": "",
+          "registered_at": "2026-10-16T02:43:54.763619+00:00"
+        }
+      ],
+      "confirmed_cpes": [
+        {
+          "asset_cpe_id": 7,
+          "cpe_name_id": "f9fc7f57-0f76-4dcb-aca0-3b767bc3dafd",
+          "cpe_name": "cpe:2.3:h:phoenixcontact:il_pn_bk-pac:-:*:*:*:*:*:*:*",
+          "title": "PHOENIX CONTACT IL PN BK-PAC",
+          "justification": "",
+          "validated_at": "2026-10-22T21:02:06.354053+00:00"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Advantech ADAM-5000",
+      "description": "Plataforma Ethernet de entradas/salidas distribuidas Advantech de la familia ADAM-5500 utilizada para adquisición y control de señales de campo.",
+      "criticality": "HIGH",
+      "impact": "La indisponibilidad puede aislar las señales de campo asociadas al módulo y evitar que controladores o aplicaciones de supervisión reciban datos o ejecuten acciones sobre dichas E/S.",
+      "replacement_cost": "385.00",
+      "replacement_currency": "USD",
+      "manufacturer": "Advantech",
+      "model": "ADAM-5000 Series",
+      "cpu_model": "",
+      "role": "IO_MODULE",
+      "serial_number": "",
+      "physical_location": "Rack #1",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 110,
+          "mac": "00:d0:c9:a5:c9:2d",
+          "declared_ip": null,
+          "identified_at": "2026-10-15T19:20:32.618249+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 2,
+          "hardware_id": 3,
+          "software_asset_id": 5,
+          "software_name": "Firmware ADAM-5510/TCP",
+          "software_type": "FIRMWARE",
+          "manufacturer": "Advantech",
+          "product": "ADAM-5510",
+          "version": "",
+          "registered_at": "2026-10-16T00:08:39.049237+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 7,
+      "name": "AXIS 206 Network Camera",
+      "description": "Cámara IP de red AXIS 206",
+      "criticality": "LOW",
+      "impact": "La falla de la cámara IP impide visualizar y transmitir imágenes del área supervisada. Puede interrumpir la grabación y las alertas visuales que dependan de ella, reduciendo la capacidad de monitoreo remoto, sin afectar directamente la lógica de control de los PLC.",
+      "replacement_cost": "35.00",
+      "replacement_currency": "USD",
+      "manufacturer": "Axis Communications",
+      "model": "AXIS 206",
+      "cpu_model": "",
+      "role": "OTHER",
+      "serial_number": "00408C930B67",
+      "physical_location": "Rack #1",
+      "system_ids": [
+        1,
+        2
+      ],
+      "interfaces": [
+        {
+          "id": 102,
+          "mac": "00:40:8c:7f:0b:bc",
+          "declared_ip": null,
+          "identified_at": "2026-10-16T22:56:41.128301+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 17,
+          "hardware_id": 7,
+          "software_asset_id": 22,
+          "software_name": "Firmware AXIS 206",
+          "software_type": "FIRMWARE",
+          "manufacturer": "Axis Communications",
+          "product": "AXIS 206 Firmware",
+          "version": "",
+          "registered_at": "2026-10-21T20:31:21.308492+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 8,
+      "name": "Hirschmann EAGLE20",
+      "description": "Equipo de seguridad industrial EAGLE20; Netresec lo describe como Tofino",
+      "criticality": "HIGH",
+      "impact": "La falla del firewall puede interrumpir las comunicaciones autorizadas entre segmentos de red industrial, impedir el acceso remoto y afectar la supervisión. Si deja de filtrar el tráfico, puede perderse la protección y segmentación de la red. El efecto depende de su configuración y modo de falla.",
+      "replacement_cost": "790.00",
+      "replacement_currency": "USD",
+      "manufacturer": "Hirschmann",
+      "model": "EAGLE20",
+      "cpu_model": "",
+      "role": "FIREWALL",
+      "serial_number": "943987501010501789",
+      "physical_location": "Rack #1",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 105,
+          "mac": "00:80:63:b5:b6:bb",
+          "declared_ip": null,
+          "identified_at": "2026-10-16T22:58:53.843295+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 18,
+          "hardware_id": 8,
+          "software_asset_id": 23,
+          "software_name": "Hirschmann EAGLE20 Firmware",
+          "software_type": "FIRMWARE",
+          "manufacturer": "belden",
+          "product": "EAGLE 20",
+          "version": "",
+          "registered_at": "2026-10-21T20:31:34.485774+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 9,
+      "name": "Allen Bradley Stratix 6000",
+      "description": "Switch Ethernet industrial; submodelo no identificado",
+      "criticality": "MEDIUM",
+      "impact": "La falla del switch interrumpe la conectividad Ethernet de los dispositivos conectados a sus puertos. Puede causar pérdida de comunicación entre PLC, HMI, pasarelas y estaciones de supervisión, afectando el intercambio de datos y el acceso remoto. Los equipos con control local independiente pueden continuar funcionando.",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "manufacturer": "Rockwell Automation",
+      "model": "1783-EMS08T/B",
+      "cpu_model": "",
+      "role": "SWITCH",
+      "serial_number": "SV2RTBAR",
+      "physical_location": "Rack #1",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [],
+      "software_installations": [
+        {
+          "id": 19,
+          "hardware_id": 9,
+          "software_asset_id": 24,
+          "software_name": "Firmware Stratix 6000",
+          "software_type": "FIRMWARE",
+          "manufacturer": "Rockwell Automation",
+          "product": "Stratix 6000",
+          "version": "",
+          "registered_at": "2026-10-21T20:32:06.132234+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 10,
+      "name": "Siemens SIMATIC S7-1200 cpu 1215C",
+      "description": "PLC SIMATIC S7-1200",
+      "criticality": "HIGH",
+      "impact": "La falla del PLC interrumpe la ejecución de su lógica de control y el procesamiento de entradas y salidas. Puede impedir la lectura de sensores, la actualización de actuadores y la comunicación con HMI o SCADA. Los procesos controlados pueden detenerse o pasar a un estado definido por la configuración de seguridad.",
+      "replacement_cost": "300.00",
+      "replacement_currency": "USD",
+      "manufacturer": "Siemens",
+      "model": "SIMATIC S7-1200",
+      "cpu_model": "1215C",
+      "role": "PLC",
+      "serial_number": "6ES7215-1HG40-0XB0",
+      "physical_location": "Rack #2",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 100,
+          "mac": "00:1c:06:01:d4:23",
+          "declared_ip": null,
+          "identified_at": "2026-10-16T23:34:28.103461+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 5,
+          "hardware_id": 10,
+          "software_asset_id": 25,
+          "software_name": "Firmware SIMATIC S7 1200 CPU 1215C",
+          "software_type": "FIRMWARE",
+          "manufacturer": "Siemens",
+          "product": "SIMATIC S7 1200 CPU 1215C",
+          "version": "4.5.2",
+          "registered_at": "2026-10-19T19:23:40.466309+00:00"
+        }
+      ],
+      "confirmed_cpes": [
+        {
+          "asset_cpe_id": 2,
+          "cpe_name_id": "09f448d2-f606-44ab-8891-c27a3ff64002",
+          "cpe_name": "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*",
+          "title": "Siemens SIMATIC S7-1200 CPU 1215C",
+          "justification": "CPU adecuada",
+          "validated_at": "2026-10-20T15:01:17.828335+00:00"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "RUGGEDCOM RX1100",
+      "description": "Router industrial RUGGEDCOM RX1100",
+      "criticality": "HIGH",
+      "impact": "La falla del router industrial puede interrumpir el enrutamiento y las comunicaciones entre redes o subredes OT dependientes. Puede ocasionar pérdida de acceso a PLC, HMI, pasarelas y sistemas SCADA, así como interrupción de la supervisión y administración remota. Las rutas redundantes, si existen, podrían reducir el impacto.",
+      "replacement_cost": "1050.00",
+      "replacement_currency": "AUD",
+      "manufacturer": "Siemens",
+      "model": "RX1100-F-RM-24P-HIP",
+      "cpu_model": "",
+      "role": "ROUTER",
+      "serial_number": "X11100900782",
+      "physical_location": "Rack #2",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 84,
+          "mac": "00:0a:dc:64:85:c2",
+          "declared_ip": null,
+          "identified_at": "2026-10-21T18:38:36.117666+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 6,
+          "hardware_id": 11,
+          "software_asset_id": 26,
+          "software_name": "RUGGEDCOM ROS 4.2.0",
+          "software_type": "OS",
+          "manufacturer": "Siemens",
+          "product": "RUGGEDCOM ROS",
+          "version": "4.2.0",
+          "registered_at": "2026-10-21T18:39:23.175901+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 12,
+      "name": "Red Lion DSP",
+      "description": "Pasarela industrial para conversión de protocolos Ethernet y serie, registro de datos, servidor web y HMI virtual.",
+      "criticality": "MEDIUM",
+      "impact": "La falla de la pasarela Red Lion puede interrumpir la conversión de protocolos y el intercambio de datos entre dispositivos industriales. También puede detener el registro de información, el servidor web y la HMI virtual alojados en el equipo. Los sistemas dependientes perderían supervisión o acceso a datos, aunque los controladores autónomos podrían seguir operando.",
+      "replacement_cost": "245.00",
+      "replacement_currency": "USD",
+      "manufacturer": "Red Lion Controls",
+      "model": "DSPGT000",
+      "cpu_model": "",
+      "role": "GATEWAY",
+      "serial_number": "26152",
+      "physical_location": "Rack #3",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 94,
+          "mac": "00:05:e4:01:24:d3",
+          "declared_ip": null,
+          "identified_at": "2026-10-16T23:35:11.757419+00:00"
+        }
+      ],
+      "software_installations": [],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 13,
+      "name": "Moxa EDS-508A 1",
+      "description": "Switch Ethernet industrial Moxa EDS-508A; primera unidad. MAC: 00:90:E8:8B:7A:3E; revisión: 2.0.0.",
+      "criticality": "MEDIUM",
+      "impact": "La falla de este switch Moxa EDS-508A interrumpe la conectividad Ethernet de los dispositivos conectados a sus puertos. Puede provocar pérdida de comunicación entre controladores, HMI, pasarelas y sistemas de supervisión, afectando la transferencia de datos y el acceso remoto. El impacto puede reducirse si existen enlaces redundantes.",
+      "replacement_cost": "119.99",
+      "replacement_currency": "USD",
+      "manufacturer": "Moxa",
+      "model": "EDS-508A",
+      "cpu_model": "",
+      "role": "SWITCH",
+      "serial_number": "TBZFB1042862",
+      "physical_location": "Rack #3",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 107,
+          "mac": "00:90:e8:26:40:23",
+          "declared_ip": null,
+          "identified_at": "2026-10-21T18:40:08.570756+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 7,
+          "hardware_id": 13,
+          "software_asset_id": 28,
+          "software_name": "Firmware Moxa EDS 508A",
+          "software_type": "FIRMWARE",
+          "manufacturer": "Moxa",
+          "product": "EDS 508A",
+          "version": "2.6",
+          "registered_at": "2026-10-21T18:40:18.450538+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 14,
+      "name": "Moxa EDS-508A 2",
+      "description": "Switch Ethernet industrial Moxa EDS-508A; segunda unidad",
+      "criticality": "MEDIUM",
+      "impact": "La falla de este switch Moxa EDS-508A interrumpe la conectividad Ethernet de los dispositivos conectados a sus puertos. Puede provocar pérdida de comunicación entre controladores, HMI, pasarelas y sistemas de supervisión, afectando la transferencia de datos y el acceso remoto. El impacto puede reducirse si existen enlaces redundantes.",
+      "replacement_cost": "119.99",
+      "replacement_currency": "USD",
+      "manufacturer": "Moxa",
+      "model": "EDS-508A",
+      "cpu_model": "",
+      "role": "SWITCH",
+      "serial_number": "TBZFB1042863",
+      "physical_location": "Rack #3",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 87,
+          "mac": "00:90:e8:27:8c:37",
+          "declared_ip": null,
+          "identified_at": "2026-10-21T18:41:03.491591+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 8,
+          "hardware_id": 14,
+          "software_asset_id": 28,
+          "software_name": "Firmware Moxa EDS 508A",
+          "software_type": "FIRMWARE",
+          "manufacturer": "Moxa",
+          "product": "EDS 508A",
+          "version": "2.6",
+          "registered_at": "2026-10-21T18:41:19.032724+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 15,
+      "name": "Moxa UC-7112",
+      "description": "Computador industrial embebido Moxa UC-7112-LX Plus con procesador ARM9 de 192 MHz, 32 MB RAM, 16 MB flash, Linux embebido, dos interfaces Ethernet y dos puertos serie RS-232/422/485. Dispone de ranura SD y permite ejecutar aplicaciones de adquisición de datos e integración industrial. MAC LAN1: 00:90:E8:21:2B:2F; MAC LAN2: 00:90:E8:21:2B:30; revisión de hardware 1.0.",
+      "criticality": "MEDIUM",
+      "impact": "La falla del computador embebido detiene las aplicaciones industriales que ejecuta y puede interrumpir la adquisición, procesamiento o transferencia de datos entre dispositivos serie y redes Ethernet. Si actúa como pasarela o concentrador, los sistemas dependientes pueden perder comunicación y supervisión. Los controladores independientes pueden continuar operando localmente.",
+      "replacement_cost": "199.99",
+      "replacement_currency": "USD",
+      "manufacturer": "Moxa",
+      "model": "UC-7112-LX Plus",
+      "cpu_model": "",
+      "role": "OTHER",
+      "serial_number": "TAZI01056178",
+      "physical_location": "Rack #3",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 108,
+          "mac": "00:90:e8:26:7b:17",
+          "declared_ip": null,
+          "identified_at": "2026-10-16T23:57:41.109985+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 20,
+          "hardware_id": 15,
+          "software_asset_id": 30,
+          "software_name": "Moxa UC-7112-LX Plus Embedded Linux",
+          "software_type": "OS",
+          "manufacturer": "Moxa",
+          "product": "UC-7112-LX Plus Embedded Linux",
+          "version": "",
+          "registered_at": "2026-10-21T20:33:06.494361+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 16,
+      "name": "AutomationDirect MB-Gateway",
+      "description": "Pasarela industrial HOST Engineering MB-GATEWAY para comunicación entre redes Modbus TCP/IP y dispositivos Modbus RTU. Dispone de un puerto Ethernet RJ45 10/100 Mbps y una interfaz serie RS-422/485 de 2 o 4 hilos. Admite hasta 12 conexiones Modbus TCP simultáneas y comunicación con hasta 128 dispositivos Modbus RTU. Permite integrar equipos de campo serie con sistemas de supervisión y control basados en Ethernet.",
+      "criticality": "MEDIUM",
+      "impact": "La falla de la pasarela interrumpe la comunicación Modbus TCP/IP con los dispositivos Modbus RTU accesibles a través de ella. Los sistemas SCADA, HMI o PLC dependientes pueden experimentar tiempos de espera, pérdida de lecturas, datos desactualizados e imposibilidad de enviar comandos a los equipos serie. Los dispositivos autónomos pueden continuar sus funciones locales, pero pierden la comunicación a través de esta pasarela.",
+      "replacement_cost": "275.00",
+      "replacement_currency": "USD",
+      "manufacturer": "AutomationDirect",
+      "model": "MB-GATEWAY",
+      "cpu_model": "",
+      "role": "GATEWAY",
+      "serial_number": "",
+      "physical_location": "Rack #3",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 113,
+          "mac": "00:e0:62:40:57:66",
+          "declared_ip": null,
+          "identified_at": "2026-10-21T18:41:58.381751+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 9,
+          "hardware_id": 16,
+          "software_asset_id": 31,
+          "software_name": "Firmware HOST MB Gateway",
+          "software_type": "FIRMWARE",
+          "manufacturer": "automationdirect",
+          "product": "MB Gateway",
+          "version": "1.0.679",
+          "registered_at": "2026-10-21T18:42:12.142265+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 17,
+      "name": "Beckhoff CX1010",
+      "description": "Computador industrial embebido modular Beckhoff CX1010-0012, con procesador de 500 MHz, 256 MB de memoria RAM, almacenamiento CompactFlash e interfaz Ethernet 10/100 Mbps. Incorpora Windows Embedded CE 6.0 y configuración de fábrica con TwinCAT 2 NC PTP Runtime para automatización y control de movimiento. Revisión de hardware 1.7.",
+      "criticality": "MEDIUM",
+      "impact": "La falla del computador embebido interrumpe la ejecución de las aplicaciones de automatización y control de movimiento alojadas en el equipo. Puede provocar pérdida de comunicación con módulos de entrada/salida, interrupción del procesamiento de señales y pérdida de supervisión o control de dispositivos dependientes. Los ejes o actuadores controlados podrían detenerse o entrar en un estado definido por los mecanismos de seguridad y la configuración del sistema.",
+      "replacement_cost": "1777.00",
+      "replacement_currency": "INR",
+      "manufacturer": "Beckhoff",
+      "model": "CX 1010-0012",
+      "cpu_model": "",
+      "role": "OTHER",
+      "serial_number": "7103",
+      "physical_location": "Rack #4",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 111,
+          "mac": "00:d0:c9:bd:2e:57",
+          "declared_ip": null,
+          "identified_at": "2026-10-21T18:42:41.055948+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 10,
+          "hardware_id": 17,
+          "software_asset_id": 32,
+          "software_name": "Windows Embedded CE 6.0",
+          "software_type": "OS",
+          "manufacturer": "Microsoft",
+          "product": "Windows Embedded CE",
+          "version": "6.0",
+          "registered_at": "2026-10-21T18:43:16.471102+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 18,
+      "name": "xLogic x-Messenger EXM-12DC-DA-RT-WiFi-HMI",
+      "description": "Controlador lógico programable industrial Rievtech xLogic x-Messenger, modelo EXM-12DC-DA-RT-WiFi-HMI, alimentado a 12-24 V CC. Incorpora ocho entradas: cuatro configurables como analógicas de 0-10 V o digitales y cuatro digitales. Dispone de cuatro salidas: dos relés de 10 A y dos transistores PNP de 0,3 A. Integra conectividad Wi-Fi para comunicación y supervisión remota y permite ejecutar lógica de automatización para sensores y actuadores.",
+      "criticality": "HIGH",
+      "impact": "La falla del PLC interrumpe la ejecución de su lógica de control y la actualización de entradas y salidas. Puede causar pérdida de lectura de sensores, interrupción de órdenes a relés y actuadores y pérdida de comunicación o supervisión mediante Wi-Fi. Los procesos dependientes pueden detenerse o quedar en estados definidos por su diseño eléctrico y mecanismos de seguridad. Otros controladores independientes pueden continuar funcionando.",
+      "replacement_cost": "181.92",
+      "replacement_currency": "USD",
+      "manufacturer": "Rievtech",
+      "model": "EXM-12DC-DA-RT-WIFI-HMI",
+      "cpu_model": "",
+      "role": "PLC",
+      "serial_number": "",
+      "physical_location": "Rack #4",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 115,
+          "mac": "ac:cf:23:02:23:6e",
+          "declared_ip": null,
+          "identified_at": "2026-10-21T18:43:47.977076+00:00"
+        }
+      ],
+      "software_installations": [],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 19,
+      "name": "TCP IP to RS 232 422 485 Converter",
+      "description": "Convertidor industrial Ethernet a serie ATC-1200, con interfaz Ethernet 10/100 Mbps RJ45 y puerto serie configurable para RS-232 mediante DB9 o RS-422/RS-485 mediante bloque de seis terminales. Permite transportar datos de dispositivos serie a través de redes TCP/IP, con modos TCP y UDP y configuración mediante interfaz web o utilidad de Windows. Alimentación de 9-24 V CC.",
+      "criticality": "MEDIUM",
+      "impact": "La falla del convertidor interrumpe el intercambio de datos entre los dispositivos conectados a su interfaz serie y los sistemas que acceden a ellos mediante Ethernet. Puede provocar pérdida de telemetría, tiempos de espera, interrupción de comandos remotos y falta de actualización de datos en HMI o SCADA. Los dispositivos serie pueden continuar funcionando localmente si no dependen de esta conexión, pero dejan de ser accesibles a través del convertidor.",
+      "replacement_cost": "69.00",
+      "replacement_currency": "USD",
+      "manufacturer": "ATC",
+      "model": "ATC-1200",
+      "cpu_model": "",
+      "role": "GATEWAY",
+      "serial_number": "",
+      "physical_location": "Rack #4",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 99,
+          "mac": "00:11:22:7b:c5:50",
+          "declared_ip": null,
+          "identified_at": "2026-10-21T18:45:35.347057+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 21,
+          "hardware_id": 19,
+          "software_asset_id": 35,
+          "software_name": "Firmware ATC-1200",
+          "software_type": "FIRMWARE",
+          "manufacturer": "ATC",
+          "product": "ATC-1200 Firmware",
+          "version": "",
+          "registered_at": "2026-10-21T20:34:22.186192+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 20,
+      "name": "Westermo Lynx 3643-0105 1",
+      "description": "Switch industrial administrable de capa 3 Westermo Lynx+ L210-F2G, artículo 3643-0105, con ocho puertos Ethernet RJ45 10/100 Mbps y dos ranuras SFP 100/1000 Mbps. Incorpora funciones de conmutación, enrutamiento IP y gestión de red mediante WeOS. Dispone de alimentación industrial redundante. Unidad fabricada el 28/10/2010; MAC 00:07:7C:84:6F:84; etiqueta L+210-F2G.",
+      "criticality": "HIGH",
+      "impact": "La falla del switch puede interrumpir las comunicaciones Ethernet de los equipos conectados y el enrutamiento entre redes o subredes industriales dependientes. Puede causar pérdida de intercambio de datos entre PLC, HMI, SCADA y pasarelas, interrupción de la supervisión y pérdida de acceso remoto. Los controladores con lógica local independiente pueden continuar operando, pero los servicios que requieran esta conectividad quedarán afectados. Las rutas redundantes, si existen, podrían reducir el impacto.",
+      "replacement_cost": "2182.00",
+      "replacement_currency": "USD",
+      "manufacturer": "Westermo",
+      "model": "L210-F2G",
+      "cpu_model": "",
+      "role": "SWITCH",
+      "serial_number": "001286",
+      "physical_location": "Rack #5",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 83,
+          "mac": "00:07:7c:1a:61:83",
+          "declared_ip": null,
+          "identified_at": "2026-10-17T00:37:39.524444+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 22,
+          "hardware_id": 20,
+          "software_asset_id": 34,
+          "software_name": "Westermo WeOS 4.17.1",
+          "software_type": "OS",
+          "manufacturer": "Westermo",
+          "product": "WeOS",
+          "version": "4.17.1",
+          "registered_at": "2026-10-21T20:34:36.671379+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 21,
+      "name": "Westermo Lynx 3643-0105 2",
+      "description": "Switch industrial administrable de capa 3 Westermo Lynx+ L210-F2G, artículo 3643-0105, con ocho puertos Ethernet RJ45 10/100 Mbps y dos ranuras SFP 100/1000 Mbps. Incorpora funciones de conmutación, enrutamiento IP y gestión de red mediante WeOS. Dispone de alimentación industrial redundante. Unidad fabricada el 28/10/2010; MAC 00:07:7C:84:6F:84; etiqueta L+210-F2G.",
+      "criticality": "HIGH",
+      "impact": "La falla del switch puede interrumpir las comunicaciones Ethernet de los equipos conectados y el enrutamiento entre redes o subredes industriales dependientes. Puede causar pérdida de intercambio de datos entre PLC, HMI, SCADA y pasarelas, interrupción de la supervisión y pérdida de acceso remoto. Los controladores con lógica local independiente pueden continuar operando, pero los servicios que requieran esta conectividad quedarán afectados. Las rutas redundantes, si existen, podrían reducir el impacto.",
+      "replacement_cost": "2182.00",
+      "replacement_currency": "USD",
+      "manufacturer": "Westermo",
+      "model": "L210-F2G",
+      "cpu_model": "",
+      "role": "SWITCH",
+      "serial_number": "001287",
+      "physical_location": "Rack #5",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 116,
+          "mac": "b0:99:28:d9:1a:24",
+          "declared_ip": null,
+          "identified_at": "2026-10-21T18:46:44.014305+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 11,
+          "hardware_id": 21,
+          "software_asset_id": 34,
+          "software_name": "Westermo WeOS 4.17.1",
+          "software_type": "OS",
+          "manufacturer": "Westermo",
+          "product": "WeOS",
+          "version": "4.17.1",
+          "registered_at": "2026-10-21T18:47:00.687770+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 36,
+      "name": "RUGGEDCOM RS910 1",
+      "description": "Servidor serie y switch Ethernet industrial; primera unidad",
+      "criticality": "MEDIUM",
+      "impact": "La falla de esta unidad RUGGEDCOM RS910 puede interrumpir las comunicaciones entre dispositivos serie y la red Ethernet, además de afectar los equipos conectados a sus puertos de red. Se pueden perder datos de campo, comandos remotos y supervisión; los dispositivos autónomos podrían continuar funcionando localmente.",
+      "replacement_cost": "350.00",
+      "replacement_currency": "USD",
+      "manufacturer": "Siemens",
+      "model": "RS910-HI-D-S1-FX05",
+      "cpu_model": "",
+      "role": "GATEWAY",
+      "serial_number": "910080901245",
+      "physical_location": "Rack #2",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 157,
+          "mac": null,
+          "declared_ip": "192.168.88.91",
+          "identified_at": "2026-10-21T20:20:44.835836+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 13,
+          "hardware_id": 36,
+          "software_asset_id": 27,
+          "software_name": "RUGGEDCOM ROX",
+          "software_type": "OS",
+          "manufacturer": "Siemens",
+          "product": "RUGGEDCOM ROX",
+          "version": "",
+          "registered_at": "2026-10-21T20:21:03.589092+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 37,
+      "name": "RUGGEDCOM RS910 2",
+      "description": "Servidor serie y switch Ethernet industrial; segunda unidad",
+      "criticality": "MEDIUM",
+      "impact": "La falla de esta unidad RUGGEDCOM RS910 puede interrumpir las comunicaciones entre dispositivos serie y la red Ethernet, además de afectar los equipos conectados a sus puertos de red. Se pueden perder datos de campo, comandos remotos y supervisión; los dispositivos autónomos podrían continuar funcionando localmente.",
+      "replacement_cost": "350.00",
+      "replacement_currency": "USD",
+      "manufacturer": "Siemens",
+      "model": "RS910-HI-D-S1-FX05",
+      "cpu_model": "",
+      "role": "GATEWAY",
+      "serial_number": "910080901246",
+      "physical_location": "Rack #2",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 158,
+          "mac": null,
+          "declared_ip": "192.168.88.92",
+          "identified_at": "2026-10-21T20:22:34.204330+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 14,
+          "hardware_id": 37,
+          "software_asset_id": 26,
+          "software_name": "RUGGEDCOM ROS 4.2.0",
+          "software_type": "OS",
+          "manufacturer": "Siemens",
+          "product": "RUGGEDCOM ROS",
+          "version": "4.2.0",
+          "registered_at": "2026-10-21T20:22:40.359602+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 38,
+      "name": "RUGGEDCOM RS910 3",
+      "description": "Servidor serie y switch Ethernet industrial; tercera unidad",
+      "criticality": "MEDIUM",
+      "impact": "La falla de esta unidad RUGGEDCOM RS910 puede interrumpir las comunicaciones entre dispositivos serie y la red Ethernet, además de afectar los equipos conectados a sus puertos de red. Se pueden perder datos de campo, comandos remotos y supervisión; los dispositivos autónomos podrían continuar funcionando localmente.",
+      "replacement_cost": "350.00",
+      "replacement_currency": "USD",
+      "manufacturer": "Siemens",
+      "model": "RS910-HI-D-S1-FX05",
+      "cpu_model": "",
+      "role": "GATEWAY",
+      "serial_number": "910080901247",
+      "physical_location": "Rack #2",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 159,
+          "mac": null,
+          "declared_ip": "192.168.88.93",
+          "identified_at": "2026-10-21T20:23:04.934679+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 15,
+          "hardware_id": 38,
+          "software_asset_id": 26,
+          "software_name": "RUGGEDCOM ROS 4.2.0",
+          "software_type": "OS",
+          "manufacturer": "Siemens",
+          "product": "RUGGEDCOM ROS",
+          "version": "4.2.0",
+          "registered_at": "2026-10-21T20:23:17.504730+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 39,
+      "name": "RUGGEDCOM RS910 4",
+      "description": "Servidor serie y switch Ethernet industrial; cuarta unidad",
+      "criticality": "MEDIUM",
+      "impact": "La falla de esta unidad RUGGEDCOM RS910 puede interrumpir las comunicaciones entre dispositivos serie y la red Ethernet, además de afectar los equipos conectados a sus puertos de red. Se pueden perder datos de campo, comandos remotos y supervisión; los dispositivos autónomos podrían continuar funcionando localmente.",
+      "replacement_cost": "350.00",
+      "replacement_currency": "USD",
+      "manufacturer": "Siemens",
+      "model": "RS910-HI-D-S1-FX05",
+      "cpu_model": "",
+      "role": "GATEWAY",
+      "serial_number": "910080901248",
+      "physical_location": "Rack #2",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 95,
+          "mac": "00:0a:dc:5b:27:a0",
+          "declared_ip": null,
+          "identified_at": "2026-10-21T20:19:09.703653+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 12,
+          "hardware_id": 39,
+          "software_asset_id": 27,
+          "software_name": "RUGGEDCOM ROX",
+          "software_type": "OS",
+          "manufacturer": "Siemens",
+          "product": "RUGGEDCOM ROX",
+          "version": "",
+          "registered_at": "2026-10-21T20:20:18.288028+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 40,
+      "name": "Cisco Catalyst 2955",
+      "description": "Switch Ethernet industrial administrable Cisco Catalyst 2955, modelo WS-C2955T-12. Dispone de 12 puertos Ethernet 10/100 Mbps y 2 puertos de enlace ascendente 10/100/1000 Mbps RJ-45. Permite interconectar PLC, HMI, pasarelas y otros dispositivos de una red OT.",
+      "criticality": "MEDIUM",
+      "impact": "La falla del switch provoca la pérdida de conectividad Ethernet de los dispositivos conectados y puede interrumpir la comunicación entre PLC, HMI, pasarelas y sistemas de supervisión. Se afectan el intercambio de datos, la visualización de procesos y el acceso remoto; el control local puede continuar si no depende de esta comunicación.",
+      "replacement_cost": "39.99",
+      "replacement_currency": "USD",
+      "manufacturer": "Cisco",
+      "model": "WS-C2955T-12",
+      "cpu_model": "",
+      "role": "SWITCH",
+      "serial_number": "",
+      "physical_location": "Rack #3",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [
+        {
+          "id": 160,
+          "mac": null,
+          "declared_ip": "192.168.88.70",
+          "identified_at": "2026-10-21T20:23:45.439466+00:00"
+        }
+      ],
+      "software_installations": [
+        {
+          "id": 16,
+          "hardware_id": 40,
+          "software_asset_id": 29,
+          "software_name": "Cisco IOS Catalyst 2955",
+          "software_type": "OS",
+          "manufacturer": "Cisco",
+          "product": "IOS",
+          "version": "12.1",
+          "registered_at": "2026-10-21T20:23:55.755471+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 41,
+      "name": "HOST Engineering MB-Gateway",
+      "description": "Pasarela industrial HOST Engineering MB-GATEWAY para comunicación entre redes Modbus TCP/IP y dispositivos Modbus RTU. Dispone de un puerto Ethernet RJ45 10/100 Mbps y una interfaz serie RS-422/485 de 2 o 4 hilos. Admite hasta 12 conexiones Modbus TCP simultáneas y comunicación con hasta 128 dispositivos Modbus RTU. Permite integrar equipos de campo serie con sistemas de supervisión y control basados en Ethernet.",
+      "criticality": "MEDIUM",
+      "impact": "La falla de la pasarela interrumpe la comunicación Modbus TCP/IP con los dispositivos Modbus RTU accesibles a través de ella. Los sistemas SCADA, HMI o PLC dependientes pueden experimentar tiempos de espera, pérdida de lecturas, datos desactualizados e imposibilidad de enviar comandos a los equipos serie. Los dispositivos autónomos pueden continuar sus funciones locales, pero pierden la comunicación a través de esta pasarela.",
+      "replacement_cost": "275.00",
+      "replacement_currency": "USD",
+      "manufacturer": "HOST Engineering",
+      "model": "MB-GATEWAY",
+      "cpu_model": "",
+      "role": "GATEWAY",
+      "serial_number": "",
+      "physical_location": "Rack #3",
+      "system_ids": [
+        1
+      ],
+      "interfaces": [],
+      "software_installations": [
+        {
+          "id": 23,
+          "hardware_id": 41,
+          "software_asset_id": 31,
+          "software_name": "Firmware HOST MB Gateway",
+          "software_type": "FIRMWARE",
+          "manufacturer": "automationdirect",
+          "product": "MB Gateway",
+          "version": "1.0.679",
+          "registered_at": "2026-10-21T20:34:51.418137+00:00"
+        }
+      ],
+      "confirmed_cpes": []
+    }
+  ],
+  "software": [
+    {
+      "id": 4,
+      "name": "Phoenix Contact IL PN BK-PAC Firmware",
+      "description": "Acoplador Ethernet Phoenix Contact para integración de módulos de entradas/salidas remotas y comunicación industrial mediante Ethernet/Modbus TCP.",
+      "criticality": "LOW",
+      "impact": "",
+      "replacement_cost": "500000.00",
+      "replacement_currency": "COP",
+      "software_type": "FIRMWARE",
+      "manufacturer": "Phoenix Contact",
+      "product": "IL PN BK-PAC Firmware",
+      "version": "",
+      "hardware_ids": [
+        2
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 5,
+      "name": "Firmware ADAM-5510/TCP",
+      "description": "",
+      "criticality": "LOW",
+      "impact": "",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "software_type": "FIRMWARE",
+      "manufacturer": "Advantech",
+      "product": "ADAM-5510",
+      "version": "",
+      "hardware_ids": [
+        3
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 6,
+      "name": "Firmware DirectLOGIC DL205",
+      "description": "",
+      "criticality": "MEDIUM",
+      "impact": "",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "software_type": "FIRMWARE",
+      "manufacturer": "AutomationDirect",
+      "product": "DirectLOGIC DL205 CPU",
+      "version": "",
+      "hardware_ids": [
+        1
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 22,
+      "name": "Firmware AXIS 206",
+      "description": "Firmware de la cámara de red AXIS 206",
+      "criticality": "LOW",
+      "impact": "",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "software_type": "FIRMWARE",
+      "manufacturer": "Axis Communications",
+      "product": "AXIS 206 Firmware",
+      "version": "",
+      "hardware_ids": [
+        7
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 23,
+      "name": "Hirschmann EAGLE20 Firmware",
+      "description": "Firmware del equipo de seguridad industrial Hirschmann EAGLE20",
+      "criticality": "HIGH",
+      "impact": "",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "software_type": "FIRMWARE",
+      "manufacturer": "belden",
+      "product": "EAGLE 20",
+      "version": "",
+      "hardware_ids": [
+        8
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 24,
+      "name": "Firmware Stratix 6000",
+      "description": "Firmware del switch industrial Stratix 6000; submodelo no identificado",
+      "criticality": "MEDIUM",
+      "impact": "",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "software_type": "FIRMWARE",
+      "manufacturer": "Rockwell Automation",
+      "product": "Stratix 6000",
+      "version": "",
+      "hardware_ids": [
+        9
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 25,
+      "name": "Firmware SIMATIC S7 1200 CPU 1215C",
+      "description": "Firmware del PLC SIMATIC S7-1200 CPU 1215C",
+      "criticality": "HIGH",
+      "impact": "",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "software_type": "FIRMWARE",
+      "manufacturer": "Siemens",
+      "product": "SIMATIC S7 1200 CPU 1215C",
+      "version": "4.5.2",
+      "hardware_ids": [
+        10
+      ],
+      "confirmed_cpes": [
+        {
+          "asset_cpe_id": 8,
+          "cpe_name_id": "ac25bc62-21dd-4d0f-8a9a-feabd036e77b",
+          "cpe_name": "cpe:2.3:o:siemens:simatic_s7-1200_cpu_1215c_firmware:4.5.2:*:*:*:*:*:*:*",
+          "title": "Siemens SIMATIC S7-1200 CPU 1215C FIRMWARE 4.5.2",
+          "justification": "mejor version",
+          "validated_at": "2026-10-23T20:57:06.001415+00:00"
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "name": "RUGGEDCOM ROS 4.2.0",
+      "description": "Sistema operativo de los cuatro equipos RUGGEDCOM RS910; versión histórica hipotética",
+      "criticality": "MEDIUM",
+      "impact": "",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "software_type": "OS",
+      "manufacturer": "Siemens",
+      "product": "RUGGEDCOM ROS",
+      "version": "4.2.0",
+      "hardware_ids": [
+        11,
+        37,
+        38
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 27,
+      "name": "RUGGEDCOM ROX",
+      "description": "Sistema operativo del router RUGGEDCOM RX1100",
+      "criticality": "HIGH",
+      "impact": "",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "software_type": "OS",
+      "manufacturer": "Siemens",
+      "product": "RUGGEDCOM ROX",
+      "version": "",
+      "hardware_ids": [
+        36,
+        39
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 28,
+      "name": "Firmware Moxa EDS 508A",
+      "description": "Firmware de los dos switches Moxa EDS-508A; versión histórica hipotética",
+      "criticality": "MEDIUM",
+      "impact": "",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "software_type": "FIRMWARE",
+      "manufacturer": "Moxa",
+      "product": "EDS 508A",
+      "version": "2.6",
+      "hardware_ids": [
+        13,
+        14
+      ],
+      "confirmed_cpes": [
+        {
+          "asset_cpe_id": 6,
+          "cpe_name_id": "ad3f3803-d28a-45fd-8542-ceacbfa98285",
+          "cpe_name": "cpe:2.3:o:moxa:eds-g508e_firmware:-:*:*:*:*:*:*:*",
+          "title": "Moxa EDS-G508E Firmware",
+          "justification": "",
+          "validated_at": "2026-10-22T04:13:58.801016+00:00"
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "name": "Cisco IOS Catalyst 2955",
+      "description": "Sistema operativo del switch industrial Cisco Catalyst 2955",
+      "criticality": "MEDIUM",
+      "impact": "",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "software_type": "OS",
+      "manufacturer": "Cisco",
+      "product": "IOS",
+      "version": "12.1",
+      "hardware_ids": [
+        40
+      ],
+      "confirmed_cpes": [
+        {
+          "asset_cpe_id": 3,
+          "cpe_name_id": "473b0f51-70d4-4fbb-bcb9-39846e68d9ee",
+          "cpe_name": "cpe:2.3:o:cisco:ios:12.1:*:*:*:*:*:*:*",
+          "title": "Cisco IOS 12.1",
+          "justification": "version exacta",
+          "validated_at": "2026-10-21T22:32:25.162921+00:00"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "name": "Moxa UC-7112-LX Plus Embedded Linux",
+      "description": "Sistema operativo Linux embebido del computador Moxa UC-7112-LX Plus. El manual oficial de enero de 2010 documenta kernel Linux 2.6.9, pero la versión instalada en la unidad fotografiada no está verificada. El DVD MOXA ART V3.4 contiene herramientas y documentación, no prueba la versión de firmware.",
+      "criticality": "MEDIUM",
+      "impact": "La indisponibilidad del sistema operativo impide ejecutar las aplicaciones alojadas en el computador, afectando sus servicios de comunicaciones, adquisición de datos y procesamiento.",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "software_type": "OS",
+      "manufacturer": "Moxa",
+      "product": "UC-7112-LX Plus Embedded Linux",
+      "version": "",
+      "hardware_ids": [
+        15
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 31,
+      "name": "Firmware HOST MB Gateway",
+      "description": "Firmware de la pasarela HOST Engineering MB-Gateway; versión histórica hipotética",
+      "criticality": "MEDIUM",
+      "impact": "",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "software_type": "FIRMWARE",
+      "manufacturer": "automationdirect",
+      "product": "MB Gateway",
+      "version": "1.0.679",
+      "hardware_ids": [
+        16,
+        41
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 32,
+      "name": "Windows Embedded CE 6.0",
+      "description": "Sistema operativo Microsoft Windows Embedded CE 6.0 del computador industrial Beckhoff CX1010-0012. Su presencia corresponde a la configuración oficial de este modelo y está indicada en la etiqueta fotografiada. Proporciona el entorno de ejecución para las aplicaciones de automatización, incluido TwinCAT 2 NC PTP Runtime.",
+      "criticality": "MEDIUM",
+      "impact": "La falla o corrupción del sistema operativo puede impedir el arranque del computador Beckhoff y la ejecución de TwinCAT y demás aplicaciones alojadas. Se pueden perder funciones de control, supervisión, comunicaciones y acceso a módulos de entrada/salida dependientes. El comportamiento de los actuadores depende de la configuración de control y seguridad.",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "software_type": "OS",
+      "manufacturer": "Microsoft",
+      "product": "Windows Embedded CE",
+      "version": "6.0",
+      "hardware_ids": [
+        17
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 33,
+      "name": "TwinCAT 2 NC PTP Runtime",
+      "description": "Entorno de ejecución de automatización Beckhoff TwinCAT 2 NC PTP Runtime, incluido en la configuración comercial del computador CX1010-0012. Permite ejecutar funciones de control lógico y control de movimiento punto a punto. La referencia del modelo confirma esta configuración, pero no se ha verificado la compilación instalada ni su ejecución efectiva.",
+      "criticality": "MEDIUM",
+      "impact": "La falla del entorno TwinCAT puede interrumpir la ejecución de tareas de automatización y control de movimiento, provocar pérdida de actualización de señales y dejar sin control los ejes o dispositivos dependientes. Las salidas y actuadores responderán según la configuración de seguridad y el estado de falla definido en el sistema.",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "software_type": "APPLICATION",
+      "manufacturer": "Beckhoff",
+      "product": "TwinCAT 2 NC PTP Runtime",
+      "version": "2",
+      "hardware_ids": [],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 34,
+      "name": "Westermo WeOS 4.17.1",
+      "description": "Sistema operativo de los dos routers Westermo Lynx L210-F2G; versión histórica hipotética",
+      "criticality": "HIGH",
+      "impact": "",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "software_type": "OS",
+      "manufacturer": "Westermo",
+      "product": "WeOS",
+      "version": "4.17.1",
+      "hardware_ids": [
+        20,
+        21
+      ],
+      "confirmed_cpes": [
+        {
+          "asset_cpe_id": 4,
+          "cpe_name_id": "b9b44fa2-426a-4aaa-8a15-ecca58d30a15",
+          "cpe_name": "cpe:2.3:o:westermo:weos:4.18.0:*:*:*:*:*:*:*",
+          "title": "Westermo WeOS 4.18.0",
+          "justification": "",
+          "validated_at": "2026-10-22T02:33:07.992577+00:00"
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "name": "Firmware ATC-1200",
+      "description": "Software embebido del convertidor Ethernet a serie (TCP IP to RS 232 422 485 Converter) ATC-1200, responsable de gestionar la configuración de red y el intercambio de datos TCP/UDP con interfaces RS-232/422/485. La existencia de firmware se infiere de las funciones del dispositivo, pero su versión instalada no ha sido verificada.",
+      "criticality": "MEDIUM",
+      "impact": "La falla o corrupción del firmware puede impedir el arranque o funcionamiento del convertidor, provocando pérdida de conectividad Ethernet-serie, interrupción de la transmisión de datos y falta de acceso remoto a los dispositivos conectados.",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "software_type": "FIRMWARE",
+      "manufacturer": "ATC",
+      "product": "ATC-1200 Firmware",
+      "version": "",
+      "hardware_ids": [
+        19
+      ],
+      "confirmed_cpes": []
+    },
+    {
+      "id": 42,
+      "name": "Firmware SIMATIC S7 1200",
+      "description": "Firmware del PLC SIMATIC S7-1200; CPU no identificada",
+      "criticality": "HIGH",
+      "impact": "",
+      "replacement_cost": null,
+      "replacement_currency": null,
+      "software_type": "FIRMWARE",
+      "manufacturer": "Siemens",
+      "product": "SIMATIC S7 1200",
+      "version": "4.0",
+      "hardware_ids": [],
+      "confirmed_cpes": [
+        {
+          "asset_cpe_id": 5,
+          "cpe_name_id": "2a63e2f3-0ee9-4876-8919-31166bb85c85",
+          "cpe_name": "cpe:2.3:o:siemens:simatic_s7_1200_cpu_firmware:4.0:*:*:*:*:*:*:*",
+          "title": "Siemens SIMATIC S7 1200 CPU Firmware 4.0",
+          "justification": "este es",
+          "validated_at": "2026-10-23T21:12:14.253199+00:00"
+        }
+      ]
+    }
+  ],
+  "applicable_vulnerabilities": [
+    {
+      "cve_id": "CVE-2021-33540",
+      "hardware_id": 2,
+      "hardware_name": "Phoenix Contact IL PN BK-PAC",
+      "hardware_criticality": "LOW",
+      "hardware_role_nvd": "PLATFORM",
+      "severity": "HIGH",
+      "cvss_base_score": "7.3",
+      "description": "In certain devices of the Phoenix Contact AXL F BK and IL BK product families an undocumented password protected FTP access to the root directory exists.",
+      "published": "2021-06-25T19:15:09.697000+00:00",
+      "last_modified": "2026-06-17T03:54:45.217000+00:00",
+      "nvd_retrieved_at": "2026-10-22T23:32:22.755565+00:00",
+      "nvd_references": [
+        {
+          "url": "https://cert.vde.com/en-us/advisories/vde-2021-021",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "info@cert.vde.com"
+        },
+        {
+          "url": "https://cert.vde.com/en-us/advisories/vde-2021-021",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        }
+      ],
+      "applicability_status": "APPLIES",
+      "applicability_source": "ANALYST",
+      "justifications": [
+        {
+          "assessment_id": 1,
+          "configuration_index": 11,
+          "justification": "Es el CVE",
+          "decided_by": "analista-brian",
+          "selected_nvd_criterion": null,
+          "decided_at": "2026-10-23T16:58:18.346069+00:00"
+        }
+      ],
+      "evaluated_software": [
+        {
+          "asset_id": 4,
+          "installation_id": 4,
+          "name": "Phoenix Contact IL PN BK-PAC Firmware",
+          "software_type": "FIRMWARE",
+          "version": "",
+          "role_nvd": "VULNERABLE"
+        }
+      ],
+      "automatic_nvd_evidence": null
+    },
+    {
+      "cve_id": "CVE-2021-3449",
+      "hardware_id": 10,
+      "hardware_name": "Siemens SIMATIC S7-1200 cpu 1215C",
+      "hardware_criticality": "HIGH",
+      "hardware_role_nvd": "PLATFORM",
+      "severity": "MEDIUM",
+      "cvss_base_score": "5.9",
+      "description": "An OpenSSL TLS server may crash if sent a maliciously crafted renegotiation ClientHello message from a client. If a TLSv1.2 renegotiation ClientHello omits the signature_algorithms extension (where it was present in the initial ClientHello), but includes a signature_algorithms_cert extension then a NULL pointer dereference will result, leading to a crash and a denial of service attack. A server is only vulnerable if it has TLSv1.2 and renegotiation enabled (which is the default configuration). OpenSSL TLS clients are not impacted by this issue. All OpenSSL 1.1.1 versions are affected by this issue. Users of these versions should upgrade to OpenSSL 1.1.1k. OpenSSL 1.0.2 is not impacted by this issue. Fixed in OpenSSL 1.1.1k (Affected 1.1.1-1.1.1j).",
+      "published": "2021-03-25T15:15:13.450000+00:00",
+      "last_modified": "2026-10-08T22:17:11.243000+00:00",
+      "nvd_retrieved_at": "2026-10-23T21:36:52.136975+00:00",
+      "nvd_references": [
+        {
+          "url": "http://www.openwall.com/lists/oss-security/2021/03/27/1",
+          "tags": [
+            "Mailing List",
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "http://www.openwall.com/lists/oss-security/2021/03/27/2",
+          "tags": [
+            "Mailing List",
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "http://www.openwall.com/lists/oss-security/2021/03/28/3",
+          "tags": [
+            "Mailing List",
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "http://www.openwall.com/lists/oss-security/2021/03/28/4",
+          "tags": [
+            "Mailing List",
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-389290.pdf",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-772220.pdf",
+          "tags": [
+            "Patch",
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://git.openssl.org/gitweb/?p=openssl.git%3Ba=commitdiff%3Bh=fb9fa6b51defd48157eeb207f52181f735d96148",
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://kb.pulsesecure.net/articles/Pulse_Security_Advisories/SA44845",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://kc.mcafee.com/corporate/index?page=content&id=SB10356",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://lists.debian.org/debian-lts-announce/2021/08/msg00029.html",
+          "tags": [
+            "Mailing List",
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/CCBFLLVQVILIVGZMBJL3IXZGKWQISYNP/",
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2021-0013",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://security.FreeBSD.org/advisories/FreeBSD-SA-21:07.openssl.asc",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://security.gentoo.org/glsa/202103-03",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://security.netapp.com/advisory/ntap-20210326-0006/",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://security.netapp.com/advisory/ntap-20210513-0002/",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://security.netapp.com/advisory/ntap-20240621-0006/",
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://tools.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-openssl-2021-GHY28dJd",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://www.debian.org/security/2021/dsa-4875",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://www.openssl.org/news/secadv/20210325.txt",
+          "tags": [
+            "Vendor Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://www.oracle.com//security-alerts/cpujul2021.html",
+          "tags": [
+            "Patch",
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://www.oracle.com/security-alerts/cpuApr2021.html",
+          "tags": [
+            "Patch",
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://www.oracle.com/security-alerts/cpuapr2022.html",
+          "tags": [
+            "Patch",
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://www.oracle.com/security-alerts/cpujul2022.html",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://www.oracle.com/security-alerts/cpuoct2021.html",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://www.tenable.com/security/tns-2021-05",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://www.tenable.com/security/tns-2021-06",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://www.tenable.com/security/tns-2021-09",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "https://www.tenable.com/security/tns-2021-10",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "openssl-security@openssl.org"
+        },
+        {
+          "url": "http://www.openwall.com/lists/oss-security/2021/03/27/1",
+          "tags": [
+            "Mailing List",
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "http://www.openwall.com/lists/oss-security/2021/03/27/2",
+          "tags": [
+            "Mailing List",
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "http://www.openwall.com/lists/oss-security/2021/03/28/3",
+          "tags": [
+            "Mailing List",
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "http://www.openwall.com/lists/oss-security/2021/03/28/4",
+          "tags": [
+            "Mailing List",
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-389290.pdf",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-772220.pdf",
+          "tags": [
+            "Patch",
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://git.openssl.org/gitweb/?p=openssl.git%3Ba=commitdiff%3Bh=fb9fa6b51defd48157eeb207f52181f735d96148",
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://kb.pulsesecure.net/articles/Pulse_Security_Advisories/SA44845",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://kc.mcafee.com/corporate/index?page=content&id=SB10356",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://lists.debian.org/debian-lts-announce/2021/08/msg00029.html",
+          "tags": [
+            "Mailing List",
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/CCBFLLVQVILIVGZMBJL3IXZGKWQISYNP/",
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2021-0013",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://security.FreeBSD.org/advisories/FreeBSD-SA-21:07.openssl.asc",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://security.gentoo.org/glsa/202103-03",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://security.netapp.com/advisory/ntap-20210326-0006/",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://security.netapp.com/advisory/ntap-20210513-0002/",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://security.netapp.com/advisory/ntap-20240621-0006/",
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://tools.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-openssl-2021-GHY28dJd",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://www.debian.org/security/2021/dsa-4875",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://www.openssl.org/news/secadv/20210325.txt",
+          "tags": [
+            "Vendor Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://www.oracle.com//security-alerts/cpujul2021.html",
+          "tags": [
+            "Patch",
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://www.oracle.com/security-alerts/cpuApr2021.html",
+          "tags": [
+            "Patch",
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://www.oracle.com/security-alerts/cpuapr2022.html",
+          "tags": [
+            "Patch",
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://www.oracle.com/security-alerts/cpujul2022.html",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://www.oracle.com/security-alerts/cpuoct2021.html",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://www.tenable.com/security/tns-2021-05",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://www.tenable.com/security/tns-2021-06",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://www.tenable.com/security/tns-2021-09",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        },
+        {
+          "url": "https://www.tenable.com/security/tns-2021-10",
+          "tags": [
+            "Third Party Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        }
+      ],
+      "applicability_status": "APPLIES",
+      "applicability_source": "SYSTEM",
+      "justifications": [],
+      "evaluated_software": [
+        {
+          "asset_id": 25,
+          "installation_id": 5,
+          "name": "Firmware SIMATIC S7 1200 CPU 1215C",
+          "software_type": "FIRMWARE",
+          "version": "4.5.2",
+          "role_nvd": "VULNERABLE"
+        }
+      ],
+      "automatic_nvd_evidence": {
+        "configuration_index": 66,
+        "configuration_position": 67,
+        "criteria": [
+          {
+            "criterion": "cpe:2.3:o:siemens:simatic_s7-1200_cpu_1215c_firmware:*:*:*:*:*:*:*:*",
+            "confirmed_cpe": "cpe:2.3:o:siemens:simatic_s7-1200_cpu_1215c_firmware:4.5.2:*:*:*:*:*:*:*",
+            "vulnerable": true,
+            "software_asset_id": 25,
+            "software_installation_id": 5,
+            "installed_version": "4.5.2"
+          },
+          {
+            "criterion": "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*",
+            "confirmed_cpe": "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*",
+            "vulnerable": false,
+            "software_asset_id": null,
+            "software_installation_id": null,
+            "installed_version": null
+          }
+        ]
+      }
+    },
+    {
+      "cve_id": "CVE-2021-40365",
+      "hardware_id": 10,
+      "hardware_name": "Siemens SIMATIC S7-1200 cpu 1215C",
+      "hardware_criticality": "HIGH",
+      "hardware_role_nvd": "PLATFORM",
+      "severity": "HIGH",
+      "cvss_base_score": "7.5",
+      "description": "Affected devices don't process correctly certain special crafted packets sent to port 102/tcp, which could allow an attacker to cause a denial of service in the device.",
+      "published": "2022-12-13T16:15:14.650000+00:00",
+      "last_modified": "2026-06-17T04:06:48.187000+00:00",
+      "nvd_retrieved_at": "2026-10-23T21:36:52.178055+00:00",
+      "nvd_references": [
+        {
+          "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-382653.pdf",
+          "tags": [
+            "Patch",
+            "Vendor Advisory"
+          ],
+          "source": "productcert@siemens.com"
+        },
+        {
+          "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-382653.pdf",
+          "tags": [
+            "Patch",
+            "Vendor Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        }
+      ],
+      "applicability_status": "APPLIES",
+      "applicability_source": "SYSTEM",
+      "justifications": [],
+      "evaluated_software": [
+        {
+          "asset_id": 25,
+          "installation_id": 5,
+          "name": "Firmware SIMATIC S7 1200 CPU 1215C",
+          "software_type": "FIRMWARE",
+          "version": "4.5.2",
+          "role_nvd": "VULNERABLE"
+        }
+      ],
+      "automatic_nvd_evidence": {
+        "configuration_index": 8,
+        "configuration_position": 9,
+        "criteria": [
+          {
+            "criterion": "cpe:2.3:o:siemens:simatic_s7-1200_cpu_1215c_firmware:*:*:*:*:*:*:*:*",
+            "confirmed_cpe": "cpe:2.3:o:siemens:simatic_s7-1200_cpu_1215c_firmware:4.5.2:*:*:*:*:*:*:*",
+            "vulnerable": true,
+            "software_asset_id": 25,
+            "software_installation_id": 5,
+            "installed_version": "4.5.2"
+          },
+          {
+            "criterion": "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*",
+            "confirmed_cpe": "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*",
+            "vulnerable": false,
+            "software_asset_id": null,
+            "software_installation_id": null,
+            "installed_version": null
+          }
+        ]
+      }
+    },
+    {
+      "cve_id": "CVE-2021-44693",
+      "hardware_id": 10,
+      "hardware_name": "Siemens SIMATIC S7-1200 cpu 1215C",
+      "hardware_criticality": "HIGH",
+      "hardware_role_nvd": "PLATFORM",
+      "severity": "MEDIUM",
+      "cvss_base_score": "4.9",
+      "description": "Affected devices don't process correctly certain special crafted packets sent to port 102/tcp, which could allow an attacker to cause a denial of service in the device.",
+      "published": "2022-12-13T16:15:14.750000+00:00",
+      "last_modified": "2026-06-17T04:12:41.767000+00:00",
+      "nvd_retrieved_at": "2026-10-23T21:36:52.203140+00:00",
+      "nvd_references": [
+        {
+          "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-382653.pdf",
+          "tags": [
+            "Patch",
+            "Vendor Advisory"
+          ],
+          "source": "productcert@siemens.com"
+        },
+        {
+          "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-382653.pdf",
+          "tags": [
+            "Patch",
+            "Vendor Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        }
+      ],
+      "applicability_status": "APPLIES",
+      "applicability_source": "SYSTEM",
+      "justifications": [],
+      "evaluated_software": [
+        {
+          "asset_id": 25,
+          "installation_id": 5,
+          "name": "Firmware SIMATIC S7 1200 CPU 1215C",
+          "software_type": "FIRMWARE",
+          "version": "4.5.2",
+          "role_nvd": "VULNERABLE"
+        }
+      ],
+      "automatic_nvd_evidence": {
+        "configuration_index": 8,
+        "configuration_position": 9,
+        "criteria": [
+          {
+            "criterion": "cpe:2.3:o:siemens:simatic_s7-1200_cpu_1215c_firmware:*:*:*:*:*:*:*:*",
+            "confirmed_cpe": "cpe:2.3:o:siemens:simatic_s7-1200_cpu_1215c_firmware:4.5.2:*:*:*:*:*:*:*",
+            "vulnerable": true,
+            "software_asset_id": 25,
+            "software_installation_id": 5,
+            "installed_version": "4.5.2"
+          },
+          {
+            "criterion": "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*",
+            "confirmed_cpe": "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*",
+            "vulnerable": false,
+            "software_asset_id": null,
+            "software_installation_id": null,
+            "installed_version": null
+          }
+        ]
+      }
+    },
+    {
+      "cve_id": "CVE-2021-44694",
+      "hardware_id": 10,
+      "hardware_name": "Siemens SIMATIC S7-1200 cpu 1215C",
+      "hardware_criticality": "HIGH",
+      "hardware_role_nvd": "PLATFORM",
+      "severity": "MEDIUM",
+      "cvss_base_score": "5.5",
+      "description": "Affected devices don't process correctly certain special crafted packets sent to port 102/tcp, which could allow an attacker to cause a denial of service in the device.",
+      "published": "2022-12-13T16:15:14.840000+00:00",
+      "last_modified": "2026-06-17T04:12:42.103000+00:00",
+      "nvd_retrieved_at": "2026-10-23T21:36:52.227735+00:00",
+      "nvd_references": [
+        {
+          "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-382653.pdf",
+          "tags": [
+            "Patch",
+            "Vendor Advisory"
+          ],
+          "source": "productcert@siemens.com"
+        },
+        {
+          "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-382653.pdf",
+          "tags": [
+            "Patch",
+            "Vendor Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        }
+      ],
+      "applicability_status": "APPLIES",
+      "applicability_source": "SYSTEM",
+      "justifications": [],
+      "evaluated_software": [
+        {
+          "asset_id": 25,
+          "installation_id": 5,
+          "name": "Firmware SIMATIC S7 1200 CPU 1215C",
+          "software_type": "FIRMWARE",
+          "version": "4.5.2",
+          "role_nvd": "VULNERABLE"
+        }
+      ],
+      "automatic_nvd_evidence": {
+        "configuration_index": 8,
+        "configuration_position": 9,
+        "criteria": [
+          {
+            "criterion": "cpe:2.3:o:siemens:simatic_s7-1200_cpu_1215c_firmware:*:*:*:*:*:*:*:*",
+            "confirmed_cpe": "cpe:2.3:o:siemens:simatic_s7-1200_cpu_1215c_firmware:4.5.2:*:*:*:*:*:*:*",
+            "vulnerable": true,
+            "software_asset_id": 25,
+            "software_installation_id": 5,
+            "installed_version": "4.5.2"
+          },
+          {
+            "criterion": "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*",
+            "confirmed_cpe": "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*",
+            "vulnerable": false,
+            "software_asset_id": null,
+            "software_installation_id": null,
+            "installed_version": null
+          }
+        ]
+      }
+    },
+    {
+      "cve_id": "CVE-2021-44695",
+      "hardware_id": 10,
+      "hardware_name": "Siemens SIMATIC S7-1200 cpu 1215C",
+      "hardware_criticality": "HIGH",
+      "hardware_role_nvd": "PLATFORM",
+      "severity": "MEDIUM",
+      "cvss_base_score": "4.9",
+      "description": "Affected devices don't process correctly certain special crafted packets sent to port 102/tcp, which could allow an attacker to cause a denial of service in the device.",
+      "published": "2022-12-13T16:15:14.907000+00:00",
+      "last_modified": "2026-06-17T04:12:42.750000+00:00",
+      "nvd_retrieved_at": "2026-10-23T21:36:52.255942+00:00",
+      "nvd_references": [
+        {
+          "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-382653.pdf",
+          "tags": [
+            "Patch",
+            "Vendor Advisory"
+          ],
+          "source": "productcert@siemens.com"
+        },
+        {
+          "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-382653.pdf",
+          "tags": [
+            "Patch",
+            "Vendor Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        }
+      ],
+      "applicability_status": "APPLIES",
+      "applicability_source": "SYSTEM",
+      "justifications": [],
+      "evaluated_software": [
+        {
+          "asset_id": 25,
+          "installation_id": 5,
+          "name": "Firmware SIMATIC S7 1200 CPU 1215C",
+          "software_type": "FIRMWARE",
+          "version": "4.5.2",
+          "role_nvd": "VULNERABLE"
+        }
+      ],
+      "automatic_nvd_evidence": {
+        "configuration_index": 8,
+        "configuration_position": 9,
+        "criteria": [
+          {
+            "criterion": "cpe:2.3:o:siemens:simatic_s7-1200_cpu_1215c_firmware:*:*:*:*:*:*:*:*",
+            "confirmed_cpe": "cpe:2.3:o:siemens:simatic_s7-1200_cpu_1215c_firmware:4.5.2:*:*:*:*:*:*:*",
+            "vulnerable": true,
+            "software_asset_id": 25,
+            "software_installation_id": 5,
+            "installed_version": "4.5.2"
+          },
+          {
+            "criterion": "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*",
+            "confirmed_cpe": "cpe:2.3:h:siemens:simatic_s7-1200_cpu_1215c:-:*:*:*:*:*:*:*",
+            "vulnerable": false,
+            "software_asset_id": null,
+            "software_installation_id": null,
+            "installed_version": null
+          }
+        ]
+      }
+    }
+  ],
+  "conditional_vulnerabilities": [
+    {
+      "cve_id": "CVE-2022-30694",
+      "hardware_id": 10,
+      "hardware_name": "Siemens SIMATIC S7-1200 cpu 1215C",
+      "hardware_criticality": "HIGH",
+      "hardware_role_nvd": "PLATFORM",
+      "severity": "MEDIUM",
+      "cvss_base_score": "6.5",
+      "description": "The login endpoint /FormLogin in affected web services does not apply proper origin checking.\r\n\r\nThis could allow authenticated remote attackers to track the activities of other users via a login cross-site request forgery attack.",
+      "published": "2022-11-08T11:15:10.413000+00:00",
+      "last_modified": "2026-06-17T04:44:06.653000+00:00",
+      "nvd_retrieved_at": "2026-10-23T21:36:44.601459+00:00",
+      "nvd_references": [
+        {
+          "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-478960.pdf",
+          "tags": [
+            "Patch",
+            "Vendor Advisory"
+          ],
+          "source": "productcert@siemens.com"
+        },
+        {
+          "url": "https://cert-portal.siemens.com/productcert/pdf/ssa-478960.pdf",
+          "tags": [
+            "Patch",
+            "Vendor Advisory"
+          ],
+          "source": "af854a3a-2127-422b-91ae-364da2661108"
+        }
+      ],
+      "applicability_status": "APPLIES_CONDITIONAL",
+      "applicability_source": "ANALYST",
+      "justifications": [
+        {
+          "assessment_id": 104,
+          "configuration_index": 108,
+          "justification": "No se sabe la versión especifica del firmware",
+          "decided_by": "analista-brian",
+          "selected_nvd_criterion": {
+            "key": "78B5E474-2B55-491F-9BBD-5341614E2A5F",
+            "part": "o",
+            "bounds": {},
+            "criteria": "cpe:2.3:o:siemens:simatic_s7-1200_cpu_1215c_firmware:-:*:*:*:*:*:*:*",
+            "match_criteria_id": "78B5E474-2B55-491F-9BBD-5341614E2A5F"
+          },
+          "decided_at": "2026-10-30T03:10:42.473341+00:00"
+        }
+      ],
+      "evaluated_software": [],
+      "automatic_nvd_evidence": null
+    }
+  ],
+  "communications": []
+}

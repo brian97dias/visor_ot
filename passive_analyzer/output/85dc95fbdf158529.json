@@ -1,0 +1,38 @@
+{
+  "schema_version": "0.2",
+  "capture": {
+    "pcap_id": "85dc95fbdf158529",
+    "filename": "hogar_002.pcap",
+    "relative_path": "hogar_002.pcap"
+  },
+  "interfaces": [
+    {
+      "mac": "2c:cf:67:d7:d3:6b",
+      "ips": [],
+      "first_seen": "2026-10-29 12:21:04",
+      "last_seen": "2026-10-29 12:21:31"
+    },
+    {
+      "mac": "60:45:cb:2f:56:1c",
+      "ips": [],
+      "first_seen": "2026-10-29 12:21:04",
+      "last_seen": "2026-10-29 12:21:31"
+    }
+  ],
+  "communications": [
+    {
+      "client_ip": "192.168.1.15",
+      "server_ip": "192.168.1.10",
+      "client_macs": null,
+      "server_macs": null,
+      "transport_protocol": "TCP",
+      "service_port": 22,
+      "service": null,
+      "role_source": "tcp_syn",
+      "packet_count": 66,
+      "first_seen": "2026-10-29 12:21:15",
+      "last_seen": "2026-10-29 12:21:31",
+      "network_scope": "unknown"
+    }
+  ]
+}

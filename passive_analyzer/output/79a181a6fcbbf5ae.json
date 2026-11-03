@@ -1,0 +1,390 @@
+{
+  "schema_version": "0.2",
+  "capture": {
+    "pcap_id": "79a181a6fcbbf5ae",
+    "filename": "visor_ot_demo_dia2_operacion_y_nuevos_flujos.pcap",
+    "relative_path": "Simulados/visor_ot_demo_dia2_operacion_y_nuevos_flujos.pcap"
+  },
+  "interfaces": [
+    {
+      "mac": "00:05:e4:01:24:d3",
+      "ips": [
+        "192.168.88.50"
+      ],
+      "first_seen": "2026-11-02 08:00:00",
+      "last_seen": "2026-11-02 10:24:00"
+    },
+    {
+      "mac": "00:0a:dc:64:85:c2",
+      "ips": [
+        "192.168.88.25"
+      ],
+      "first_seen": "2026-11-02 08:00:00",
+      "last_seen": "2026-11-02 10:23:50"
+    },
+    {
+      "mac": "00:0c:29:51:a9:47",
+      "ips": [
+        "192.168.88.15"
+      ],
+      "first_seen": "2026-11-02 08:00:00",
+      "last_seen": "2026-11-02 10:23:50"
+    },
+    {
+      "mac": "00:0e:8c:a3:4e:cf",
+      "ips": [
+        "192.168.88.20"
+      ],
+      "first_seen": "2026-11-02 08:00:00",
+      "last_seen": "2026-11-02 12:02:50"
+    },
+    {
+      "mac": "00:11:22:7b:c5:50",
+      "ips": [
+        "192.168.88.105"
+      ],
+      "first_seen": "2026-11-02 08:00:00",
+      "last_seen": "2026-11-02 12:02:50"
+    },
+    {
+      "mac": "00:1c:06:01:d4:23",
+      "ips": [
+        "192.168.88.30"
+      ],
+      "first_seen": "2026-11-02 08:00:00",
+      "last_seen": "2026-11-02 12:02:50"
+    },
+    {
+      "mac": "00:40:9d:28:ee:0d",
+      "ips": [
+        "192.168.88.130"
+      ],
+      "first_seen": "2026-11-02 08:00:01",
+      "last_seen": "2026-11-02 10:10:00"
+    },
+    {
+      "mac": "00:80:63:b5:b6:bb",
+      "ips": [
+        "192.168.88.75"
+      ],
+      "first_seen": "2026-11-02 08:00:00",
+      "last_seen": "2026-11-02 10:16:00"
+    },
+    {
+      "mac": "00:90:e8:10:af:c8",
+      "ips": [
+        "192.168.88.60"
+      ],
+      "first_seen": "2026-11-02 08:00:00",
+      "last_seen": "2026-11-02 10:00:00"
+    },
+    {
+      "mac": "00:90:e8:27:8c:37",
+      "ips": [
+        "192.168.88.61"
+      ],
+      "first_seen": "2026-11-02 08:00:00",
+      "last_seen": "2026-11-02 10:16:00"
+    },
+    {
+      "mac": "28:63:36:89:59:82",
+      "ips": [
+        "192.168.88.85"
+      ],
+      "first_seen": "2026-11-02 08:00:00",
+      "last_seen": "2026-11-02 12:02:50"
+    },
+    {
+      "mac": "28:cf:e9:18:b5:ed",
+      "ips": [
+        "192.168.88.52"
+      ],
+      "first_seen": "2026-11-02 08:00:01",
+      "last_seen": "2026-11-02 10:23:40"
+    }
+  ],
+  "communications": [
+    {
+      "client_ip": "192.168.88.52",
+      "server_ip": "192.168.88.30",
+      "client_macs": [
+        "28:cf:e9:18:b5:ed"
+      ],
+      "server_macs": [
+        "00:1c:06:01:d4:23"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 102,
+      "service": "S7",
+      "role_source": "tcp_syn",
+      "packet_count": 36,
+      "first_seen": "2026-11-02 08:10:00",
+      "last_seen": "2026-11-02 10:23:20",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "192.168.88.52",
+      "server_ip": "192.168.88.15",
+      "client_macs": [
+        "28:cf:e9:18:b5:ed"
+      ],
+      "server_macs": [
+        "00:0c:29:51:a9:47"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 102,
+      "service": "S7",
+      "role_source": "tcp_syn",
+      "packet_count": 36,
+      "first_seen": "2026-11-02 08:10:10",
+      "last_seen": "2026-11-02 10:23:30",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "192.168.88.52",
+      "server_ip": "192.168.88.85",
+      "client_macs": [
+        "28:cf:e9:18:b5:ed"
+      ],
+      "server_macs": [
+        "28:63:36:89:59:82"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 102,
+      "service": "S7",
+      "role_source": "tcp_syn",
+      "packet_count": 36,
+      "first_seen": "2026-11-02 08:10:20",
+      "last_seen": "2026-11-02 10:23:40",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "192.168.88.15",
+      "server_ip": "192.168.88.25",
+      "client_macs": [
+        "00:0c:29:51:a9:47"
+      ],
+      "server_macs": [
+        "00:0a:dc:64:85:c2"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 502,
+      "service": "Modbus/TCP",
+      "role_source": "tcp_syn",
+      "packet_count": 36,
+      "first_seen": "2026-11-02 08:10:30",
+      "last_seen": "2026-11-02 10:23:50",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "192.168.88.85",
+      "server_ip": "192.168.88.50",
+      "client_macs": [
+        "28:63:36:89:59:82"
+      ],
+      "server_macs": [
+        "00:05:e4:01:24:d3"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 502,
+      "service": "Modbus/TCP",
+      "role_source": "tcp_syn",
+      "packet_count": 36,
+      "first_seen": "2026-11-02 08:10:40",
+      "last_seen": "2026-11-02 10:24:00",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "192.168.88.130",
+      "server_ip": "192.168.88.20",
+      "client_macs": [
+        "00:40:9d:28:ee:0d"
+      ],
+      "server_macs": [
+        "00:0e:8c:a3:4e:cf"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 80,
+      "service": "HTTP",
+      "role_source": "tcp_syn",
+      "packet_count": 12,
+      "first_seen": "2026-11-02 08:10:50",
+      "last_seen": "2026-11-02 09:30:50",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "192.168.88.130",
+      "server_ip": "192.168.88.105",
+      "client_macs": [
+        "00:40:9d:28:ee:0d"
+      ],
+      "server_macs": [
+        "00:11:22:7b:c5:50"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 80,
+      "service": "HTTP",
+      "role_source": "tcp_syn",
+      "packet_count": 12,
+      "first_seen": "2026-11-02 08:11:00",
+      "last_seen": "2026-11-02 09:31:00",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "192.168.88.130",
+      "server_ip": "192.168.88.60",
+      "client_macs": [
+        "00:40:9d:28:ee:0d"
+      ],
+      "server_macs": [
+        "00:90:e8:10:af:c8"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 22,
+      "service": "SSH",
+      "role_source": "tcp_syn",
+      "packet_count": 12,
+      "first_seen": "2026-11-02 08:11:10",
+      "last_seen": "2026-11-02 09:31:10",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "192.168.88.130",
+      "server_ip": "192.168.88.61",
+      "client_macs": [
+        "00:40:9d:28:ee:0d"
+      ],
+      "server_macs": [
+        "00:90:e8:27:8c:37"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 22,
+      "service": "SSH",
+      "role_source": "tcp_syn",
+      "packet_count": 12,
+      "first_seen": "2026-11-02 08:11:20",
+      "last_seen": "2026-11-02 09:31:20",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "192.168.88.130",
+      "server_ip": "192.168.88.75",
+      "client_macs": [
+        "00:40:9d:28:ee:0d"
+      ],
+      "server_macs": [
+        "00:80:63:b5:b6:bb"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 443,
+      "service": "HTTPS",
+      "role_source": "tcp_syn",
+      "packet_count": 8,
+      "first_seen": "2026-11-02 08:11:30",
+      "last_seen": "2026-11-02 09:31:30",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "192.168.88.130",
+      "server_ip": "192.168.88.30",
+      "client_macs": [
+        "00:40:9d:28:ee:0d"
+      ],
+      "server_macs": [
+        "00:1c:06:01:d4:23"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 102,
+      "service": "S7",
+      "role_source": "tcp_syn",
+      "packet_count": 6,
+      "first_seen": "2026-11-02 10:10:00",
+      "last_seen": "2026-11-02 10:10:00",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "192.168.2.64",
+      "server_ip": "192.168.88.30",
+      "client_macs": null,
+      "server_macs": [
+        "00:1c:06:01:d4:23"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 102,
+      "service": "S7",
+      "role_source": "tcp_syn",
+      "packet_count": 6,
+      "first_seen": "2026-11-02 10:12:00",
+      "last_seen": "2026-11-02 10:12:00",
+      "network_scope": "unknown"
+    },
+    {
+      "client_ip": "192.168.2.64",
+      "server_ip": "192.168.88.20",
+      "client_macs": null,
+      "server_macs": [
+        "00:0e:8c:a3:4e:cf"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 80,
+      "service": "HTTP",
+      "role_source": "tcp_syn",
+      "packet_count": 6,
+      "first_seen": "2026-11-02 10:14:00",
+      "last_seen": "2026-11-02 10:14:00",
+      "network_scope": "unknown"
+    },
+    {
+      "client_ip": "192.168.2.64",
+      "server_ip": "192.168.88.61",
+      "client_macs": null,
+      "server_macs": [
+        "00:90:e8:27:8c:37"
+      ],
+      "transport_protocol": "TCP",
+      "service_port": 23,
+      "service": "Telnet",
+      "role_source": "tcp_syn",
+      "packet_count": 6,
+      "first_seen": "2026-11-02 10:16:00",
+      "last_seen": "2026-11-02 10:16:00",
+      "network_scope": "unknown"
+    },
+    {
+      "client_ip": "192.168.88.30",
+      "server_ip": "192.168.88.20",
+      "client_macs": [
+        "00:1c:06:01:d4:23"
+      ],
+      "server_macs": [
+        "00:0e:8c:a3:4e:cf"
+      ],
+      "transport_protocol": "ETHERNET",
+      "service_port": 0,
+      "service": "PROFINET RT",
+      "role_source": "ethernet_first_observed",
+      "packet_count": 32,
+      "first_seen": "2026-11-02 08:05:20",
+      "last_seen": "2026-11-02 12:02:50",
+      "network_scope": "local_segment"
+    },
+    {
+      "client_ip": "192.168.88.85",
+      "server_ip": "192.168.88.105",
+      "client_macs": [
+        "28:63:36:89:59:82"
+      ],
+      "server_macs": [
+        "00:11:22:7b:c5:50"
+      ],
+      "transport_protocol": "ETHERNET",
+      "service_port": 0,
+      "service": "PROFINET RT",
+      "role_source": "ethernet_first_observed",
+      "packet_count": 32,
+      "first_seen": "2026-11-02 08:05:20",
+      "last_seen": "2026-11-02 12:02:50",
+      "network_scope": "local_segment"
+    }
+  ]
+}
