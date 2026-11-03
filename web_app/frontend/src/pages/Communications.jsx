@@ -194,9 +194,9 @@ useEffect(() => {
                     <td><CommunicationEndpoint ip={communication.source_ip} resolution={communication.source_resolution} /></td>
                     <td><CommunicationEndpoint ip={communication.destination_ip} resolution={communication.destination_resolution} /></td>
                     <td>
-                      {communication.transport_protocol} / {communication.service_port}
+                      {communication.transport_protocol === "ETHERNET" ? "ETHERNET (sin puerto)" : `${communication.transport_protocol} / ${communication.service_port}`}
                     </td>
-                    <td>{communication.service || "Puerto " + communication.service_port}</td>
+                    <td>{communication.service || (communication.transport_protocol === "ETHERNET" ? "Servicio Ethernet" : "Puerto " + communication.service_port)}</td>
                     <td>{communication.active_evidence_count}</td>
                     <td>{Number(communication.packets_observed).toLocaleString("es-CO")}</td>
                     <td>
