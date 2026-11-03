@@ -1,8 +1,8 @@
-"""A global catalogue of official CVE records, not a vulnerability verdict.
+"""Official CVE catalogue, projected into independently evaluated hardware rows.
 
-GET /cves/ lists each verified CVE once with a number of related hardware
-candidate findings. GET /cves/<id>/ gives the original NVD metadata and a
-paginated hardware list. No NVD access, writes or heuristic applicability.
+GET /cves/ lists CVE/hardware pairs (without duplicating the official NVD
+record). GET /cves/<id>/ still returns the original record and its hardware
+list. No NVD access, writes or heuristic applicability.
 """
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
@@ -230,33 +230,41 @@ def _summary_bucket(status):
     ) else "PENDING_REVIEW"
 
 
-def _catalogue_summary():
-    """Global counts, independent of the list's search, filters and pagination.
+def _catalogue_summaries():
+    """Distinct official CVEs and independently scoped hardware-CVE metrics.
 
-    Reuse the same conservative effective-applicability logic as the table;
-    counting raw human audit records would double-count system assessments.
+    Preserve the original distinct-CVE summary for API consumers, but expose
+    pair-level counts separately so the interface never labels an aggregate
+    finding as the status of every hardware.
     """
     cves = list(Cve.objects.filter(fetch_status=Cve.FetchStatus.COMPLETED))
     summary = {"total": len(cves), "applies": 0, "applies_conditional": 0,
                "not_applicable": 0, "pending_review": 0, "validated": 0}
+    evaluations = {
+        "total": 0, "applies": 0, "applies_conditional": 0,
+        "not_applicable": 0, "pending_review": 0, "validated": 0,
+    }
     if not cves:
-        return summary
+        return summary, evaluations
     analyst = catalogue_statuses(cves)
     related = related_assets_for_cves(cves)
     for cve in cves:
         effective = _catalogue_applicability(analyst[cve.pk], related[cve.pk])
-        bucket = _summary_bucket(effective["status"])
-        if bucket == "APPLIES":
-            summary["applies"] += 1
-        elif bucket == "APPLIES_CONDITIONAL":
-            summary["applies_conditional"] += 1
-        elif bucket == "NOT_APPLICABLE":
-            summary["not_applicable"] += 1
-        else:
-            summary["pending_review"] += 1
-    summary["validated"] = (summary["applies"] + summary["applies_conditional"]
-                            + summary["not_applicable"])
-    return summary
+        summary[_summary_bucket(effective["status"]).lower()] += 1
+        for context in related[cve.pk]:
+            scoped = context.get("scoped_applicability") or {}
+            bucket = _summary_bucket(scoped.get("status")).lower()
+            evaluations[bucket] += 1
+            evaluations["total"] += 1
+    for group in (summary, evaluations):
+        group["validated"] = (group["applies"] + group["applies_conditional"]
+                              + group["not_applicable"])
+    return summary, evaluations
+
+
+def _catalogue_summary():
+    """Backwards-compatible summary of distinct official NVD CVEs."""
+    return _catalogue_summaries()[0]
 
 
 def _cve_brief(cve, hardware_count=0, evaluation_status="PENDING_REVIEW",
@@ -308,9 +316,7 @@ class CveCatalogueView(APIView):
         params = CveCatalogueFilterSerializer(data=request.query_params)
         params.is_valid(raise_exception=True)
         values = params.validated_data
-        query = Cve.objects.filter(
-            fetch_status=Cve.FetchStatus.COMPLETED,
-        )
+        query = Cve.objects.filter(fetch_status=Cve.FetchStatus.COMPLETED)
         search = values.get("q", "").strip()
         if search:
             related_ids = _cve_ids_for_evaluated_asset_name(search)
@@ -324,56 +330,93 @@ class CveCatalogueView(APIView):
             query = query.filter(severity="")
         elif severity != "ALL":
             query = query.filter(severity=severity)
-        ordered = query.order_by("-published", "cve_id")
+
+        # Expand BEFORE status filtering and pagination: one displayed result
+        # is exactly one CVE/hardware evaluation, not an aggregate verdict.
+        cves = list(query.order_by("-published", "cve_id"))
+        related = related_assets_for_cves(cves)
+        statuses = catalogue_statuses(cves)
+        named_hardware = set(Hardware.objects.filter(
+            asset__name__icontains=search,
+            asset__inventory_status=Asset.InventoryStatus.ACTIVE,
+        ).values_list("pk", flat=True)) if search else set()
+        selected_status = values["status"]
+        selected_technical = values["technical"]
+        term = search.casefold()
+        rows = []
+
+        for cve in cves:
+            contexts = related[cve.pk]
+            matches_metadata = (
+                not search or term in cve.cve_id.casefold()
+                or term in (cve.description or "").casefold()
+            )
+            # Retain a metadata-only CVE as a single unassociated row. It
+            # cannot claim any hardware-specific validation.
+            for context in contexts or [None]:
+                if not matches_metadata:
+                    if context is None:
+                        continue
+                    if (context["hardware_id"] not in named_hardware
+                            and not any(
+                                term in (asset.get("name") or "").casefold()
+                                for asset in context.get("assets", [])
+                            )):
+                        continue
+                scoped = (context or {}).get("scoped_applicability") or {}
+                state = scoped.get("status", "PENDING_REVIEW")
+                technical = (context or {}).get(
+                    "technical_result", "INDETERMINATE"
+                )
+                if (selected_status != "ALL"
+                        and not (
+                            selected_status == "PENDING_REVIEW"
+                            and _summary_bucket(state) == "PENDING_REVIEW"
+                        ) and state != selected_status):
+                    continue
+                if (selected_technical != "ALL"
+                        and selected_technical != technical
+                        and not (
+                            selected_technical == "ATTENTION"
+                            and state != "NOT_APPLICABLE"
+                        )):
+                    continue
+                rows.append((cve, context, state, technical, len(contexts)))
+
+        count = len(rows)
         page = values["page"]
         page_size = values["page_size"]
         offset = (page - 1) * page_size
-        selected_status = values["status"]
-        selected_technical = values["technical"]
-        if selected_status == "ALL" and selected_technical == "ALL":
-            count = ordered.count()
-            results = list(ordered[offset:offset + page_size])
-            statuses = catalogue_statuses(results)
-            technicals = technical_statuses(results)
-            assets = related_assets_for_cves(results)
-            applicability = {
-                cve.pk: _catalogue_applicability(statuses[cve.pk], assets[cve.pk])
-                for cve in results
+        shown = rows[offset:offset + page_size]
+        payload = []
+        for cve, context, state, technical, context_count in shown:
+            scoped = (context or {}).get("scoped_applicability") or {
+                "status": "PENDING_REVIEW", "source": "NONE",
             }
-        else:
-            # Effective applicability is derived BEFORE pagination. A missing
-            # installed application never proves a negative CVE result.
-            candidates = list(ordered)
-            statuses = catalogue_statuses(candidates)
-            technicals = technical_statuses(candidates)
-            assets = related_assets_for_cves(candidates)
-            applicability = {
-                cve.pk: _catalogue_applicability(statuses[cve.pk], assets[cve.pk])
-                for cve in candidates
-            }
-            filtered = [
-                cve for cve in candidates
-                if (selected_status == "ALL" or
-                    (selected_status == "PENDING_REVIEW" and
-                     _summary_bucket(applicability[cve.pk]["status"]) == "PENDING_REVIEW") or
-                    applicability[cve.pk]["status"] == selected_status)
-                and (selected_technical == "ALL" or
-                     technicals[cve.pk] == selected_technical or
-                     (selected_technical == "ATTENTION" and
-                      applicability[cve.pk]["status"] != "NOT_APPLICABLE"))
-            ]
-            count = len(filtered)
-            results = filtered[offset:offset + page_size]
-        counts = _asset_counts(results)
+            # Legacy evaluation_status is retained for a one-hardware CVE,
+            # including STALE/IN_REVIEW badges. Multi-hardware decisions may
+            # NEVER inherit a different hardware's analyst status.
+            evaluation = (
+                statuses[cve.pk] if context_count <= 1 and context is not None
+                else state
+            )
+            item = _cve_brief(
+                cve, 1 if context else 0, evaluation, technical,
+                [context] if context else [], scoped,
+            )
+            item["hardware_id"] = context["hardware_id"] if context else None
+            item["row_key"] = (
+                f"{cve.cve_id}:hardware:{context['hardware_id']}"
+                if context else f"{cve.cve_id}:unassociated"
+            )
+            payload.append(item)
+
+        summary, evaluation_summary = _catalogue_summaries()
         return Response({
             "count": count, "page": page, "page_size": page_size,
-            "summary": _catalogue_summary(),
-            "results": [_cve_brief(
-                cve, counts[cve.pk], statuses[cve.pk], technicals[cve.pk],
-                assets[cve.pk], applicability[cve.pk],
-            ) for cve in results],
+            "summary": summary, "evaluation_summary": evaluation_summary,
+            "results": payload,
         })
-
 
 class CveCatalogueDetailView(APIView):
     permission_classes = [IsAuthenticated, CpeSearchPermission]
