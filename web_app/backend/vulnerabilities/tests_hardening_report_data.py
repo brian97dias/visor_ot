@@ -305,8 +305,23 @@ class HardeningReportDataTests(TestCase):
             findings[self.hw.pk]["justifications"][0]["assessment_id"],
             findings[other.pk]["justifications"][0]["assessment_id"],
         )
+        # Verify the actual PDF presentation loop consumes BOTH independent
+        # analyst reviews rather than merely checking the JSON contract.
+        from vulnerabilities.services import hardening_pdf_diagnosis
         output = BytesIO()
-        render_hardening_pdf(data, output, author=self.user.username)
+        with patch.object(
+            hardening_pdf_diagnosis, "_field",
+            wraps=hardening_pdf_diagnosis._field,
+        ) as rendered_fields:
+            render_hardening_pdf(data, output, author=self.user.username)
+        shown_justifications = [
+            call.args[2] for call in rendered_fields.call_args_list
+            if len(call.args) > 2 and call.args[1] == "Justificación del analista"
+        ]
+        self.assertCountEqual(shown_justifications, [
+            "Justificación exclusiva de MEZ.",
+            "Justificación exclusiva de TRA.",
+        ])
         self.assertTrue(output.getvalue().startswith(b"%PDF-"))
 
     def test_verified_version_exclusion_does_not_create_report_finding(self):
