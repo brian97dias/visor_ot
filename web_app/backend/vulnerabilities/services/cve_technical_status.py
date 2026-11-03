@@ -206,10 +206,17 @@ def related_assets_for_cves(cves):
     ).values_list("cve_id", "hardware_id"):
         related[cve_pk].add(hw_pk)
 
+    # Cache only during this read-only projection. A PLC's confirmed CPE,
+    # software installations and fingerprint are the same regardless of which
+    # CVE is being evaluated, but must not be shared across HTTP requests.
+    inventory_cache = {}
     for cve in items:
         for hw_id in sorted(related[cve.pk]):
             try:
-                hardware, _, hw_cpes, installed, inventory_fp = _context(cve.cve_id, hw_id)
+                hardware, _, hw_cpes, installed, inventory_fp = _context(
+                    cve.cve_id, hw_id, cve_record=cve,
+                    inventory_cache=inventory_cache,
+                )
                 analysed = evaluate_configurations(
                     cve.configurations, list(hw_cpes), installed
                 )
