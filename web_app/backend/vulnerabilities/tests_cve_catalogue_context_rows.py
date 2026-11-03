@@ -70,6 +70,80 @@ class CveHardwareRowTests(TestCase):
             },
         )
 
+    def test_global_metrics_reuse_one_projection_and_remain_unfiltered(self):
+        from unittest.mock import patch
+        from vulnerabilities import cve_catalogue_views as catalogue
+        reference_summary, reference_evaluations = catalogue._catalogue_summaries()
+        for filters, expected_count in (
+            ({}, 2),
+            ({"q": "PLC-TRA-01"}, 1),
+            ({"q": "nonexistent-inventory-name"}, 0),
+            ({"status": "NOT_APPLICABLE"}, 1),
+        ):
+            with patch.object(
+                catalogue, "related_assets_for_cves",
+                wraps=catalogue.related_assets_for_cves,
+            ) as projection, patch.object(
+                catalogue, "catalogue_statuses",
+                wraps=catalogue.catalogue_statuses,
+            ) as statuses:
+                response = self.client.get(self.URL, filters)
+            self.assertEqual(response.status_code, 200, response.data)
+            self.assertEqual(response.data["count"], expected_count)
+            self.assertEqual(projection.call_count, 1)
+            self.assertEqual(statuses.call_count, 1)
+            self.assertEqual(response.data["summary"], reference_summary)
+            self.assertEqual(
+                response.data["evaluation_summary"], reference_evaluations,
+            )
+
+    def test_context_cache_reuses_hardware_cpes_and_firmware_for_other_cves(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from vulnerabilities.services.cve_general_assessment import _context
+
+        another = Cve.objects.create(
+            cve_id="CVE-2026-78421",
+            fetch_status=Cve.FetchStatus.COMPLETED,
+            retrieved_at=timezone.now(), configurations=[nvd_and()],
+        )
+        cache = {}
+        with CaptureQueriesContext(connection) as initial:
+            first = _context(
+                self.cve.cve_id, self.mez.pk,
+                cve_record=self.cve, inventory_cache=cache,
+            )
+        with CaptureQueriesContext(connection) as reused:
+            second = _context(
+                another.cve_id, self.mez.pk,
+                cve_record=another, inventory_cache=cache,
+            )
+        self.assertGreater(len(initial), 0)
+        self.assertEqual(len(reused), 0)
+        self.assertEqual(first[0].pk, second[0].pk)
+        self.assertEqual(first[2], second[2])  # Confirmed hardware CPE
+        self.assertEqual(first[3], second[3])  # Current installations
+        self.assertEqual(first[4], second[4])  # Evidence fingerprint
+        self.assertEqual(second[1].cve_id, another.cve_id)
+        with CaptureQueriesContext(connection) as separate_request:
+            _context(another.cve_id, self.mez.pk, cve_record=another,
+                     inventory_cache={})
+        self.assertGreater(len(separate_request), 0)
+
+    def test_request_cache_does_not_hide_inventory_changes_between_requests(self):
+        from vulnerabilities.services.cve_general_assessment import _context
+        old_fp = _context(
+            self.cve.cve_id, self.mez.pk,
+            cve_record=self.cve, inventory_cache={},
+        )[4]
+        self.mez.model = "SIMATIC upgraded"
+        self.mez.save(update_fields=["model"])
+        new_fp = _context(
+            self.cve.cve_id, self.mez.pk,
+            cve_record=self.cve, inventory_cache={},
+        )[4]
+        self.assertNotEqual(new_fp, old_fp)
+
     def test_same_cve_is_two_rows_with_distinct_hardware_and_applicability(self):
         response = self.client.get(self.URL)
         self.assertEqual(response.status_code, 200, response.data)
