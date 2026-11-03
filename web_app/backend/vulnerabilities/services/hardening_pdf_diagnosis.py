@@ -568,6 +568,11 @@ def render_diagnostic_hardening_pdf(data, destination, *, author=None):
 
     story.append(PageBreak())
     _section(story, "4. Diagnóstico por sistemas y dispositivos", s)
+    if not contextualized:
+        story.append(_paragraph(
+            "No hay dispositivos con CVE aplicables asociados a sistemas OT "
+            "activos en este corte. Consulta el apéndice D para los equipos "
+            "pendientes de asociación.", s["muted"]))
     rendered = set()
     for system in diagnosis["prioritized_systems"]:
         story.append(_paragraph(system.get("name"), s["h2"]))
@@ -643,6 +648,8 @@ def render_diagnostic_hardening_pdf(data, destination, *, author=None):
         "Estas observaciones no sustituyen decisiones de analistas, "
         "no alteran veredictos y no constituyen hallazgos CVE adicionales.", s["muted"]))
 
+    if without_system:
+        story.append(PageBreak())
     _section(story, "Apéndice D. Hardware con CVE aplicables sin sistema OT", s)
     story.append(_paragraph(
         "Estos dispositivos tienen hallazgos de aplicabilidad vigente, "
@@ -654,8 +661,9 @@ def render_diagnostic_hardening_pdf(data, destination, *, author=None):
         story.append(_paragraph(
             "No hay dispositivos con CVE aplicables pendientes de asociación.",
             s["muted"]))
-    for device in without_system:
-        story.append(PageBreak())
+    for index, device in enumerate(without_system):
+        if index:
+            story.append(PageBreak())
         _device(story, device, s, references, width, set(by_id),
                 contextualized=False)
 
