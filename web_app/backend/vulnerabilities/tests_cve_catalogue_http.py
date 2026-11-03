@@ -321,7 +321,9 @@ class CveCatalogueHttpTests(TestCase):
         found = self.client.get(self.BASE, {"q": "firmware one"})
         self.assertEqual(found.status_code, 200, found.data)
         self.assertEqual(found.data["count"], 1)
-        unrelated = self.fixture.make_software("Unrelated firmware")
+        unrelated = self.fixture.make_software(
+            "Unrelated firmware", product="Unrelated Phoenix Firmware"
+        )
         self.fixture.link(software=unrelated)
         rejected = self.client.get(self.BASE, {"q": "unrelated firmware"})
         self.assertEqual(rejected.data["count"], 0)
