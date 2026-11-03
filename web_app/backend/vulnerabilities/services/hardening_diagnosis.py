@@ -167,6 +167,7 @@ def build_hardening_diagnosis(report, communication_by_hardware=None):
                 ))
 
     devices.sort(key=lambda item: (
+        not bool(item["system_ids"]),  # contextualized diagnoses come first
         PRIORITY_SORT.get(item["priority"], 3),
         -SEVERITY_RANK.get(item["priority_basis"]["max_cvss_severity"], 0),
         -_score(item["priority_basis"]["max_cvss_base_score"]),
@@ -176,7 +177,8 @@ def build_hardening_diagnosis(report, communication_by_hardware=None):
     for index, device in enumerate(devices, 1):
         device["display_number"] = index
 
-    device_ids = {device["hardware_id"] for device in devices}
+    contextualized_devices = [device for device in devices if device["system_ids"]]
+    unassociated_hardware = [device for device in devices if not device["system_ids"]]
     selected_systems = [
         {**system, "prioritized_hardware_ids": [
             device["hardware_id"] for device in devices
@@ -222,16 +224,18 @@ def build_hardening_diagnosis(report, communication_by_hardware=None):
                 "cvss_severity": severity,
                 "priority": PRIORITY_MATRIX[criticality][severity],
                 "hardware_ids": [
-                    device["hardware_id"] for device in devices
+                    device["hardware_id"] for device in contextualized_devices
                     if device["priority_basis"]["hardware_criticality"] == criticality
                     and device["priority_basis"]["max_cvss_severity"] == severity
                 ],
             })
         matrix.append({"hardware_criticality": criticality, "cells": cells})
 
-    counts = {priority: sum(d["priority"] == priority for d in devices)
+    # Matrix priorities count contextualized hardware only. Unassociated
+    # applicable CVEs remain visible in the appendix and overall totals.
+    counts = {priority: sum(d["priority"] == priority for d in contextualized_devices)
               for priority in ("P1", "P2", "P3")}
-    counts["UNCLASSIFIED"] = sum(d["priority"] is None for d in devices)
+    counts["UNCLASSIFIED"] = sum(d["priority"] is None for d in contextualized_devices)
     return {
         "version": 1,
         "unit": "HARDWARE_WITH_CURRENT_APPLIES",
@@ -239,6 +243,14 @@ def build_hardening_diagnosis(report, communication_by_hardware=None):
         "summary": {
             "active_hardware": len(hardware),
             "hardware_with_applicable_cves": len(devices),
+            "hardware_with_applicable_cves_with_system": len(contextualized_devices),
+            "hardware_with_applicable_cves_without_system": len(unassociated_hardware),
+            "applicable_hardware_cve_pairs_with_system": sum(
+                d["applicable_cve_count"] for d in contextualized_devices
+            ),
+            "applicable_hardware_cve_pairs_without_system": sum(
+                d["applicable_cve_count"] for d in unassociated_hardware
+            ),
             "hardware_without_identified_applies": len(hardware) - len(devices),
             "systems_with_prioritized_hardware": len(selected_systems),
             "applicable_hardware_cve_pairs": sum(
@@ -249,6 +261,7 @@ def build_hardening_diagnosis(report, communication_by_hardware=None):
         },
         "priority_matrix": matrix,
         "prioritized_hardware": devices,
+        "unassociated_hardware": unassociated_hardware,
         "prioritized_systems": selected_systems,
         "conditional_vulnerabilities": conditional,
         "inventory_coverage": {
