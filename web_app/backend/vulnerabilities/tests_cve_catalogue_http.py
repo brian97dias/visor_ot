@@ -219,6 +219,139 @@ class CveCatalogueHttpTests(TestCase):
         self.assertEqual(assessed.data["results"][0]["candidate_status"],
                          "PREVIOUSLY_ASSESSED")
 
+    def test_search_by_hardware_name_filters_only_related_cves(self):
+        from django.utils import timezone
+        self.hardware.asset.name = "PLC-TRA-01"
+        self.hardware.asset.save(update_fields=["name"])
+        self.run_discovery([
+            record("CVE-2024-65432"), record("CVE-2024-65433"),
+        ])
+        Cve.objects.create(
+            cve_id="CVE-2025-00001", fetch_status=Cve.FetchStatus.COMPLETED,
+            retrieved_at=timezone.now(),
+            description="Una vulnerabilidad de otro equipo",
+            configurations=[],
+        )
+        response = self.client.get(self.BASE, {"q": "plc-tra-01"})
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["count"], 2)
+        self.assertEqual({
+            row["cve_id"] for row in response.data["results"]
+        }, {"CVE-2024-65432", "CVE-2024-65433"})
+        self.assertTrue(all(
+            context["assets"][0]["name"] == "PLC-TRA-01"
+            for row in response.data["results"]
+            for context in row["related_assets"]
+        ))
+        # Global counters are intentionally independent of the text filter.
+        self.assertEqual(response.data["summary"]["total"], 3)
+        self.assertEqual(self.client.get(
+            self.BASE, {"q": "no-existe-este-activo"}
+        ).data["count"], 0)
+
+    def test_name_filter_combines_with_severity_status_and_pagination(self):
+        self.hardware.asset.name = "PLC-TRA-01"
+        self.hardware.asset.save(update_fields=["name"])
+        severe = record("CVE-2024-65432")
+        severe["metrics"]["cvssMetricV31"][0]["cvssData"]["baseSeverity"] = "HIGH"
+        self.run_discovery([severe, record("CVE-2024-65433")])
+        first = self.client.get(self.BASE, {
+            "q": "TRA-01", "page": 1, "page_size": 1,
+        })
+        second = self.client.get(self.BASE, {
+            "q": "TRA-01", "page": 2, "page_size": 1,
+        })
+        self.assertEqual(first.data["count"], 2)
+        self.assertEqual(second.data["count"], 2)
+        self.assertNotEqual(
+            first.data["results"][0]["cve_id"],
+            second.data["results"][0]["cve_id"],
+        )
+        high = self.client.get(self.BASE, {
+            "q": "TRA-01", "severity": "HIGH",
+            "status": "PENDING_REVIEW",
+        })
+        self.assertEqual(high.status_code, 200, high.data)
+        self.assertEqual(high.data["count"], 1)
+        self.assertEqual(high.data["results"][0]["cve_id"], "CVE-2024-65432")
+        # The pre-existing CVE ID search still works through the same field.
+        self.assertEqual(self.client.get(
+            self.BASE, {"q": "65433"}
+        ).data["count"], 1)
+
+    def test_assessed_hardware_without_finding_is_searchable_by_name(self):
+        from django.utils import timezone
+        self.hardware.asset.name = "PLC-TRA-01"
+        self.hardware.asset.save(update_fields=["name"])
+        cve = Cve.objects.create(
+            cve_id="CVE-2025-73001",
+            fetch_status=Cve.FetchStatus.COMPLETED,
+            retrieved_at=timezone.now(), configurations=[],
+        )
+        for index in (0, 1):
+            AssetCveAssessment.objects.create(
+                hardware=self.hardware, cve=cve,
+                configuration_index=index, configuration_snapshot={},
+                configuration_fingerprint="a" * 64,
+                inventory_fingerprint="b" * 64,
+                status=AssetCveAssessment.Status.PENDING_REVIEW,
+                justification="Historial evaluado", decided_by=self.user,
+            )
+        match = self.client.get(self.BASE, {"q": "PLC-TRA"})
+        self.assertEqual(match.status_code, 200, match.data)
+        self.assertEqual(match.data["count"], 1)
+        self.assertEqual(match.data["results"][0]["cve_id"], cve.cve_id)
+        self.assertEqual(match.data["results"][0]["hardware_count"], 1)
+
+    def test_software_name_search_only_when_software_is_evaluated_evidence(self):
+        from vulnerabilities.tests_cve_general_assessment import nvd_and
+        from vulnerabilities.tests_cve_discovery_plan import SW_CPE
+        self.fixture.link()
+        self.fixture.confirm(self.fixture.firmware.asset, SW_CPE)
+        self.run_discovery([record("CVE-2024-65432")])
+        matching = Cve.objects.get(cve_id="CVE-2024-65432")
+        matching.configurations = [nvd_and()]
+        matching.save(update_fields=["configurations"])
+        display = self.client.get(self.BASE)
+        self.assertTrue(any(
+            asset["name"] == "Firmware one"
+            for context in display.data["results"][0]["related_assets"]
+            for asset in context["assets"]
+        ))
+        found = self.client.get(self.BASE, {"q": "firmware one"})
+        self.assertEqual(found.status_code, 200, found.data)
+        self.assertEqual(found.data["count"], 1)
+        unrelated = self.fixture.make_software("Unrelated firmware")
+        self.fixture.link(software=unrelated)
+        rejected = self.client.get(self.BASE, {"q": "unrelated firmware"})
+        self.assertEqual(rejected.data["count"], 0)
+
+    def test_name_filter_does_not_resurrect_legacy_software_only_finding(self):
+        from django.utils import timezone
+        self.hardware.asset.name = "PLC-TRA-01"
+        self.hardware.asset.save(update_fields=["name"])
+        cve = Cve.objects.create(
+            cve_id="CVE-2025-73888",
+            fetch_status=Cve.FetchStatus.COMPLETED,
+            retrieved_at=timezone.now(), configurations=[],
+        )
+        run = CveDiscoveryRun.objects.create(
+            requested_by=self.user, status=CveDiscoveryRun.Status.COMPLETED,
+            selected_hardware_ids=[self.hardware.pk],
+        )
+        AssetCveFinding.objects.create(
+            hardware=self.hardware, cve=cve,
+            first_discovery_run=run, last_discovery_run=run,
+            sources=[{
+                "origin": "SOFTWARE", "hardware_id": self.hardware.pk,
+                "asset_id": 999, "asset_cpe_id": 999,
+                "cpe_name": "cpe:2.3:o:vendor:old_firmware:1.0:*:*:*:*:*:*:*",
+            }],
+        )
+        result = self.client.get(self.BASE, {"q": "PLC-TRA-01"})
+        self.assertEqual(result.data["count"], 0)
+        self.assertEqual(result.data["summary"]["total"], 1)
+
     def test_not_yet_fetched_record_is_not_presented_as_official(self):
         Cve.objects.create(cve_id="CVE-2024-65432")
         self.assertEqual(self.client.get(self.BASE).data["count"], 0)
