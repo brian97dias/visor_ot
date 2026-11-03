@@ -10,6 +10,7 @@ from datetime import timedelta, timezone as datetime_timezone
 from uuid import UUID
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
@@ -113,11 +114,21 @@ def enqueue_catalogue_query(strategy, parameter, *, force=False, page_size=CATAL
         )
         cache = CpeQueryCache.objects.select_for_update().get(pk=cache.pk)
         # A request never replaces an active retrieval, even with force=True.
-        active = cache.snapshots.filter(status__in=(
-            CpeQuerySnapshot.Status.QUEUED,
-            CpeQuerySnapshot.Status.RUNNING,
-            CpeQuerySnapshot.Status.INCOMPLETE,
-        )).order_by("-pk").first()
+        # A transiently failed snapshot with a retry deadline is still
+        # active. Reuse it across assets instead of starting competing
+        # downloads for the same NVD query while backoff is pending.
+        active = cache.snapshots.filter(
+            Q(status__in=(
+                CpeQuerySnapshot.Status.QUEUED,
+                CpeQuerySnapshot.Status.RUNNING,
+                CpeQuerySnapshot.Status.INCOMPLETE,
+            )) | Q(
+                status=CpeQuerySnapshot.Status.FAILED,
+                error_code="FETCH_FAILED",
+                retry_after__isnull=False,
+                automatic_retry_count__gte=1,
+            )
+        ).order_by("-pk").first()
         if active:
             return active, True
         if not force:
