@@ -70,6 +70,27 @@ class ProfinetPassiveTests(unittest.TestCase):
         self.assertEqual(communications[(IP_PLC, IP_PHOENIX, "TCP", 502)]
                          ["service"], "Modbus/TCP")
 
+    def test_expected_service_ports_are_identified_without_nvd_or_policy(self):
+        packets = [
+            announce(IP_PLC, MAC_PLC),
+            announce(IP_PHOENIX, MAC_PHOENIX),
+        ]
+        for offset, port in enumerate((22, 23, 80, 443)):
+            packets.append(
+                Ether(src=MAC_PLC, dst=MAC_PHOENIX) /
+                IP(src=IP_PLC, dst=IP_PHOENIX) /
+                TCP(sport=44000 + offset, dport=port, flags="S")
+            )
+        _, communications = self.capture(packets)
+        self.assertEqual(len(communications), 4)
+        for port, expected in (
+            (22, "SSH"), (23, "Telnet"),
+            (80, "HTTP"), (443, "HTTPS"),
+        ):
+            row = communications[(IP_PLC, IP_PHOENIX, "TCP", port)]
+            self.assertEqual(row["service"], expected)
+            self.assertEqual(row["role_source"], "tcp_syn")
+
     def test_no_arp_no_invented_ip(self):
         _, communications = self.capture([
             profinet(MAC_PLC, MAC_PHOENIX),
