@@ -114,6 +114,20 @@ class CpeBulkSearchTests(TestCase):
             "received": 4, "queued": 1, "reused": 0, "skipped": 1, "failed": 2,
         })
         self.assertEqual(CpeSearchRun.objects.count(), 1)
+        error = response.data["results"][1]["message"]
+        self.assertIn("Registra un fabricante", error)
+        self.assertNotIn("ErrorDetail(", error)
+
+    def test_rejected_bulk_item_does_not_queue_or_contact_worker(self):
+        broken = self.software
+        broken.software.manufacturer = ""
+        broken.software.save(update_fields=["manufacturer"])
+        response = self.bulk([broken.pk])
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["summary"]["queued"], 0)
+        self.assertEqual(response.data["summary"]["failed"], 1)
+        self.assertEqual(response.data["results"][0]["outcome"], "INVALID_IDENTITY")
+        self.assertFalse(CpeSearchRun.objects.exists())
 
     def test_active_running_run_reused_but_different_identity_is_a_new_job(self):
         old = self.bulk([self.plc.pk]).data["results"][0]["run_id"]
