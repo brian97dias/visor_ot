@@ -117,9 +117,40 @@ class ExcelImportTests(TestCase):
                 "action": "CREATE" if row["status"] == "CREATE" else "SKIP",
                 "fields": [], "correction_reason": "",
                 "confirm_shared_correction": False,
-                "system_ids": [self.system.pk] if row["sheet"] == "Hardware" else [],
             } for row in preview["rows"]
         }
+
+    def test_excel_new_hardware_has_no_system_even_if_systems_exist(self):
+        row = self._hw(
+            id_visor_ot=None, nombre_activo="PLC para vincular después",
+            numero_serie="SN-WAIT-01",
+        )
+        blob = xlsx([row])
+        preview = self._preview(blob).data
+        actions = self._choices(preview)
+        response = self._confirm(blob, preview, actions)
+        self.assertEqual(response.status_code, 200, response.data)
+        created = Asset.objects.get(name="PLC para vincular después")
+        from .models import SystemMembership
+        self.assertFalse(SystemMembership.objects.filter(
+            hardware_id=created.pk, unlinked_at__isnull=True
+        ).exists())
+        self.assertEqual(created.criticality, "MEDIUM")
+
+    def test_legacy_import_confirmation_cannot_assign_system(self):
+        row = self._hw(
+            id_visor_ot=None, nombre_activo="Import con relación prohibida",
+            numero_serie="SN-LEGACY-01",
+        )
+        blob = xlsx([row])
+        preview = self._preview(blob).data
+        actions = self._choices(preview)
+        actions["Hardware:2"]["system_ids"] = [self.system.pk]
+        response = self._confirm(blob, preview, actions)
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertFalse(Asset.objects.filter(
+            name="Import con relación prohibida"
+        ).exists())
 
     def test_preview_splits_new_and_existing_and_does_not_write(self):
         new = self._hw(id_visor_ot=None, nombre_activo="Nuevo PLC",
