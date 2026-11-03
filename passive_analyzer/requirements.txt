@@ -1,0 +1,5 @@
+# Dependencias del proceso independiente FastAPI / analizador de PCAP.
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+scapy>=2.5,<3
+-r requirements-large-pcap.txt

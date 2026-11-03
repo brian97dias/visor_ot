@@ -1,0 +1,13 @@
+# Dependencias principales del backend Django y de su worker NVD.
+# Requiere Python y PostgreSQL compatibles con Django 5.2.
+Django>=5.2,<5.3
+djangorestframework>=3.15,<4
+djangorestframework-simplejwt>=5,<6
+django-cors-headers>=4,<5
+python-dotenv>=1,<2
+psycopg[binary]>=3.1,<4
+requests>=2.31,<3
+
+# Funcionalidades específicas; mantener los archivos separados.
+-r requirements-import.txt
+-r requirements-hardening-report.txt

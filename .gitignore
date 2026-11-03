@@ -1,18 +1,32 @@
-# Archivos de red pesados (por extensión)
-*.pcap
-*.pcapng
-
-# Carpeta donde guardas las capturas/laboratorios
-pcaps/
-
-# Entorno virtual y caché de Python (si usas Python)
+# VISOR OT: configuraciones locales y archivos generados
+# Las reglas no quitan del índice archivos ya versionados ni borran su historial.
+.env
+.env.*
+!.env.example
+*.local
 .venv/
 venv/
 __pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.log
+*.sqlite3
+.DS_Store
+.idea/
+.vscode/
+node_modules/
+dist/
+dist-ssr/
 
-.env
+# Capturas de red generadas y observaciones locales
+*.pcap
+*.pcapng
+pcaps/
+/passive_analyzer/output/
 
-b4e3d1af39deaad6.json
-
-# JSON de informe de hardening (artefactos locales, no versionar)
-web_app/backend/vulnerabilities/output/
+# Informes generados en el backend
+/web_app/backend/vulnerabilities/output/
+/web_app/backend/vulnerabilities/visor_ot_hardening_data.json
