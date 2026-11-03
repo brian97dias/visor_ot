@@ -8,7 +8,8 @@ import {
   cvePageCount,
   cveHardwareCandidates, toggleCveHardwareSelection,
   cveHardwareSelectionValid, isCveDiscoveryActive,
-  preferredCveHardwareId, selectedCveHardwareId, cveReviewProgress,
+  preferredCveHardwareId, selectedCveHardwareId, cveEvaluationDetailUrl,
+  cveReviewProgress,
   groupCveEvidence, selectCveOperationalGroups, cveHumanReviewMessage,
   cveApplicabilityExplanation, cveConfigurationHighlights,
   CVE_CONTEXTUAL_SCOPE, cveContextualScopeSummary,
@@ -858,4 +859,16 @@ test("correspondence buttons follow checkbox and verified NVD installation", () 
   assert.equal(updatedCveReviewChoice("NOT_MATCH", "CONFIRMED"), "NOT_MATCH");
   assert.equal(updatedCveReviewChoice("NOT_MATCH", "CONDITIONAL"), "NOT_MATCH");
   assert.equal(updatedCveReviewChoice("", "CONFIRMED"), "");
+});
+
+test("same official CVE yields distinct detail links for each evaluated PLC", () => {
+  const common = { cve_id: "CVE-2021-42029" };
+  assert.equal(cveEvaluationDetailUrl({ ...common, hardware_id: 1 }),
+    "/vulnerabilities/cve/CVE-2021-42029?hardware=1");
+  assert.equal(cveEvaluationDetailUrl({ ...common, hardware_id: 5 }),
+    "/vulnerabilities/cve/CVE-2021-42029?hardware=5");
+  assert.equal(cveEvaluationDetailUrl({ ...common, hardware_id: null }),
+    "/vulnerabilities/cve/CVE-2021-42029");
+  assert.equal(cveEvaluationDetailUrl({ ...common, hardware_id: "invalid" }),
+    "/vulnerabilities/cve/CVE-2021-42029");
 });
