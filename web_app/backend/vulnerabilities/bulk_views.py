@@ -73,9 +73,21 @@ class CpeBulkSearchView(APIView):
                         result.update(outcome="NOT_FOUND", message="El activo dejó de existir.")
                         summary["failed"] += 1
                     except (ValueError, AttributeError, serializers.ValidationError) as exc:
-                        # One bad identity must not roll back valid sibling jobs.
-                        reason = (getattr(exc, "detail", None) or str(exc))
-                        result.update(outcome="INVALID_IDENTITY", message=str(reason))
+                        # One invalid identity never rolls back valid siblings.
+                        # DRF ValidationError.detail is often a dict of
+                        # ErrorDetail objects; render the message, not Python's
+                        # representation of the dict, in the review dialog.
+                        detail = getattr(exc, "detail", None)
+                        if isinstance(detail, dict):
+                            messages = [
+                                str(message)
+                                for value in detail.values()
+                                for message in (value if isinstance(value, list) else [value])
+                            ]
+                            reason = " ".join(messages) or str(exc)
+                        else:
+                            reason = str(exc)
+                        result.update(outcome="INVALID_IDENTITY", message=reason)
                         summary["failed"] += 1
             results.append(result)
 
