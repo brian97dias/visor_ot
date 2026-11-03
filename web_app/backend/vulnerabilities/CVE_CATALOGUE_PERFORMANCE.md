@@ -156,6 +156,42 @@ python manage.py profile_cve_catalogue --username analista-brian \
   --q PLC-TRA-01 --runs 2
 ```
 
+### Resultado medido de la primera optimización
+
+El operador ejecutó 48 pruebas de catálogo/perfilador (**OK**) y la suite
+de 677 pruebas de vulnerabilidades (**OK**). Con los mismos datos:
+
+| Solicitud | Antes | Después (mediana) | SQL antes/después |
+| --- | ---: | ---: | ---: |
+| Completo | 9955.6 ms | **3233.0 ms** | 2310 / **581** |
+| PLC-TRA-01 | 6341.8 ms | **3557.1 ms** | 1617 / **587** |
+
+Se conservaron 88 CVE, 122 pares evaluados y 16 resultados del filtro.
+La proyección pasó de dos llamadas a una. El principal costo que quedó
+fue la proyección (aprox. 2.2–2.4 s): 122 evaluaciones NVD (aprox.
+1.1 s), 231 SQL para estatus y 122 SQL para software evaluado.
+
+### Segunda optimización: historial de decisiones por lote
+
+Para reducir las consultas remanentes sin cambiar la lógica, se consulta
+`AssetCveAssessment` **una sola vez por proyección de catálogo** y
+se distribuyen sus registros en memoria por `(cve_id, hardware_id)`,
+manteniendo orden descendente por fecha y PK. El mismo conjunto de registros
+se utiliza para decidir:
+
+- La correspondencia general revisada por el analista en ese hardware;
+- Las decisiones de cada configuración NVD;
+- La instalación de software seleccionada para la revisión.
+
+Los endpoints de detalle, escritura y la lectura de vigencia no reciben
+historial cacheado, por lo que siguen comprobando el estado actual con
+consultas propias. Una nueva petición recarga el historial y las huellas.
+No se agregaron migraciones ni se reinterpretaron estados.
+
+El profiler original permanece disponible. Repetir en la máquina del
+operador los dos comandos de la sección anterior **después de pasar las
+pruebas**. No hay tiempos medidos aún para esta segunda intervención.
+
 La corrección es satisfactoria si mantiene los conteos
 88 CVE / 122 evaluaciones y los filtros dan 16 evaluaciones para
 PLC-TRA-01 (suponiendo inventario sin cambios), mientras caen el
