@@ -43,6 +43,9 @@ class CpeQuerySnapshot(models.Model):
     nvd_timestamp = models.CharField(max_length=60, blank=True)
     error_code = models.CharField(max_length=40, blank=True)
     error_message = models.TextField(blank=True)
+    # Persistent, bounded automatic retry budget for transient NVD failures.
+    automatic_retry_count = models.PositiveSmallIntegerField(default=0)
+    retry_after = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     started_at = models.DateTimeField(null=True, blank=True)
     checkpoint_at = models.DateTimeField(null=True, blank=True)
