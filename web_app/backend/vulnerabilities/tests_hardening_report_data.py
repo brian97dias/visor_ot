@@ -93,6 +93,33 @@ class HardeningReportDataTests(TestCase):
         self.assertEqual(finding["justifications"], [])
         self.assertIsNotNone(finding["automatic_nvd_evidence"])
 
+    def test_ended_system_membership_does_not_block_live_pdf_or_discard_cve(self):
+        from io import BytesIO
+        from vulnerabilities.services.hardening_pdf import render_hardening_pdf
+        membership = SystemMembership.objects.get(hardware=self.hw)
+        membership.unlinked_at = timezone.now()
+        membership.unlinked_by = self.user
+        membership.save(update_fields=["unlinked_at", "unlinked_by"])
+        report = collect_hardening_report_data()
+        self.assertEqual(report["summary"]["applicable_hardware_cve_pairs"], 1)
+        self.assertEqual(report["hardware"][0]["system_ids"], [])
+        diagnosis = report["diagnosis"]
+        self.assertEqual(diagnosis["summary"]["hardware_with_applicable_cves"], 1)
+        self.assertEqual(diagnosis["summary"]["priority_counts"]["P1"], 0)
+        self.assertEqual(
+            diagnosis["summary"]["applicable_hardware_cve_pairs_without_system"], 1
+        )
+        self.assertEqual(len(diagnosis["unassociated_hardware"]), 1)
+        self.assertEqual(
+            diagnosis["unassociated_hardware"][0]["findings"][0]["cve_id"],
+            self.cve.cve_id,
+        )
+        output = BytesIO()
+        render_hardening_pdf(report, output)
+        self.assertTrue(output.getvalue().startswith(b"%PDF-"))
+        membership.refresh_from_db()
+        self.assertIsNotNone(membership.unlinked_at)
+
     def test_phase_a_device_diagnosis_adds_to_legacy_contract(self):
         self.cve.metrics = {
             "cvssMetricV31": [{
