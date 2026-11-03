@@ -441,10 +441,10 @@ def render_diagnostic_hardening_pdf(data, destination, *, author=None):
     if any(name not in diagnosis for name in required):
         raise ValueError("Proyección diagnosis incompleta.")
     devices = diagnosis["prioritized_hardware"]
-    contextualized = [device for device in devices if device.get("system_ids")]
-    without_system = [device for device in devices if not device.get("system_ids")]
     if not isinstance(devices, list):
         raise ValueError("prioritized_hardware debe ser una lista.")
+    contextualized = [device for device in devices if device.get("system_ids")]
+    without_system = [device for device in devices if not device.get("system_ids")]
     ids = [d.get("hardware_id") for d in devices]
     if any(not isinstance(value, int) or value <= 0 for value in ids) or len(ids) != len(set(ids)):
         raise ValueError("IDs de hardware priorizado inválidos o duplicados.")
@@ -632,6 +632,7 @@ def render_diagnostic_hardening_pdf(data, destination, *, author=None):
         "BRIEF_ANALYST_JUSTIFICATION": "Justificación humana breve",
         "CONDITIONAL_VERSION_REVIEW": "Versión por corroborar",
         "PRIORITY_UNCLASSIFIED": "Priorización pendiente",
+        "MISSING_OT_SYSTEM": "Asociación con sistema pendiente",
     }
     for item in observations:
         _field(story, "{} / HW-{} / {}".format(
