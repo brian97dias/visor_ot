@@ -119,6 +119,7 @@ function AssetForm({ asset = null, user, onSave, saving, error, onErrorClear, in
     let active = true;
     setLoadingSystems(true);
     setSystemError("");
+    setSystemChoices([]);
     getSystems("ACTIVE").then(rows => {
       if (active) setSystemChoices(rows);
     }).catch(err => {
@@ -628,7 +629,7 @@ function AssetForm({ asset = null, user, onSave, saving, error, onErrorClear, in
           </p>}
           {!loadingSystems && !systemError && systemChoices.length === 0 &&
             <p className="interface-hint">No hay sistemas OT activos disponibles.</p>}
-          {!loadingSystems && systemChoices.length > 0 && <>
+          {!loadingSystems && !systemError && systemChoices.length > 0 && <>
             <label htmlFor="asset-optional-system">Sistema disponible</label>
             <div className="assets-system-dialog-picker">
               <select id="asset-optional-system" value={systemToAdd}
