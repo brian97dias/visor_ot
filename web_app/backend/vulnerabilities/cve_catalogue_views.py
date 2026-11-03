@@ -11,6 +11,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from assets.models import Asset, Hardware, SoftwareInstallation
 from vulnerabilities.models import AssetCveAssessment, AssetCveFinding, Cve
 from .services.cve_discovery import (
     build_cve_discovery_plan, hardware_discovery_pairs,
@@ -81,6 +82,71 @@ def _asset_counts(cves):
     ).values_list("cve_id", "hardware_id"):
         counts[cve_pk].add(hardware_pk)
     return {pk: len(values) for pk, values in counts.items()}
+
+
+def _cve_ids_for_evaluated_asset_name(search):
+    """Find CVEs already related to named inventory assets, before pagination.
+
+    Only use hardware-origin candidate findings or an existing hardware CVE
+    assessment. Software is searchable when the current catalogue actually
+    shows that installation as evaluated evidence; a generic installation
+    alone must not claim a CVE association.
+    """
+    active = Asset.InventoryStatus.ACTIVE
+    matched_hardware = set(Hardware.objects.filter(
+        asset__name__icontains=search,
+        asset__inventory_status=active,
+    ).values_list("pk", flat=True))
+    matched_software = set(Asset.objects.filter(
+        name__icontains=search,
+        asset_type=Asset.AssetType.SOFTWARE,
+        inventory_status=active,
+    ).values_list("pk", flat=True))
+    software_hardware = set(SoftwareInstallation.objects.filter(
+        software__asset_id__in=matched_software,
+        software__asset__inventory_status=active,
+        hardware__asset__inventory_status=active,
+        unlinked_at__isnull=True,
+    ).values_list("hardware_id", flat=True)) if matched_software else set()
+
+    candidate_hardware = matched_hardware | software_hardware
+    if not candidate_hardware:
+        return set()
+    related_pairs = {
+        (cve_id, hardware_id)
+        for cve_id, hardware_id, sources in AssetCveFinding.objects.filter(
+            hardware_id__in=candidate_hardware,
+        ).values_list("cve_id", "hardware_id", "sources")
+        if has_hardware_discovery_source(sources, hardware_id)
+    }
+    related_pairs.update(AssetCveAssessment.objects.filter(
+        hardware_id__in=candidate_hardware,
+    ).values_list("cve_id", "hardware_id"))
+
+    matched_ids = {
+        cve_id for cve_id, hardware_id in related_pairs
+        if hardware_id in matched_hardware
+    }
+    if matched_software and software_hardware:
+        # Reuse the existing provenance-aware catalogue projection, including
+        # current evidence, rather than equating 'installed' with 'vulnerable'.
+        candidate_ids = {
+            cve_id for cve_id, hardware_id in related_pairs
+            if hardware_id in software_hardware
+        }
+        candidates = list(Cve.objects.filter(
+            pk__in=candidate_ids, fetch_status=Cve.FetchStatus.COMPLETED,
+        ))
+        contexts = related_assets_for_cves(candidates)
+        for cve in candidates:
+            if any(
+                asset.get("asset_type") == "SOFTWARE"
+                and asset.get("asset_id") in matched_software
+                for context in contexts[cve.pk]
+                for asset in context.get("assets", [])
+            ):
+                matched_ids.add(cve.pk)
+    return matched_ids
 
 
 def _catalogue_applicability(analyst_status, related_assets):
@@ -247,8 +313,11 @@ class CveCatalogueView(APIView):
         )
         search = values.get("q", "").strip()
         if search:
+            related_ids = _cve_ids_for_evaluated_asset_name(search)
             query = query.filter(
-                Q(cve_id__icontains=search) | Q(description__icontains=search)
+                Q(cve_id__icontains=search)
+                | Q(description__icontains=search)
+                | Q(pk__in=related_ids)
             )
         severity = values["severity"]
         if severity == "UNKNOWN":
