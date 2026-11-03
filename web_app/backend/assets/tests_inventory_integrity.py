@@ -41,11 +41,10 @@ class InventoryIntegrityPhaseOneTests(TestCase):
         self.assertEqual(response.status_code, 201, response.data)
         return Asset.objects.get(pk=response.data["id"])
 
-    def test_creation_requires_explicit_criticality_and_active_system(self):
+    def test_creation_requires_criticality_and_valid_optional_system(self):
         for invalid in (
             {"criticality": "UNDEFINED"},
             {"criticality": ""},
-            {"system_ids": []},
             {"system_ids": [999999]},
             {"hardware": {"role": "PLC", "model": "CPU 1215C"}},
         ):
@@ -54,6 +53,16 @@ class InventoryIntegrityPhaseOneTests(TestCase):
                     self.hardware_body(**invalid), format="json")
                 self.assertEqual(response.status_code, 400, response.data)
         self.assertEqual(Asset.objects.count(), 0)
+        without_system = self.create_hardware(system_ids=[])
+        self.assertFalse(SystemMembership.objects.filter(
+            hardware_id=without_system.pk, unlinked_at__isnull=True
+        ).exists())
+        omitted = self.hardware_body()
+        omitted.pop("system_ids")
+        omitted["name"] = "PLC sin sistema"
+        self.assertEqual(
+            self.client.post("/api/assets/", omitted, format="json").status_code, 201
+        )
 
     def test_software_criticality_required_but_system_is_not(self):
         no_criticality = self.client.post("/api/assets/", {
@@ -78,42 +87,33 @@ class InventoryIntegrityPhaseOneTests(TestCase):
         )
         self.assertEqual(invalid.status_code, 400)
 
-    def test_last_system_cannot_be_unlinked_but_history_is_retained(self):
+    def test_last_system_can_be_unlinked_and_history_remains(self):
         asset = self.create_hardware()
         link = SystemMembership.objects.get(hardware_id=asset.pk, unlinked_at=None)
-        url = f"/api/assets/{asset.pk}/systems/{link.pk}/"
-        denied = self.client.delete(url)
-        self.assertEqual(denied.status_code, 400, denied.data)
-        self.assertIsNone(SystemMembership.objects.get(pk=link.pk).unlinked_at)
-        second = self.create_system("Respaldo")
-        added = self.client.post(f"/api/assets/{asset.pk}/systems/",
-                                 {"system_id": second.pk}, format="json")
-        self.assertEqual(added.status_code, 201, added.data)
-        self.assertEqual(self.client.delete(url).status_code, 204)
-        self.assertIsNotNone(SystemMembership.objects.get(pk=link.pk).unlinked_at)
-        self.assertEqual(
-            SystemMembership.objects.filter(hardware_id=asset.pk,
-                unlinked_at__isnull=True).count(), 1
-        )
+        response = self.client.delete(f"/api/assets/{asset.pk}/systems/{link.pk}/")
+        self.assertEqual(response.status_code, 204, response.data)
+        link.refresh_from_db()
+        self.assertIsNotNone(link.unlinked_at)
+        self.assertFalse(SystemMembership.objects.filter(
+            hardware_id=asset.pk, unlinked_at__isnull=True
+        ).exists())
+        self.assertFalse(any(
+            issue["field"] == "system_ids" and issue["id"] == asset.pk
+            for issue in inventory_integrity_issues()
+        ))
 
-    def test_system_archive_does_not_strand_hardware(self):
+    def test_archiving_system_preserves_historical_links(self):
         asset = self.create_hardware()
-        url = f"/api/assets/systems/{self.system.pk}/archive/"
-        denied = self.client.post(url)
-        self.assertEqual(denied.status_code, 400, denied.data)
+        response = self.client.post(f"/api/assets/systems/{self.system.pk}/archive/")
+        self.assertEqual(response.status_code, 200, response.data)
         self.system.refresh_from_db()
-        self.assertEqual(self.system.status, "ACTIVE")
-        second = self.create_system("Segundo sistema")
-        attached = self.client.post(f"/api/assets/{asset.pk}/systems/",
-                                    {"system_id": second.pk}, format="json")
-        self.assertEqual(attached.status_code, 201, attached.data)
-        self.assertEqual(self.client.post(url).status_code, 200)
+        self.assertEqual(self.system.status, "ARCHIVED")
         self.assertTrue(SystemMembership.objects.filter(
             hardware_id=asset.pk, system_id=self.system.pk,
             unlinked_at__isnull=True
         ).exists())
 
-    def test_restore_archived_hardware_with_explicit_active_system(self):
+    def test_restore_without_system_and_optional_reassociation(self):
         asset = self.create_hardware()
         self.assertEqual(self.client.post(
             f"/api/assets/{asset.pk}/archive/"
@@ -121,19 +121,14 @@ class InventoryIntegrityPhaseOneTests(TestCase):
         self.assertEqual(self.client.post(
             f"/api/assets/systems/{self.system.pk}/archive/"
         ).status_code, 200)
-        denied = self.client.post(f"/api/assets/{asset.pk}/restore/",
-                                  format="json")
-        self.assertEqual(denied.status_code, 400, denied.data)
-        other = self.create_system("Restauración")
-        restored = self.client.post(f"/api/assets/{asset.pk}/restore/",
-                                    {"system_ids": [other.pk]}, format="json")
+        restored = self.client.post(f"/api/assets/{asset.pk}/restore/", format="json")
         self.assertEqual(restored.status_code, 200, restored.data)
-        self.assertEqual(
-            SystemMembership.objects.filter(
-                hardware_id=asset.pk, system_id=other.pk,
-                unlinked_at__isnull=True
-            ).count(), 1
-        )
+        other = self.create_system("Restauración")
+        second = self.create_hardware(name="Nuevo activo", system_ids=[other.pk])
+        self.assertTrue(SystemMembership.objects.filter(
+            hardware_id=second.pk, system_id=other.pk,
+            unlinked_at__isnull=True
+        ).exists())
 
     def test_archived_legacy_system_can_fix_criticality_then_restore(self):
         archive = self.client.post(
@@ -172,8 +167,8 @@ class InventoryIntegrityPhaseOneTests(TestCase):
         problems = inventory_integrity_issues()
         self.assertIn(("asset", old.pk, "criticality"),
                       [(x["entity"], x["id"], x["field"]) for x in problems])
-        self.assertIn(("asset", old.pk, "system_ids"),
-                      [(x["entity"], x["id"], x["field"]) for x in problems])
+        self.assertNotIn(("asset", old.pk, "system_ids"),
+                         [(x["entity"], x["id"], x["field"]) for x in problems])
         self.assertIn(("system", self.system.pk, "criticality"),
                       [(x["entity"], x["id"], x["field"]) for x in problems])
         old.refresh_from_db()
@@ -193,11 +188,11 @@ class InventoryIntegrityPhaseOneTests(TestCase):
         self.assertFalse(data["valid"])
         fields = {row["field"] for row in data["issues"]
                   if row["entity"] == "asset" and row["id"] == asset.pk}
-        self.assertTrue({"criticality", "manufacturer", "model", "system_ids"} <= fields)
+        self.assertTrue({"criticality", "manufacturer", "model"} <= fields)
         asset.refresh_from_db()
         self.assertEqual(asset.criticality, "UNDEFINED")
 
-    def test_excel_hardware_create_needs_explicit_system_in_actions(self):
+    def test_excel_hardware_import_does_not_assign_system(self):
         body = {
             "nombre_activo": "PLC importado", "fabricante": "Siemens",
             "modelo": "1215C", "rol": "PLC", "criticidad": "HIGH",
@@ -213,18 +208,11 @@ class InventoryIntegrityPhaseOneTests(TestCase):
         )} for row in preview.data["rows"]}
         payload = {"file": upload(blob), "token": preview.data["token"],
                    "actions": json.dumps(actions)}
-        missing = self.client.post("/api/assets/import/confirm/", payload,
-                                   format="multipart")
-        self.assertEqual(missing.status_code, 400, missing.data)
-        self.assertFalse(Asset.objects.filter(name="PLC importado").exists())
-        actions[plan["key"]]["system_ids"] = [self.system.pk]
-        payload = {"file": upload(blob), "token": preview.data["token"],
-                   "actions": json.dumps(actions)}
         valid = self.client.post("/api/assets/import/confirm/", payload,
                                  format="multipart")
         self.assertEqual(valid.status_code, 200, valid.data)
         created = Asset.objects.get(name="PLC importado")
-        self.assertTrue(SystemMembership.objects.filter(
-            hardware_id=created.pk, system_id=self.system.pk,
-            unlinked_at__isnull=True
+        self.assertFalse(SystemMembership.objects.filter(
+            hardware_id=created.pk, unlinked_at__isnull=True
         ).exists())
+
