@@ -212,6 +212,103 @@ class HardeningReportDataTests(TestCase):
             [(self.cve.cve_id, self.hw.pk)],
         )
 
+    def test_same_cve_has_distinct_analyst_justifications_per_plc_in_pdf_data(self):
+        """A shared official CVE must never reuse another PLC's review text."""
+        from io import BytesIO
+        from assets.models import SoftwareInstallation
+        from vulnerabilities.services.cve_general_assessment import _context, _digest
+        from vulnerabilities.services.hardening_pdf import render_hardening_pdf
+
+        other_asset = Asset.objects.create(
+            name="PLC-TRA-01", asset_type="HARDWARE", criticality="HIGH",
+            created_by=self.user, updated_by=self.user,
+        )
+        other = Hardware.objects.create(
+            asset=other_asset, manufacturer="Siemens",
+            model="SIMATIC S7-1200 CPU 1215C", role="PLC",
+        )
+        other_system = OTSystem.objects.create(
+            name="Sistema de transporte", description="Segundo contexto OT",
+            criticality="HIGH", impact="Parada del transporte.",
+            created_by=self.user, updated_by=self.user,
+        )
+        SystemMembership.objects.create(
+            system=other_system, hardware=other, registered_by=self.user,
+        )
+        assoc = self.fixture.confirm(other_asset, CPU_HW)
+        other_install = SoftwareInstallation.objects.create(
+            hardware=other, software=self.sw, registered_by=self.user,
+        )
+        source = dict(self.finding.sources[0])
+        source.update({
+            "hardware_id": other.pk, "asset_id": other.pk,
+            "asset_cpe_id": assoc.pk,
+        })
+        AssetCveFinding.objects.create(
+            hardware=other, cve=self.cve,
+            first_discovery_run=self.run, last_discovery_run=self.run,
+            sources=[source],
+        )
+        for hw, installation, reason in (
+            (self.hw, self.installation, "Justificación exclusiva de MEZ."),
+            (other, other_install, "Justificación exclusiva de TRA."),
+        ):
+            _, _, _, _, current_fp = _context(self.cve.cve_id, hw.pk)
+            AssetCveAssessment.objects.create(
+                hardware=hw, cve=self.cve, configuration_index=8,
+                configuration_snapshot=self.cve.configurations[8],
+                configuration_fingerprint=_digest(self.cve.configurations[8]),
+                inventory_fingerprint=current_fp,
+                status=AssetCveAssessment.Status.APPLIES,
+                software_installation=installation,
+                justification=reason, decided_by=self.user,
+                criteria_evidence={
+                    "decision_scope": "HARDWARE_CVE",
+                    "nvd_fingerprint": _digest(self.cve.configurations),
+                },
+            )
+
+        data = collect_hardening_report_data()
+        self.assertEqual(data["summary"]["distinct_applicable_cves"], 1)
+        self.assertEqual(data["summary"]["applicable_hardware_cve_pairs"], 2)
+        self.assertEqual(len(data["diagnosis"]["prioritized_hardware"]), 2)
+        findings = {
+            item["hardware_id"]: item
+            for item in data["applicable_vulnerabilities"]
+        }
+        self.assertEqual(set(findings), {self.hw.pk, other.pk})
+        self.assertEqual(
+            findings[self.hw.pk]["justifications"][0]["justification"],
+            "Justificación exclusiva de MEZ.",
+        )
+        self.assertEqual(
+            findings[other.pk]["justifications"][0]["justification"],
+            "Justificación exclusiva de TRA.",
+        )
+        self.assertEqual(
+            findings[self.hw.pk]["justifications"][0]["decided_by"],
+            self.user.username,
+        )
+        self.assertEqual(
+            findings[other.pk]["justifications"][0]["decided_by"],
+            self.user.username,
+        )
+        for hardware_id, installation in (
+            (self.hw.pk, self.installation.pk),
+            (other.pk, other_install.pk),
+        ):
+            self.assertEqual(
+                findings[hardware_id]["evaluated_software"][0]["installation_id"],
+                installation,
+            )
+        self.assertNotEqual(
+            findings[self.hw.pk]["justifications"][0]["assessment_id"],
+            findings[other.pk]["justifications"][0]["assessment_id"],
+        )
+        output = BytesIO()
+        render_hardening_pdf(data, output, author=self.user.username)
+        self.assertTrue(output.getvalue().startswith(b"%PDF-"))
+
     def test_verified_version_exclusion_does_not_create_report_finding(self):
         self.cve.configurations = [
             nvd_platform_firmware(CPU_HW, CPU_FW_CRITERION, before="4.5.2")
