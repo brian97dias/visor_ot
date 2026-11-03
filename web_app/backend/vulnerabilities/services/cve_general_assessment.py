@@ -151,15 +151,39 @@ def _simple_and_firmware(config, confirmed_cpes, installed=None):
         supported["required_installation_id"] = installation_id
     return supported
 
-def _context(cve_id, hardware_id, *, lock=False):
-    queryset = Hardware.objects.select_related("asset")
-    if lock:
-        queryset = queryset.select_for_update(of=("self",))
-    hardware = get_object_or_404(queryset, pk=hardware_id)
-    if hardware.asset.inventory_status != Asset.InventoryStatus.ACTIVE:
-        raise ValidationError({"hardware": "El hardware no está activo."})
-    cve = get_object_or_404(Cve, cve_id=cve_id,
-                            fetch_status=Cve.FetchStatus.COMPLETED)
+def _context(cve_id, hardware_id, *, lock=False, cve_record=None,
+             inventory_cache=None):
+    """Current read-only evidence for a hardware/CVE.
+
+    The optional cache is owned by ONE catalogue request. Inventory identity,
+    CPE and installations depend on hardware, not on CVE. Reusing this verified
+    snapshot avoids reloading the same PLC's inventory for every NVD CVE.
+    Normal detail/decision callers still read fresh state; locking callers
+    never reuse cached inventory.
+    """
+    if cve_record is not None and (
+        cve_record.cve_id != cve_id
+        or cve_record.fetch_status != Cve.FetchStatus.COMPLETED
+    ):
+        raise ValueError("El CVE precargado no coincide con el solicitado.")
+    cached = (
+        inventory_cache.get(hardware_id)
+        if inventory_cache is not None and not lock else None
+    )
+    if cached is not None:
+        hardware, confirmed_cpes, installed, inventory_fp = cached
+    else:
+        queryset = Hardware.objects.select_related("asset")
+        if lock:
+            queryset = queryset.select_for_update(of=("self",))
+        hardware = get_object_or_404(queryset, pk=hardware_id)
+        if hardware.asset.inventory_status != Asset.InventoryStatus.ACTIVE:
+            raise ValidationError({"hardware": "El hardware no está activo."})
+    cve = cve_record if cve_record is not None else get_object_or_404(
+        Cve, cve_id=cve_id, fetch_status=Cve.FetchStatus.COMPLETED,
+    )
+    if cached is not None:
+        return hardware, cve, confirmed_cpes, installed, inventory_fp
     identity = fingerprint(hardware_identity(hardware.asset))
     confirmed = list(AssetCpe.objects.filter(
         asset_id=hardware_id, validation_status=AssetCpe.Validation.CONFIRMED,
@@ -223,6 +247,10 @@ def _context(cve_id, hardware_id, *, lock=False):
             for association in associations
         ]
     inventory_fp = _digest(fingerprint_basis)
+    if inventory_cache is not None and not lock:
+        inventory_cache[hardware_id] = (
+            hardware, confirmed_cpes, installed, inventory_fp,
+        )
     return hardware, cve, confirmed_cpes, installed, inventory_fp
 
 
