@@ -20,6 +20,7 @@ from communications import (
 )
 
 from network import classify_network_scope
+from profinet import register_profinet_frame, consolidate_profinet_pairs
 
 
 def analyze_pcap(pcap_path):
@@ -40,6 +41,9 @@ def analyze_pcap(pcap_path):
     # Estado temporal utilizado para recordar
     # la orientación de conexiones TCP.
     tcp_flows = {}
+
+    # PROFINET RT: pares MAC observados bidireccionalmente, sin inventar IP.
+    profinet_pairs = {}
 
 
     # =========================
@@ -89,6 +93,12 @@ def analyze_pcap(pcap_path):
                 continue
 
 
+            # PROFINET RT es Ethernet directo (sin IP ni puerto TCP/UDP).
+            # Retenemos MAC y FrameID; resolvemos IP tras leer todos los ARP.
+            if int(packet[Ether].type) == 0x8892:
+                register_profinet_frame(packet, timestamp, profinet_pairs)
+                continue
+
             # Desde aquí solamente analizamos IPv4.
             if not packet.haslayer(IP):
                 continue
@@ -112,6 +122,12 @@ def analyze_pcap(pcap_path):
                     communications,
                 )
 
+
+    # Una comunicación bidireccional por pareja PROFINET RT con ARP
+    # inequívoco para ambos extremos; sin ARP, no se inventa una IP.
+    consolidate_profinet_pairs(
+        profinet_pairs, interfaces, ip_to_macs, communications,
+    )
 
     # =========================
     # BACKFILL FINAL
