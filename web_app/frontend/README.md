@@ -1,16 +1,33 @@
-# React + Vite
+# VISOR OT — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Interfaz web React/Vite para consultar y administrar sistemas y activos OT, software instalado, interfaces de red, capturas, comunicaciones, asociaciones CPE, evaluación CVE y diagnósticos PDF.
 
-Currently, two official plugins are available:
+El frontend **no analiza los PCAP** ni consulta directamente a NVD: se comunica con el backend Django. El análisis pasivo se ejecuta en FastAPI y la cola NVD en un worker independiente.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Preparar el entorno
 
-## React Compiler
+Requisitos: Node.js compatible con Vite 8 y npm. Desde este directorio:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm ci
+cp .env.example .env.local
+npm run dev
+```
 
-## Expanding the Oxlint configuration
+La variable `VITE_API_URL` debe apuntar al servidor Django, normalmente `http://127.0.0.1:8000`. La interfaz de desarrollo se abre normalmente en `http://localhost:5173`. No guardar tokens ni credenciales privadas en variables `VITE_*`: se exponen al navegador.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Comprobaciones
+
+```bash
+npm run test:unit
+npm run lint
+npm run build
+```
+
+Los tests `*.test.js` se conservan junto a los módulos de `src/utils/`; `npm run test:unit` define la lista actual de pruebas. Estas instrucciones no significan que la suite se haya ejecutado en la máquina del autor.
+
+## Más información
+
+- [README del proyecto](../../README.md)
+- [Arquitectura](../../docs/arquitectura.md)
+- [Pruebas](../../docs/pruebas.md)
