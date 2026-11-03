@@ -66,9 +66,7 @@ class SystemMembershipAPITests(TestCase):
         self.assertEqual(self.attach().status_code, 400)
         self.assertEqual(SystemMembership.objects.count(), 1)
         url = f"{self.system_path()}{created.data['id']}/"
-        # Last membership cannot be unlinked from active hardware.
-        self.assertEqual(self.client.delete(url).status_code, 400)
-        self.assertEqual(self.attach(system=self.system_b).status_code, 201)
+        # A device can now lose its last active OT system association.
         self.assertEqual(self.client.delete(url).status_code, 204)
         self.assertEqual(self.client.delete(url).status_code, 400)
         again = self.attach()
