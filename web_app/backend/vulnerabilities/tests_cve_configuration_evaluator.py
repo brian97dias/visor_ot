@@ -251,9 +251,29 @@ class NvdSiemens1214cFirmwareAliasTests(SimpleTestCase):
         self.assertEqual(leaf["identity"], "MATCHED")
         self.assertEqual(leaf["matched_cpe"], self.FIRMWARE_DICTIONARY)
         self.assertIn("equivalencia específica Siemens 1214C", leaf["reason"])
+        self.assertEqual(
+            leaf["identity_basis"],
+            "CURATED_SIEMENS_1214C_FIRMWARE_PRODUCT_EQUIVALENCE",
+        )
         proof = automatic_positive_evidence(result)
         self.assertIsNotNone(proof)
         self.assertEqual(proof["criteria"][0]["software_installation_id"], 1)
+        from types import SimpleNamespace
+        from vulnerabilities.services.cve_applicability import scoped_applicability
+        applicability = scoped_applicability(
+            result, "PENDING_REVIEW",
+            inventory_fingerprint="a" * 64,
+            cve=SimpleNamespace(
+                configurations=[scenario(
+                    software=self.FIRMWARE_CRITERION, hardware=self.HARDWARE,
+                    version_end="4.6.0", start=None,
+                )],
+                last_modified=None, retrieved_at=None,
+            ),
+            hardware_id=1,
+        )
+        self.assertEqual(applicability["status"], "APPLIES")
+        self.assertEqual(applicability["source"], "SYSTEM")
 
     def test_out_of_range_460_and_470_never_confirm(self):
         from vulnerabilities.services.cve_applicability import (
