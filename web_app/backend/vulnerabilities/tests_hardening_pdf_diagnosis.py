@@ -73,6 +73,59 @@ class HardeningDiagnosisPdfTests(SimpleTestCase):
                          ["CVE-2021-44695"])
         render_diagnostic_hardening_pdf(report, BytesIO())
 
+    def test_system_free_applies_renders_in_appendix_not_main_matrix(self):
+        from vulnerabilities.services.hardening_pdf_diagnosis import _device
+        report = diagnosis_fixture()
+        report["hardware"][0]["system_ids"] = []
+        report["diagnosis"] = build_hardening_diagnosis(report)
+        diagnosis = report["diagnosis"]
+        self.assertEqual(
+            diagnosis["summary"]["hardware_with_applicable_cves_without_system"], 1
+        )
+        self.assertEqual(
+            diagnosis["summary"]["applicable_hardware_cve_pairs_without_system"], 1
+        )
+        self.assertEqual(diagnosis["summary"]["priority_counts"]["P1"], 0)
+        self.assertFalse(any(
+            cell["hardware_ids"] for row in diagnosis["priority_matrix"]
+            for cell in row["cells"]
+        ))
+        output = BytesIO()
+        with patch(
+            "vulnerabilities.services.hardening_pdf_diagnosis._device",
+            wraps=_device,
+        ) as render_device:
+            render_hardening_pdf(report, output)
+        self.assertTrue(output.getvalue().startswith(b"%PDF-"))
+        self.assertEqual(render_device.call_count, 1)
+        self.assertFalse(render_device.call_args.kwargs["contextualized"])
+        self.assertEqual(
+            render_device.call_args.args[1]["hardware_id"], 21
+        )
+
+    def test_mixed_contextualized_and_system_free_pdf_keeps_both_devices(self):
+        report = diagnosis_fixture()
+        original = copy.deepcopy(report["hardware"][0])
+        original["id"] = 34
+        original["name"] = "Equipo sin sistema"
+        original["system_ids"] = []
+        report["hardware"].append(original)
+        finding = copy.deepcopy(report["applicable_vulnerabilities"][0])
+        finding["hardware_id"] = 34
+        finding["hardware_name"] = "Equipo sin sistema"
+        finding["cve_id"] = "CVE-2021-33540"
+        report["applicable_vulnerabilities"].append(finding)
+        report["diagnosis"] = build_hardening_diagnosis(report)
+        self.assertEqual(
+            report["diagnosis"]["summary"]["applicable_hardware_cve_pairs"], 2
+        )
+        self.assertEqual(
+            report["diagnosis"]["summary"]["priority_counts"]["P1"], 1
+        )
+        output = BytesIO()
+        render_hardening_pdf(report, output)
+        self.assertTrue(output.getvalue().startswith(b"%PDF-"))
+
     def test_no_applies_still_renders_without_claiming_safe_assets(self):
         report = diagnosis_fixture()
         report["applicable_vulnerabilities"] = []
