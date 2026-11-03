@@ -724,6 +724,76 @@ def execute_run(run, pacer, fetcher=fetch_page):
     return run
 
 
+def retry_failed_cpe_search(run_id):
+    """Explicitly resume an old FAILED asset search and its transient snapshot.
+
+    Completed per-query evidence remains immutable. This does not change
+    analyst CPE decisions or approve any CPE automatically.
+    """
+    from rest_framework.exceptions import ValidationError
+    from .cpe_catalogue import retry_failed_snapshot
+
+    with transaction.atomic():
+        run = CpeSearchRun.objects.select_for_update().select_related("asset").get(
+            pk=run_id
+        )
+        if (run.status != CpeSearchRun.Status.FAILED
+                or run.trigger != "MANUAL" or not run.queries):
+            raise ValidationError({
+                "run": "Solo se reanudan búsquedas manuales fallidas con historial."
+            })
+        current = (software_identity(run.asset)
+                   if run.asset.asset_type == Asset.AssetType.SOFTWARE
+                   else hardware_identity(run.asset))
+        if fingerprint(current) != run.identity_fingerprint:
+            raise ValidationError({
+                "run": "La identidad del activo cambió. Inicia una búsqueda nueva."
+            })
+        queries = list(run.queries)
+        last = dict(queries[-1])
+        if last.get("status") != "FAILED" or not last.get("snapshot_id"):
+            raise ValidationError({
+                "run": "La búsqueda no terminó esperando un catálogo fallido."
+            })
+        snapshot = CpeQuerySnapshot.objects.select_for_update().select_related(
+            "cache"
+        ).get(pk=last["snapshot_id"])
+        if (snapshot.status != CpeQuerySnapshot.Status.FAILED
+                or snapshot.error_code != "FETCH_FAILED"
+                or snapshot.cache.strategy != last.get("strategy")
+                or snapshot.cache.parameter != last.get("parameter")):
+            raise ValidationError({
+                "run": "El error no es recuperable o no coincide con el catálogo."
+            })
+        # An operator explicitly requesting recovery gets a fresh bounded
+        # retry budget. Automatic retries never reset this count themselves.
+        retry_failed_snapshot(snapshot.pk)
+        snapshot.automatic_retry_count = 0
+        snapshot.save(update_fields=["automatic_retry_count"])
+        last["status"] = "WAITING_CATALOGUE"
+        last["level_result"] = "WAITING_CATALOGUE"
+        last.pop("stop_reason", None)
+        last.pop("retry_after", None)
+        last.pop("retry_attempt", None)
+        queries[-1] = last
+        run.status = CpeSearchRun.Status.QUEUED
+        run.finished_at = None
+        run.error_message = ""
+        run.queries = queries
+        # Remove only the truncation created by the transient failure;
+        # genuine earlier partial queries remain explicitly partial.
+        run.result_truncated = any(
+            query.get("status") == "PARTIAL" or
+            query.get("candidate_limit_reached", False)
+            for query in queries[:-1]
+        )
+        run.save(update_fields=[
+            "status", "finished_at", "error_message", "queries",
+            "result_truncated",
+        ])
+    return run
+
+
 def serialize_run(run):
     catalogue_retry = None
     last_query = (run.queries or [])[-1:] or []
