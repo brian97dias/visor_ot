@@ -84,7 +84,7 @@ def _asset_counts(cves):
     return {pk: len(values) for pk, values in counts.items()}
 
 
-def _cve_ids_for_evaluated_asset_name(search):
+def _cve_ids_for_evaluated_asset_name(search, *, related_cache=None):
     """Find CVEs already related to named inventory assets, before pagination.
 
     Only use hardware-origin candidate findings or an existing hardware CVE
@@ -134,18 +134,20 @@ def _cve_ids_for_evaluated_asset_name(search):
             cve_id for cve_id, hardware_id in related_pairs
             if hardware_id in software_hardware
         }
-        candidates = list(Cve.objects.filter(
-            pk__in=candidate_ids, fetch_status=Cve.FetchStatus.COMPLETED,
-        ))
-        contexts = related_assets_for_cves(candidates)
-        for cve in candidates:
+        if related_cache is None:
+            # Other callers may use the helper without a projected catalogue.
+            candidates = list(Cve.objects.filter(
+                pk__in=candidate_ids, fetch_status=Cve.FetchStatus.COMPLETED,
+            ))
+            related_cache = related_assets_for_cves(candidates)
+        for cve_id in candidate_ids:
             if any(
                 asset.get("asset_type") == "SOFTWARE"
                 and asset.get("asset_id") in matched_software
-                for context in contexts[cve.pk]
+                for context in related_cache.get(cve_id, [])
                 for asset in context.get("assets", [])
             ):
-                matched_ids.add(cve.pk)
+                matched_ids.add(cve_id)
     return matched_ids
 
 
@@ -230,14 +232,15 @@ def _summary_bucket(status):
     ) else "PENDING_REVIEW"
 
 
-def _catalogue_summaries():
+def _catalogue_summaries(cves=None, *, related=None, analyst=None):
     """Distinct official CVEs and independently scoped hardware-CVE metrics.
 
     Preserve the original distinct-CVE summary for API consumers, but expose
     pair-level counts separately so the interface never labels an aggregate
     finding as the status of every hardware.
     """
-    cves = list(Cve.objects.filter(fetch_status=Cve.FetchStatus.COMPLETED))
+    if cves is None:
+        cves = list(Cve.objects.filter(fetch_status=Cve.FetchStatus.COMPLETED))
     summary = {"total": len(cves), "applies": 0, "applies_conditional": 0,
                "not_applicable": 0, "pending_review": 0, "validated": 0}
     evaluations = {
@@ -246,8 +249,10 @@ def _catalogue_summaries():
     }
     if not cves:
         return summary, evaluations
-    analyst = catalogue_statuses(cves)
-    related = related_assets_for_cves(cves)
+    if analyst is None:
+        analyst = catalogue_statuses(cves)
+    if related is None:
+        related = related_assets_for_cves(cves)
     for cve in cves:
         effective = _catalogue_applicability(analyst[cve.pk], related[cve.pk])
         summary[_summary_bucket(effective["status"]).lower()] += 1
@@ -316,26 +321,47 @@ class CveCatalogueView(APIView):
         params = CveCatalogueFilterSerializer(data=request.query_params)
         params.is_valid(raise_exception=True)
         values = params.validated_data
-        query = Cve.objects.filter(fetch_status=Cve.FetchStatus.COMPLETED)
-        search = values.get("q", "").strip()
-        if search:
-            related_ids = _cve_ids_for_evaluated_asset_name(search)
-            query = query.filter(
-                Q(cve_id__icontains=search)
-                | Q(description__icontains=search)
-                | Q(pk__in=related_ids)
-            )
-        severity = values["severity"]
-        if severity == "UNKNOWN":
-            query = query.filter(severity="")
-        elif severity != "ALL":
-            query = query.filter(severity=severity)
+        # Build all scoped evidence ONCE for the complete active catalogue.
+        # Global counters must stay independent of text/severity/status/page.
+        # Reuse these exact in-request results for visible rows; previously
+        # the same (hardware, CVE) pairs were evaluated a second time solely
+        # to render the summary counters.
+        all_cves = list(
+            Cve.objects.filter(fetch_status=Cve.FetchStatus.COMPLETED)
+            .order_by("-published", "cve_id")
+        )
+        related = related_assets_for_cves(all_cves)
+        statuses = catalogue_statuses(all_cves)
+        summary, evaluation_summary = _catalogue_summaries(
+            all_cves, related=related, analyst=statuses,
+        )
 
-        # Expand BEFORE status filtering and pagination: one displayed result
-        # is exactly one CVE/hardware evaluation, not an aggregate verdict.
-        cves = list(query.order_by("-published", "cve_id"))
-        related = related_assets_for_cves(cves)
-        statuses = catalogue_statuses(cves)
+        search = values.get("q", "").strip()
+        severity = values["severity"]
+        if search or severity != "ALL":
+            query = Cve.objects.filter(
+                fetch_status=Cve.FetchStatus.COMPLETED
+            )
+            if search:
+                related_ids = _cve_ids_for_evaluated_asset_name(
+                    search, related_cache=related,
+                )
+                query = query.filter(
+                    Q(cve_id__icontains=search)
+                    | Q(description__icontains=search)
+                    | Q(pk__in=related_ids)
+                )
+            if severity == "UNKNOWN":
+                query = query.filter(severity="")
+            elif severity != "ALL":
+                query = query.filter(severity=severity)
+            visible_ids = set(query.values_list("pk", flat=True))
+            cves = [cve for cve in all_cves if cve.pk in visible_ids]
+        else:
+            cves = all_cves
+
+        # Expand BEFORE status filtering/pagination; each displayed result
+        # continues to be ONE independently reviewed CVE/hardware pair.
         named_hardware = set(Hardware.objects.filter(
             asset__name__icontains=search,
             asset__inventory_status=Asset.InventoryStatus.ACTIVE,
@@ -411,7 +437,6 @@ class CveCatalogueView(APIView):
             )
             payload.append(item)
 
-        summary, evaluation_summary = _catalogue_summaries()
         return Response({
             "count": count, "page": page, "page_size": page_size,
             "summary": summary, "evaluation_summary": evaluation_summary,
