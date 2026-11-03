@@ -130,6 +130,34 @@ class CveHardwareRowTests(TestCase):
                      inventory_cache={})
         self.assertGreater(len(separate_request), 0)
 
+    def test_projection_reads_analyst_history_once_for_all_related_devices(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from vulnerabilities.services.cve_technical_status import (
+            related_assets_for_cves,
+        )
+        with CaptureQueriesContext(connection) as queries:
+            projection = related_assets_for_cves([self.cve])
+        reads = [
+            item["sql"] for item in queries
+            if '"vulnerabilities_assetcveassessment"' in item["sql"]
+            and item["sql"].lstrip().upper().startswith("SELECT")
+        ]
+        self.assertEqual(
+            len(reads), 1,
+            "All scoped/global/linked decisions must reuse one ordered "
+            "analyst history query for this CVE's two PLCs.",
+        )
+        rows = {row["hardware_id"]: row for row in projection[self.cve.pk]}
+        self.assertEqual(rows[self.mez.pk]["scoped_applicability"]["status"],
+                         "NOT_APPLICABLE")
+        self.assertEqual(rows[self.tra.pk]["scoped_applicability"]["status"],
+                         "PENDING_REVIEW")
+        self.assertEqual(rows[self.mez.pk]["scoped_applicability"]["source"],
+                         "ANALYST")
+        self.assertEqual(rows[self.tra.pk]["scoped_applicability"]["source"],
+                         "NONE")
+
     def test_request_cache_does_not_hide_inventory_changes_between_requests(self):
         from vulnerabilities.services.cve_general_assessment import _context
         old_fp = _context(
