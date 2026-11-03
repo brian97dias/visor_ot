@@ -163,6 +163,56 @@ class CpeTransientRecoveryTests(TestCase):
         self.assertIsNone(failed.retry_after)
         self.assertEqual(failed.automatic_retry_count, 0)
 
+    def test_automatic_retry_preserves_partially_downloaded_catalogue_pages(self):
+        from vulnerabilities.tests_catalogue import product, feed
+        records = [product(i, kind="o") for i in range(550)]
+        snapshot, reused = enqueue_catalogue_query(
+            "cpeMatchString", "cpe:2.3:o:phoenixcontact:il_pn*",
+            page_size=500,
+        )
+        self.assertFalse(reused)
+
+        def first_fetch(*args, **kwargs):
+            if args[2] == 500:
+                raise TimeoutError("Falla transitoria al descargar página dos")
+            return feed(records)(*args, **kwargs)
+
+        failed = execute_catalogue_snapshot(
+            snapshot, object(), fetcher=first_fetch
+        )
+        self.assertEqual(failed.next_start_index, 500)
+        self.assertEqual(failed.products.count(), 500)
+        self.assertTrue(snapshot_retry_scheduled(failed))
+        recovered = retry_failed_snapshot(snapshot.pk)
+        requested = []
+
+        def remaining_only(*args, **kwargs):
+            requested.append(args[2])
+            return feed(records)(*args, **kwargs)
+
+        done = execute_catalogue_snapshot(
+            recovered, object(), fetcher=remaining_only
+        )
+        self.assertEqual(requested, [500])
+        self.assertEqual(done.status, "COMPLETED")
+        self.assertEqual(done.products.count(), 550)
+        self.assertEqual(done.automatic_retry_count, 1)
+
+    def test_http_400_and_invalid_page_are_never_automatically_retried(self):
+        from vulnerabilities.services.nvd_client import NvdError
+        first = self._waiting_snapshot()
+
+        def bad_request(*args, **kwargs):
+            raise NvdError("NVD devolvió HTTP 400.")
+
+        failed = execute_catalogue_snapshot(
+            first, object(), fetcher=bad_request
+        )
+        self.assertEqual(failed.status, "FAILED")
+        self.assertEqual(failed.error_code, "FETCH_FAILED")
+        self.assertIsNone(failed.retry_after)
+        self.assertEqual(failed.automatic_retry_count, 0)
+
     def test_another_asset_run_is_not_starved_by_delayed_snapshot(self):
         snapshot = self._waiting_snapshot()
         execute_catalogue_snapshot(snapshot, object(), fetcher=self.timeout)
