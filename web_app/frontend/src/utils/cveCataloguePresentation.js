@@ -510,9 +510,11 @@ export function selectCveOperationalGroups(context) {
  * This is evidence, not a positive vulnerability/CVE association. It does not
  * turn NOT_APPLICABLE into an affected-software hardening finding.
  */
-export function currentCveEvaluatedSoftware(config, context) {
+export function currentCveEvaluatedSoftware(
+  config, context, assessment = config?.latest_assessment
+) {
   if (!config || !context) return null;
-  const last = config.latest_assessment;
+  const last = assessment;
   if (last?.stale || (last && last.effective_status !== "NOT_APPLICABLE")) {
     return null;
   }
@@ -523,7 +525,12 @@ export function currentCveEvaluatedSoftware(config, context) {
       config.evaluated_software || []);
   const proof = candidates.find(item =>
     (context.installed_software || []).some(sw =>
-      Number(sw.installation_id) === Number(item.software_installation_id))
+      Number(sw.installation_id) === Number(item.software_installation_id) &&
+      (item.software_asset_id == null ||
+        Number(sw.software_asset_id) === Number(item.software_asset_id)) &&
+      (item.installed_version == null ||
+        String(sw.version) === String(item.installed_version))
+    )
   );
   if (!proof) return null;
   const all = [];
@@ -533,9 +540,20 @@ export function currentCveEvaluatedSoftware(config, context) {
     for (const child of node?.children || []) walk(child);
   }
   walk(config.tree);
-  const criterion = all.find(item => item.criteria === proof.criterion) ||
-    all.find(item => Number(item.technical_software_installation_id) ===
-      Number(proof.software_installation_id));
+  // A negative analyst decision is not a proof that the installed software
+  // matches the NVD product. Restore ONLY the recorded alternative, even if
+  // a firmware was examined against an application criterion (STEP 7).
+  const recordedCriterion = last?.selected_nvd_criterion;
+  const criterion = recordedCriterion
+    ? all.find(item =>
+        (recordedCriterion.key &&
+          item.match_criteria_id === recordedCriterion.key) ||
+        (recordedCriterion.criteria &&
+          item.criteria === recordedCriterion.criteria))
+    : all.find(item => item.criteria === proof.criterion) ||
+      all.find(item => item.technical_software_installation_id != null &&
+        Number(item.technical_software_installation_id) ===
+          Number(proof.software_installation_id));
   if (!criterion) return null;
   return {
     installationId: String(proof.software_installation_id),
@@ -543,6 +561,20 @@ export function currentCveEvaluatedSoftware(config, context) {
     source: last?.source || "SYSTEM",
     evidenceOnly: true,
   };
+}
+
+/** A hardware-wide CVE verdict is global only for applicability, not for
+ * software evidence. The recorded installation/alternative may be restored
+ * solely in the configuration that the analyst actually reviewed.
+ */
+export function currentCveScopedEvaluatedSoftware(config, context) {
+  const global = context?.hardware_cve_decision;
+  if (global) {
+    return global.configuration_index === config?.index
+      ? currentCveEvaluatedSoftware(config, context, global)
+      : null;
+  }
+  return currentCveEvaluatedSoftware(config, context);
 }
 
 
