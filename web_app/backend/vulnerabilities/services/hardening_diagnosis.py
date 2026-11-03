@@ -127,7 +127,7 @@ def build_hardening_diagnosis(report, communication_by_hardware=None):
             "installed_software": installed_software,
             "system_ids": system_ids,
             "systems": [systems[sid] for sid in system_ids],
-            "priority": priority,
+            "priority": priority if system_ids else None,
             "priority_basis": {
                 "hardware_criticality": criticality,
                 "max_cvss_severity": severity,
@@ -142,7 +142,15 @@ def build_hardening_diagnosis(report, communication_by_hardware=None):
             "communications_search_limited": traffic.get("search_limited", False),
         }
         devices.append(device)
-        if priority is None:
+        if not system_ids:
+            observations.append(_observation(
+                "MISSING_OT_SYSTEM",
+                "Este hardware tiene CVE aplicables, pero carece de un "
+                "sistema OT activo asociado. Sus hallazgos se presentan en "
+                "el apéndice y no reciben prioridad P1/P2/P3.",
+                hardware_id=hid,
+            ))
+        elif priority is None:
             observations.append(_observation(
                 "PRIORITY_UNCLASSIFIED",
                 "No se dispone de criticidad y severidad CVSS suficiente "
