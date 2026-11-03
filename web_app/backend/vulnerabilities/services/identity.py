@@ -681,5 +681,34 @@ def build_software_cpe_match_plan(identity):
             local_filter=True)
 
     if len(plan) > MAX_CPE_PLAN_QUERIES:
-        raise ValueError("El software genera demasiadas consultas CPE.")
+        # With multiple official vendor spellings, short-series firmware
+        # products can exceed the safety ceiling even when their identity is
+        # valid (e.g. Phoenix Contact IL PN BK-PAC Firmware 1.13).
+        #
+        # A version-branch prefix is a narrower discovery query than the
+        # already planned all-version product catalogue for the SAME vendor
+        # and product. Under pressure, remove the lowest-priority duplicate
+        # branch probes first, keeping exact-version, product-catalogue and
+        # manufacturer fallback queries. Do not enlarge the API budget.
+        catalogues = {
+            row["parameter"] for row in plan
+            if row["version_scope"] == "PRODUCT_CATALOGUE"
+        }
+        removable = [
+            index for index, row in enumerate(plan)
+            if row["version_scope"] == "BRANCH_PREFIX"
+            and row["parameter"].rsplit(":", 1)[0] + ":*" in catalogues
+        ]
+        overflow = len(plan) - MAX_CPE_PLAN_QUERIES
+        if overflow <= len(removable):
+            discarded = set(removable[-overflow:])
+            plan = [
+                row for index, row in enumerate(plan)
+                if index not in discarded
+            ]
+    if len(plan) > MAX_CPE_PLAN_QUERIES:
+        raise ValueError(
+            "La identidad genera más consultas CPE de las admitidas "
+            "incluso después de priorizar búsquedas específicas."
+        )
     return plan
