@@ -39,7 +39,7 @@ class CveCatalogueProfileTests(TestCase):
         self.assertIn("1 CVE oficiales", output)
         self.assertIn("proyeccion_hardware_cve", output)
         self.assertIn("recalculo_indicadores", output)
-        self.assertIn("2 pasadas de proyección hardware-CVE", output)
+        self.assertIn("1 pasada de proyección hardware-CVE", output)
         self.assertIn("Mediana de 1 ejecución(es)", output)
         self.assertEqual(
             list(Cve.objects.values_list("pk", "cve_id", "fetch_status")),
