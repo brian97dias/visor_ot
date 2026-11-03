@@ -76,6 +76,17 @@ export function isCveDiscoveryActive(status) {
 }
 
 
+/** Row identity, not a global CVE identity, controls navigation.
+ * A CVE linked to two PLCs must produce two different detail URLs.
+ */
+export function cveEvaluationDetailUrl(row) {
+  const base = "/vulnerabilities/cve/" + encodeURIComponent(row.cve_id);
+  const hardwareId = Number(row.hardware_id);
+  return Number.isSafeInteger(hardwareId) && hardwareId > 0
+    ? base + "?hardware=" + hardwareId
+    : base;
+}
+
 /** A CVE may be associated with several assets. Open the hardware that
  * explains the row's positive technical result, not simply the lowest ID.
  */
