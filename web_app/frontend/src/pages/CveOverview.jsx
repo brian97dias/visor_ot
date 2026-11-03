@@ -206,9 +206,9 @@ export default function CveOverview() {
       </div>
       <div className="cpe-overview-toolbar">
         <label className="cve-catalogue-control">
-          <span>Buscar CVE</span>
-          <input aria-label="Buscar CVE por identificador o descripción"
-            type="search" value={search} placeholder="CVE-2021, componente..."
+          <span>Buscar CVE o activo</span>
+          <input aria-label="Buscar CVE por identificador, descripción o nombre del activo evaluado"
+            type="search" value={search} placeholder="CVE-2021, descripción, PLC-TRA-01..."
             onChange={event => changeFilter("q", event.target.value)}/>
         </label>
         <label className="cve-catalogue-control">
@@ -240,8 +240,9 @@ export default function CveOverview() {
           <tbody>
             {loading ? <tr><td colSpan="6">Cargando CVE...</td></tr>
             : catalogue.results.length === 0 ? <tr><td colSpan="6">
-              No hay CVE recuperados para estos filtros. Inicia una búsqueda
-              con hardware que tenga CPE confirmados.
+              {search || severity !== "ALL" || status !== "ALL"
+                ? "No hay CVE que coincidan con estos filtros. Prueba con un identificador CVE, su descripción o el nombre de un activo evaluado."
+                : "Todavía no hay CVE recuperados. Inicia una búsqueda con hardware que tenga CPE confirmados."}
             </td></tr>
             : catalogue.results.map(row => <tr key={row.cve_id}>
               <td><strong className="cve-catalogue-id">{row.cve_id}</strong>
