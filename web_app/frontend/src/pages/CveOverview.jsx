@@ -13,7 +13,6 @@ import {
 
   CVE_SEVERITY, cveHardwareCandidates,
   cveHardwareSelectionValid, cvePageCount,
-  preferredCveHardwareId,
   toggleCveHardwareSelection,
 } from "../utils/cveCataloguePresentation";
 import { readCpePage } from "../utils/cpeOverviewUrlState";
@@ -31,6 +30,8 @@ export default function CveOverview() {
   const [catalogue, setCatalogue] = useState({
     count: 0, results: [], page: 1,
     summary: {total: 0, applies: 0, not_applicable: 0,
+      pending_review: 0, validated: 0, applies_conditional: 0},
+    evaluation_summary: {total: 0, applies: 0, not_applicable: 0,
       pending_review: 0, validated: 0, applies_conditional: 0},
   });
   const [loading, setLoading] = useState(true);
@@ -182,25 +183,28 @@ export default function CveOverview() {
 
     <div className="cve-catalogue-stats" aria-label="Resumen de aplicabilidad CVE">
       <div className="cpe-overview-stat">
-        <strong>{catalogue.summary?.total ?? 0}</strong><span>CVE registrados</span>
+        <strong>{catalogue.summary?.total ?? 0}</strong><span>CVE oficiales</span>
+        <small>{catalogue.evaluation_summary?.total ?? 0} evaluaciones de hardware</small>
       </div>
       <div className="cpe-overview-stat">
-        <strong>{catalogue.summary?.pending_review ?? 0}</strong><span>Por validar</span>
+        <strong>{catalogue.evaluation_summary?.pending_review ?? 0}</strong>
+        <span>Evaluaciones por validar</span>
       </div>
       <div className="cpe-overview-stat cve-catalogue-validated">
-        <strong>{catalogue.summary?.validated ?? 0}</strong><span>CVE validados</span>
+        <strong>{catalogue.evaluation_summary?.validated ?? 0}</strong>
+        <span>Evaluaciones validadas</span>
         <div className="cve-catalogue-stat-breakdown">
-          <span>Aplica: <strong>{catalogue.summary?.applies ?? 0}</strong></span>
-          <span>Condicionada: <strong>{catalogue.summary?.applies_conditional ?? 0}</strong></span>
-          <span>No aplica: <strong>{catalogue.summary?.not_applicable ?? 0}</strong></span>
+          <span>Aplica: <strong>{catalogue.evaluation_summary?.applies ?? 0}</strong></span>
+          <span>Condicionada: <strong>{catalogue.evaluation_summary?.applies_conditional ?? 0}</strong></span>
+          <span>No aplica: <strong>{catalogue.evaluation_summary?.not_applicable ?? 0}</strong></span>
         </div>
       </div>
     </div>
 
     <div className="panel cve-catalogue-panel">
       <div className="panel-header">
-        <div><h2>CVE registrados</h2>
-          <p>Vulnerabilidades descubiertas y resultados de evaluación del inventario.</p>
+        <div><h2>Evaluaciones CVE por hardware</h2>
+          <p>Cada fila corresponde a un CVE evaluado sobre un dispositivo concreto. El mismo CVE puede aparecer en varios equipos.</p>
         </div>
         <span className="record-count">{catalogue.count} resultados</span>
       </div>
@@ -236,7 +240,7 @@ export default function CveOverview() {
       <div className="table-container">
         <table className="data-table">
           <thead><tr><th>CVE</th><th>Severidad</th><th>Descripción NVD</th>
-            <th>Activos evaluados</th><th>Aplicabilidad</th><th>Acción</th></tr></thead>
+            <th>Hardware y software evaluados</th><th>Aplicabilidad</th><th>Acción</th></tr></thead>
           <tbody>
             {loading ? <tr><td colSpan="6">Cargando CVE...</td></tr>
             : catalogue.results.length === 0 ? <tr><td colSpan="6">
@@ -244,7 +248,7 @@ export default function CveOverview() {
                 ? "No hay CVE que coincidan con estos filtros. Prueba con un identificador CVE, su descripción o el nombre de un activo evaluado."
                 : "Todavía no hay CVE recuperados. Inicia una búsqueda con hardware que tenga CPE confirmados."}
             </td></tr>
-            : catalogue.results.map(row => <tr key={row.cve_id}>
+            : catalogue.results.map(row => <tr key={row.row_key || row.cve_id}>
               <td><strong className="cve-catalogue-id">{row.cve_id}</strong>
                 <small className="cve-catalogue-secondary">Registro oficial NVD</small></td>
               <td><span className="cve-catalogue-severity"
@@ -264,7 +268,7 @@ export default function CveOverview() {
                         <span>{asset.asset_type === "HARDWARE"
                           ? "Hardware · Plataforma"
                           : asset.software_type === "FIRMWARE"
-                            ? "Firmware · Vulnerable" : "Software · Vulnerable"}</span>
+                            ? "Firmware · Evaluado" : "Software · Evaluado"}</span>
                         <Link to={"/assets/" + asset.asset_id}
                           title={"Ver ficha técnica de " + asset.name}>
                           {asset.name}
@@ -295,14 +299,13 @@ export default function CveOverview() {
               </td>
               <td><Link className="button-secondary"
                 to={"/vulnerabilities/cve/" + encodeURIComponent(row.cve_id) +
-                  (preferredCveHardwareId(row) ?
-                    "?hardware=" + preferredCveHardwareId(row) : "")}>Ver</Link></td>
+                  (row.hardware_id ? "?hardware=" + row.hardware_id : "")}>Ver</Link></td>
             </tr>)}
           </tbody>
         </table>
       </div>
       <div className="pagination">
-        <span>Página {currentPage} de {pages} · {catalogue.count} CVE</span>
+        <span>Página {currentPage} de {pages} · {catalogue.count} evaluaciones</span>
         <div className="pagination-actions">
           <button type="button" disabled={currentPage === 1}
             onClick={() => changeFilter("page", currentPage - 1)}>Anterior</button>
