@@ -129,21 +129,24 @@ class Command(BaseCommand):
             with transaction.atomic():
                 with connection.cursor() as cursor:
                     cursor.execute(sql)
+                # Keep all checks inside the transaction: any anomaly rolls
+                # back the TRUNCATE and its identity-sequence resets.
+                if any(model.objects.exists() for model in model_tables.values()):
+                    raise CommandError(
+                        "El laboratorio conserva filas inesperadas; "
+                        "se revirtió el reinicio."
+                    )
+                if get_user_model().objects.count() != users_before:
+                    raise CommandError(
+                        "Cambió inesperadamente el conteo de usuarios; "
+                        "se revirtió el reinicio."
+                    )
         except DatabaseError as error:
             raise CommandError(
                 "No se completó el reinicio; PostgreSQL revirtió la operación. "
                 "Puede existir una referencia desde una tabla fuera del "
                 "laboratorio. No se borró ninguna tabla adicional."
             ) from error
-
-        users_after = get_user_model().objects.count()
-        if users_after != users_before:
-            # This should be structurally impossible with RESTRICT and the
-            # explicit table list; warn rather than incorrectly claim success.
-            raise CommandError(
-                "El conteo de usuarios cambió inesperadamente. "
-                "Comprueba el respaldo antes de continuar."
-            )
         self.stdout.write(self.style.SUCCESS(
             "Laboratorio reiniciado. Tablas OT vacías e identificadores "
             "reiniciados. Usuarios y migraciones conservados."
