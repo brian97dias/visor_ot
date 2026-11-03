@@ -25,7 +25,7 @@ const OUTCOME = {
   REUSED: "Ya estaba en cola",
   SKIPPED: "No procesado",
   NOT_FOUND: "Activo inexistente",
-  INVALID_IDENTITY: "Identidad técnica incompleta",
+  INVALID_IDENTITY: "No se pudo preparar la búsqueda",
 };
 const MAX_BULK_ASSETS = 100;
 const POLL_MS = 10000;
@@ -197,11 +197,17 @@ export default function CpeOverview() {
       const result = await startBulkCpeSearch(selectedRows.map(row => row.asset_id));
       setBulkResult(result);
       setSelectedIds([]);
-      setNotice("Solicitud masiva registrada: " + result.summary.queued + " encoladas, " +
-        result.summary.reused + " reutilizadas, " + result.summary.skipped +
-        " omitidas y " + result.summary.failed + " con error.");
-      pollStartedAt.current = Date.now();
-      setPollingPaused(false);
+      const submitted = result.summary.queued + result.summary.reused;
+      if (submitted) {
+        setNotice("Solicitud masiva registrada: " + result.summary.queued +
+          " encoladas, " + result.summary.reused + " reutilizadas, " +
+          result.summary.skipped + " omitidas y " + result.summary.failed +
+          " con error.");
+        pollStartedAt.current = Date.now();
+        setPollingPaused(false);
+      } else {
+        setNotice("No se encoló ninguna búsqueda. Revisa el motivo indicado por activo.");
+      }
       try {
         await refreshOverview();
       } catch (refreshError) {
@@ -478,9 +484,12 @@ export default function CpeOverview() {
             </div>)}
           </div>
           <p className="cpe-bulk-hint">
-            La API registró los trabajos, pero el worker NVD deberá procesarlos.
-            Para ello debe estar ejecutándose <code>python manage.py run_cpe_worker</code>
-            en otra terminal. Consulta sus estados desde esta misma tabla.
+            {bulkResult.summary.queued + bulkResult.summary.reused > 0
+              ? <>Los trabajos aceptados los procesará el worker NVD.
+                Debe estar ejecutándose <code>python manage.py run_cpe_worker</code>
+                en otra terminal. Consulta sus estados desde esta tabla.</>
+              : <>No se creó ningún trabajo para el worker. Corrige los errores
+                indicados arriba y vuelve a solicitar la búsqueda.</>}
           </p>
           {bulkError && <p className="error-message" role="alert">{bulkError}</p>}
           <div className="cpe-bulk-dialog-actions">
