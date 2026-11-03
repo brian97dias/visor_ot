@@ -168,13 +168,7 @@ export function nvdCriterionIdentityBadge(item) {
   if (["a", "o"].includes(item?.part)) {
     if (item.technical_identity === "MATCHED" && item.technical_matched_cpe) {
       if (item.technical_result === "COMPATIBLE") {
-        return {
-          label: item.technical_identity_basis ===
-            "CURATED_SIEMENS_1214C_FIRMWARE_PRODUCT_EQUIVALENCE"
-            ? "Coincidencia por equivalencia Siemens verificada"
-            : "Coincidencia técnica",
-          state: "SATISFIED",
-        };
+        return { label: "Coincidencia técnica", state: "SATISFIED" };
       }
       if (item.technical_result === "EXCLUDED") {
         return { label: "Versión fuera de rango", state: "NOT_SATISFIED" };
@@ -288,13 +282,6 @@ export function preferredCveCorrespondenceVerdict(installationId, eligibleIds = 
   return installationId &&
     eligibleIds.some(id => Number(id) === Number(installationId))
     ? "CONFIRMED" : "CONDITIONAL";
-}
-
-/** The action label follows the operator's checkbox without pretending that
- * an unverified software CPE is automatically applicable. */
-export function cveCorrespondenceButtonLabel(installationId, verdict) {
-  if (verdict === "CONFIRMED") return "Confirmar correspondencia";
-  return installationId ? "Revisar correspondencia" : "Correspondencia parcial";
 }
 
 /** A changed checkbox must update an open positive form, not submit a stale

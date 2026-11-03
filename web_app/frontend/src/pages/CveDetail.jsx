@@ -15,8 +15,7 @@ import {
   currentCveEvaluatedSoftware, allowedCveDecisionTransitions,
   cveHistoryDecisionDescription, cveHistorySoftwareLabel,
   isSavedCveLinkSelection, cveAuditJustification,
-  preferredCveCorrespondenceVerdict, cveCorrespondenceButtonLabel,
-  updatedCveReviewChoice,
+  preferredCveCorrespondenceVerdict, updatedCveReviewChoice,
   canConfirmCveWithExternalEvidence,
   operationalNvdGroupBranches, nvdAlternativeGroupLabel,
   displayedNvdSoftwareCriterion, canSelectNvdCriterionSoftware,
@@ -108,11 +107,7 @@ function Criterion({ item, depth = 0, selection, linkedCriterion, onSelect, inst
                     {" · Versión "}{sw.version || "desconocida"}</small>
                 </div>
                 <span className="cve-software-status is-installed">
-                  {identityProven ?
-                    (item.technical_identity_basis ===
-                      "CURATED_SIEMENS_1214C_FIRMWARE_PRODUCT_EQUIVALENCE"
-                      ? "Identidad por equivalencia Siemens · versión evaluada"
-                      : "Identidad CPE comprobada") :
+                  {identityProven ? "Identidad CPE comprobada" :
                     typeMatches ? "Instalado · CPE sin comprobar" :
                       "Instalado · tipo diferente"}
                 </span>
@@ -515,7 +510,8 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
             setReviewOpen(true);
             setJustification("");
           }}>
-          {cveCorrespondenceButtonLabel(linkedInstallationId, primaryVerdict)}
+          {primaryVerdict === "CONFIRMED"
+            ? "Confirmar correspondencia" : "Correspondencia parcial"}
         </button>}
         {canExternalOverride && allowedChanges.includes("CONFIRMED") &&
           <button type="button" className={"cve-nvd-action" +
@@ -553,12 +549,6 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
         un software como vulnerable. Explica la evidencia externa (por ejemplo,
         un aviso oficial del fabricante) y por qué modifica la exclusión NVD.
         La conclusión automática y tu decisión quedarán en el historial.
-      </p>}
-    {linkedInstallationId && primaryVerdict !== "CONFIRMED" && showChoices &&
-      <p className="cve-review-note" role="status">
-        Has seleccionado el software instalado, pero aún falta acreditar
-        su identidad CPE o versión. Puedes documentar una correspondencia
-        parcial y justificarla; marcar la casilla no confirma el CVE.
       </p>}
     {choice === "CONDITIONAL" && <p className="cve-review-note" role="status">
       Correspondencia parcial: {linkedInstallationId

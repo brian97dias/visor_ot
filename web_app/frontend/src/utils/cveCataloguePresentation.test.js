@@ -19,8 +19,7 @@ import {
   nvdAlternativeGroupLabel,
   currentCveSoftwareLink, currentCveEvaluatedSoftware,
   allowedCveDecisionTransitions, isSavedCveLinkSelection,
-  preferredCveCorrespondenceVerdict, cveCorrespondenceButtonLabel,
-  updatedCveReviewChoice,
+  preferredCveCorrespondenceVerdict, updatedCveReviewChoice,
   cveHistoryDecisionDescription, cveHistorySoftwareLabel,
   cveAssetRoleLabel,
   displayCveApplicability, CVE_CATALOGUE_FILTER_STATES,
@@ -859,32 +858,4 @@ test("correspondence buttons follow checkbox and verified NVD installation", () 
   assert.equal(updatedCveReviewChoice("NOT_MATCH", "CONFIRMED"), "NOT_MATCH");
   assert.equal(updatedCveReviewChoice("NOT_MATCH", "CONDITIONAL"), "NOT_MATCH");
   assert.equal(updatedCveReviewChoice("", "CONFIRMED"), "");
-});
-
-test("checked firmware changes correspondence action without inventing NVD proof", () => {
-  assert.equal(cveCorrespondenceButtonLabel("", "CONDITIONAL"),
-    "Correspondencia parcial");
-  assert.equal(cveCorrespondenceButtonLabel("1", "CONDITIONAL"),
-    "Revisar correspondencia");
-  assert.equal(cveCorrespondenceButtonLabel("1", "CONFIRMED"),
-    "Confirmar correspondencia");
-  assert.equal(preferredCveCorrespondenceVerdict("1", []), "CONDITIONAL");
-  assert.equal(preferredCveCorrespondenceVerdict("1", [1]), "CONFIRMED");
-});
-
-test("CPE alias provenance is distinguished from a literal CPE match", () => {
-  assert.deepEqual(nvdCriterionIdentityBadge({
-    part: "o", technical_identity: "MATCHED",
-    technical_result: "COMPATIBLE",
-    technical_matched_cpe: "cpe:2.3:o:siemens:s7-1200_cpu_1214c_firmware:-:*:*:*:*:*:*:*",
-    technical_identity_basis: "CURATED_SIEMENS_1214C_FIRMWARE_PRODUCT_EQUIVALENCE",
-  }), {
-    label: "Coincidencia por equivalencia Siemens verificada", state: "SATISFIED",
-  });
-  assert.deepEqual(nvdCriterionIdentityBadge({
-    part: "o", technical_identity: "MATCHED",
-    technical_result: "COMPATIBLE", technical_matched_cpe: "cpe:exact",
-  }), {
-    label: "Coincidencia técnica", state: "SATISFIED",
-  });
 });

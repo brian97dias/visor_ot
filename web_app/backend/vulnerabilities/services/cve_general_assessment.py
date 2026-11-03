@@ -70,8 +70,7 @@ def _annotate_tree(tree, technical):
     if technical.get("reason"):
         tree["technical_reason"] = technical["reason"]
     for key in ("installed_version", "software_installation_id",
-                "software_asset_id", "software_name", "identity", "matched_cpe",
-                "identity_basis"):
+                "software_asset_id", "software_name", "identity", "matched_cpe"):
         if key in technical:
             tree["technical_" + key] = technical[key]
     if tree.get("kind") == "CRITERION":
