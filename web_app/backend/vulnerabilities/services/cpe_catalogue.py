@@ -16,12 +16,45 @@ from django.utils.dateparse import parse_datetime
 from vulnerabilities.models import (
     Cpe, CpeQueryCache, CpeQueryProduct, CpeQuerySnapshot,
 )
-from .nvd_client import fetch_page
+from .nvd_client import NvdError, fetch_page
 from .nvd_references import safe_references
 
 CACHE_TTL = timedelta(days=7)
 CATALOGUE_PAGE_SIZE = 500
 MAX_CATALOGUE_PAGE_SIZE = 1000
+# Three deferred attempts after the initial network failure.
+# Exponential backoff: 30, 60 and 120 seconds; survives restarts.
+MAX_AUTOMATIC_RETRIES = 3
+AUTOMATIC_RETRY_BASE_SECONDS = 30
+
+
+def _retryable_network_failure(exc):
+    """Do not retry malformed pages, invalid identity or HTTP 4xx.
+
+    fetch_page already retries each HTTP request twice; this is a separate
+    bounded worker-level recovery budget for transient failures only.
+    """
+    if isinstance(exc, (TimeoutError, ConnectionError)):
+        return True
+    if not isinstance(exc, NvdError):
+        return False
+    message = str(exc)
+    return (
+        message.startswith("No fue posible consultar NVD:")
+        or message.startswith("NVD no respondió tras los reintentos")
+        or any(message.startswith(f"NVD devolvió HTTP {code}.")
+               for code in (429, 500, 502, 503, 504))
+    )
+
+
+def snapshot_retry_scheduled(snapshot):
+    return (
+        snapshot.status == CpeQuerySnapshot.Status.FAILED
+        and snapshot.error_code == "FETCH_FAILED"
+        and snapshot.retry_after is not None
+        and 0 < snapshot.automatic_retry_count <= MAX_AUTOMATIC_RETRIES
+    )
+
 
 _CPE_PREFIX = re.compile(
     r"^cpe:2\.3:[hao]:[a-z0-9_.-]{2,100}"
@@ -124,8 +157,9 @@ def retry_failed_snapshot(snapshot_id):
         snapshot.error_code = ""
         snapshot.error_message = ""
         snapshot.finished_at = None
+        snapshot.retry_after = None
         snapshot.save(update_fields=[
-            "status", "error_code", "error_message", "finished_at",
+            "status", "error_code", "error_message", "finished_at", "retry_after",
         ])
         return snapshot
 
@@ -286,13 +320,26 @@ def execute_catalogue_snapshot(snapshot, pacer, *, fetcher=fetch_page, after_pag
             snapshot.finished_at = timezone.now()
             snapshot.save(update_fields=["status", "finished_at"])
     except Exception as exc:
-        # Errors never certify an absence of products; checkpoints stay intact.
+        # Never certify a missing product after an error. Completed pages
+        # remain committed, and the retry budget survives worker restarts.
         snapshot = CpeQuerySnapshot.objects.get(pk=snapshot.pk)
         snapshot.status = CpeQuerySnapshot.Status.FAILED
-        snapshot.error_code = exc.code if isinstance(exc, CatalogueResponseError) else "FETCH_FAILED"
+        snapshot.error_code = (
+            exc.code if isinstance(exc, CatalogueResponseError)
+            else "FETCH_FAILED"
+        )
         snapshot.error_message = str(exc)[:1000]
         snapshot.finished_at = timezone.now()
+        snapshot.retry_after = None
+        if (_retryable_network_failure(exc)
+                and snapshot.automatic_retry_count < MAX_AUTOMATIC_RETRIES):
+            delay = AUTOMATIC_RETRY_BASE_SECONDS * (
+                2 ** snapshot.automatic_retry_count
+            )
+            snapshot.automatic_retry_count += 1
+            snapshot.retry_after = timezone.now() + timedelta(seconds=delay)
         snapshot.save(update_fields=[
             "status", "error_code", "error_message", "finished_at",
+            "retry_after", "automatic_retry_count",
         ])
     return snapshot
