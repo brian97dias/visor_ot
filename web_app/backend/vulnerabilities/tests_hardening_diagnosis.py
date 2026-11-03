@@ -94,6 +94,9 @@ class DeviceDiagnosisProjectionTests(SimpleTestCase):
         self.assertEqual(counts["priority_counts"]["P2"], 1)
         self.assertEqual([d["hardware_id"] for d in result["unassociated_hardware"]], [10])
         self.assertEqual(len(result["unassociated_hardware"][0]["findings"]), 5)
+        self.assertIsNone(result["unassociated_hardware"][0]["priority"])
+        self.assertIn("MISSING_OT_SYSTEM",
+                      [x["code"] for x in result["evidence_observations"]])
         cells = [cell for row in result["priority_matrix"] for cell in row["cells"]]
         self.assertEqual([hid for cell in cells for hid in cell["hardware_ids"]], [2])
         self.assertEqual(result["prioritized_hardware"][0]["hardware_id"], 2)
