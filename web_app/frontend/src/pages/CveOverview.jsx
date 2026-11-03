@@ -11,7 +11,7 @@ import {
 
   CVE_APPLICABILITY_SOURCE,
 
-  CVE_SEVERITY, cveHardwareCandidates,
+  CVE_SEVERITY, cveHardwareCandidates, cveEvaluationDetailUrl,
   cveHardwareSelectionValid, cvePageCount,
   toggleCveHardwareSelection,
 } from "../utils/cveCataloguePresentation";
@@ -298,8 +298,7 @@ export default function CveOverview() {
 
               </td>
               <td><Link className="button-secondary"
-                to={"/vulnerabilities/cve/" + encodeURIComponent(row.cve_id) +
-                  (row.hardware_id ? "?hardware=" + row.hardware_id : "")}>Ver</Link></td>
+                to={cveEvaluationDetailUrl(row)}>Ver</Link></td>
             </tr>)}
           </tbody>
         </table>
