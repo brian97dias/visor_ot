@@ -12,7 +12,7 @@ import {
   cveApplicabilityExplanation, cveConfigurationHighlights,
 
   nvdCriterionIdentityBadge, currentCveSoftwareLink,
-  currentCveEvaluatedSoftware, allowedCveDecisionTransitions,
+  currentCveScopedEvaluatedSoftware, allowedCveDecisionTransitions,
   cveHistoryDecisionDescription, cveHistorySoftwareLabel,
   isSavedCveLinkSelection, cveAuditJustification,
   preferredCveCorrespondenceVerdict, updatedCveReviewChoice,
@@ -273,8 +273,10 @@ function ConfigurationReview({ context, config, onSaved, canDecide, highlight = 
     } : null;
   const savedPositive = globalDecision
     ? manuallyLinked : currentCveSoftwareLink(config, context);
-  const evaluatedLink = globalDecision
-    ? null : currentCveEvaluatedSoftware(config, context);
+  // A negative analyst verdict has no vulnerable-software FK. Its checked
+  // installation is historical REVIEW evidence (evaluated_software) scoped
+  // to the exact hardware and NVD configuration, not a positive association.
+  const evaluatedLink = currentCveScopedEvaluatedSoftware(config, context);
   const reviewed = (localDecision?.reviewed_software || [])[0];
   const reviewedLink = reviewed && localDecision?.selected_nvd_criterion ? {
     installationId: String(reviewed.installation_id ||
