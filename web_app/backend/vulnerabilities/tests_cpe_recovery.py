@@ -213,6 +213,16 @@ class CpeTransientRecoveryTests(TestCase):
         self.assertIsNone(failed.retry_after)
         self.assertEqual(failed.automatic_retry_count, 0)
 
+    def test_cache_reuses_snapshot_during_backoff_instead_of_forking_work(self):
+        snapshot = self._waiting_snapshot()
+        execute_catalogue_snapshot(snapshot, object(), fetcher=self.timeout)
+        same, reused = enqueue_catalogue_query(
+            snapshot.cache.strategy, snapshot.cache.parameter,
+        )
+        self.assertTrue(reused)
+        self.assertEqual(same.pk, snapshot.pk)
+        self.assertEqual(CpeQuerySnapshot.objects.count(), 1)
+
     def test_another_asset_run_is_not_starved_by_delayed_snapshot(self):
         snapshot = self._waiting_snapshot()
         execute_catalogue_snapshot(snapshot, object(), fetcher=self.timeout)
