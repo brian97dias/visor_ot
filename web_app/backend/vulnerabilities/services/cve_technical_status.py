@@ -93,11 +93,15 @@ def _hardware_role(analysis, preferred_index=None):
     return "HARDWARE_CONTEXT"
 
 
-def _current_linked_installation(cve, hardware, inventory_fp, eligible_indexes=None):
+def _current_linked_installation(
+    cve, hardware, inventory_fp, eligible_indexes=None, *, assessment_rows=None,
+):
     """Latest current analyst evaluation; never link unrelated installed apps."""
-    decisions = AssetCveAssessment.objects.filter(
-        cve=cve, hardware=hardware
-    ).order_by("-decided_at", "-pk")
+    decisions = assessment_rows if assessment_rows is not None else (
+        AssetCveAssessment.objects.filter(
+            cve=cve, hardware=hardware
+        ).order_by("-decided_at", "-pk")
+    )
     from .cve_applicability import assessment_evidence_is_current
     allowed = set(eligible_indexes) if eligible_indexes is not None else None
     for row in decisions:
@@ -120,13 +124,15 @@ def _current_linked_installation(cve, hardware, inventory_fp, eligible_indexes=N
     return None, None, None
 
 
-def _scoped_status_with_current_audits(cve, hardware, inventory_fp, analysed):
+def _scoped_status_with_current_audits(
+    cve, hardware, inventory_fp, analysed, *, assessment_rows=None,
+):
     """Reuse detail's scoped analyst/technical projection for the catalogue."""
     from .cve_applicability import (
         project_configuration_decisions, latest_hardware_cve_decision,
     )
     global_record, global_current = latest_hardware_cve_decision(
-        cve, hardware, inventory_fp,
+        cve, hardware, inventory_fp, assessment_rows=assessment_rows,
     )
     if global_record is not None:
         return project_configuration_decisions(
@@ -138,9 +144,12 @@ def _scoped_status_with_current_audits(cve, hardware, inventory_fp, analysed):
         analysed.get("contextual_selection", {}).get("pertinent_indexes", [])
     )
     newest = {}
-    for row in AssetCveAssessment.objects.filter(
-        hardware=hardware, cve=cve,
-    ).order_by("-decided_at", "-pk"):
+    rows = assessment_rows if assessment_rows is not None else (
+        AssetCveAssessment.objects.filter(
+            hardware=hardware, cve=cve,
+        ).order_by("-decided_at", "-pk")
+    )
+    for row in rows:
         if row.configuration_index in eligible:
             newest.setdefault(row.configuration_index, row)
 
@@ -201,10 +210,15 @@ def related_assets_for_cves(cves):
     related = defaultdict(set)
     for cve_pk, hw_pk in hardware_discovery_pairs(ids):
         related[cve_pk].add(hw_pk)
-    for cve_pk, hw_pk in AssetCveAssessment.objects.filter(
-        cve_id__in=ids
-    ).values_list("cve_id", "hardware_id"):
-        related[cve_pk].add(hw_pk)
+    # Fetch all analyst records once. The same newest-first history is
+    # supplied to scoped, global and linked-installation evaluation; none of
+    # those helpers may infer another hardware's human decision.
+    audit_rows = defaultdict(list)
+    for record in AssetCveAssessment.objects.filter(
+        cve_id__in=ids,
+    ).order_by("cve_id", "hardware_id", "-decided_at", "-pk"):
+        related[record.cve_id].add(record.hardware_id)
+        audit_rows[(record.cve_id, record.hardware_id)].append(record)
 
     # Cache only during this read-only projection. A PLC's confirmed CPE,
     # software installations and fingerprint are the same regardless of which
@@ -222,16 +236,19 @@ def related_assets_for_cves(cves):
                 )
                 proof = automatic_positive_evidence(analysed)
                 negative = automatic_negative_evidence(analysed)
+                records = audit_rows[(cve.pk, hw_id)]
                 scoped_status = _scoped_status_with_current_audits(
                     cve, hardware, inventory_fp, analysed,
+                    assessment_rows=records,
                 )
                 from .cve_applicability import latest_hardware_cve_decision
                 global_record, global_current = latest_hardware_cve_decision(
-                    cve, hardware, inventory_fp,
+                    cve, hardware, inventory_fp, assessment_rows=records,
                 )
                 chosen_installation, chosen_configuration, human_status = _current_linked_installation(
                     cve, hardware, inventory_fp,
                     analysed["contextual_selection"]["pertinent_indexes"],
+                    assessment_rows=records,
                 )
                 if global_record is not None:
                     chosen_configuration = global_record.configuration_index
