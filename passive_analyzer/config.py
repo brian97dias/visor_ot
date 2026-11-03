@@ -28,6 +28,14 @@ OUTPUT_DIRECTORY = Path(
 ).expanduser().resolve()
 
 SERVICE_PORTS = {
+    # Etiquetas inferidas POR PUERTO (no decodificación ni confirmación
+    # criptográfica del servicio de aplicación). La orientación TCP por SYN
+    # continúa prevaleciendo incluso cuando el puerto no es conocido.
+    ("TCP", 22): "SSH",
+    ("TCP", 23): "Telnet",
+    ("TCP", 80): "HTTP",
+    ("TCP", 443): "HTTPS",
+
     ("TCP", 53): "DNS",
     ("UDP", 53): "DNS",
 
