@@ -19,7 +19,7 @@ from .nvd_client import fetch_page, PAGE_SIZE, MAX_PAGES_PER_STRATEGY, MAX_TOTAL
 from .worker_lock import worker_lock_held
 from .advanced_query import validate_advanced_query
 from .nvd_references import combine_references
-from .cpe_catalogue import enqueue_catalogue_query
+from .cpe_catalogue import enqueue_catalogue_query, snapshot_retry_scheduled
 
 # Shared across all discovery levels: never reset budgets on fallback.
 MAX_TOTAL_PAGE_FETCHES = 8
@@ -578,6 +578,23 @@ def execute_run(run, pacer, fetcher=fetch_page):
                 details["pages"] = snapshot.pages_fetched
                 if snapshot.status != CpeQuerySnapshot.Status.COMPLETED:
                     if snapshot.status == CpeQuerySnapshot.Status.FAILED:
+                        if snapshot_retry_scheduled(snapshot):
+                            # The catalogue is temporarily unavailable. Keep
+                            # the asset queued with its immutable completed
+                            # query history; the worker will retry this exact
+                            # snapshot after its persisted backoff deadline.
+                            details["status"] = "WAITING_CATALOGUE"
+                            details["level_result"] = "RETRY_SCHEDULED"
+                            details["stop_reason"] = "FETCH_RETRY_SCHEDULED"
+                            details["retry_after"] = snapshot.retry_after.isoformat()
+                            details["retry_attempt"] = snapshot.automatic_retry_count
+                            _persist(run, {
+                                "status": CpeSearchRun.Status.QUEUED,
+                                "queries": queries,
+                                "candidates": merge_candidates(list(dedup.values())),
+                                "error_message": "",
+                            })
+                            return run
                         details["status"] = "FAILED"
                         details["stop_reason"] = snapshot.error_code or "CATALOGUE_FAILED"
                         raise ValueError(
@@ -592,6 +609,9 @@ def execute_run(run, pacer, fetcher=fetch_page):
                     })
                     return run
                 details["status"] = "RUNNING"
+                details.pop("retry_after", None)
+                details.pop("retry_attempt", None)
+                details.pop("stop_reason", None)
                 # A complete snapshot may be reused by many different assets.
                 for row in _snapshot_products(snapshot):
                     _record_candidate(
@@ -705,6 +725,22 @@ def execute_run(run, pacer, fetcher=fetch_page):
 
 
 def serialize_run(run):
+    catalogue_retry = None
+    last_query = (run.queries or [])[-1:] or []
+    if run.status == CpeSearchRun.Status.QUEUED and last_query:
+        last = last_query[0]
+        if last.get("status") == "WAITING_CATALOGUE" and last.get("snapshot_id"):
+            snapshot = CpeQuerySnapshot.objects.filter(
+                pk=last["snapshot_id"]
+            ).first()
+            if snapshot is not None and snapshot_retry_scheduled(snapshot):
+                from .cpe_catalogue import MAX_AUTOMATIC_RETRIES
+                catalogue_retry = {
+                    "attempt": snapshot.automatic_retry_count,
+                    "maximum": MAX_AUTOMATIC_RETRIES,
+                    "retry_after": snapshot.retry_after,
+                    "cause": snapshot.error_message,
+                }
     try:
         identity = (software_identity(run.asset)
                     if run.asset.asset_type == Asset.AssetType.SOFTWARE
@@ -730,6 +766,7 @@ def serialize_run(run):
         "candidates": candidates,
         "candidate_count": len(candidates),
         "result_truncated": run.result_truncated,
+        "catalogue_retry": catalogue_retry,
         "error_message": run.error_message,
         "created_at": run.created_at,
         "started_at": run.started_at,
