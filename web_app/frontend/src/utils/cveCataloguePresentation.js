@@ -284,6 +284,13 @@ export function preferredCveCorrespondenceVerdict(installationId, eligibleIds = 
     ? "CONFIRMED" : "CONDITIONAL";
 }
 
+/** The action label follows the operator's checkbox without pretending that
+ * an unverified software CPE is automatically applicable. */
+export function cveCorrespondenceButtonLabel(installationId, verdict) {
+  if (verdict === "CONFIRMED") return "Confirmar correspondencia";
+  return installationId ? "Revisar correspondencia" : "Correspondencia parcial";
+}
+
 /** A changed checkbox must update an open positive form, not submit a stale
  * verdict for the opposite software-selection state. Negative remains
  * independent of the checkbox.
