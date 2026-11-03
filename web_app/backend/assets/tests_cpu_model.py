@@ -127,9 +127,9 @@ class CpuModelTests(TestCase):
         preview = self.client.post(PREVIEW, {"file": upload(blob)}, format="multipart")
         self.assertEqual(preview.status_code, 200, preview.data)
         self.assertEqual(preview.data["summary"]["CREATE"], 1)
-        actions = {"Hardware:2": {
-            "action": "CREATE", "system_ids": [self.system.pk],
-        }}
+        # Importing Excel creates inventory only; OT systems are linked
+        # manually by the operator after the import is complete.
+        actions = {"Hardware:2": {"action": "CREATE"}}
         result = self.client.post(CONFIRM, {
             "file": upload(blob),
             "token": preview.data["token"],
@@ -138,6 +138,10 @@ class CpuModelTests(TestCase):
         self.assertEqual(result.status_code, 200, result.data)
         hardware = Hardware.objects.get(asset_id=result.data["created"][0]["id"])
         self.assertEqual(hardware.cpu_model, "1215C")
+        from .models import SystemMembership
+        self.assertFalse(SystemMembership.objects.filter(
+            hardware_id=hardware.pk, unlinked_at__isnull=True
+        ).exists())
 
         row["nombre_activo"] = "Switch-Excel"
         row["rol"] = "SWITCH"
