@@ -803,14 +803,27 @@ def serialize_run(run):
             snapshot = CpeQuerySnapshot.objects.filter(
                 pk=last["snapshot_id"]
             ).first()
-            if snapshot is not None and snapshot_retry_scheduled(snapshot):
+            if snapshot is not None and snapshot.automatic_retry_count:
                 from .cpe_catalogue import MAX_AUTOMATIC_RETRIES
-                catalogue_retry = {
-                    "attempt": snapshot.automatic_retry_count,
-                    "maximum": MAX_AUTOMATIC_RETRIES,
-                    "retry_after": snapshot.retry_after,
-                    "cause": snapshot.error_message,
-                }
+                if snapshot_retry_scheduled(snapshot):
+                    catalogue_retry = {
+                        "state": "SCHEDULED",
+                        "attempt": snapshot.automatic_retry_count,
+                        "maximum": MAX_AUTOMATIC_RETRIES,
+                        "retry_after": snapshot.retry_after,
+                        "cause": snapshot.error_message,
+                    }
+                elif snapshot.status in (
+                    CpeQuerySnapshot.Status.INCOMPLETE,
+                    CpeQuerySnapshot.Status.RUNNING,
+                ):
+                    catalogue_retry = {
+                        "state": "RESUMING",
+                        "attempt": snapshot.automatic_retry_count,
+                        "maximum": MAX_AUTOMATIC_RETRIES,
+                        "retry_after": None,
+                        "cause": "",
+                    }
     try:
         identity = (software_identity(run.asset)
                     if run.asset.asset_type == Asset.AssetType.SOFTWARE
