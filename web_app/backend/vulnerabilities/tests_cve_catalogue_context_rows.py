@@ -114,6 +114,30 @@ class CveHardwareRowTests(TestCase):
             self.client.get(self.URL, {"status": "APPLIES"}).data["count"], 0
         )
 
+    def test_one_hardware_applies_while_other_does_not_on_same_cve(self):
+        from vulnerabilities.tests_cve_discovery_plan import SW_CPE
+        self.fixture.confirm(self.fixture.firmware.asset, SW_CPE)
+        self.fixture.link(hardware=self.tra)
+        response = self.client.get(self.URL, {"q": self.cve.cve_id})
+        self.assertEqual(response.data["count"], 2)
+        statuses = {
+            row["hardware_id"]: row["applicability_status"]
+            for row in response.data["results"]
+        }
+        self.assertEqual(statuses[self.mez.pk], "NOT_APPLICABLE")
+        self.assertEqual(statuses[self.tra.pk], "APPLIES")
+        self.assertEqual(
+            self.client.get(self.URL, {"status": "APPLIES"}).data["results"][0][
+                "hardware_id"
+            ], self.tra.pk,
+        )
+        firmware_search = self.client.get(self.URL, {"q": "Firmware one"})
+        self.assertEqual(firmware_search.data["count"], 1)
+        self.assertEqual(firmware_search.data["results"][0]["hardware_id"], self.tra.pk)
+        stats = response.data["evaluation_summary"]
+        self.assertEqual((stats["applies"], stats["not_applicable"]), (1, 1))
+        self.assertEqual(stats["validated"], 2)
+
     def test_hardware_filter_returns_only_matching_context_not_aggregate(self):
         mez = self.client.get(self.URL, {"q": "PLC-MEZ-01"})
         tra = self.client.get(self.URL, {"q": "PLC-TRA-01"})
