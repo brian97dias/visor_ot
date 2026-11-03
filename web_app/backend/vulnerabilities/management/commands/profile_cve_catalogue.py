@@ -187,10 +187,11 @@ class Command(BaseCommand):
                 + groups.get("estados_historial", {}).get("milliseconds", 0)
                 + groups.get("recalculo_indicadores", {}).get("exclusive_ms", 0)
             )
+            passes = groups.get("proyeccion_hardware_cve", {}).get("calls", 0)
             self.stdout.write(
-                f"Nota: se observaron "
-                f"{groups.get('proyeccion_hardware_cve', {}).get('calls', 0)} "
-                "pasadas de proyección hardware-CVE."
+                f"Nota: se observaron {passes} "
+                f"{'pasada' if passes == 1 else 'pasadas'} "
+                "de proyección hardware-CVE."
             )
             self.stdout.write(
                 f"Tiempo fuera de fases principales (aprox.): "
