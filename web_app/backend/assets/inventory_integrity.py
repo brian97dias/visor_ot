@@ -3,7 +3,7 @@
 Existing rows remain untouched. Reports and operators may inspect deficiencies
 without silently assigning criticality or inventing a system association.
 """
-from .models import Asset, OTSystem, SystemMembership
+from .models import Asset, OTSystem
 
 
 VALID_CRITICALITIES = frozenset({"LOW", "MEDIUM", "HIGH"})
