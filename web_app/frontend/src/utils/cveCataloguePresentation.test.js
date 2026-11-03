@@ -19,7 +19,8 @@ import {
   nvdAlternativeGroupLabel,
   currentCveSoftwareLink, currentCveEvaluatedSoftware,
   allowedCveDecisionTransitions, isSavedCveLinkSelection,
-  preferredCveCorrespondenceVerdict, updatedCveReviewChoice,
+  preferredCveCorrespondenceVerdict, cveCorrespondenceButtonLabel,
+  updatedCveReviewChoice,
   cveHistoryDecisionDescription, cveHistorySoftwareLabel,
   cveAssetRoleLabel,
   displayCveApplicability, CVE_CATALOGUE_FILTER_STATES,
@@ -858,4 +859,15 @@ test("correspondence buttons follow checkbox and verified NVD installation", () 
   assert.equal(updatedCveReviewChoice("NOT_MATCH", "CONFIRMED"), "NOT_MATCH");
   assert.equal(updatedCveReviewChoice("NOT_MATCH", "CONDITIONAL"), "NOT_MATCH");
   assert.equal(updatedCveReviewChoice("", "CONFIRMED"), "");
+});
+
+test("checked firmware changes correspondence action without inventing NVD proof", () => {
+  assert.equal(cveCorrespondenceButtonLabel("", "CONDITIONAL"),
+    "Correspondencia parcial");
+  assert.equal(cveCorrespondenceButtonLabel("1", "CONDITIONAL"),
+    "Revisar correspondencia");
+  assert.equal(cveCorrespondenceButtonLabel("1", "CONFIRMED"),
+    "Confirmar correspondencia");
+  assert.equal(preferredCveCorrespondenceVerdict("1", []), "CONDITIONAL");
+  assert.equal(preferredCveCorrespondenceVerdict("1", [1]), "CONFIRMED");
 });
