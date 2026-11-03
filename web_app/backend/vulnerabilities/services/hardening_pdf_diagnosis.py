@@ -297,13 +297,16 @@ def _cve(story, finding, styles, references):
     story.append(Spacer(1, 2*mm))
 
 
-def _device(story, device, styles, references, width, anchor_ids):
+def _device(story, device, styles, references, width, anchor_ids, *, contextualized=True):
     hw = device["hardware"]
     anchor = _ref(device)
     # Paragraph creates the PDF named destination at the actual page location.
     story.append(Paragraph('<a name="{}"/>[{}] {}'.format(
         anchor, int(device["display_number"]), _xml(hw.get("name"))), styles["h2"]))
-    _field(story, "Prioridad de revisión", device.get("priority") or "Pendiente de datos", styles)
+    _field(story, "Prioridad de revisión",
+           (device.get("priority") or "Pendiente de datos")
+           if contextualized else "Pendiente de asociación a sistema OT (fuera de la matriz)",
+           styles)
     _field(story, "Criticidad hardware / severidad máxima",
            "{} / {} (CVSS máximo {})".format(
                label(hw.get("criticality"), SEVERITY),
@@ -322,7 +325,8 @@ def _device(story, device, styles, references, width, anchor_ids):
         _value(hw.get("replacement_cost")),
         _value(hw.get("replacement_currency"))), styles)
     _field(story, "Sistemas asociados", ", ".join(
-        item.get("name", "") for item in device.get("systems") or []), styles)
+        item.get("name", "") for item in device.get("systems") or [])
+        or "Sin sistema OT asociado", styles)
 
     story.append(_paragraph("Software instalado", styles["h3"]))
     installs = device.get("installed_software") or []
@@ -437,6 +441,8 @@ def render_diagnostic_hardening_pdf(data, destination, *, author=None):
     if any(name not in diagnosis for name in required):
         raise ValueError("Proyección diagnosis incompleta.")
     devices = diagnosis["prioritized_hardware"]
+    contextualized = [device for device in devices if device.get("system_ids")]
+    without_system = [device for device in devices if not device.get("system_ids")]
     if not isinstance(devices, list):
         raise ValueError("prioritized_hardware debe ser una lista.")
     ids = [d.get("hardware_id") for d in devices]
@@ -481,9 +487,17 @@ def render_diagnostic_hardening_pdf(data, destination, *, author=None):
     counts = summary.get("priority_counts") or {}
     rows = [
         ("Hardware activo inventariado", summary.get("active_hardware")),
-        ("Dispositivos con CVE aplicables", summary.get("hardware_with_applicable_cves")),
+        ("Dispositivos con CVE aplicables (total)", summary.get("hardware_with_applicable_cves")),
+        ("Dispositivos contextualizados (matriz)",
+         summary.get("hardware_with_applicable_cves_with_system", len(contextualized))),
+        ("Dispositivos sin sistema OT (apéndice D)",
+         summary.get("hardware_with_applicable_cves_without_system", len(without_system))),
         ("Sistemas con dispositivos priorizados", summary.get("systems_with_prioritized_hardware")),
-        ("Pares hardware-CVE aplicables", summary.get("applicable_hardware_cve_pairs")),
+        ("Pares hardware-CVE aplicables (total)",
+         summary.get("applicable_hardware_cve_pairs")),
+        ("Pares hardware-CVE aplicables sin sistema",
+         summary.get("applicable_hardware_cve_pairs_without_system",
+                     sum(d.get("applicable_cve_count", 0) for d in without_system))),
         ("Pares hardware-CVE condicionados (apéndice)", summary.get("conditional_hardware_cve_pairs")),
         ("P1 / P2 / P3", "{} / {} / {}".format(
             counts.get("P1", 0), counts.get("P2", 0), counts.get("P3", 0))),
@@ -498,8 +512,10 @@ def render_diagnostic_hardening_pdf(data, destination, *, author=None):
 
     _section(story, "2. Matriz de priorización", s)
     story.append(_paragraph(
-        "Cada número abre la ficha del dispositivo. La clasificación cruza "
-        "criticidad del hardware y máxima severidad CVSS de sus CVE aplicables.",
+        "Cada número abre la ficha del dispositivo. La matriz incluye solo "
+        "equipos asociados a un sistema OT activo y cruza su criticidad con "
+        "la máxima severidad CVSS aplicable. Los dispositivos sin sistema "
+        "se documentan en el apéndice D sin ocultar sus CVE.",
         s["small"]))
     by_id = {d["hardware_id"]: d for d in devices}
     matrix_rows = []
@@ -522,9 +538,9 @@ def render_diagnostic_hardening_pdf(data, destination, *, author=None):
         "La clasificación es del equipo, nunca de cada CVE individual.", s["muted"]))
 
     _section(story, "3. Dispositivos priorizados", s)
-    if devices:
+    if contextualized:
         table_rows = []
-        for device in devices:
+        for device in contextualized:
             hw = device["hardware"]
             system_names = ", ".join(
                 entry.get("name", "") for entry in device.get("systems") or []
@@ -546,8 +562,9 @@ def render_diagnostic_hardening_pdf(data, destination, *, author=None):
                              width*.08, width*.155], s))
     else:
         story.append(_paragraph(
-            "No existen equipos con APPLIES vigente en este corte; esto "
-            "no demuestra ausencia de vulnerabilidades.", s["muted"]))
+            "No hay equipos contextualizados con CVE aplicables en la matriz; "
+            "revisa también el apéndice D. Esto no demuestra ausencia "
+            "de vulnerabilidades.", s["muted"]))
 
     story.append(PageBreak())
     _section(story, "4. Diagnóstico por sistemas y dispositivos", s)
@@ -572,12 +589,8 @@ def render_diagnostic_hardening_pdf(data, destination, *, author=None):
                 story.append(PageBreak())
             rendered.add(hid)
             _device(story, by_id[hid], s, references, width, set(by_id))
-    for device in devices:
-        if device["hardware_id"] not in rendered:
-            if rendered:
-                story.append(PageBreak())
-            _device(story, device, s, references, width, set(by_id))
-            rendered.add(device["hardware_id"])
+    # Do not silently promote hardware without a system into the main
+    # diagnosis. Their verified positive CVEs remain in appendix D.
 
     _section(story, "Apéndice A. CVE de aplicabilidad condicionada", s)
     conditional = diagnosis["conditional_vulnerabilities"]
@@ -628,6 +641,22 @@ def render_diagnostic_hardening_pdf(data, destination, *, author=None):
     story.append(_paragraph(
         "Estas observaciones no sustituyen decisiones de analistas, "
         "no alteran veredictos y no constituyen hallazgos CVE adicionales.", s["muted"]))
+
+    _section(story, "Apéndice D. Hardware con CVE aplicables sin sistema OT", s)
+    story.append(_paragraph(
+        "Estos dispositivos tienen hallazgos de aplicabilidad vigente, "
+        "pero no están asociados a un sistema OT activo. No forman parte "
+        "de la matriz P1/P2/P3 hasta completar esa contextualización; "
+        "sus CVE y la evidencia registrada no se descartan.",
+        s["muted"]))
+    if not without_system:
+        story.append(_paragraph(
+            "No hay dispositivos con CVE aplicables pendientes de asociación.",
+            s["muted"]))
+    for device in without_system:
+        story.append(PageBreak())
+        _device(story, device, s, references, width, set(by_id),
+                contextualized=False)
 
     _section(story, "5. Metodología, límites y orientación general", s)
     for paragraph in (
