@@ -120,6 +120,37 @@ class SoftwareCpeHttpTests(TestCase):
                                          {"scope": "SPECIFIC"}, format="json").status_code, 403)
         self.assertEqual(CpeSearchRun.objects.count(), 0)
 
+    def test_phoenix_113_individual_and_bulk_search_can_be_enqueued(self):
+        from vulnerabilities.services.identity import (
+            MAX_CPE_PLAN_QUERIES, build_software_cpe_match_plan,
+        )
+        sw = self.asset.software
+        sw.software_type = Software.SoftwareType.FIRMWARE
+        sw.manufacturer = "Phoenix Contact"
+        sw.product = "IL PN BK-PAC Firmware"
+        sw.version = "1.13"
+        sw.save(update_fields=[
+            "software_type", "manufacturer", "product", "version"
+        ])
+        start = self.client.post(
+            self.root + "cpe-searches/", {"scope": "SPECIFIC"}, format="json"
+        )
+        self.assertEqual(start.status_code, 202, start.data)
+        run = CpeSearchRun.objects.get(pk=start.data["run_id"])
+        self.assertEqual(run.status, CpeSearchRun.Status.QUEUED)
+        self.assertLessEqual(
+            len(build_software_cpe_match_plan(run.identity_snapshot)),
+            MAX_CPE_PLAN_QUERIES,
+        )
+        bulk = self.client.post(
+            "/api/vulnerabilities/cpe-searches/bulk/",
+            {"asset_ids": [self.asset.pk]}, format="json"
+        )
+        self.assertEqual(bulk.status_code, 202, bulk.data)
+        self.assertEqual(bulk.data["summary"]["reused"], 1)
+        self.assertEqual(bulk.data["summary"]["failed"], 0)
+        self.assertEqual(CpeSearchRun.objects.count(), 1)
+
     def test_advanced_search_remains_hardware_only(self):
         self.assertEqual(
             self.client.post(self.root + "cpe-searches/advanced/",
