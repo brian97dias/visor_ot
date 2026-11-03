@@ -57,6 +57,22 @@ def oldest_work_kind(run, snapshot, cve, discovery=None):
     return previous[0] if previous else None
 
 
+def next_ready_catalogue_snapshot(now=None):
+    """Select queued, interrupted, or transiently failed snapshots now due."""
+    now = now or timezone.now()
+    return CpeQuerySnapshot.objects.filter(
+        Q(status__in=(
+            CpeQuerySnapshot.Status.QUEUED,
+            CpeQuerySnapshot.Status.INCOMPLETE,
+        )) | Q(
+            status=CpeQuerySnapshot.Status.FAILED,
+            error_code="FETCH_FAILED",
+            retry_after__lte=now,
+            automatic_retry_count__gte=1,
+        )
+    ).select_related("cache").order_by("created_at", "pk").first()
+
+
 def next_runnable_cpe_run():
     """Skip asset jobs blocked on snapshots without starving later jobs.
 
@@ -128,18 +144,7 @@ class Command(BaseCommand):
                 if connection.connection is not session or connection.connection.closed:
                     raise CommandError("Se perdió la sesión de bloqueo NVD; reinicia el trabajador.")
                 run = next_runnable_cpe_run()
-                now = timezone.now()
-                snapshot = CpeQuerySnapshot.objects.filter(
-                    Q(status__in=(
-                        CpeQuerySnapshot.Status.QUEUED,
-                        CpeQuerySnapshot.Status.INCOMPLETE,
-                    )) | Q(
-                        status=CpeQuerySnapshot.Status.FAILED,
-                        error_code="FETCH_FAILED",
-                        retry_after__lte=now,
-                        automatic_retry_count__gte=1,
-                    )
-                ).select_related("cache").order_by("created_at", "pk").first()
+                snapshot = next_ready_catalogue_snapshot()
                 # Delayed snapshots are not eligible until their deadline;
                 # other queued jobs can make progress in the meantime.
                 cve = Cve.objects.filter(
