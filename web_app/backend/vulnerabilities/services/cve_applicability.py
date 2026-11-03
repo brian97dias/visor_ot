@@ -268,7 +268,9 @@ def assessment_evidence_is_current(record, cve, hardware, inventory_fp, config_f
     )
 
 
-def latest_hardware_cve_decision(cve, hardware, inventory_fingerprint):
+def latest_hardware_cve_decision(
+    cve, hardware, inventory_fingerprint, *, assessment_rows=None,
+):
     """Latest explicit asset-wide human verdict; never reinterpret a NVD leaf.
 
     A decision becomes stale if the inventory OR any NVD configuration
@@ -276,9 +278,12 @@ def latest_hardware_cve_decision(cve, hardware, inventory_fingerprint):
     """
     from vulnerabilities.models import AssetCveAssessment
     from .cve_general_assessment import _digest
-    for row in AssetCveAssessment.objects.filter(
-        hardware=hardware, cve=cve,
-    ).order_by("-decided_at", "-pk"):
+    rows = assessment_rows if assessment_rows is not None else (
+        AssetCveAssessment.objects.filter(
+            hardware=hardware, cve=cve,
+        ).order_by("-decided_at", "-pk")
+    )
+    for row in rows:
         evidence = row.criteria_evidence if isinstance(row.criteria_evidence, dict) else {}
         if evidence.get("decision_scope") != "HARDWARE_CVE":
             continue
