@@ -79,6 +79,41 @@ class DeviceDiagnosisProjectionTests(SimpleTestCase):
         self.assertEqual(data, original, "La proyección no debe mutar el contrato legado.")
         json.dumps(diagnosis)
 
+    def test_system_free_device_is_appendix_only_but_cves_still_count(self):
+        data = report_fixture()
+        data["hardware"][9]["system_ids"] = []  # Siemens, five CVEs
+        result = build_hardening_diagnosis(data)
+        counts = result["summary"]
+        self.assertEqual(counts["hardware_with_applicable_cves"], 2)
+        self.assertEqual(counts["hardware_with_applicable_cves_with_system"], 1)
+        self.assertEqual(counts["hardware_with_applicable_cves_without_system"], 1)
+        self.assertEqual(counts["applicable_hardware_cve_pairs"], 6)
+        self.assertEqual(counts["applicable_hardware_cve_pairs_without_system"], 5)
+        self.assertEqual(counts["applicable_hardware_cve_pairs_with_system"], 1)
+        self.assertEqual(counts["priority_counts"]["P1"], 0)
+        self.assertEqual(counts["priority_counts"]["P2"], 1)
+        self.assertEqual([d["hardware_id"] for d in result["unassociated_hardware"]], [10])
+        self.assertEqual(len(result["unassociated_hardware"][0]["findings"]), 5)
+        cells = [cell for row in result["priority_matrix"] for cell in row["cells"]]
+        self.assertEqual([hid for cell in cells for hid in cell["hardware_ids"]], [2])
+        self.assertEqual(result["prioritized_hardware"][0]["hardware_id"], 2)
+        self.assertEqual(result["prioritized_hardware"][1]["hardware_id"], 10)
+        self.assertEqual(result["conditional_vulnerabilities"][0]["cve_id"],
+                         "CVE-2022-30694")
+
+    def test_only_unassociated_applies_never_disappears_from_diagnosis(self):
+        data = report_fixture()
+        for row in data["hardware"]:
+            row["system_ids"] = []
+        result = build_hardening_diagnosis(data)
+        self.assertEqual(result["prioritized_systems"], [])
+        self.assertEqual(len(result["unassociated_hardware"]), 2)
+        self.assertEqual(result["summary"]["applicable_hardware_cve_pairs"], 6)
+        self.assertEqual(result["summary"]["priority_counts"]["P1"], 0)
+        self.assertEqual(result["summary"]["priority_counts"]["P2"], 0)
+        self.assertFalse(any(cell["hardware_ids"] for row in result["priority_matrix"]
+                             for cell in row["cells"]))
+
     def test_matrix_contains_each_device_once_even_with_multiple_systems(self):
         result = build_hardening_diagnosis(report_fixture())
         cells = [
