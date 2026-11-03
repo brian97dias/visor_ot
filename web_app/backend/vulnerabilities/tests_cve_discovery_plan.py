@@ -42,7 +42,7 @@ class CveDiscoveryPlanTests(TestCase):
             model="IL PN BK-PAC", role=Hardware.Role.OTHER,
         )
 
-    def make_software(self, name):
+    def make_software(self, name, *, product="IL PN BK-PAC Firmware"):
         asset = Asset.objects.create(
             name=name, asset_type=Asset.AssetType.SOFTWARE,
             created_by=self.user, updated_by=self.user,
@@ -50,7 +50,7 @@ class CveDiscoveryPlanTests(TestCase):
         return Software.objects.create(
             asset=asset, software_type=Software.SoftwareType.FIRMWARE,
             manufacturer="Phoenix Contact",
-            product="IL PN BK-PAC Firmware", version="2.0",
+            product=product, version="2.0",
         )
 
     def link(self, hardware=None, software=None):
