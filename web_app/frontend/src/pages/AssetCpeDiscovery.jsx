@@ -183,7 +183,15 @@ export default function AssetCpeDiscovery() {
               del backend y ejecuta <code>python manage.py run_cpe_worker</code>.
               Las solicitudes HTTP 200 solamente consultan el estado: no ejecutan la búsqueda.
             </p>}
+            {run.catalogue_retry && <p className="cpe-warning" role="status">
+              Una consulta del catálogo NVD falló temporalmente.
+              Reintento automático {run.catalogue_retry.attempt} de
+              {" "}{run.catalogue_retry.maximum} programado para
+              {" "}{new Date(run.catalogue_retry.retry_after).toLocaleString("es-CO")}.
+              Las consultas completadas y sus resultados se conservan.
+            </p>}
             {run.worker_active === true && run.status === "QUEUED" &&
+              !run.catalogue_retry &&
               <p className="cpe-hint">Trabajador detectado. Este trabajo está esperando su turno;
                 puede haber otras búsquedas anteriores en ejecución.</p>}
             {run.worker_active === true && run.status === "RUNNING" &&
@@ -204,7 +212,12 @@ export default function AssetCpeDiscovery() {
           {run.status === "COMPLETED" && run.candidate_count === 0 &&
             <p>Sin candidatos de {assetTypeLabel} en las consultas realizadas.
               Esto no descarta que exista un CPE en NVD.</p>}
-          {run.result_truncated && <p className="cpe-warning">Resultados limitados; la lista no es exhaustiva.</p>}
+          {run.status === "FAILED" && <p className="cpe-warning">
+            Exploración incompleta por error. Los cero candidatos mostrados
+            no significan que todas las consultas terminaron sin resultados.
+          </p>}
+          {run.status === "COMPLETED" && run.result_truncated &&
+            <p className="cpe-warning">Resultados limitados; la lista no es exhaustiva.</p>}
           <CpeDiscoveryTrace queries={run.queries} truncated={run.result_truncated} />
         </div>
       </section>
