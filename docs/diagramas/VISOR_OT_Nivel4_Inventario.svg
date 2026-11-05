@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="1370" viewBox="0 0 2400 1370">
+<defs><marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#769DBB"/></marker></defs>
+<rect width="2400" height="1370" fill="#081523"/>
+<rect x="55" y="170" width="2290" height="1100" rx="12" fill="none" stroke="#54728C" stroke-width="2" stroke-dasharray="11 7"/>
+<path d="M 1028.6 477 L 1029 514 L 761 514 L 759.8 555" fill="none" stroke="#769DBB" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<path d="M 1213.6 477 L 1214 510 L 1535 510 L 1535 555" fill="none" stroke="#769DBB" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<path d="M 275 777 L 275 870 L 234 870 L 234 953" fill="none" stroke="#769DBB" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<path d="M 570 680.4 L 485 681 L 485 892 L 401 892 L 401.5 953" fill="none" stroke="#769DBB" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<path d="M 745.2 783 L 750 865 L 738.6 953" fill="none" stroke="#769DBB" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<path d="M 905.8 783 L 931 867 L 1194 867 L 1194 953" fill="none" stroke="#769DBB" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<path d="M 1451 783 L 1451 861 L 1376 861 L 1376.4 953" fill="none" stroke="#769DBB" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<path d="M 1682 741.96 L 1770 742 L 1770 881 L 1754.8 953" fill="none" stroke="#769DBB" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<path d="M 2105 405 L 2105 484 L 2114.2 555" fill="none" stroke="#769DBB" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<rect x="80" y="1260" width="2200" height="87" rx="10" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<rect x="925" y="235" width="370" height="242" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="925" y="235" width="370" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="1110" y="262" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">Asset</text>
+<text x="941" y="293" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="941" y="316" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">name</text>
+<text x="941" y="339" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">asset_type</text>
+<text x="941" y="362" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">criticality</text>
+<text x="941" y="385" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">impact</text>
+<text x="941" y="408" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">replacement_cost / currency</text>
+<text x="941" y="431" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">inventory_status</text>
+<rect x="570" y="555" width="365" height="228" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="570" y="555" width="365" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="752.5" y="582" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">Hardware</text>
+<text x="586" y="613" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="586" y="636" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">asset (PK, OneToOne)</text>
+<text x="586" y="659" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">manufacturer, model</text>
+<text x="586" y="682" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">cpu_model, role</text>
+<text x="586" y="705" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">serial_number</text>
+<text x="586" y="728" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">physical_location</text>
+<rect x="1360" y="555" width="350" height="228" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1360" y="555" width="350" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="1535" y="582" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">Software</text>
+<text x="1376" y="613" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="1376" y="636" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">asset (PK, OneToOne)</text>
+<text x="1376" y="659" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">software_type</text>
+<text x="1376" y="682" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">manufacturer, product</text>
+<text x="1376" y="705" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">version</text>
+<rect x="110" y="555" width="330" height="222" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="110" y="555" width="330" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="275" y="582" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">OTSystem</text>
+<text x="126" y="613" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="126" y="636" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">name, description</text>
+<text x="126" y="659" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">criticality</text>
+<text x="126" y="682" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">criticality_justification</text>
+<text x="126" y="705" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">impact, status</text>
+<rect x="1935" y="235" width="340" height="170" rx="8" fill="#75818D" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1935" y="235" width="340" height="39" rx="4" fill="#75818D" stroke="#54C1F7" stroke-width="1"/>
+<text x="2105" y="262" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">User</text>
+<text x="1951" y="293" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[users]</text>
+<text x="1951" y="316" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">username</text>
+<text x="1951" y="339" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">role</text>
+<text x="1951" y="362" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">ADMIN / ANALYST / OPERATOR</text>
+<rect x="1940" y="555" width="335" height="220" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1940" y="555" width="335" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="2107.5" y="582" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">AssetImportBatch</text>
+<text x="1956" y="613" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="1956" y="636" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">imported_by (User FK)</text>
+<text x="1956" y="659" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">file_sha256</text>
+<text x="1956" y="682" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">created_count, updated_count</text>
+<text x="1956" y="705" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">skipped_count, details</text>
+<rect x="100" y="953" width="335" height="235" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="100" y="953" width="335" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="267.5" y="980" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">SystemMembership</text>
+<text x="116" y="1011" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="116" y="1034" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">system (OTSystem FK)</text>
+<text x="116" y="1057" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">hardware (Hardware FK)</text>
+<text x="116" y="1080" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">registered_at / by</text>
+<text x="116" y="1103" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">unlinked_at / by</text>
+<rect x="555" y="953" width="360" height="235" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="555" y="953" width="360" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="735" y="980" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">NetworkInterface</text>
+<text x="571" y="1011" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="571" y="1034" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">mac, declared_ip</text>
+<text x="571" y="1057" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">hardware (FK, nullable)</text>
+<text x="571" y="1080" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">created_by</text>
+<text x="571" y="1103" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">identified_by / at</text>
+<rect x="1080" y="953" width="380" height="235" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1080" y="953" width="380" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="1270" y="980" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">SoftwareInstallation</text>
+<text x="1096" y="1011" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="1096" y="1034" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">software (FK)</text>
+<text x="1096" y="1057" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">hardware (FK)</text>
+<text x="1096" y="1080" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">identity_snapshot</text>
+<text x="1096" y="1103" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">registered_at / by</text>
+<text x="1096" y="1126" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">unlinked_at / by</text>
+<rect x="1660" y="953" width="395" height="235" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1660" y="953" width="395" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="1857.5" y="980" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">SoftwareCorrection</text>
+<text x="1676" y="1011" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="1676" y="1034" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">software (FK)</text>
+<text x="1676" y="1057" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">changed_at / by</text>
+<text x="1676" y="1080" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">reason</text>
+<text x="1676" y="1103" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">identity_before / after</text>
+<text x="80" y="113.5" font-family="Arial, sans-serif" font-size="18" font-weight="normal" fill="#BED3E4" text-anchor="start">Modelo de activos OT · OneToOne, claves foráneas e historial</text>
+<rect x="71" y="178" width="800" height="30" rx="2" fill="#081523" stroke="#081523" stroke-width="1"/>
+<text x="81" y="200" font-family="Arial, sans-serif" font-size="21" font-weight="bold" fill="#BED3E4" text-anchor="start">assets · 9 modelos del dominio</text>
+<text x="102" y="1290" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#FFFFFF" text-anchor="start">Interpretación</text>
+<text x="102" y="1311" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">Asset se especializa en Hardware o Software mediante relaciones 1:1 (no herencia Python).</text>
+<text x="102" y="1332" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">SystemMembership y SoftwareInstallation preservan vínculos históricos; unlinked_at nulo indica vínculo activo.</text>
+<rect x="714" y="475" width="192" height="32" rx="2" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<text x="810" y="495.6666666666667" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="middle">1 → 0..1</text>
+<rect x="1304" y="477" width="192" height="32" rx="2" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<text x="1400" y="497.6666666666667" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="middle">1 → 0..1</text>
+<rect x="194" y="841" width="192" height="32" rx="2" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<text x="290" y="861.6666666666666" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="middle">1 → muchos</text>
+<rect x="352" y="838" width="192" height="32" rx="2" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<text x="448" y="858.6666666666666" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="middle">1 → muchos</text>
+<rect x="651" y="829" width="192" height="32" rx="2" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<text x="747" y="849.6666666666666" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="middle">1 → muchos</text>
+<rect x="894" y="828" width="192" height="32" rx="2" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<text x="990" y="848.6666666666666" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="middle">1 → muchos</text>
+<rect x="1297" y="828" width="192" height="32" rx="2" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<text x="1393" y="848.6666666666666" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="middle">1 → muchos</text>
+<rect x="1689" y="834" width="192" height="32" rx="2" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<text x="1785" y="854.6666666666666" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="middle">1 → muchos</text>
+<rect x="2021" y="467" width="192" height="32" rx="2" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<text x="2117" y="487.6666666666667" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="middle">audita</text>
+</svg>
