@@ -1,0 +1,156 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="1450" viewBox="0 0 2400 1450">
+<defs><marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#769DBB"/></marker></defs>
+<rect width="2400" height="1450" fill="#081523"/>
+<rect x="70" y="180" width="1090" height="580" rx="12" fill="none" stroke="#54728C" stroke-width="2" stroke-dasharray="11 7"/>
+<rect x="1200" y="180" width="1120" height="430" rx="12" fill="none" stroke="#54728C" stroke-width="2" stroke-dasharray="11 7"/>
+<rect x="1200" y="650" width="1120" height="700" rx="12" fill="none" stroke="#54728C" stroke-width="2" stroke-dasharray="11 7"/>
+<rect x="70" y="810" width="1090" height="225" rx="12" fill="none" stroke="#54728C" stroke-width="2" stroke-dasharray="11 7"/>
+<rect x="490" y="858" width="625" height="132" rx="10" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<rect x="95" y="1075" width="1020" height="220" rx="10" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<rect x="1250" y="1288" width="1030" height="60" rx="10" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<rect x="100" y="240" width="310" height="96" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="100" y="240" width="310" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="255" y="267" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">Asset</text>
+<text x="116" y="298" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="116" y="318" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Entidad base del inventario</text>
+<rect x="447" y="240" width="310" height="96" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="447" y="240" width="310" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="602" y="267" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">Hardware</text>
+<text x="463" y="298" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="463" y="318" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Características de equipo OT</text>
+<rect x="794" y="240" width="310" height="96" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="794" y="240" width="310" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="949" y="267" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">Software</text>
+<text x="810" y="298" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="810" y="318" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Producto y versión</text>
+<rect x="100" y="397" width="310" height="96" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="100" y="397" width="310" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="255" y="424" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">OTSystem</text>
+<text x="116" y="455" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="116" y="475" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Sistema funcional OT</text>
+<rect x="447" y="397" width="310" height="96" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="447" y="397" width="310" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="602" y="424" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">SystemMembership</text>
+<text x="463" y="455" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="463" y="475" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Vínculo histórico sistema/equipo</text>
+<rect x="794" y="397" width="310" height="96" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="794" y="397" width="310" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="949" y="424" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">NetworkInterface</text>
+<text x="810" y="455" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="810" y="475" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Interfaz inventariada</text>
+<rect x="100" y="554" width="310" height="96" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="100" y="554" width="310" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="255" y="581" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">SoftwareInstallation</text>
+<text x="116" y="612" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="116" y="632" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Instalación histórica de software</text>
+<rect x="447" y="554" width="310" height="96" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="447" y="554" width="310" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="602" y="581" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">SoftwareCorrection</text>
+<text x="463" y="612" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="463" y="632" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Corrección de identidad</text>
+<rect x="794" y="554" width="310" height="96" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="794" y="554" width="310" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="949" y="581" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">AssetImportBatch</text>
+<text x="810" y="612" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="810" y="632" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Auditoría importación Excel</text>
+<rect x="1240" y="242" width="465" height="96" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1240" y="242" width="465" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="1472.5" y="269" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">Ingestion</text>
+<text x="1256" y="300" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[ingestion]</text>
+<text x="1256" y="320" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Lote importado y estado</text>
+<rect x="1773" y="242" width="465" height="96" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1773" y="242" width="465" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="2005.5" y="269" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">InterfaceObservation</text>
+<text x="1789" y="300" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[ingestion]</text>
+<text x="1789" y="320" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">MAC, IP y tiempos observados</text>
+<rect x="1240" y="400" width="465" height="96" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1240" y="400" width="465" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="1472.5" y="427" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">CommunicationObservation</text>
+<text x="1256" y="458" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[ingestion]</text>
+<text x="1256" y="478" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Evidencia de tráfico</text>
+<rect x="1773" y="400" width="465" height="96" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1773" y="400" width="465" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="2005.5" y="427" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">Communication</text>
+<text x="1789" y="458" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[network]</text>
+<text x="1789" y="478" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Flujo consolidado y clasificación</text>
+<rect x="1230" y="712" width="332" height="97" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1230" y="712" width="332" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="1396" y="739" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">CpeSearchRun</text>
+<text x="1246" y="770" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="1246" y="790" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Búsqueda de productos por activo</text>
+<rect x="1588" y="712" width="332" height="97" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1588" y="712" width="332" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="1754" y="739" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">Cpe</text>
+<text x="1604" y="770" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="1604" y="790" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Identidad oficial NVD</text>
+<rect x="1946" y="712" width="332" height="97" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1946" y="712" width="332" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="2112" y="739" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">AssetCpe</text>
+<text x="1962" y="770" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="1962" y="790" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Asociación validable</text>
+<rect x="1230" y="861" width="332" height="97" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1230" y="861" width="332" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="1396" y="888" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">AssetCpeDecision</text>
+<text x="1246" y="919" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="1246" y="939" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Historial de decisiones</text>
+<rect x="1588" y="861" width="332" height="97" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1588" y="861" width="332" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="1754" y="888" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">CpeQueryCache</text>
+<text x="1604" y="919" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="1604" y="939" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Identidad de consulta</text>
+<rect x="1946" y="861" width="332" height="97" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1946" y="861" width="332" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="2112" y="888" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">CpeQuerySnapshot</text>
+<text x="1962" y="919" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="1962" y="939" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Ejecución y paginación</text>
+<rect x="1230" y="1010" width="332" height="97" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1230" y="1010" width="332" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="1396" y="1037" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">CpeQueryProduct</text>
+<text x="1246" y="1068" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="1246" y="1088" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Evidencia por consulta</text>
+<rect x="1588" y="1010" width="332" height="97" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1588" y="1010" width="332" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="1754" y="1037" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">Cve</text>
+<text x="1604" y="1068" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="1604" y="1088" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Registro oficial CVE</text>
+<rect x="1946" y="1010" width="332" height="97" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1946" y="1010" width="332" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="2112" y="1037" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">CveDiscoveryRun</text>
+<text x="1962" y="1068" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="1962" y="1088" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Búsqueda CVE por alcance</text>
+<rect x="1230" y="1159" width="332" height="97" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1230" y="1159" width="332" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="1396" y="1186" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">AssetCveFinding</text>
+<text x="1246" y="1217" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="1246" y="1237" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Hallazgo candidato</text>
+<rect x="1588" y="1159" width="332" height="97" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1588" y="1159" width="332" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="1754" y="1186" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">AssetCveAssessment</text>
+<text x="1604" y="1217" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="1604" y="1237" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Evaluación de aplicabilidad</text>
+<rect x="110" y="868" width="330" height="110" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="110" y="868" width="330" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="275" y="895" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF" text-anchor="middle">User</text>
+<text x="126" y="926" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#BED3E4" text-anchor="start">[users]</text>
+<text x="126" y="946" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="start">Usuario Django</text>
+<text x="80" y="113.5" font-family="Arial, sans-serif" font-size="18" font-weight="normal" fill="#BED3E4" text-anchor="start">Nivel 4 · Visión completa del modelo persistente Django (25 modelos)</text>
+<rect x="86" y="188" width="800" height="30" rx="2" fill="#081523" stroke="#081523" stroke-width="1"/>
+<text x="96" y="210" font-family="Arial, sans-serif" font-size="21" font-weight="bold" fill="#BED3E4" text-anchor="start">assets · Inventario OT (9 modelos)</text>
+<rect x="1216" y="188" width="800" height="30" rx="2" fill="#081523" stroke="#081523" stroke-width="1"/>
+<text x="1226" y="210" font-family="Arial, sans-serif" font-size="21" font-weight="bold" fill="#BED3E4" text-anchor="start">ingestion + network · Capturas y flujos (4 modelos)</text>
+<rect x="1216" y="658" width="800" height="30" rx="2" fill="#081523" stroke="#081523" stroke-width="1"/>
+<text x="1226" y="680" font-family="Arial, sans-serif" font-size="21" font-weight="bold" fill="#BED3E4" text-anchor="start">vulnerabilities · CPE / CVE (11 modelos)</text>
+<rect x="86" y="818" width="800" height="30" rx="2" fill="#081523" stroke="#081523" stroke-width="1"/>
+<text x="96" y="840" font-family="Arial, sans-serif" font-size="21" font-weight="bold" fill="#BED3E4" text-anchor="start">users · Seguridad y auditoría (1 modelo)</text>
+<text x="512" y="888" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#FFFFFF" text-anchor="start">Referencias transversales</text>
+<text x="512" y="909" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">User aparece como actor de auditoría en diversos modelos.</text>
+<text x="512" y="930" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">Las relaciones detalladas se muestran en las páginas siguientes.</text>
+<text x="512" y="951" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">El modelo de datos no equivale a todas las clases Python del proyecto.</text>
+<text x="117" y="1105" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#FFFFFF" text-anchor="start">Lectura del mapa</text>
+<text x="117" y="1126" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">Inventario: activos, sistemas, instalaciones y vínculos históricos.</text>
+<text x="117" y="1147" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">Capturas: observaciones importadas vs. comunicaciones consolidadas.</text>
+<text x="117" y="1168" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">Vulnerabilidades: candidatos, catálogos, hallazgos y evaluaciones.</text>
+<text x="117" y="1189" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">Las cinco páginas son partes del mismo diagrama editable.</text>
+<text x="1272" y="1318" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#FFFFFF" text-anchor="start">Alcance</text>
+<text x="1272" y="1339" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">Se incluyen 25 clases concretas de models.py / assets.models / vulnerabilities.models.</text>
+</svg>
