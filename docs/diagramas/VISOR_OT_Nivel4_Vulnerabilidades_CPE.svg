@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="1350" viewBox="0 0 2400 1350">
+<defs><marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#769DBB"/></marker></defs>
+<rect width="2400" height="1350" fill="#081523"/>
+<rect x="65" y="165" width="2280" height="1100" rx="12" fill="none" stroke="#54728C" stroke-width="2" stroke-dasharray="11 7"/>
+<path d="M 280 400 L 280 490 L 292 490 L 291.79999999999995 570" fill="none" stroke="#769DBB" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<path d="M 455 310 L 570 310 L 570 624 L 740 622.5" fill="none" stroke="#769DBB" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<path d="M 505 716.72 L 610 718 L 740 738" fill="none" stroke="#769DBB" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<path d="M 1355 667.3 L 1190 688.5" fill="none" stroke="#769DBB" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<path d="M 965 815 L 965 872 L 965 928" fill="none" stroke="#769DBB" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<path d="M 2062.5 415 L 2062 482 L 2062.5 545" fill="none" stroke="#769DBB" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<path d="M 2062.5 795 L 2062 884 L 2047.5 960" fill="none" stroke="#769DBB" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<path d="M 1715 696.7 L 1760 697 L 1760 1034 L 1835 1033.5" fill="none" stroke="#769DBB" stroke-width="2.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<rect x="95" y="1190" width="2200" height="95" rx="10" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<rect x="105" y="220" width="350" height="180" rx="8" fill="#75818D" stroke="#54C1F7" stroke-width="2"/>
+<rect x="105" y="220" width="350" height="39" rx="4" fill="#75818D" stroke="#54C1F7" stroke-width="1"/>
+<text x="280" y="247" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">Asset</text>
+<text x="121" y="278" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[assets]</text>
+<text x="121" y="301" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">Activo inventariado</text>
+<text x="121" y="324" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">Identidad HW o SW</text>
+<rect x="95" y="570" width="410" height="262" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="95" y="570" width="410" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="300" y="597" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">CpeSearchRun</text>
+<text x="111" y="628" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="111" y="651" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">asset (FK)</text>
+<text x="111" y="674" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">requested_by (User FK)</text>
+<text x="111" y="697" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">status, scope, trigger</text>
+<text x="111" y="720" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">identity_snapshot / fingerprint</text>
+<text x="111" y="743" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">queries, candidates</text>
+<text x="111" y="766" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">created_at / finished_at</text>
+<rect x="740" y="540" width="450" height="275" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="740" y="540" width="450" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="965" y="567" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">AssetCpe</text>
+<text x="756" y="598" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="756" y="621" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">asset (FK)</text>
+<text x="756" y="644" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">cpe (FK)</text>
+<text x="756" y="667" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">source_run (FK)</text>
+<text x="756" y="690" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">validation_status</text>
+<text x="756" y="713" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">justification</text>
+<text x="756" y="736" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">validated_by / at</text>
+<rect x="1355" y="535" width="360" height="245" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1355" y="535" width="360" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="1535" y="562" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">Cpe</text>
+<text x="1371" y="593" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="1371" y="616" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">cpe_name_id</text>
+<text x="1371" y="639" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">cpe_name, title</text>
+<text x="1371" y="662" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">deprecated</text>
+<text x="1371" y="685" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">nvd_references</text>
+<text x="1371" y="708" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">fetched_at</text>
+<rect x="740" y="928" width="450" height="232" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="740" y="928" width="450" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="965" y="955" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">AssetCpeDecision</text>
+<text x="756" y="986" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="756" y="1009" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">association (FK)</text>
+<text x="756" y="1032" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">previous_status / new_status</text>
+<text x="756" y="1055" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">justification</text>
+<text x="756" y="1078" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">source_run (FK)</text>
+<text x="756" y="1101" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">actor / created_at</text>
+<rect x="1865" y="210" width="395" height="205" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1865" y="210" width="395" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="2062.5" y="237" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">CpeQueryCache</text>
+<text x="1881" y="268" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="1881" y="291" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">strategy, parameter</text>
+<text x="1881" y="314" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">query_key</text>
+<text x="1881" y="337" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">created_at</text>
+<rect x="1865" y="545" width="395" height="250" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1865" y="545" width="395" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="2062.5" y="572" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">CpeQuerySnapshot</text>
+<text x="1881" y="603" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="1881" y="626" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">cache (FK)</text>
+<text x="1881" y="649" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">status</text>
+<text x="1881" y="672" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">next_start_index</text>
+<text x="1881" y="695" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">retrieved_count, pages_fetched</text>
+<text x="1881" y="718" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">checkpoint_at / finished_at</text>
+<rect x="1835" y="960" width="425" height="210" rx="8" fill="#0F2538" stroke="#54C1F7" stroke-width="2"/>
+<rect x="1835" y="960" width="425" height="39" rx="4" fill="#1593D6" stroke="#54C1F7" stroke-width="1"/>
+<text x="2047.5" y="987" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle">CpeQueryProduct</text>
+<text x="1851" y="1018" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#BED3E4" text-anchor="start">[vulnerabilities]</text>
+<text x="1851" y="1041" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">snapshot (FK)</text>
+<text x="1851" y="1064" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">cpe (FK)</text>
+<text x="1851" y="1087" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">nvd_record (JSON)</text>
+<text x="1851" y="1110" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">discovered_at</text>
+<text x="80" y="113.5" font-family="Arial, sans-serif" font-size="18" font-weight="normal" fill="#BED3E4" text-anchor="start">Búsqueda, catálogo público, decisiones y evidencia versionada</text>
+<rect x="81" y="173" width="800" height="30" rx="2" fill="#081523" stroke="#081523" stroke-width="1"/>
+<text x="91" y="195" font-family="Arial, sans-serif" font-size="21" font-weight="bold" fill="#BED3E4" text-anchor="start">vulnerabilities · Identificación y validación CPE</text>
+<text x="117" y="1220" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#FFFFFF" text-anchor="start">Separación conceptual</text>
+<text x="117" y="1241" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">Un resultado de CpeSearchRun no significa asociación confirmada: el analista decide mediante AssetCpe.</text>
+<text x="117" y="1262" font-family="Arial, sans-serif" font-size="16" font-weight="normal" fill="#FFFFFF" text-anchor="start">AssetCpeDecision registra historial de decisiones; CpeQuerySnapshot y CpeQueryProduct conservan evidencia por consulta.</text>
+<rect x="192" y="462" width="192" height="32" rx="2" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<text x="288" y="482.6666666666667" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="middle">1 → muchos</text>
+<rect x="464" y="427" width="192" height="32" rx="2" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<text x="560" y="447.6666666666667" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="middle">1 → muchos</text>
+<rect x="506" y="678" width="192" height="32" rx="2" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<text x="602" y="698.6666666666666" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="middle">source_run</text>
+<rect x="1173" y="641" width="192" height="32" rx="2" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<text x="1269" y="661.6666666666666" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="middle">CPE oficial</text>
+<rect x="876" y="861" width="192" height="32" rx="2" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<text x="972" y="881.6666666666666" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="middle">1 → historial</text>
+<rect x="1974" y="472" width="192" height="32" rx="2" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<text x="2070" y="492.6666666666667" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="middle">1 → muchos</text>
+<rect x="1976" y="874" width="192" height="32" rx="2" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<text x="2072" y="894.6666666666666" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="middle">1 → muchos</text>
+<rect x="1651" y="829" width="192" height="32" rx="2" fill="#0F2538" stroke="#284B67" stroke-width="1"/>
+<text x="1747" y="849.6666666666666" font-family="Arial, sans-serif" font-size="14" font-weight="normal" fill="#FFFFFF" text-anchor="middle">CPE consultado</text>
+</svg>
