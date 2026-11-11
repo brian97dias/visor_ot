@@ -1,0 +1,53 @@
+{
+  "evidencia": "Verificación de comunicaciones e interfaces en laboratorio sintético VISOR OT",
+  "fecha_reporte": "2026-11-11",
+  "procedencia": "Resumen fiel de la salida de terminal y capturas compartidas por el autor; no es una copia literal del JSON completo generado por la opción --json.",
+  "revision_git_evaluada": "ced47e4608933056fae986f2f9a0a44b853f1c30",
+  "procedimiento": "visor_ot_simulacion_pcap/validar_precision_visor_ot.py",
+  "generador": "visor_ot_simulacion_pcap/generar_pcaps_visor_ot.py",
+  "referencia": "Dispositivos y relaciones del generador sintético, incluidas dos parejas PROFINET RT",
+  "dias": [
+    {
+      "dia": 1,
+      "paquetes_en_archivo": 324,
+      "interfaces_esperadas": 12,
+      "interfaces_observadas": 12,
+      "asociaciones_arp_correctas": 12,
+      "comunicaciones_esperadas": 12,
+      "comunicaciones_observadas": 12,
+      "VP": 12,
+      "FP": 0,
+      "FN": 0,
+      "precision": 1,
+      "exhaustividad": 1,
+      "f1": 1
+    },
+    {
+      "dia": 2,
+      "paquetes_en_archivo": 348,
+      "interfaces_esperadas": 12,
+      "interfaces_observadas": 12,
+      "asociaciones_arp_correctas": 12,
+      "comunicaciones_esperadas": 16,
+      "comunicaciones_observadas": 16,
+      "VP": 16,
+      "FP": 0,
+      "FN": 0,
+      "precision": 1,
+      "exhaustividad": 1,
+      "f1": 1
+    }
+  ],
+  "global_por_jornada": {
+    "VP": 28,
+    "FP": 0,
+    "FN": 0,
+    "precision": 1,
+    "exhaustividad": 1,
+    "f1": 1
+  },
+  "relaciones_distintas_entre_dias": 16,
+  "relaciones_repetidas": 12,
+  "alcance": "Verificación funcional controlada de los datos sintéticos producidos por el generador del proyecto. Los indicadores NO representan exactitud general sobre redes industriales reales.",
+  "observacion": "Para obtener el JSON detallado, volver a ejecutar el script con --json; el comando registra el SHA completo de la revisión local utilizada."
+}

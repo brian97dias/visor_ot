@@ -35,3 +35,38 @@ Con FastAPI iniciado, analizar ambos archivos y confirmar el resultado en «Aná
 El analizador **no autoriza ni desautoriza automáticamente** una conexión. Las IP/MAC son datos de simulación reutilizados como contexto, no evidencia de identidad de una planta real.
 
 Las limitaciones detalladas de PROFINET, su representación `ETHERNET/0` y las comprobaciones se documentan en [PROFINET_SYNTHETIC_DEMO.md](../passive_analyzer/PROFINET_SYNTHETIC_DEMO.md).
+
+## Evaluación cuantitativa reproducible del analizador pasivo
+
+La evidencia correspondiente al **11 de noviembre de 2026** se organiza junto al generador para conservar la relación entre el conjunto de referencia, el procesamiento y los resultados:
+
+- [`validar_precision_visor_ot.py`](validar_precision_visor_ot.py): compara los resultados del analizador con las IP/MAC y relaciones esperadas de los dos PCAP; identifica VP, FP y FN, precisión, exhaustividad y F1.
+- [`evidencias/resultados_precision_2026-11-11.json`](evidencias/resultados_precision_2026-11-11.json): resumen estructurado de la salida de terminal compartida por el autor (revisión `ced47e4608933056fae986f2f9a0a44b853f1c30`). **No es el volcado completo de la opción `--json`**; los campos que no constaban en esa salida no se han inventado.
+
+### Repetir la evaluación
+
+Desde la raíz del repositorio, con el entorno virtual de `passive_analyzer` y Scapy instalado:
+
+```bash
+source passive_analyzer/.venv/bin/activate
+python visor_ot_simulacion_pcap/validar_precision_visor_ot.py --repo . 
+  --json visor_ot_simulacion_pcap/evidencias/validacion_detallada_local.json
+```
+
+El script crea los dos PCAP **en un directorio temporal**, ejecuta el analizador pasivo sin enviar tráfico, compara las observaciones y guarda el JSON detallado solicitado. El archivo `validacion_detallada_local.json` es opcional y no necesita versionarse: su `revision_git` reflejará el commit local desde el que se haya ejecutado. Para reproducir exactamente el corte informado en el resumen, comprobar primero la revisión Git indicada allí.
+
+### Resultados del corte documentado
+
+| Indicador | Día 1 | Día 2 |
+| --- | ---: | ---: |
+| Paquetes generados | 324 | 348 |
+| Interfaces esperadas / observadas | 12 / 12 | 12 / 12 |
+| Asociaciones ARP correctas | 12 / 12 | 12 / 12 |
+| Comunicaciones esperadas / observadas | 12 / 12 | 16 / 16 |
+| VP / FP / FN | 12 / 0 / 0 | 16 / 0 / 0 |
+| Precisión / exhaustividad / F1 | 100 % / 100 % / 100 % | 100 % / 100 % / 100 % |
+
+Se evaluaron **28 relaciones por jornada agregada**, que incluyen 12 repetidas: el universo combinado tiene **16 relaciones diferentes**. Las etiquetas de servicio y la orientación SYN se comprueban por separado y generan advertencias si difieren de la referencia. Estos resultados corresponden a **un escenario sintético controlado**, no a una muestra independiente de tráfico industrial real, y no acreditan la detección de ataques, vulnerabilidades ni la integridad de una red industrial.
+
+La tesis describe este procedimiento en 3.4 y sus resultados en 4.1; la localización de las evidencias se incorpora al **Anexo D**.
+
