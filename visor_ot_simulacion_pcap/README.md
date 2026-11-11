@@ -49,8 +49,7 @@ Desde la raíz del repositorio, con el entorno virtual de `passive_analyzer` y S
 
 ```bash
 source passive_analyzer/.venv/bin/activate
-python visor_ot_simulacion_pcap/validar_precision_visor_ot.py --repo . 
-  --json visor_ot_simulacion_pcap/evidencias/validacion_detallada_local.json
+python visor_ot_simulacion_pcap/validar_precision_visor_ot.py --repo . --json visor_ot_simulacion_pcap/evidencias/validacion_detallada_local.json
 ```
 
 El script crea los dos PCAP **en un directorio temporal**, ejecuta el analizador pasivo sin enviar tráfico, compara las observaciones y guarda el JSON detallado solicitado. El archivo `validacion_detallada_local.json` es opcional y no necesita versionarse: su `revision_git` reflejará el commit local desde el que se haya ejecutado. Para reproducir exactamente el corte informado en el resumen, comprobar primero la revisión Git indicada allí.
@@ -68,5 +67,5 @@ El script crea los dos PCAP **en un directorio temporal**, ejecuta el analizador
 
 Se evaluaron **28 relaciones por jornada agregada**, que incluyen 12 repetidas: el universo combinado tiene **16 relaciones diferentes**. Las etiquetas de servicio y la orientación SYN se comprueban por separado y generan advertencias si difieren de la referencia. Estos resultados corresponden a **un escenario sintético controlado**, no a una muestra independiente de tráfico industrial real, y no acreditan la detección de ataques, vulnerabilidades ni la integridad de una red industrial.
 
-La tesis describe este procedimiento en 3.4 y sus resultados en 4.1; la localización de las evidencias se incorpora al **Anexo D**.
+La tesis describe este procedimiento en 3.4 y sus resultados en 4.1; la localización de las evidencias debe referenciarse desde el **Anexo D**.
 
