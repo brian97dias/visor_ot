@@ -33,21 +33,38 @@ def config():
         from dotenv import dotenv_values
     except ImportError:
         fail("Activa primero web_app/backend/.venv (requiere python-dotenv).")
-    if not ENV_FILE.is_file():
-        fail("Falta web_app/backend/.env con los datos de PostgreSQL.")
-    values = dotenv_values(ENV_FILE)
-    name = values.get("DB_NAME")
-    user = values.get("DB_USER")
-    if not name or not user or not IDENT.fullmatch(name):
-        fail("DB_NAME o DB_USER invalidos en .env.")
+    # Django reads process environment first and loads .env only as fallback.
+    # Match that order, rather than insisting that every value is in .env.
+    values = dotenv_values(ENV_FILE) if ENV_FILE.is_file() else {}
+
+    def effective(key):
+        return os.environ.get(key) or values.get(key) or ""
+
+    name = effective("DB_NAME").strip()
+    user = effective("DB_USER").strip()
+    missing = [key for key, value in (("DB_NAME", name), ("DB_USER", user)) if not value]
+    if missing:
+        fail(
+            "Configuracion PostgreSQL incompleta: faltan "
+            + ", ".join(missing)
+            + ". Verifica que Django tenga esas variables en su entorno "
+            "o en web_app/backend/.env (no compartas contrasenas)."
+        )
+    if not IDENT.fullmatch(name) or not IDENT.fullmatch(user):
+        fail(
+            "DB_NAME o DB_USER contiene caracteres no admitidos. "
+            "Solo se permiten letras, numeros y guion bajo."
+        )
+    if name.endswith("_demo"):
+        fail("DB_NAME ya termina en _demo: activa la base ORIGINAL para crear los resguardos.")
     demo = name + "_demo"
     if not IDENT.fullmatch(demo) or len(demo) > 63 or demo == name:
         fail("No se puede construir un nombre seguro para la base demo.")
     return {
         "original": name, "demo": demo, "user": user,
-        "host": values.get("DB_HOST") or "127.0.0.1",
-        "port": values.get("DB_PORT") or "5432",
-        "password": values.get("DB_PASSWORD") or "",
+        "host": effective("DB_HOST") or "127.0.0.1",
+        "port": effective("DB_PORT") or "5432",
+        "password": effective("DB_PASSWORD"),
     }
 
 
