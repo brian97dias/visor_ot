@@ -5,7 +5,9 @@ Uso (tras activar_demo.sh):
   python visor_ot_simulacion_pcap/demo_bd.py guardar
   python visor_ot_simulacion_pcap/demo_bd.py estado
   python visor_ot_simulacion_pcap/demo_bd.py restaurar --confirmar
+  python visor_ot_simulacion_pcap/demo_bd.py restaurar-integral --confirmar
 
+Ambas restauraciones afectan exclusivamente la base _demo.
 No modifica los archivos de passive_analyzer/output ni el respaldo integral.
 """
 import argparse
@@ -85,18 +87,21 @@ def sha256(path):
     return h.hexdigest()
 
 
-def validar_snapshot(config):
-    manifest = SNAPSHOT / "manifest.json"
-    dump = SNAPSHOT / "database.dump"
-    if not manifest.exists() or not dump.is_file():
-        error("Aun no existe un punto de inicio de demo completo.")
+def validar_snapshot(config, *, integral=False):
+    carpeta = (SNAPSHOT.parent / "integral") if integral else SNAPSHOT
+    manifest = carpeta / "manifest.json"
+    dump = carpeta / "database.dump"
+    if not manifest.is_file() or not dump.is_file():
+        error("No existe el respaldo solicitado: " + str(carpeta))
     try:
         info = json.loads(manifest.read_text(encoding="utf-8"))
     except (ValueError, OSError):
         error("El manifiesto del backup no es legible.")
-    if info.get("database") != config["demo"]:
-        error("El respaldo no pertenece a esta base demo.")
-    if sha256(dump) != info.get("sha256"):
+    esperado = config["original"] if integral else config["demo"]
+    checksum = info.get("dump_sha256") if integral else info.get("sha256")
+    if info.get("database") != esperado:
+        error("El respaldo no pertenece a la base esperada: " + esperado)
+    if not checksum or sha256(dump) != checksum:
         error("SHA-256 incorrecto. No se restaurara este archivo.")
     return dump, info
 
@@ -131,25 +136,28 @@ def guardar(config):
     print("No se modificaron archivos del analizador pasivo.")
 
 
-def restaurar(config):
-    dump, info = validar_snapshot(config)
-    print("Restaurando UNICAMENTE PostgreSQL:", config["demo"])
-    print("Deten Django y el worker NVD antes de restaurar.")
+def restaurar(config, *, integral=False):
+    dump, _ = validar_snapshot(config, integral=integral)
+    origen = "INTEGRAL" if integral else "INICIO DEL DEMO"
+    print("Restaurando", origen, "UNICAMENTE en PostgreSQL:", config["demo"])
+    print("Django y el worker NVD deben estar detenidos.")
     ejecutar(config, ["pg_restore",
                       "-h", config["host"], "-p", config["port"],
                       "-U", config["user"], "-d", config["demo"],
                       "--clean", "--if-exists", "--single-transaction",
                       "--exit-on-error", "--no-owner", "--no-acl", str(dump)])
-    print("Restauracion finalizada. Base original intacta:", config["original"])
-    print("Output del analizador SIN MODIFICACIONES: borra manualmente")
-    print("79a181a6fcbbf5ae.json y 79a181a6fcbbf5ae.meta.json")
-    print("en passive_analyzer/output/ para repetir el segundo dia.")
+    print("Restauracion finalizada. Base ORIGINAL intacta:", config["original"])
+    print("Output de FastAPI SIN MODIFICACIONES.")
+    if not integral:
+        print("Para repetir el dia 2, borra manualmente los archivos")
+        print("79a181a6fcbbf5ae.json y 79a181a6fcbbf5ae.meta.json")
+        print("del directorio passive_analyzer/output/.")
 
 
 def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("accion", choices=["estado", "guardar", "restaurar"])
+    parser.add_argument("accion", choices=["estado", "guardar", "restaurar", "restaurar-integral"])
     parser.add_argument("--confirmar", action="store_true")
     args = parser.parse_args()
     config = configuracion()
@@ -158,13 +166,15 @@ def main():
         print("Base de ensayo:", config["demo"])
         print("Punto de inicio:", "GUARDADO" if (SNAPSHOT / "manifest.json").exists()
               else "NO CREADO")
+        print("Respaldo integral:", "GUARDADO" if (SNAPSHOT.parent / "integral" / "manifest.json").exists()
+              else "NO CREADO")
         print("Salida del analizador: por defecto en passive_analyzer/output/")
     elif args.accion == "guardar":
         guardar(config)
     else:
         if not args.confirmar:
             error("La restauracion requiere --confirmar; detente si hay servicios activos.")
-        restaurar(config)
+        restaurar(config, integral=(args.accion == "restaurar-integral"))
 
 
 if __name__ == "__main__":
