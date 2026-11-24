@@ -40,7 +40,20 @@ def config():
     def effective(key):
         return os.environ.get(key) or values.get(key) or ""
 
-    name = effective("DB_NAME").strip()
+    name_env = (os.environ.get("DB_NAME") or "").strip()
+    name_file = (values.get("DB_NAME") or "").strip()
+    # La terminal puede tener activa la base de ensayo. El archivo .env es
+    # entonces la referencia del nombre ORIGINAL; nunca respaldamos la demo
+    # creyendo que se trata de la base integra.
+    if name_env.endswith("_demo"):
+        if not name_file or name_env != name_file + "_demo":
+            fail(
+                "DB_NAME apunta a una demo que no coincide con "
+                "web_app/backend/.env. Cancelo para proteger los resguardos."
+            )
+        name = name_file
+    else:
+        name = name_env or name_file
     user = effective("DB_USER").strip()
     missing = [key for key, value in (("DB_NAME", name), ("DB_USER", user)) if not value]
     if missing:
@@ -53,10 +66,8 @@ def config():
     if not IDENT.fullmatch(name) or not IDENT.fullmatch(user):
         fail(
             "DB_NAME o DB_USER contiene caracteres no admitidos. "
-            "Solo se permiten letras, numeros y guion bajo."
+            "Solo se permiten letras, numeros, guion bajo y guion medio."
         )
-    if name.endswith("_demo"):
-        fail("DB_NAME ya termina en _demo: activa la base ORIGINAL para crear los resguardos.")
     demo = name + "_demo"
     if not IDENT.fullmatch(demo) or len(demo) > 63 or demo == name:
         fail("No se puede construir un nombre seguro para la base demo.")
