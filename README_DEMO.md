@@ -1,42 +1,40 @@
-# VISOR OT — Guía rápida para ensayar la sustentación
+# VISOR OT — Ensayo reproducible de la sustentación
 
-> Rama: `fix/general`. Este README explica cómo partir del estado **inicio_demo**, completar el recorrido y regresar al inicio tantas veces como haga falta. La documentación detallada está en [DEMO_ESTADOS_RECUPERABLES.md](visor_ot_simulacion_pcap/DEMO_ESTADOS_RECUPERABLES.md).
+**Guía operativa específica de la demo.** El `README.md` principal del proyecto no se modifica para documentar este procedimiento.
 
-## 1. Estados y seguridad
+## 1. Dos elementos independientes
 
-| Estado | Ubicación | Propósito |
-|---|---|---|
-| **Original** | PostgreSQL `visor-ot_db` | Laboratorio íntegro; **no modificar durante la demo**. |
-| **Respaldo integral** | `~/visor_ot_resguardos_demo/integral/` | `database.dump` y copia de los JSON originales. |
-| **Inicio del demo** | `~/visor_ot_resguardos_demo/inicio_demo/` | Punto de partida restaurable para repetir ensayos; se crea una sola vez después de verificar la preparación. |
-| **Trabajo del demo** | PostgreSQL `visor-ot_db_demo` y `~/visor_ot_resguardos_demo/output_activo/` | Aquí se ejecutan las operaciones de prueba. |
+- **Django + worker NVD:** utilizan la base clonada `visor-ot_db_demo` mediante `source ~/visor_ot_resguardos_demo/activar_demo.sh`.
+- **Analizador FastAPI:** utiliza el directorio **habitual** `passive_analyzer/output/`. **No** ejecutes `activar_demo.sh` en la terminal de FastAPI. Al borrar un análisis se quita su estado `ANALYZED`, pero NO su ingesta histórica en PostgreSQL.
+- **Frontend React:** no requiere activar las variables de PostgreSQL; habla con Django.
+- **Base íntegra:** `visor-ot_db`, intacta. El backup creado previamente sigue en `~/visor_ot_resguardos_demo/integral/`. No volver a ejecutar `reset_lab_data`.
 
-**Importante:** `passive_analyzer/output/` es el directorio habitual del repositorio, **no** el output aislado que debe usar FastAPI durante la demostración. Algunos resultados JSON y `.meta.json` históricos están versionados en Git pese al `.gitignore`. No uses `git add -A`, `git restore .`, `git clean` ni hagas commit de esos artefactos sin revisar `git status --short`.
+**Nota:** la herramienta histórica `demo_entornos.py` maneja también un `output_activo` aislado; **este recorrido simplificado no utiliza esa salida**. Para repetir la demo, utiliza `demo_bd.py`, que guarda y restaura **solo PostgreSQL**.
 
-El respaldo integral no incluye los PCAP de `passive_analyzer/pcaps/`. No borres esos archivos: el análisis los necesita.
+## 2. Antes de guardar el punto inicial
 
-## 2. Verificar el estado inicial antes de guardarlo
+Asegúrate de tener la preparación selectiva ya ejecutada, con estos resultados en la **base demo**:
 
-Desde la raíz del repositorio:
+| Dato | Inicio |
+|---|---|
+| Hardware | 11 |
+| Activos | 26 |
+| Ingestas | 1 (día 1) |
+| Comunicaciones | 12 |
+| PLC-MEZ-01 | Sin registrar |
+| PCAP día 1 | Analizado e importado |
+| PCAP día 2 | Pendiente de analizar |
+
+Para comprobar Django, desde la raíz:
 
 ```bash
 cd ~/Desktop/Tesis/visor_ot
-git status --short
 source web_app/backend/.venv/bin/activate
 source ~/visor_ot_resguardos_demo/activar_demo.sh
-echo "$DB_NAME"
-echo "$PASSIVE_ANALYZER_OUTPUT_DIR"
-```
-
-Esperado: `visor-ot_db_demo` y `~/visor_ot_resguardos_demo/output_activo`.
-
-En la misma terminal:
-
-```bash
 cd web_app/backend
 python manage.py shell -c '
 from django.conf import settings
-from assets.models import Asset, Hardware
+from assets.models import Hardware, Asset
 from ingestion.models import Ingestion
 from network.models import Communication
 print("Base:", settings.DATABASES["default"]["NAME"])
@@ -44,47 +42,42 @@ print("Hardware:", Hardware.objects.count())
 print("Activos:", Asset.objects.count())
 print("Ingestas:", Ingestion.objects.count())
 print("Comunicaciones:", Communication.objects.count())
-print("PLC-MEZ-01 registrado:", Asset.objects.filter(name="PLC-MEZ-01").exists())
+print("PLC-MEZ-01:", Asset.objects.filter(name="PLC-MEZ-01").exists())
 '
 ```
 
-**Resultado esperado:** `visor-ot_db_demo`, 11 hardware, 26 activos, 1 ingesta, 12 comunicaciones, `False` para PLC-MEZ-01.
+Esperado: `visor-ot_db_demo`, 11, 26, 1, 12, `False`.
 
-Confirmar el estado de los archivos **aislados**:
+En **VS Code**, deja `passive_analyzer/output/dfa988520c22f876.json` (día 1). Para el día 2 elimina solo `79a181a6fcbbf5ae.json` y `79a181a6fcbbf5ae.meta.json`, si existen. No borres los PCAP. El archivo `dfa988520c22f876.meta.json` del día 1 puede conservarse: si falta, el analizador lo recrea al consultar el hash.
 
-```bash
-test -f "$PASSIVE_ANALYZER_OUTPUT_DIR/dfa988520c22f876.json" && echo 'Día 1: ANALIZADO'
-test ! -f "$PASSIVE_ANALYZER_OUTPUT_DIR/79a181a6fcbbf5ae.json" && echo 'Día 2: PENDIENTE'
-```
+## 3. Guardar el inicio de la demo UNA sola vez
 
-El PCAP del día 2 continúa presente en `passive_analyzer/pcaps/Simulados/`; su JSON se regenerará en vivo. Si falta el JSON del día 1, **no guardes aún el inicio del demo**: revisa la copia integral.
-
-## 3. Guardar el punto de partida (hacer una sola vez)
-
-Detén Django, worker NVD y FastAPI. Para evitar guardar archivos mientras se escriben, ejecuta el respaldo con los servicios detenidos:
+Detén Django y el worker NVD para obtener una instantánea consistente. Desde la raíz, con el entorno Python del backend activado y `DB_NAME=visor-ot_db_demo`:
 
 ```bash
 cd ~/Desktop/Tesis/visor_ot
-bash visor_ot_simulacion_pcap/demo.sh guardar-inicio-demo
-bash visor_ot_simulacion_pcap/demo.sh estado
+web_app/backend/.venv/bin/python visor_ot_simulacion_pcap/demo_bd.py estado
+web_app/backend/.venv/bin/python visor_ot_simulacion_pcap/demo_bd.py guardar
 ```
 
-Debe aparecer `inicio_demo: Guardado`. Este comando no sobrescribe el resguardo previo. Antes de invocarlo, utiliza la versión de `fix/general` que reconoce una terminal con `DB_NAME` terminado en `_demo`.
+Se crea `~/visor_ot_resguardos_demo/inicio_demo_bd/database.dump` junto con su `manifest.json` SHA-256.
 
-## 4. Iniciar todos los procesos apuntando al demo
+**Qué guardamos:** todo PostgreSQL de la demo (inventario, relaciones, usuarios, ingestas, CPE/CVE, evaluaciones). **Qué NO guardamos aquí:** los JSON de FastAPI, PCAP y archivos de código. Esos se gestionan aparte. El respaldo no se sobrescribe accidentalmente.
 
-Ejecuta los servicios en **terminales separadas**. Activa las variables **antes** de iniciar cada proceso. Si ya estaba corriendo un servidor con las variables antiguas, detenlo y reinícialo.
+## 4. Iniciar los procesos para el ensayo
 
-**Terminal A — FastAPI (puerto 8001)**
+Inicia cada proceso desde una terminal diferente. Si ya estaba ejecutándose, deténlo y arráncalo de nuevo para aplicar las variables correctas.
+
+**Terminal A — FastAPI en modo habitual**, sin `activar_demo.sh`:
 
 ```bash
 cd ~/Desktop/Tesis/visor_ot/passive_analyzer
 source .venv/bin/activate
-source ~/visor_ot_resguardos_demo/activar_demo.sh
+unset PASSIVE_ANALYZER_OUTPUT_DIR
 python -m uvicorn api:app --host 127.0.0.1 --port 8001
 ```
 
-**Terminal B — Backend Django (puerto 8000)**
+**Terminal B — Backend Django (base demo)**:
 
 ```bash
 cd ~/Desktop/Tesis/visor_ot/web_app/backend
@@ -93,7 +86,7 @@ source ~/visor_ot_resguardos_demo/activar_demo.sh
 python manage.py runserver 127.0.0.1:8000
 ```
 
-**Terminal C — Worker NVD**
+**Terminal C — Worker NVD (misma base demo)**:
 
 ```bash
 cd ~/Desktop/Tesis/visor_ot/web_app/backend
@@ -102,56 +95,54 @@ source ~/visor_ot_resguardos_demo/activar_demo.sh
 python manage.py run_cpe_worker
 ```
 
-**Terminal D — Frontend React (puerto 5173)**
+**Terminal D — React**:
 
 ```bash
 cd ~/Desktop/Tesis/visor_ot/web_app/frontend
 npm run dev
 ```
 
-La interfaz queda en `http://localhost:5173`. Para verificar los PCAP en FastAPI: `http://127.0.0.1:8001/api/v1/pcaps/`. Debe aparecer el día 1 `ANALYZED` y el día 2 `PENDING`.
+Interfaz: http://localhost:5173. Consulta directa de estado FastAPI: http://127.0.0.1:8001/api/v1/pcaps/.
 
-## 5. Recorrido de ensayo
+**Precaución:** si abres la terminal de FastAPI desde una terminal que ya tenía `source activar_demo.sh`, `unset PASSIVE_ANALYZER_OUTPUT_DIR` garantiza que vuelva a `passive_analyzer/output/`. FastAPI toma este valor al iniciar el proceso.
 
-1. **Operadora Paula:** abrir Inventario e importar una **copia** de `datos_sinteticos.xlsx`, con la celda `id_visor_ot` del hardware PLC-MEZ-01 vacía. Revisar la vista previa y confirmar solamente ese registro. Las otras filas deben coincidir con el inventario o quedar omitidas, según sus datos.
-2. **Operadora Paula:** registrar los vínculos manuales del nuevo PLC: firmware `FW-S7-1200-V4.4.0`, interfaz con MAC `00:1c:06:01:d4:23` y sistema OT de preparación y mezcla. El Excel **no** reconstruye automáticamente esas relaciones.
-3. **Analista:** en Análisis pasivo, pulsar **Analizar** para el PCAP del día 2 y luego **Importar** la evidencia. Comprobar el cambio de 12 a 16 comunicaciones consolidadas.
-4. **Analista:** filtrar por `PLC-MEZ-01`, explicar flujos habituales frente a los nuevos, y clasificar por lo menos una comunicación nueva conforme a la política del laboratorio. No confundir `evidencias=2` con autorización automática.
-5. **Analista:** buscar y confirmar el CPE del PLC, revisar CVE candidatas y evaluar su aplicabilidad. Las consultas pueden tardar o reutilizar cachés; **no está garantizado** reproducir el mismo total de CVE del respaldo.
-6. **Analista:** generar el PDF de diagnóstico de seguridad y mostrar la matriz de priorización y la ficha del PLC. Si NVD tarda, usar una copia integral del informe como evidencia de respaldo, indicándolo expresamente.
+## 5. Recorrido previsto
 
-Recomendación: dos perfiles de navegador ya iniciados (operadora y analista), con pestañas separadas.
+1. **Paula (operadora):** importa **una copia** de `datos_sinteticos.xlsx` con la celda `id_visor_ot` vacía únicamente en la fila de PLC-MEZ-01. Asegúrate de que sea el único hardware nuevo. El firmware del PLC sigue inventariado.
+2. **Paula:** vincula manualmente firmware `FW-S7-1200-V4.4.0`, interfaz MAC `00:1c:06:01:d4:23` y Sistema de preparación y mezcla.
+3. **Analista:** analiza e importa el PCAP del día 2. El resultado esperado pasa de 12 a 16 comunicaciones consolidadas.
+4. **Analista:** filtra las comunicaciones del PLC, distingue las observadas en ambas jornadas de las nuevas y clasifica alguna de ellas. El estado de autorización requiere decisión humana.
+5. **Analista:** busca y confirma CPE del PLC; consulta CVE y muestra ejemplos de aplicabilidad automática y revisión del analista. NVD puede tardar, cambiar resultados o utilizar caché.
+6. **Analista:** genera y revisa el diagnóstico de seguridad. El informe original íntegro puede utilizarse como respaldo si NVD no responde.
 
-## 6. Volver AL INICIO DEL DEMO para repetir el ensayo
+## 6. Repetir el ensayo: volver al inicio
 
-**Detén Django, FastAPI y el worker NVD antes de restaurar**. Desde la raíz:
-
-```bash
-cd ~/Desktop/Tesis/visor_ot
-bash visor_ot_simulacion_pcap/demo.sh restaurar-inicio-demo --confirmar
-```
-
-Esto restaura `visor-ot_db_demo` **y** reemplaza `~/visor_ot_resguardos_demo/output_activo/` con la copia inicial. La base `visor-ot_db` no se modifica. Después vuelve a iniciar los procesos del apartado 4, con `activar_demo.sh` en sus terminales.
-
-## 7. Recuperar el estado íntegro SOLO EN LA COPIA DEMO
-
-Si deseas investigar cómo estaba el laboratorio antes de retirar el PLC y la segunda ingesta:
+**Detén Django y worker NVD antes de restaurar** (por precaución, también FastAPI mientras preparas los JSON).
 
 ```bash
 cd ~/Desktop/Tesis/visor_ot
-bash visor_ot_simulacion_pcap/demo.sh restaurar-integral-demo --confirmar
+source web_app/backend/.venv/bin/activate
+source ~/visor_ot_resguardos_demo/activar_demo.sh
+web_app/backend/.venv/bin/python visor_ot_simulacion_pcap/demo_bd.py restaurar --confirmar
 ```
 
-**No restaura ni sobrescribe `visor-ot_db`: únicamente cambia `visor-ot_db_demo` y el output aislado**. Para volver al escenario parcial, utiliza `restaurar-inicio-demo --confirmar`.
+**Qué hace:** recupera únicamente el punto guardado en `visor-ot_db_demo`. No cambia la base original, ni los PCAP, ni el directorio `passive_analyzer/output/`.
 
-## 8. Notas sobre los JSON, las fechas y Git
+**Después, en VS Code:** elimina `79a181a6fcbbf5ae.json` y `79a181a6fcbbf5ae.meta.json` del analizador para que el día 2 vuelva a aparecer **Pendiente**. Conserva el JSON del día 1. Vuelve a iniciar los procesos del apartado 4.
 
-- La presencia de `<pcap_id>.json` determina el estado `ANALYZED` de FastAPI. La ingesta Django está en PostgreSQL: borrar un JSON **no elimina** una ingesta existente.
-- Reanalizar el mismo PCAP normalmente conserva las marcas de primera y última observación registradas en sus paquetes. Las fechas administrativas de la nueva ingesta y los metadatos de los archivos sí pueden cambiar.
-- El día 1 debe seguir **analizado e importado**. El día 2 debe estar **pendiente y no importado** al iniciar.
-- Si borraste archivos en `passive_analyzer/output/` del repositorio (en vez del output aislado), el snapshot integral conserva una copia, pero el árbol Git local puede mostrar modificaciones (`M`) o eliminaciones (`D`). **No es necesario restaurar esos archivos originales para ejecutar el demo aislado**. Revisa `git status --short` antes de `git pull` y evita versionar cambios accidentales.
-- El archivo `inicio_demo/database.dump` y los JSON derivados no se suben al repositorio: son datos locales de ensayo.
+## 7. Git y los JSON
 
-## 9. Si aparece un error
+`.gitignore` ya contiene `/passive_analyzer/output/`. Los antiguos JSON permanecían seguidos porque estaban añadidos al índice antes de introducir esa regla. El commit de limpieza los retira **del repositorio**, no representa una orden para borrarlos de tu entorno. Sin embargo, **un `git pull` puede borrar o entrar en conflicto con archivos que antes eran seguidos**, por lo que conviene respaldarlos antes de actualizar:
 
-Comprueba primero el valor de `DB_NAME` **en la terminal del proceso que falló**. Debe ser `visor-ot_db_demo`. Conserva la salida del error, detén los servicios y restaura el snapshot inicial si es necesario. No uses `reset_lab_data`, SQL `CASCADE` ni comandos de limpieza general.
+```bash
+cd ~/Desktop/Tesis/visor_ot
+mkdir -p ~/visor_ot_resguardos_demo/output_local_pre_git
+cp -a passive_analyzer/output/. ~/visor_ot_resguardos_demo/output_local_pre_git/
+git status --short
+```
+
+Si hay cambios en `output/` y no puedes hacer `git pull`, guarda temporalmente los cambios seguidos con `git stash push -m "salida local analizador" -- passive_analyzer/output`, actualiza la rama y **recupera los archivos desde la copia `output_local_pre_git`**, no mediante `git stash pop` (los archivos ya no estarán seguidos). Inspecciona los otros cambios antes de cualquier actualización; no utilices `git reset --hard`.
+
+Comprobación posterior: `git ls-files passive_analyzer/output` debe mostrar **cero archivos**. A partir de entonces crear o borrar JSON no debería producir marcas `M` o `D`.
+
+**Nunca subas a GitHub los dumps de PostgreSQL.** Tampoco uses `reset_lab_data` o `DELETE CASCADE` para preparar ensayos.
