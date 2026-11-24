@@ -96,7 +96,6 @@ Con Django ejecutándose localmente, acceder a **[http://127.0.0.1:8000/admin/](
 
 ## Reproducir la demostración de laboratorio
 
-**Sustentación con estados recuperables:** consulta [README_DEMO.md](README_DEMO.md) para ejecutar el recorrido con `visor-ot_db_demo`, aislar los resultados del analizador y restaurar la demo entre ensayos. El siguiente procedimiento genera PCAP sintéticos desde cero y es independiente del escenario preconfigurado.
 
 El generador no envía paquetes a la red y usa únicamente la biblioteca estándar de Python.
 
