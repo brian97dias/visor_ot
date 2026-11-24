@@ -38,6 +38,8 @@ python visor_ot_simulacion_pcap/demo_bd.py restaurar-integral --confirmar
 
 **Ambos comandos modifican únicamente `visor-ot_db_demo`, NUNCA `visor-ot_db`.** Se restauran desde los respaldos locales; no modifican los JSON de FastAPI. Para regresar del estado íntegro al inicio del demo, ejecuta el comando **A**.
 
+Después de restaurar el estado íntegro, si el PCAP del día 2 figura pendiente en FastAPI pero importado en Django, vuelve a pulsar **Analizar** para regenerar su JSON; no necesitas importar nuevamente.
+
 Tras restaurar al inicio, elimina manualmente **solo** los resultados del segundo día en `passive_analyzer/output/`:
 - `79a181a6fcbbf5ae.json`
 - `79a181a6fcbbf5ae.meta.json`
