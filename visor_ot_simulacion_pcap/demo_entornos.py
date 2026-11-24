@@ -21,7 +21,7 @@ REPO = Path(__file__).resolve().parents[1]
 ENV_FILE = REPO / "web_app" / "backend" / ".env"
 DEFAULT_OUTPUT = REPO / "passive_analyzer" / "output"
 STORAGE = Path.home() / "visor_ot_resguardos_demo"
-IDENT = re.compile(r"^[A-Za-z_][A-Za-z_0-9]*$")
+IDENT = re.compile(r"^[A-Za-z_][A-Za-z_0-9-]*$")
 
 
 def fail(message):
